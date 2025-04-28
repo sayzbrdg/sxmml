@@ -1,0 +1,69 @@
+= sxmmlリファレンス
+:toc: left
+
+本書は、sxmmlのリファレンスを記載するものである。
+
+== Module: sxmml
+
+== Module: sxmml.compiler
+
+=== Macro: mml tracks string ...
+
+stringをそれぞれコンパイルした結果をtracksに登録する。
+stringはsxmmlのMMLコマンドで構成された文字列である必要がある。
+
+tracksは以下の形式のどれかでなければならない。
+
+`NAME`::
+この形式では1つのトラックを表すシンボルを指定する。
+
+`(NAME ...)`::
+この形式ではトラックを表すシンボルをリスト形式で複数指定する。指定されたそれぞれのトラックにstringのコンパイル結果が登録される。
+
+== Module: sxmml.processor
+
+=== Macro mml-delay tracks parameters string ...
+
+stringのmml文字列内の音符が指定の音長より長い音符の時、指定音長経過の度に指定の音量ずつ下げて発音することで単独トラックで疑似ディレイを実現する。
+
+tracksは<<_Macro: mml tracks string ...,mml>>マクロと同様の形式でなければならない。
+
+parametersは以下の形式で指定する。
+
+`(TICKS FIRST REPEAT)`::
+TICKSは再発音までの遅延時間をtick数で指定する。FIRSTは最初の再発音時に減らすボリューム値、REPEATはその後の再発音時に減らすボリューム値を指定する。
+
+=== Macro mml-echo tracks parameters string ...
+
+string内の音符の長さを半分にし、1つ前の音を発音することで、疑似エコーを実現する。
+
+tracksは<<_Macro: mml tracks string ...,mml>>マクロと同様の形式でなければならない。
+
+parametersは以下の形式で指定する。
+
+`(NOTE VOLUME REST)`::
+NOTEは最初の音符を半分にした後半に発音する音符を指定する。VOLUMEは1つ前の音を発音する時の音量の減少量を指定する。RESTは休符の時に再発音する1つ前の音の音量減少量を指定する。
+
+== Macro mml-repeat tracks count clause1 [clause2 clause3]
+
+mmlコマンドで `[clause1:clause2]count` と記述するのと同じ意味である。
+
+clause3はtracksのうち一部のトラックのみリピートから脱出したい場合に以下の形式で使用する。
+
+`((TRACK ...) MML ...)`::
+TRACKは脱出したいトラックを表すシンボルをリスト形式で複数指定する。MMLは脱出するトラックのmmlを記述する。
+
+以下に使用例を示す。
+
+```
+(mml-repeat (A B C) 4 
+  ((mml (A B C) "cdefg"))
+  ((mml A "ab"))
+  ((B C) (mml (B C) "ab")))
+```
+これは以下の様に展開される。
+
+```
+(mml A "[cdefgab]4")
+(mml (B C) "[cdefg:ab]4")
+```

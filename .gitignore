@@ -1,0 +1,8 @@
+# configure
+Makefile
+VERSION
+config.log
+sxmml.gpd
+
+# generating files
+sxlc

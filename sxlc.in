@@ -1,0 +1,124 @@
+;;; Copyright (c) 2024-2025 Seiji Ohashi <sayzbrdg@gmail.com>
+;;; All rights reserved.
+;;;
+;;; Redistribution and use in source and binary forms, with or without
+;;; modification, are permitted provided that the following conditions
+;;; are met:
+;;;
+;;;  1. Redistributions of source code must retain the above copyright
+;;;     notice, this list of conditions and the following disclaimer.
+;;;  2. Redistributions in binary form must reproduce the above copyright
+;;;     notice, this list of conditions and the following disclaimer in the
+;;;     documentation and/or other materials provided with the distribution.
+;;;  3. Neither the name of the authors nor the names of its contributors
+;;;     may be used to endorse or promote products derived from this
+;;;     software without specific prior written permission.
+;;;
+;;; THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+;;; "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+;;; LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+;;; A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+;;; HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+;;; SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED
+;;; TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+;;; PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+;;; LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+;;; NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+;;; SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+(use sxmml)
+(use gauche.parseopt)
+(use gauche.package)
+(use gauche.process)
+(use file.util)
+
+(define (main argv)
+  (let-args (cdr argv)
+      ([mode "m|mode=y" #f]
+       [optimize "O|optimize=i" 1]
+       [cmd "c|command=s" #f]
+       [wsl "w|wsl" #f]
+       [#f "l|list" => %backend-list]
+       [#f "h|help" => (^[] (%usage 0))]
+       [#f "v|version" => %version]
+       . args)
+    (when (null? args)
+      (format (current-error-port) "no source file specified\n")
+      (%usage 1))
+    (parameterize ([sxmml-source-file (sys-normalize-pathname (car args) :absolute #t)]
+                   [sxmml-output-file (path-swap-extension (car args) "sxo")])
+      (when mode
+        ((eval mode (interaction-environment))))
+      (load (sxmml-source-file))
+      (unless (slot-ref (sxmml-environment) 'backend)
+        (error "backend is not specified by option or source file" ))
+      (slot-set! (sxmml-environment) 'optimize (cond [(>= optimize 2) :full]
+                                                     [(> optimize 0) #t]
+                                                     [else #f]))
+      (format #t "Translate: ~a => ~a\n" (sxmml-source-file) (sxmml-output-file))
+      (format #t "Processing Mode: ~a\n" (slot-ref (sxmml-environment) 'mode))
+      (format #t "Optimize level: ~d\n\n" optimize)
+      ((slot-ref (sxmml-environment) 'backend))
+      (%print-ticks-information)
+      (when cmd
+        (let ([cmd-line (string-append cmd " " (if wsl
+                                                 (shell-escape-string
+                                                  (process-output->string (list "wslpath" "-aw" (sxmml-output-file))))
+                                                 (sxmml-output-file)))])
+          (format #t "Post process: ~a\n\n" cmd-line)
+          (for-each print (process-output->string-list (shell-tokenize-string cmd-line)
+                                                       :encoding "shift_jis" :on-abnormal-exit :ignore :error :merge))
+          (newline)))
+      0)))
+
+(define (%usage code)
+  (display "Usage: sxlc [-whlv] [-O opt_lv] [-m mode] [-c command] file\n\n")
+  (display "Options:\n")
+  (format #t "    ~12a Set the optimize level to \"opt_lv\".\n" "-O opt_lv")
+  (format #t "    ~12a Set the processing to \"mode\".\n" "-m mode")
+  (format #t "    ~12a Execute \"command\" as a post process.\n" "-c command")
+  (format #t "    ~12a If used with the -c option, \"wslpath\" is used to convert to a Windows path.\n" "-w")
+  (format #t "    ~12a Print backend modules list.\n" "-l")
+  (format #t "    ~12a Print version.\n" "-v")
+  (format #t "    ~12a Print this message.\n" "-h")
+  (newline)
+  (exit code))
+
+(define (%version)
+  (format #t "sxmml translator version ~a\n\n"
+          (slot-ref (find-gauche-package-description "sxmml") 'version))
+  (exit 0))
+
+(define (%backend-list)
+  (format #t "sxmml available modules:\n\n")
+  (library-for-each 'sxmml.backend.* (^[m p] (format #t "  ~a:\n    \"~a\"\n" m p)))
+  (newline)
+  (exit 0))
+
+(define (%print-ticks-information)
+  (let1 track-ht (slot-ref (sxmml-environment) 'track)
+    (for-each (^c (let1 track (hash-table-get track-ht c)
+                    (when (> (slot-ref track 'total-ticks) 0)
+                      (format #t "Track ~a: total: ~a" c (slot-ref track 'total-ticks))
+                      (when (> (slot-ref track 'total-ticks) (slot-ref track 'loop-ticks))
+                        (format #t " / loop: ~a" (slot-ref track 'loop-ticks)))
+                      (newline))))
+              (sort (hash-table-keys (slot-ref (sxmml-environment) 'track))
+                    (^[x y] (string<? (x->string x) (x->string y)))))
+    (newline)))
+
+(define-syntax use-backend
+  (er-macro-transformer
+    (^[form rename id=?]
+      (let ([backends (library-fold 'sxmml.backend.* (^[m _ r] (cons m r)) ())])
+        (reverse (fold (^[m r]
+                         (cons (quasirename rename
+                                 `(use ,m))
+                               r))
+                       '(begin)
+                       backends))))))
+(use-backend)
+
+; Local Variables:
+; mode: scheme
+; End:

@@ -1,0 +1,69 @@
+# General info
+SHELL       = @SHELL@
+prefix      = @prefix@
+exec_prefix = @exec_prefix@
+bindir      = @bindir@
+libdir      = @libdir@
+datadir     = @datadir@
+datarootdir = @datarootdir@
+srcdir      = @srcdir@
+VPATH       = $(srcdir)
+
+# These may be overridden by make invocators
+DESTDIR        =
+GOSH           = "@GOSH@"
+GAUCHE_CONFIG  = "@GAUCHE_CONFIG@"
+GAUCHE_PACKAGE = "@GAUCHE_PACKAGE@"
+INSTALL        = "@GAUCHE_INSTALL@" -S '$(srcdir)' -C
+
+# Module-specific stuff
+PACKAGE   = sxmml
+
+TARGET    = sxlc
+SCMFILES  = sxmml.scm sxmml/classes.scm sxmml/environment.scm sxmml/voice.scm sxmml/mml.scm \
+            sxmml/compiler.scm sxmml/processor.scm sxmml/optimizer.scm sxmml/util.scm\
+            sxmml/backend/pmd.scm
+
+GENERATED =
+CONFIG_GENERATED = Makefile config.cache config.log config.status \
+		   configure.lineno autom4te*.cache $(PACKAGE).gpd
+
+GAUCHE_PKGINCDIR  = "$(DESTDIR)@GAUCHE_PKGINCDIR@"
+GAUCHE_PKGLIBDIR  = "$(DESTDIR)@GAUCHE_PKGLIBDIR@"
+GAUCHE_PKGARCHDIR = "$(DESTDIR)@GAUCHE_PKGARCHDIR@"
+
+all : $(TARGET)
+
+check : all
+	@rm -f test.log
+	$(GOSH) -I. -I$(srcdir) $(srcdir)/test.scm > test.log
+
+install : all
+	$(INSTALL) -m 555 -T $(bindir) $(TARGET)
+	$(INSTALL) -m 444 -T $(GAUCHE_PKGLIBDIR) $(SCMFILES)
+	$(INSTALL) -m 444 -T $(GAUCHE_PKGLIBDIR)/.packages $(PACKAGE).gpd
+
+uninstall :
+	$(INSTALL) -U $(bindir) $(TARGET)
+	$(INSTALL) -U $(GAUCHE_PKGLIBDIR) $(SCMFILES)
+	$(INSTALL) -U $(GAUCHE_PKGLIBDIR)/.packages $(PACKAGE).gpd
+
+clean :
+	rm -rf core $(TARGET) $(GENERATED) *~ test.log so_locations
+
+distclean : clean
+	rm -rf $(CONFIG_GENERATED)
+
+maintainer-clean : clean
+	rm -rf $(CONFIG_GENERATED)  VERSION
+
+sxlc : sxlc.in
+	@rm -f sxlc
+	echo "#!$(GOSH)" > sxlc && \
+	cat $(srcdir)/sxlc.in >> sxlc
+	@chmod -w+x sxlc
+
+
+# Local variables:
+# mode: Makefile
+# end:
