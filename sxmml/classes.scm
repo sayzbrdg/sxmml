@@ -70,7 +70,7 @@
    [envelope-placed? :init-value #f]
    [lfo :init-value #f]
    [lfo-placed? :init-value #f]
-   [lfo-switch :init-value #f]
+   [lfo-switch :init-value 'init]
    [lfo-switch-placed? :init-value #f]
    [repeat-depth :init-value 0]))
 
