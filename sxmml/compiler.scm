@@ -51,7 +51,7 @@
 
 (define (sxmml-compile-string parser str ctx)
   (unless (string? str)
-    (error "string is expected, but something else is given: " track str))
+    (error "string is expected, but something else is given: " (slot-ref ctx 'track) str))
   (guard (e [(is-a? e <parse-error>)
              (let ([rest (tree->string (slot-ref e 'rest))]
                    [ch (slot-ref ctx 'track)])
