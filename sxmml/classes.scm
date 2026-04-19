@@ -52,7 +52,6 @@
 (define-class <sxmml-optimize-environment> ()
   ([inter-objects :init-form (make-hash-table eq-comparator)]
    [objects-order :init-form (make-tree-map integer-comparator)]
-   [current-ticks :init-form (acons 0 0 ())]
    ))
 
 (define-class <sxmml-optimize-2path-context> ()
@@ -84,8 +83,10 @@
    [volume-delta :init-value 1 :init-keyword :volume-delta]
    [current-octave :init-value 4 :init-keyword :current-octave]
    [current-transpose :init-value 0 :init-keyword :current-transpose]
+   [current-ticks :init-form (acons 0 0 ())]
    [total-ticks :init-value 0 :init-keyword :total-ticks]
    [loop-ticks :init-value 0 :init-keyword :loop-ticks]
+   [loop-exists? :init-value #f :init-keyword :loop-exists]
    [compiled-data :init-value ()]
    [repeat-stack :init-value ()]
    ))

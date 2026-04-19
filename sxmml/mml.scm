@@ -158,9 +158,10 @@
   ($let ([o $notename]
          [t $duration]
          [$SPC])
-        ($return
-         (begin (slot-set! o 'ticks t)
-                o))))
+        (let1 ct (car (slot-ref (sxmml-mml-context) 'current-ticks))
+          (set! (car ct) (+ t (car ct)))
+          (slot-set! o 'ticks t)
+          ($return o))))
 
 ;; general command
 (define-inline $LENGTH (mml-env-command->$ $NUMPARAM 'default-length rope->number))
@@ -211,17 +212,27 @@
 (hash-table-set! *note-command* #\D $DETUNE)
 (define $LOOP
   ($%return
-   (make <sxmml-mml-loop>)))
+   (begin (slot-set! (sxmml-mml-context) 'loop-exists? #t)
+          (let loop ([rest (slot-ref (sxmml-mml-context) 'current-ticks)]
+                     [buf 0])
+            (if (null? (cdr rest))
+              (set! (cdar rest) (+ (caar rest) buf))
+              (loop (cdr rest) (+ (caar rest) buf))))
+          (make <sxmml-mml-loop>))))
 (hash-table-set! *note-command* #\L $LOOP)
 
 (define $REPEAT-START
   ($%return
    (begin (slot-push! (sxmml-mml-context) 'repeat-stack #f)
+          (slot-set! (sxmml-mml-context) 'current-ticks
+                     (acons 0 0 (slot-ref (sxmml-mml-context) 'current-ticks)))
           (make <sxmml-mml-repeat-start>))))
 (hash-table-set! *note-command* #\[ $REPEAT-START)
 (define $REPEAT-BREAK
   ($%return
    (guard (e [else (error "break command cannot be used outside of repeats")])
+     (let1 ct (car (slot-ref (sxmml-mml-context) 'current-ticks))
+       (set! (cdr ct) (car ct)))
      (slot-pop! (sxmml-mml-context) 'repeat-stack)
      (slot-push! (sxmml-mml-context) 'repeat-stack
                  (list (slot-ref (sxmml-mml-context) 'default-length)
@@ -233,8 +244,14 @@
   ($let ([data $NUMPARAM]
          [$SPC])
         ($return (guard (e [else (error "repeat end appeared before repeat start")])
-                   (let ([rc (rope->number data)]
-                         [ctx-values (slot-pop! (sxmml-mml-context) 'repeat-stack)])
+                   (let* ([rc (rope->number data)]
+                          [ctx-values (slot-pop! (sxmml-mml-context) 'repeat-stack)]
+                          [rt (slot-pop! (sxmml-mml-context) 'current-ticks)]
+                          [ct (slot-ref (sxmml-mml-context) 'current-ticks)]
+                          [cr (- (* (car rt) rc) (if ctx-values
+                                                   (- (car rt) (cdr rt))
+                                                   0))])
+                     (set! (caar ct) (+ (caar ct) cr))
                      (when ctx-values
                        (slot-set! (sxmml-mml-context) 'default-length (car ctx-values))
                        (slot-set! (sxmml-mml-context) 'current-octave (cadr ctx-values))
@@ -296,7 +313,9 @@
             [a2 ($many ($. #[-+]))]
             [($seq $SPC ($. #\}) $SPC)]
             [t $duration])
-           (let ([nn2 (%proc-note-number n2 a2)])
+           (let ([nn2 (%proc-note-number n2 a2)]
+                 [ct (car (slot-ref (sxmml-mml-context) 'current-ticks))])
+             (set! (car ct) (+ t (car ct)))
              ($return (make <sxmml-mml-portament> :value (cons nn1 nn2) :ticks t)))))))
 (hash-table-set! *note-command* #\/ $PORTAMENT)
 
@@ -340,7 +359,9 @@
   ($let ([types $RHYTHM-TYPE]
          [$SPC]
          [t $duration])
-        (let ([args (%rhythm-command-init-value-make types #t)])
+        (let ([args (%rhythm-command-init-value-make types #t)]
+              [ct (car (slot-ref (sxmml-mml-context) 'current-ticks))])
+          (set! (car ct) (+ t (car ct)))
           ($return (apply make <sxmml-rhythm-emit> :value #t :ticks t args)))))
 (hash-table-set! *rhythm-command* #\@ $RHYTHM-ON)
 (define $RHYTHM-OFF
@@ -351,6 +372,8 @@
 (hash-table-set! *rhythm-command* #\! $RHYTHM-OFF)
 (define $RHYTHM-REST
   ($let ([t ($seq $duration)])
+        (let1 ct (car (slot-ref (sxmml-mml-context) 'current-ticks))
+          (set! (car ct) (+ t (car ct))))
         ($return (make <sxmml-mml-rest> :ticks t))))
 (hash-table-set! *rhythm-command* #\r $RHYTHM-REST)
 (define $RHYTHM-VOLUME

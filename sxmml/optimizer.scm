@@ -39,7 +39,10 @@
 ;;;
 
 (define (sxmml-optimize-tree track :key (optimize #t))
-  (let1 env (hash-table-get (slot-ref (sxmml-environment) 'track) track)
+  (let* ([env (hash-table-get (slot-ref (sxmml-environment) 'track) track)]
+         [ct (car (slot-ref env 'current-ticks))])
+    (slot-set! env 'total-ticks (car ct))
+    (slot-set! env 'loop-ticks (- (car ct) (cdr ct)))
     (cond [(eq? optimize :full)
            (%sxmml-optimize-2path (%sxmml-optimize-tree env))]
           [optimize
@@ -70,14 +73,9 @@
                            [(any ($ is-a? (car rest) $) (list <sxmml-mml-volume-change>)) ; sum values
                             (object-sum-update! env (car rest))
                             (recur (cdr rest) objs)]
-                           [(is-a? (car rest) <sxmml-mml-note>)
-                            (recur (cdr rest) (append (note-store env (car rest)) objs))]
-                           [(is-a? (car rest) <sxmml-mml-repeat-start>)
-                            (recur (cdr rest) (append (repeat-start-store env (car rest)) objs))]
-                           [(is-a? (car rest) <sxmml-mml-repeat-end>)
-                            (recur (cdr rest) (append (repeat-end-store env (car rest)) objs))]
-                           [(any ($ is-a? (car rest) $) (list <sxmml-mml-loop> <sxmml-mml-repeat-break>)) ; store data
-                            (recur (cdr rest) (append (loop-store env (car rest)) objs))]
+                           [(any ($ is-a? (car rest) $) (list <sxmml-mml-note> <sxmml-mml-loop> <sxmml-mml-repeat-start>
+                                                              <sxmml-mml-repeat-end> <sxmml-mml-repeat-break>))
+                            (recur (cdr rest) (append (object-store env (car rest)) objs))]
                            [(is-a? (car rest) <sxmml-mml-nop>)
                             (recur (cdr rest) objs)]
                            [(any ($ is-a? (car rest) $) (list <sxmml-rhythm-volume> <sxmml-rhythm-pan>)) ; rhythm update
@@ -90,8 +88,7 @@
                             (object-set! env (car rest))
                             (recur (cdr rest) objs)]
                            ))])
-     (append (last-store env mmlenv) optobjs))))
-
+     (append (object-store env (eof-object)) optobjs))))
 
 (define (object-sum-update! env obj)
   (let ([class (class-of obj)]
@@ -102,40 +99,6 @@
       (begin
         (hash-table-set! ht class obj)
         (tree-map-put! tm (tree-map-num-entries tm) class)))))
-
-(define (note-store env obj)
-  (let ([p (car (slot-ref env 'current-ticks))]
-        [t (slot-ref obj 'ticks)])
-    (set! (car p) (+ (or t 0) (car p))) ; rhythm-off doesn't have ticks data
-    (set! (cdr p) (+ (or t 0) (cdr p))))
-  (object-store env obj))
-
-(define (loop-store env obj)
-  (let1 p (car (slot-ref env 'current-ticks))
-    (set! (cdr p) 0))
-  (object-store env obj))
-
-(define (repeat-start-store env obj)
-  (let1 p (slot-ref env 'current-ticks)
-    (slot-set! env 'current-ticks (acons 0 0 p)))
-  (object-store env obj))
-
-(define (repeat-end-store env obj)
-  (let* ([p (slot-ref env 'current-ticks)]
-         [rc (slot-ref obj 'value)]
-         [cp (cadr p)]
-         [c1 (caar p)]
-         [c2 (cdar p)]
-         [cs (- (* c1 rc) (if (= c1 c2) 0 c2))])
-    (set! (caadr p) (+ (caadr p) cs))
-    (set! (cdadr p) (+ (cdadr p) cs))
-    (slot-set! env 'current-ticks (cdr p)))
-  (object-store env obj))
-
-(define (last-store env mmlenv)
-  (slot-set! mmlenv 'total-ticks (caar (slot-ref env 'current-ticks)))
-  (slot-set! mmlenv 'loop-ticks (cdar (slot-ref env 'current-ticks)))
-  (object-store env (eof-object)))
 
 (define (object-store env obj)
   (let ([class (class-of obj)]

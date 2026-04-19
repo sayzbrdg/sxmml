@@ -100,7 +100,7 @@
     (for-each (^c (let1 track (hash-table-get track-ht c)
                     (when (> (slot-ref track 'total-ticks) 0)
                       (format #t "Track ~a: total: ~a" c (slot-ref track 'total-ticks))
-                      (when (> (slot-ref track 'total-ticks) (slot-ref track 'loop-ticks))
+                      (when (slot-ref track 'loop-exists?)
                         (format #t " / loop: ~a" (slot-ref track 'loop-ticks)))
                       (newline))))
               (sort (hash-table-keys (slot-ref (sxmml-environment) 'track))
