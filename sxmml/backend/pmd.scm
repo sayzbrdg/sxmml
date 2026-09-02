@@ -42,6 +42,15 @@
 (select-module sxmml.backend.pmd)
 
 ;;;
+;;; class
+;;;
+(define-class <sxmml-pmd-track-environment> ()
+  ([octave :init-keyword :octave :init-value 255]))
+
+(define sxmml-pmd-track-environment
+  (make-parameter #f))
+
+;;;
 ;;; mode
 ;;;
 (define (pmd3-source)
@@ -112,80 +121,81 @@
       (display "\r\n\r\n"))))
 
 (define (%pmd-track-generate lis voiceproc volproc volcproc)
-  (let loop ([rest lis])
-    (cond [(null? rest)
-           ()]
-          [(is-a? (car rest) <sxmml-mml-rest>)
-           (%pmd-rest-set! (car rest))
-           (loop (cdr rest))]
-          [(is-a? (car rest) <sxmml-mml-portament>)
-           (%pmd-portament-set! (car rest))
-           (loop (cdr rest))]
-          [(is-a? (car rest) <sxmml-mml-note>)
-           (%pmd-note-set! (car rest))
-           (loop (cdr rest))]
-          [(is-a? (car rest) <sxmml-mml-voice>)
-           (voiceproc (car rest))
-           (loop (cdr rest) )]
-          [(is-a? (car rest) <sxmml-mml-gatetime>)
-           (%pmd-gatetime-set! (car rest))
-           (loop (cdr rest))]
-          [(is-a? (car rest) <sxmml-mml-volume>)
-           (volproc (car rest))
-           (loop (cdr rest))]
-          [(is-a? (car rest) <sxmml-mml-tempo-absolute>)
-           (%pmd-tempo-absolute-set! (car rest))
-           (loop (cdr rest))]
-          [(is-a? (car rest) <sxmml-mml-tempo>)
-           (%pmd-tempo-set! (car rest))
-           (loop (cdr rest))]
-          [(is-a? (car rest) <sxmml-mml-tie>)
-           (%pmd-tie-set! (car rest))
-           (loop (cdr rest))]
-          [(is-a? (car rest) <sxmml-mml-detune>)
-           (%pmd-detune-set! (car rest))
-           (loop (cdr rest))]
-          [(is-a? (car rest) <sxmml-mml-repeat-start>)
-           (%pmd-repeat-start-set! (car rest))
-           (loop (cdr rest))]
-          [(is-a? (car rest) <sxmml-mml-repeat-end>)
-           (%pmd-repeat-end-set! (car rest))
-           (loop (cdr rest))]
-          [(is-a? (car rest) <sxmml-mml-repeat-break>)
-           (%pmd-repeat-break-set! (car rest))
-           (loop (cdr rest))]
-          [(is-a? (car rest) <sxmml-mml-loop>)
-           (%pmd-loop-set! (car rest))
-           (loop (cdr rest))]
-          [(is-a? (car rest) <sxmml-mml-transpose>)
-           (%pmd-transpose-set! (car rest))
-           (loop (cdr rest))]
-          [(is-a? (car rest) <sxmml-mml-lfo-switch>)
-           (%pmd-lfo-switch-set! (car rest))
-           (loop (cdr rest))]
-          [(is-a? (car rest) <sxmml-mml-lfo>)
-           (%pmd-lfo-set! (car rest))
-           (loop (cdr rest))]
-          [(is-a? (car rest) <sxmml-mml-envelope>)
-           (%pmd-envelope-set! (car rest))
-           (loop (cdr rest))]
-          [(is-a? (car rest) <sxmml-mml-pan>)
-           (%pmd-pan-set! (car rest))
-           (loop (cdr rest))]
-          [(is-a? (car rest) <sxmml-mml-transpose-change>)
-           (%pmd-transpose-change-set! (car rest))
-           (loop (cdr rest))]
-          [(is-a? (car rest) <sxmml-mml-volume-change>)
-           (volcproc (car rest))
-           (loop (cdr rest))]
-          [(is-a? (car rest) <sxmml-mml-noise-frequency>)
-           (%pmd-noise-freq-set! (car rest))
-           (loop (cdr rest))]
-          [(is-a? (car rest) <sxmml-mml-output-switch>)
-           (%pmd-output-switch-set! (car rest))
-           (loop (cdr rest))]
-          [else
-           (loop (cdr rest))])))
+  (parameterize ([sxmml-pmd-track-environment (make <sxmml-pmd-track-environment>)])
+    (let loop ([rest lis])
+      (cond [(null? rest)
+             ()]
+            [(is-a? (car rest) <sxmml-mml-rest>)
+             (%pmd-rest-set! (car rest))
+             (loop (cdr rest))]
+            [(is-a? (car rest) <sxmml-mml-portament>)
+             (%pmd-portament-set! (car rest))
+             (loop (cdr rest))]
+            [(is-a? (car rest) <sxmml-mml-note>)
+             (%pmd-note-set! (car rest))
+             (loop (cdr rest))]
+            [(is-a? (car rest) <sxmml-mml-voice>)
+             (voiceproc (car rest))
+             (loop (cdr rest) )]
+            [(is-a? (car rest) <sxmml-mml-gatetime>)
+             (%pmd-gatetime-set! (car rest))
+             (loop (cdr rest))]
+            [(is-a? (car rest) <sxmml-mml-volume>)
+             (volproc (car rest))
+             (loop (cdr rest))]
+            [(is-a? (car rest) <sxmml-mml-tempo-absolute>)
+             (%pmd-tempo-absolute-set! (car rest))
+             (loop (cdr rest))]
+            [(is-a? (car rest) <sxmml-mml-tempo>)
+             (%pmd-tempo-set! (car rest))
+             (loop (cdr rest))]
+            [(is-a? (car rest) <sxmml-mml-tie>)
+             (%pmd-tie-set! (car rest))
+             (loop (cdr rest))]
+            [(is-a? (car rest) <sxmml-mml-detune>)
+             (%pmd-detune-set! (car rest))
+             (loop (cdr rest))]
+            [(is-a? (car rest) <sxmml-mml-repeat-start>)
+             (%pmd-repeat-start-set! (car rest))
+             (loop (cdr rest))]
+            [(is-a? (car rest) <sxmml-mml-repeat-end>)
+             (%pmd-repeat-end-set! (car rest))
+             (loop (cdr rest))]
+            [(is-a? (car rest) <sxmml-mml-repeat-break>)
+             (%pmd-repeat-break-set! (car rest))
+             (loop (cdr rest))]
+            [(is-a? (car rest) <sxmml-mml-loop>)
+             (%pmd-loop-set! (car rest))
+             (loop (cdr rest))]
+            [(is-a? (car rest) <sxmml-mml-transpose>)
+             (%pmd-transpose-set! (car rest))
+             (loop (cdr rest))]
+            [(is-a? (car rest) <sxmml-mml-lfo-switch>)
+             (%pmd-lfo-switch-set! (car rest))
+             (loop (cdr rest))]
+            [(is-a? (car rest) <sxmml-mml-lfo>)
+             (%pmd-lfo-set! (car rest))
+             (loop (cdr rest))]
+            [(is-a? (car rest) <sxmml-mml-envelope>)
+             (%pmd-envelope-set! (car rest))
+             (loop (cdr rest))]
+            [(is-a? (car rest) <sxmml-mml-pan>)
+             (%pmd-pan-set! (car rest))
+             (loop (cdr rest))]
+            [(is-a? (car rest) <sxmml-mml-transpose-change>)
+             (%pmd-transpose-change-set! (car rest))
+             (loop (cdr rest))]
+            [(is-a? (car rest) <sxmml-mml-volume-change>)
+             (volcproc (car rest))
+             (loop (cdr rest))]
+            [(is-a? (car rest) <sxmml-mml-noise-frequency>)
+             (%pmd-noise-freq-set! (car rest))
+             (loop (cdr rest))]
+            [(is-a? (car rest) <sxmml-mml-output-switch>)
+             (%pmd-output-switch-set! (car rest))
+             (loop (cdr rest))]
+            [else
+             (loop (cdr rest))]))))
 
 (define (%pmd-rhythm-track-generate track)
   (define lis (sxmml-optimize-tree track :optimize (slot-ref (sxmml-environment) 'optimize)))
@@ -313,11 +323,22 @@
 
 (define (%pmd-note-set! obj)
   (let recur ([note (%note-number->pmd-note (slot-ref obj 'value))]
-              [ticks (slot-ref obj 'ticks)])
-    (format #t "o~d~a" (car note) (cdr note))
+              [ticks (slot-ref obj 'ticks)]
+              [octave (slot-ref (sxmml-pmd-track-environment) 'octave)])
+    (cond [(or (> (- (car note) octave) 1) (< (- (car note) octave) -1))
+           (slot-set! (sxmml-pmd-track-environment) 'octave (car note))
+           (format #t "o~d~a" (car note) (cdr note))]
+          [(= (- (car note) octave) 1)
+           (slot-set! (sxmml-pmd-track-environment) 'octave (car note))
+           (format #t ">~a" (cdr note))]
+          [(= (- (car note) octave) -1)
+           (slot-set! (sxmml-pmd-track-environment) 'octave (car note))
+           (format #t "<~a" (cdr note))]
+          [else
+           (format #t "~a" (cdr note))])
     (if (> ticks 255)
       (begin (format #t "%255&")
-             (recur note (- ticks 255)))
+             (recur note (- ticks 255) (car note)))
       (format #t "%~d" ticks))))
 
 (define (%pmd-fm-voice-set! obj)
@@ -457,10 +478,24 @@
            (format #t "(%~d" (* (slot-ref obj 'value) -1))])))
 
 (define (%pmd-portament-set! obj)
+  (define (display-octave noteoct)
+    (let1 octave (slot-ref (sxmml-pmd-track-environment) 'octave)
+      (cond [(or (> (- noteoct octave) 1) (< (- noteoct octave) -1))
+             (slot-set! (sxmml-pmd-track-environment) 'octave noteoct)
+             (format #t "o~d" noteoct)]
+            [(= (- noteoct octave) 1)
+             (slot-set! (sxmml-pmd-track-environment) 'octave noteoct)
+             (format #t ">")]
+            [(= (- noteoct octave) -1)
+             (slot-set! (sxmml-pmd-track-environment) 'octave noteoct)
+             (format #t "<")])))
   (let ([start (%note-number->pmd-note (car (slot-ref obj 'value)))]
         [end (%note-number->pmd-note (cdr (slot-ref obj 'value)))]
         [ticks (slot-ref obj 'ticks)])
-    (format #t "{o~d~ao~d~a}%~d" (car start) (cdr start) (car end) (cdr end) ticks)))
+    (display-octave (car start))
+    (format #t "{~a" (cdr start))
+    (display-octave (car end))
+    (format #t "~a}%~d" (cdr end) ticks)))
 
 (define (%pmd-ssg-voice-set! obj)
   (let1 value (string->number (symbol->string (slot-ref obj 'value)))
