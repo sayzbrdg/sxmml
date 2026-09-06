@@ -161,6 +161,7 @@
         (let1 ct (car (slot-ref (sxmml-mml-context) 'current-ticks))
           (set! (car ct) (+ t (car ct)))
           (slot-set! o 'ticks t)
+          (hash-table-update! (slot-ref (sxmml-mml-context) 'ticks-statistics) t (cut + 1 <>) 0)
           ($return o))))
 
 ;; general command
@@ -313,6 +314,7 @@
             [a2 ($many ($. #[-+]))]
             [($seq $SPC ($. #\}) $SPC)]
             [t $duration])
+           (hash-table-update! (slot-ref (sxmml-mml-context) 'ticks-statistics) t (cut + 1 <>) 0)
            (let ([nn2 (%proc-note-number n2 a2)]
                  [ct (car (slot-ref (sxmml-mml-context) 'current-ticks))])
              (set! (car ct) (+ t (car ct)))
@@ -362,6 +364,7 @@
         (let ([args (%rhythm-command-init-value-make types #t)]
               [ct (car (slot-ref (sxmml-mml-context) 'current-ticks))])
           (set! (car ct) (+ t (car ct)))
+          (hash-table-update! (slot-ref (sxmml-mml-context) 'ticks-statistics) t (cut + 1 <>) 0)
           ($return (apply make <sxmml-rhythm-emit> :value #t :ticks t args)))))
 (hash-table-set! *rhythm-command* #\@ $RHYTHM-ON)
 (define $RHYTHM-OFF
@@ -373,8 +376,9 @@
 (define $RHYTHM-REST
   ($let ([t ($seq $duration)])
         (let1 ct (car (slot-ref (sxmml-mml-context) 'current-ticks))
-          (set! (car ct) (+ t (car ct))))
-        ($return (make <sxmml-mml-rest> :ticks t))))
+          (set! (car ct) (+ t (car ct)))
+          (hash-table-update! (slot-ref (sxmml-mml-context) 'ticks-statistics) t (cut + 1 <>) 0)
+          ($return (make <sxmml-mml-rest> :ticks t)))))
 (hash-table-set! *rhythm-command* #\r $RHYTHM-REST)
 (define $RHYTHM-VOLUME
   ($let ([param $NUMBER]

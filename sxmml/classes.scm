@@ -89,6 +89,7 @@
    [loop-exists? :init-value #f :init-keyword :loop-exists]
    [compiled-data :init-value ()]
    [repeat-stack :init-value ()]
+   [ticks-statistics :init-form (make-hash-table eqv-comparator)]
    ))
 
 (define-class <sxmml-mml> ()
