@@ -64,7 +64,7 @@
         (let ([cmd-line (string-append cmd " " (if wsl
                                                  (shell-escape-string
                                                   (process-output->string (list "wslpath" "-aw" (sxmml-output-file))))
-                                                 (sxmml-output-file)))])
+                                                 (shell-escape-string (sxmml-output-file))))])
           (format #t "Post process: ~a\n\n" cmd-line)
           (for-each print (process-output->string-list (shell-tokenize-string cmd-line)
                                                        :encoding "shift_jis" :on-abnormal-exit :ignore :error :merge))
