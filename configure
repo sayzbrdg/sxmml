@@ -15,6 +15,9 @@
 
 ;; Here you can add feature tests and other cf-define's.
 
+;; man ページの生成に使う Pandoc。見つからない場合は空とし、man の生成・配置を省く
+(cf-path-prog 'PANDOC "pandoc" :default "")
+
 ;; Output
 (cf-output-default)
 

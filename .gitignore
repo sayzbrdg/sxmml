@@ -6,6 +6,7 @@ sxmml.gpd
 
 # generating files
 sxlc
+sxlc.1
 
 # test
 test.log
