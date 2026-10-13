@@ -72,8 +72,8 @@ Q-01 は、最適化前後で、sxmml がコンパイルした後のオブジェ
 
 ## 未実装・残る検証
 
-* 公開機能の境界入力は、binding 検査に加えて上記の動作検証を行う。動作テストの対応状況は [KI-009](known-issues.md#ki-009)を参照する。
-* `mml-echo` の複数トラック形、CLI とソースのモード優先、`Translate` 表示、引用されない `;` 入り出力名の現在の動作と再現手順は[既知の課題](known-issues.md)を参照する。
+* 公開機能の境界入力は、binding 検査に加えて上記の動作検証を行う。動作テストの対応状況は [issue #9](https://github.com/sayzbrdg/sxmml/issues/9)を参照する。
+* `mml-echo` の複数トラック形、CLI とソースのモード優先、`Translate` 表示、引用されない `;` 入り出力名の現在の動作と再現手順は、それぞれ [issue #6](https://github.com/sayzbrdg/sxmml/issues/6)・[issue #3](https://github.com/sayzbrdg/sxmml/issues/3)・[issue #4](https://github.com/sayzbrdg/sxmml/issues/4)・[issue #5](https://github.com/sayzbrdg/sxmml/issues/5)を参照する。
 * 標準配置と man の導入、外部ツールとの接続は各環境で確認する。
 
 ## 関連資料

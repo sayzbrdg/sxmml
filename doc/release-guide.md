@@ -68,7 +68,7 @@ docker run --rm -v "$PWD:/work:ro" -v "$man_stage_dir:/out" pandoc/core:latest \
 
 配布確認の記録には、使用するソースと Gauche バージョン、`./configure`、`make check`、ステージングの配置、非 ASCII を含む PMD 生成物の復号、配布アーカイブと man ファイルの有無を残す。MML 変換と最適化の検証は[検証方針](verification.md)の手順に従って行う。
 
-man 自動生成の未実装は [KI-007](known-issues.md#ki-007)、配布工程の検証不足は [KI-010](known-issues.md#ki-010)にまとめる。
+man 自動生成の未実装は [issue #7](https://github.com/sayzbrdg/sxmml/issues/7)、配布工程の検証不足は [issue #10](https://github.com/sayzbrdg/sxmml/issues/10)にまとめる。
 
 ## 関連資料
 

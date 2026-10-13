@@ -262,4 +262,4 @@
 |`sxmml-track-set!` |`sxmml.environment` |手続き・公開 |xref:environment.adoc#ref-environment-sxmml-track-set-bang[項目へ]
 |===
 
-課題の現行内容・影響・対応状況は link:../known-issues.md[既知の課題]を参照してください。
+課題の現行内容・影響・対応状況は https://github.com/sayzbrdg/sxmml/issues[既知の課題（GitHub の issue）]を参照してください。
