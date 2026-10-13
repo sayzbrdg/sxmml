@@ -49,7 +49,7 @@ PMD 向けの生成では、`filename` メタデータがあればその文字�
 
 `/tmp/sxmml-examples/pmd-output/source-mode.sxl` に `(sxmml-mode pmd3)` と `(mml G "c8")` を保存し、`sxlc -m pmd /tmp/sxmml-examples/pmd-output/source-mode.sxl` を実行すると、`Processing Mode: PMD3` と表示され、生成物のモード行は `;; mode: PMDver3.3` となる。これは CLI 側を優先する要求と異なる。
 
-ソース内で後から `filename` を定義すると、実際の生成先と `sxlc` が表示する出力名が食い違う。`-c` に渡す名前は実際の生成先と一致する。生成先を表示名にも反映する要求に対し、`Translate` 表示の不一致が残る。`-O` の水準によって生成行は変わる。例えば、`-O 0` の `G l%12v8v8o4crr`、`-O 1` の `G l%12v8o4crr`、`-O 2` の `G l%12v8o4cr%24` となる入力がある。通常の最適化を避けるには `-O 0` を指定する。品質上の制約は [KI-008](known-issues.md#ki-008)を参照する。
+ソース内で後から `filename` を定義すると、実際の生成先と `sxlc` が表示する出力名が食い違う。`-c` に渡す名前は実際の生成先と一致する。生成先を表示名にも反映する要求に対し、`Translate` 表示の不一致が残る。`-O` の水準によって生成行は変わる。例えば、`-O 0` の `G l%12v8v8o4crr`、`-O 1` の `G l%12v8o4crr`、`-O 2` の `G l%12v8o4cr%24` となる入力がある。通常の最適化を避けるには `-O 0` を指定する。品質上の制約は [issue #8](https://github.com/sayzbrdg/sxmml/issues/8)を参照する。
 
 空白を含む `space name.sxl` を変換して `-c "printf '%s\\n'"` を指定すると、生成先 `space name.mml` は一引数として渡る。`-w` の有無にかかわらず生成名をエスケープする。ただし `semi;name.mml` のように `shell-escape-string` が引用しない名前では、`shell-tokenize-string` が分割エラーを返す。
 
@@ -112,10 +112,10 @@ sxlc /tmp/sxmml-examples/melody-and-rhythm.sxl
 | 要求 | この仕様の該当箇所 | 現行動作と要求との差 |
 | --- | --- | --- |
 | R-01 柔軟な MML 記述 | 入力と実行順、MML ソース、失敗条件、使用例 | Scheme 式から MML を組み立てられるが、全ての定義マクロが式を値に受けるわけではない。tick 指定はゼロ埋めした正の整数も受け付け、0 は拒否する |
-| R-02 MML オブジェクト操作 | MML ソース、[公開マクロの範囲](sxmml-reference-manual.adoc) | 複数トラックのエコーはトラックごとに `mml-echo` を呼ぶ。[KI-006](known-issues.md#ki-006) |
+| R-02 MML オブジェクト操作 | MML ソース、[公開マクロの範囲](sxmml-reference-manual.adoc) | 複数トラックのエコーはトラックごとに `mml-echo` を呼ぶ。[issue #6](https://github.com/sayzbrdg/sxmml/issues/6) |
 | R-03 自動最適化 | CLI、PMD 向け生成物、[オブジェクト数の比較](verification.md#r-03-オブジェクト数の削減) | 最適化水準によって削減処理が異なる。音楽的な意味の判定は要求仕様の Q-01 に従う |
 | R-04 生成物 | 入力と実行順、PMD 向け生成物、使用例 | 現在は PMD 向け MML を生成する。CLI とソースのモード優先関係、`filename` 指定時の `Translate` 表示は要求と異なる。引用されない `;` 入り出力名で後処理の分割エラーが起きる |
 
-各差の現行内容・影響・対応状況は [既知の課題](known-issues.md)にまとめる。
+各差の現行内容・影響・対応状況は [既知の課題（GitHub の issue）](https://github.com/sayzbrdg/sxmml/issues)にまとめる。
 
 変更時の確認手順は[検証方針](verification.md)を参照する。

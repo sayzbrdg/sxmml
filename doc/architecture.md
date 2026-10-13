@@ -78,11 +78,11 @@ Scheme ソースは `load` で Gauche のコードとして実行される（`sx
 
 ## 制約
 
-* CLI とソースのモード優先、`filename` による実ファイルと CLI 表示の不一致がある。具体的な動作と回避方法は[既知の課題](known-issues.md)を参照する。
+* CLI とソースのモード優先、`filename` による実ファイルと CLI 表示の不一致がある。具体的な動作と回避方法は [issue #3](https://github.com/sayzbrdg/sxmml/issues/3)・[issue #4](https://github.com/sayzbrdg/sxmml/issues/4)を参照する。
 * `environment.scm` の `sxmml-track-clear!` はトラック表全体を消去する。引数は取らない。
 * `voice.scm` の `%4op-voice-shape` は `DT2`・`SEG` を含む値列を作り、`classes.scm` の `<sxmml-opmn-voice>` を継承する音色クラスがこの値列を保持する。`backend/pmd.scm` の `%pmd-source-voice-generate` は両値を使用しない。`DT2` は OPN にないパラメータ、`SEG` はハードウェアにあるが PMD の音色パラメータにない SSG-EG に関する値であり、この未使用はバックエンドの対応範囲による。全ての共通音色パラメータが各バックエンドの生成物に現れるとは限らない。
 
-既知の不具合・未実装・検証不足・仕様確認待ちは [課題一覧](known-issues.md)を参照する。
+既知の不具合・未実装・検証不足・仕様確認待ちは [課題一覧（GitHub の issue）](https://github.com/sayzbrdg/sxmml/issues)を参照する。
 
 ## 技術資料
 
