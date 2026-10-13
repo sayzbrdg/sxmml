@@ -10,7 +10,32 @@
 
 `./configure` は `Makefile`、`sxmml.gpd`、`VERSION` を生成する。`VERSION` と `sxmml.gpd` のバージョンは `0.1`。`make check` は `sxlc` を作り、`test.scm` のモジュール binding 検査と `-c` の生成名受け渡し・モード優先順位の検査を実行する。`Makefile.in` の `install` 規則は `sxlc`、`SCMFILES` に列挙された Scheme ファイル、`sxmml.gpd` をそれぞれ実行ファイルディレクトリ、Gauche のパッケージ用ライブラリ、`.packages` に配置する。Pandoc がある場合は、`sxlc.1` も `mandir` の `man1` に配置する ([man ページの生成と配置](#man-ページの生成と配置))。実際のインストール先は `./configure` の結果で変わるため、生成された `Makefile` を確認する。
 
-`DESTDIR` だけを与えた `make install` では、`bindir` に `DESTDIR` が付かない。次の一時配置では `bindir` と `GAUCHE_PKGLIBDIR` の両方を明示し、配置先と実行時の検索先を合わせる。以下の `scratch_dir` は[開発手順](developer-guide.md#隔離したコピーでの確認)で作ったコピーを指す。`stage_dir` は毎回新しいパスにする。
+配置先の変数は次のとおり決まる。いずれも `make` の引数で上書きできる。
+
+| 変数 | 既定値 | 変更する `./configure` のオプション |
+| --- | --- | --- |
+| `bindir` | `${exec_prefix}/bin` (`exec_prefix` の既定は `${prefix}`) | `--prefix`、`--exec_prefix`、`--bindir` |
+| `GAUCHE_PKGLIBDIR` | `gauche-config --pkglibdir` の値。Gauche 0.9.15 では `${datadir}/gauche-0.98/site/lib` | `--prefix`、`--datarootdir`、`--datadir` |
+| `mandir` | `${datarootdir}/man` (`datarootdir` の既定は `${prefix}/share`) | `--prefix`、`--datarootdir`、`--mandir` |
+
+`--prefix` の既定値は `/usr/local` である。Gauche 0.9.15 の `configure` は、ヘルプに `--exec-prefix` と表示するが、実際に受け付けるのは `--exec_prefix` である。`GAUCHE_PKGLIBDIR` を Gauche 自体のインストール先と異なる場所にした場合、その場所は Gauche の標準の検索先に含まれないため、実行時に `GAUCHE_LOAD_PATH` などで指定する。
+
+### DESTDIR によるステージング
+
+`make DESTDIR=DIR install` は、上記の各配置先の先頭に `DIR` を付けた場所へ配置する。例えば既定の設定では `DIR/usr/local/bin/sxlc`、`DIR/usr/local/share/gauche-0.98/site/lib/sxmml.scm` のようになる。配布パッケージの作成など、本来の配置先を変えずに別の場所へ配置する場合に使う。`DIR` は絶対パスで指定する。`make DESTDIR=DIR uninstall` は同じ場所から削除する。次の例の `scratch_dir` は[開発手順](developer-guide.md#隔離したコピーでの確認)で作ったコピーを指す。`DESTDIR` は `Makefile` の変数の値には含まれず、`install`・`uninstall` の各コマンドで付けるため、配置先の変数を上書きした場合も `DESTDIR` が付く。
+
+```console
+cd "$scratch_dir"
+destdir=$(mktemp -d /tmp/sxmml-destdir.XXXXXX)
+make DESTDIR="$destdir" install
+find "$destdir" -type f
+```
+
+`sxlc` の先頭行には `configure` が検出した `gosh` のパスが入り、配置先のパスは生成物に埋め込まれない。このため、`DESTDIR` の下に配置した内容を本来の配置先へ移せば、そのまま使える。
+
+### 一時配置での実行確認
+
+配置した `sxlc` を実行して確かめる場合は、短いパスで扱えるよう配置先の変数を直接指定する。次の一時配置では `bindir` と `GAUCHE_PKGLIBDIR` の両方を明示し、配置先と実行時の検索先を合わせる。以下の `scratch_dir` は[開発手順](developer-guide.md#隔離したコピーでの確認)で作ったコピーを指す。`stage_dir` は毎回新しいパスにする。
 
 ```console
 cd "$scratch_dir"
@@ -55,7 +80,7 @@ gauche-package make-tarball
 * `make install` は、`PANDOC` が設定されていれば `sxlc.1` を生成して `$(mandir)/man1` に配置する。`PANDOC` が空の場合は `pandoc is not found; skip installing sxlc.1` と表示し、man ページの配置だけを省く。
 * `make uninstall` は `$(mandir)/man1/sxlc.1` も削除し、`make clean` は生成した `sxlc.1` を削除する。
 
-`mandir` の既定値は `${prefix}/share/man` であり、`./configure --mandir=DIR` または `make mandir=DIR install` で変更できる。`bindir` と同様に `DESTDIR` は付かない ([issue #21](https://github.com/sayzbrdg/sxmml/issues/21))。[一時配置の手順](#現行の生成配置)に合わせる場合は、`mandir` も明示する。
+`mandir` の既定値は `${prefix}/share/man` であり、`./configure --mandir=DIR` または `make mandir=DIR install` で変更できる。`make DESTDIR=DIR install` では `DIR` の下の `mandir` に配置する。[一時配置の手順](#一時配置での実行確認)に合わせる場合は、`mandir` も明示する。
 
 ```console
 cd "$scratch_dir"

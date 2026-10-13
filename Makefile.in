@@ -31,9 +31,11 @@ GENERATED = $(MANPAGE)
 CONFIG_GENERATED = Makefile config.cache config.log config.status \
 		   configure.lineno autom4te*.cache $(PACKAGE).gpd
 
-GAUCHE_PKGINCDIR  = "$(DESTDIR)@GAUCHE_PKGINCDIR@"
-GAUCHE_PKGLIBDIR  = "$(DESTDIR)@GAUCHE_PKGLIBDIR@"
-GAUCHE_PKGARCHDIR = "$(DESTDIR)@GAUCHE_PKGARCHDIR@"
+# 配置先の変数は configure で決まる本来のパスを持つ。DESTDIR は install・uninstall の
+# 各コマンドで先頭に付ける (GNU Coding Standards の DESTDIR の慣例に従う)
+GAUCHE_PKGINCDIR  = @GAUCHE_PKGINCDIR@
+GAUCHE_PKGLIBDIR  = @GAUCHE_PKGLIBDIR@
+GAUCHE_PKGARCHDIR = @GAUCHE_PKGARCHDIR@
 
 all : $(TARGET)
 
@@ -41,23 +43,24 @@ check : all
 	@rm -f test.log
 	$(GOSH) -I. -I$(srcdir) $(srcdir)/test.scm > test.log
 
+# man ページは生成と配置を別の行にする。GNU make は MAKE 変数を含む行を
+# make -n でも実行するため、配置を同じ行に書くと dry-run にならない
 install : all
-	$(INSTALL) -m 555 -T $(bindir) $(TARGET)
-	$(INSTALL) -m 444 -T $(GAUCHE_PKGLIBDIR) $(SCMFILES)
-	$(INSTALL) -m 444 -T $(GAUCHE_PKGLIBDIR)/.packages $(PACKAGE).gpd
+	$(INSTALL) -m 555 -T "$(DESTDIR)$(bindir)" $(TARGET)
+	$(INSTALL) -m 444 -T "$(DESTDIR)$(GAUCHE_PKGLIBDIR)" $(SCMFILES)
+	$(INSTALL) -m 444 -T "$(DESTDIR)$(GAUCHE_PKGLIBDIR)/.packages" $(PACKAGE).gpd
+	@if test -n "$(PANDOC)"; then $(MAKE) $(MANPAGE); fi
 	@if test -n "$(PANDOC)"; then \
-	  $(MAKE) $(MANPAGE) && \
-	  echo $(INSTALL) -m 444 -T $(mandir)/man1 $(MANPAGE) && \
-	  $(INSTALL) -m 444 -T $(mandir)/man1 $(MANPAGE); \
+	  set -x; $(INSTALL) -m 444 -T "$(DESTDIR)$(mandir)/man1" $(MANPAGE); \
 	else \
 	  echo "pandoc is not found; skip installing $(MANPAGE)"; \
 	fi
 
 uninstall :
-	$(INSTALL) -U $(bindir) $(TARGET)
-	$(INSTALL) -U $(GAUCHE_PKGLIBDIR) $(SCMFILES)
-	$(INSTALL) -U $(GAUCHE_PKGLIBDIR)/.packages $(PACKAGE).gpd
-	$(INSTALL) -U $(mandir)/man1 $(MANPAGE)
+	$(INSTALL) -U "$(DESTDIR)$(bindir)" $(TARGET)
+	$(INSTALL) -U "$(DESTDIR)$(GAUCHE_PKGLIBDIR)" $(SCMFILES)
+	$(INSTALL) -U "$(DESTDIR)$(GAUCHE_PKGLIBDIR)/.packages" $(PACKAGE).gpd
+	$(INSTALL) -U "$(DESTDIR)$(mandir)/man1" $(MANPAGE)
 
 clean :
 	rm -rf core $(TARGET) $(GENERATED) *~ test.log so_locations
