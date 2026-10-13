@@ -6,7 +6,7 @@
 
 | 層 | 確認方法 | 確認する内容 |
 | --- | --- | --- |
-| binding | `./configure`、`make check`、`test.log` | 9モジュールの binding 検査と、`-c` の後処理へ空白・`;` 入り生成名を一引数で渡す検査。他の変換結果は別に確認する |
+| binding | `./configure`、`make check`、`test.log` | 9モジュールの binding 検査と、`-c` の後処理へ空白・`;` 入り生成名を一引数で渡す検査、CLI とソースのモード指定の優先順位の検査。他の変換結果は別に確認する |
 | 解析・中間オブジェクト | `sxmml-compile-mml`、`sxmml-compile-rhythm` と公開マクロの評価 | オブジェクト列・トラック文脈・合計 tick |
 | CLI・生成物 | インストール済み `sxlc` で入力を変換 | 終了値、表示、生成先、CP932 の内容、後処理の引数 |
 | 意味保持 | 最適化前後の列を解釈して比較 | 下記 Q-01 の時間配置・音高・状態変更 |
@@ -73,7 +73,7 @@ Q-01 は、最適化前後で、sxmml がコンパイルした後のオブジェ
 ## 未実装・残る検証
 
 * 公開機能の境界入力は、binding 検査に加えて上記の動作検証を行う。動作テストの対応状況は [issue #9](https://github.com/sayzbrdg/sxmml/issues/9)を参照する。
-* `mml-echo` の複数トラック形、CLI とソースのモード優先、`Translate` 表示の現在の動作と再現手順は、それぞれ [issue #6](https://github.com/sayzbrdg/sxmml/issues/6)・[issue #3](https://github.com/sayzbrdg/sxmml/issues/3)・[issue #4](https://github.com/sayzbrdg/sxmml/issues/4)を参照する。
+* `mml-echo` の複数トラック形、`Translate` 表示の現在の動作と再現手順は、それぞれ [issue #6](https://github.com/sayzbrdg/sxmml/issues/6)・[issue #4](https://github.com/sayzbrdg/sxmml/issues/4)を参照する。
 * 標準配置と man の導入、外部ツールとの接続は各環境で確認する。
 
 ## 関連資料

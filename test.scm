@@ -24,22 +24,42 @@
 (use sxmml)
 (test-module 'sxmml)
 
-;; sxlc の -c 後処理へ渡す生成名
+;; sxlc の CLI
 (use gauche.process)
 (use file.util)
 (let* ([srcdir (sys-normalize-pathname (sys-dirname (current-load-path)) :absolute #t)]
        [workdir (sys-mkdtemp (build-path (temporary-directory) "sxmml-test"))])
-  (define (run-sxlc-c name)
+  ;; name.sxl に forms を書き出し、options を付けて sxlc を実行して出力行を返す
+  (define (run-sxlc name forms . options)
     (let1 source (build-path workdir #"~|name|.sxl")
-      (with-output-to-file source (^[] (write '(mml G "c8"))))
+      (with-output-to-file source (^[] (for-each write forms)))
       (process-output->string-list
-       (list "gosh" #"-I~srcdir" (build-path srcdir "sxlc.in")
-             "-m" "pmd" "-c" "printf '<%s>\\n'" source))))
+       `("gosh" ,#"-I~srcdir" ,(build-path srcdir "sxlc.in") ,@options ,source)
+       :error :merge)))
+  (define (generated-mode-line name)
+    (find #/^;; mode:/ (file->string-list (build-path workdir #"~|name|.mml")
+                                          :encoding "shift_jis")))
   (unwind-protect
-      (dolist [name '("semi;name" "space name")]
-        (test* #"-c receives \"~|name|.mml\" as one argument"
-               #"<~(build-path workdir name).mml>"
-               (find #/^</ (run-sxlc-c name))))
+      (begin
+        ;; -c の後処理へ渡す生成名
+        (dolist [name '("semi;name" "space name")]
+          (test* #"-c receives \"~|name|.mml\" as one argument"
+                 #"<~(build-path workdir name).mml>"
+                 (find #/^</ (run-sxlc name '((mml G "c8"))
+                                       "-m" "pmd" "-c" "printf '<%s>\\n'"))))
+        ;; CLI とソースのモード指定の優先順位
+        (test* "sxmml-mode in source selects the mode without -m"
+               '("Processing Mode: PMD3" ";; mode: PMDver3.3")
+               (list (find #/^Processing Mode:/
+                           (run-sxlc "source-mode" '((sxmml-mode pmd3) (mml G "c8"))))
+                     (generated-mode-line "source-mode")))
+        (test* "-m takes precedence over sxmml-mode in source"
+               '("warning: sxmml-mode in source is ignored; mode is already set to PMD"
+                 "Processing Mode: PMD" ";; mode: PMDver4.8")
+               (let1 lines (run-sxlc "cli-mode" '((sxmml-mode pmd3) (mml G "c8")) "-m" "pmd")
+                 (list (find #/^warning:/ lines)
+                       (find #/^Processing Mode:/ lines)
+                       (generated-mode-line "cli-mode")))))
     (remove-directory* workdir)))
 
 ;; (test* "test-sxmml" "sxmml is working"
