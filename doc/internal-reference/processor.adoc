@@ -1,0 +1,30 @@
+= `sxmml.processor` の MML 加工
+:toc: left
+
+`sxmml.processor` は三つのマクロを公開し、二つの加工手続きを内部で使います。トラックは事前に `define-track` 等で登録してください。本文の Scheme 式は、展開された登録式の実行時に評価されます。マクロ展開と `util.match` は Gauche 0.9.15 の動作に従います。MML 記述者向けの例は xref:../sxmml-reference-manual.adoc[公開機能リファレンス]を参照してください。
+
+加工手続きはコンパイル済みオブジェクト列 `sio` を受け、新たな音符・音量変更オブジェクトを挿入した列を返します。音符や休符の `ticks` slot を変更する場合がありますが、コンテキストの `current-ticks` を再計算しません。戻り値を `sxmml-sio-regist!` で登録するのはマクロ側です。
+
+[cols="2,4,4,1",options="header"]
+|===
+|名前・書式 |引数・処理 |結果・制約・失敗条件 |ソース
+|[[ref-processor-mml-repeat]]`(mml-repeat track times (body ...))`、二本文形、三本文形 |`times` は正整数のリテラル。単一トラック名または非空のトラック名リストを受け、反復の開始・脱出・終了オブジェクトを登録 |三本文形は `body2` の後で反復を終了し、`body3` を反復の外で実行する。未登録トラックはコンパイル時に失敗 |link:../../sxmml/processor.scm[processor.scm]
+|[[ref-processor-sxmml-sio-self-echo]]`(sxmml-sio-self-echo sio fir vol rep)` |最初の音を含む MML 文字列 `fir`、音量差 `vol`、休符部の差 `rep` を使って `sio` を加工 |各音符の長さを分けて前の音を再発音し、休符にも前の音を挿入する。`fir` に音符がなければ `no note data` エラー |link:../../sxmml/processor.scm[processor.scm]
+|[[ref-processor-mml-echo]]`(mml-echo track (firstnote voldown restdown) body ...)` |単一トラックの本文をコンパイルし、`sxmml-sio-self-echo` へ渡す |加工した列を登録。トラック名リストを複数トラックとして扱う展開形は未実装 |link:../../sxmml/processor.scm[processor.scm]
+|[[ref-processor-sxmml-sio-self-delay]]`(sxmml-sio-self-delay sio tick vol rep)` |正整数の `tick`、音量差 `vol`、繰り返し差 `rep` を使う。呼び出し元の `mml-delay` が `tick` を検査する |直前に音符がある休符が `tick` より長いとき、休符を分割して直前の音を挿入する。先頭休符と `tick` 以下の休符はそのまま返す。この手続き自体は `tick` を検査せず、対象休符がある場合に 0 以下の値を渡すと処理が終了しない |link:../../sxmml/processor.scm[processor.scm]
+|[[ref-processor-mml-delay]]`(mml-delay track (ticks voldown restdown) body ...)` |`ticks` は正整数リテラル、後二者は整数リテラル。単一トラックまたは非空リストを受ける |各トラックの本文をコンパイル・加工・登録。未登録トラックは失敗 |link:../../sxmml/processor.scm[processor.scm]
+|===
+
+`mml-repeat` の二本文形は `(mml-repeat track times (body1 ...) (body2 ...))` で、`body1` の後に脱出位置を置きます。三本文形は単一トラックなら `(mml-repeat track times (body1 ...) (body2 ...) (body3 ...))`、複数トラックなら第三本文の先頭に脱出対象を置く `(mml-repeat (track ...) times (body1 ...) (body2 ...) ((break ...) body3 ...))` または `(break body3 ...)` です。三本文形では `body3` が反復終了後に置かれます。
+
+`mml-delay` は音符の後に続く休符を処理します。`mml-echo` は単一トラック形だけを受け、複数トラック形は使用できません。`mml-repeat` の三本文形は、`body1` と `body2` の間に脱出位置を置き、`body3` を反復後に実行します。複数トラック形では指定したトラックだけに脱出位置を置きます。第三節の本文を省略しても構いません。xref:../sxmml-reference-manual.adoc#mml-repeat[第三節の用途と入力例]を参照してください。
+
+== ディレイの例
+
+次のコマンドは Gauche 0.9.15 で加工後のオブジェクト数を確認します。`mml-delay` では音符に続く 12 tick の休符が加工対象です。
+
+[source,console]
+----
+$ gosh -I. -e '(use sxmml)' -e '(define-track G)' -e '(mml-delay G (6 2 1) "c8r8")' -e '(print (length (sxmml-optimize-tree (quote G) :optimize #f)))'
+6
+----

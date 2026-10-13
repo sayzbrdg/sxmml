@@ -1,0 +1,39 @@
+= `sxmml.compiler` のコンパイル処理
+:toc: left
+
+`sxmml.compiler` は五つの手続きと二つのマクロを公開します。通常 MML とリズム MML のパーサーは xref:mml.adoc[`sxmml.mml`]、登録先の状態は xref:environment.adoc[`sxmml.environment`] を参照してください。パーサー、generator、マクロの動作は Gauche 0.9.15 に従います。
+
+== 手続き
+
+`sxmml-compile-string` 系は MML をオブジェクト列へコンパイルし、`ctx` と合わせて二つの値を返します。`ctx` の解析状態はパーサーによって更新されます。トラックへの登録はここでは行わず、`mml` / `rhythm` マクロが `sxmml-sio-regist!` を呼びます。文字列以外の入力は明示的なエラー、PEG の `<parse-error>` は入力付近とトラック名を含む構文エラーとして投げ直します。
+
+[cols="2,4,4,1",options="header"]
+|===
+|書式 |引数と役割 |戻り値・前提・失敗条件 |ソース
+|[[ref-compiler-sxmml-compile-mml]]`(sxmml-compile-mml str ctx)` |通常 MML 文字列と解析コンテキスト |`make-mml-parser` を作って `sxmml-compile-string` に渡す。二値を返す |link:../../sxmml/compiler.scm[compiler.scm]
+|[[ref-compiler-sxmml-compile-rhythm]]`(sxmml-compile-rhythm str ctx)` |リズム MML 文字列と解析コンテキスト |`make-rhythm-parser` を作って `sxmml-compile-string` に渡す。二値を返す |link:../../sxmml/compiler.scm[compiler.scm]
+|[[ref-compiler-sxmml-compile-string]]`(sxmml-compile-string parser str ctx)` |PEG パーサー、文字列、コンテキスト |パーサーが生成したオブジェクトのリストと `ctx` を返す。`str` が文字列でなければエラー。解析失敗はトラック名付きの構文エラー |link:../../sxmml/compiler.scm[compiler.scm]
+|[[ref-compiler-sxmml-compile-mml-cc]]`(sxmml-compile-mml/cc track str)` |登録済み `track` の context を検索して通常 MML を処理 |未登録トラックなら `no defined track` エラー。コンパイル結果の二値を返す |link:../../sxmml/compiler.scm[compiler.scm]
+|[[ref-compiler-sxmml-compile-rhythm-cc]]`(sxmml-compile-rhythm/cc track str)` |登録済み `track` の context を検索してリズム MML を処理 |未登録トラックなら `no defined track` エラー。コンパイル結果の二値を返す |link:../../sxmml/compiler.scm[compiler.scm]
+|===
+
+== ソース中で使うマクロ
+
+両マクロはトラック名一つ、または一つ以上のトラック名のリストを受けます。`body ...` の Scheme 式は実行時に評価され、`write-tree` で文字列へ組み立てられます。複数トラックを指定した場合、各トラックの登録式をそれぞれ生成するため、本文の副作用もトラックごとに発生し得ます。未登録トラック、文字列化できない値、MML 構文エラーは登録時に失敗します。マクロ形式の詳細と利用例は xref:../sxmml-reference-manual.adoc[公開機能リファレンス]を参照してください。
+
+[cols="2,4,4,1",options="header"]
+|===
+|書式 |引数と展開結果 |戻り値・副作用 |ソース
+|[[ref-compiler-mml]]`(mml track body ...)` / `(mml (track ...) body ...)` |本文を通常 MML として `sxmml-compile-mml/cc` に渡す式へ展開 |得たオブジェクト列を `sxmml-sio-regist!` でトラックへ登録 |link:../../sxmml/compiler.scm[compiler.scm]
+|[[ref-compiler-rhythm]]`(rhythm track body ...)` / `(rhythm (track ...) body ...)` |本文をリズム MML として `sxmml-compile-rhythm/cc` に渡す式へ展開 |得たオブジェクト列を `sxmml-sio-regist!` でトラックへ登録 |link:../../sxmml/compiler.scm[compiler.scm]
+|===
+
+== コンパイル例
+
+リポジトリのルートで実行します。既定の解像度は 24 tick です。
+
+[source,console]
+----
+$ gosh -I. -e '(use sxmml)' -e '(define-track G)' -e '(mml G "c8r8")' -e '(print (caar (slot-ref (sxmml-track-get (quote G)) (quote current-ticks))))'
+24
+----

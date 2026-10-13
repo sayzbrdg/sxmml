@@ -1,56 +1,70 @@
 # sxmml
 
-sxmmlは専用のMML書式から他の音源ドライバー向けMMLへ変換するトランスレータです。  
-本ツールは音源ドライバーを内蔵せず、単体での楽曲演奏機能はありません。
+sxmml は、Scheme で MML を組み立て、MML オブジェクトを加工して生成物を作るトランスレータです。古い MML の記述上の制約に困っている人を主な対象とします。現行実装が出力するのは PMD 向け MML です。
 
-## 必要条件
+## 必要なもの
 
-- Gauche 0.9.15以上
+- Gauche 0.9.15
+- make
+- Git（リポジトリを取得する場合）
 
-## 特徴
+## 最初の変換
 
-- **Gaucheベース**: Scheme処理系`Gauche`で実装され、`Gauche`のモジュールとして動作  
-- **S式統合**: S式の一部としてMMLを記述。MML文字列を`Gauche`の機能で操作可能。
-- **MML最適化機能**: 重複コマンド削除などの最適化を実装し、メモリ制約の厳しい実機環境への対応を支援  
-
-## インストール
-
-sxmmlを利用するには、Gaucheが必要です。Gaucheがインストールされている環境で以下の手順を実行してください。
+リポジトリを取得し、そのルートでビルド・インストールしてから最初のファイルを変換します。手元にリポジトリがある場合は、そのルートから始めてください。`sxlc.in` は生成用テンプレートです。変換には `make` が生成し、`make install` で配置した `sxlc` コマンドを使います。
 
 ```console
-$ git clone https://github.com/sayzbrdg/sxmml.git
-$ cd sxmml
-$ ./configure
-$ make install
+git clone https://github.com/sayzbrdg/sxmml.git
+cd sxmml
+gosh -V
+./configure
+make
+make install
+printf '%s\n' '(mml G "c8r8")' > first.sxl
+sxlc -m pmd first.sxl
 ```
 
-インストール後、以下のコマンドで動作確認ができます：
+`make install` は、コマンドを `bindir`、Scheme モジュールを `GAUCHE_PKGLIBDIR` に配置します。既定の配置先には書き込み権限が必要です。実際の値は生成された `Makefile` で確認してください。コマンドの配置先を変えるには `./configure --prefix=配置先` を指定します。モジュール配置先の初期値は Gauche の設定から取得され、Make の変数を含む場合があります。`--prefix` を変更した場合も、展開後の配置先が Gauche の検索先に含まれるか確認してください。
+
+利用者が書き込める場所へインストールする場合は、上記の `./configure` から `make install` までを次に置き換えます。
 
 ```console
-$ sxlc --version
+sxmml_prefix="$HOME/.local"
+./configure --prefix="$sxmml_prefix"
+make
+make GAUCHE_PKGLIBDIR="$sxmml_prefix/share/sxmml" install
+export PATH="$sxmml_prefix/bin:$PATH"
+export GAUCHE_LOAD_PATH="$sxmml_prefix/share/sxmml${GAUCHE_LOAD_PATH:+:$GAUCHE_LOAD_PATH}"
 ```
 
-## 使い方
+この場合は新しいシェルでも `PATH` と `GAUCHE_LOAD_PATH` を設定してから `sxlc` を使ってください。`GAUCHE_LOAD_PATH` は Gauche が Scheme モジュールを探す追加のディレクトリです。配置の詳細は[配布・互換性](doc/release-guide.md#現行の生成配置)、Gauche の設定は [Gauche 0.9.15 Users’ Reference, 3.1 と 9.8](https://practical-scheme.net/vault/Gauche-0.9.15-refe.pdf)を参照してください。
 
-基本的なsxmmlの使い方を示します。
+`first.mml` が作られ、標準出力には `Track G: total: 24` と表示されます。出力は CP932、改行は CRLF です。UTF-8 の端末では `iconv -f CP932 -t UTF-8 first.mml` で内容を読めます。ソース中の Scheme 式は Gauche によって実行されるため、信頼できる入力ファイルを指定してください。
 
-```scheme:test.sxl
-;; 音色定義（@0: 音色番号, v110: 音量, p3: パン, o5: オクターブ）
-(define tone-1 "@0 v110 p3 o5")
+`first.mml` の G 行は `G l%12o4cr` になります。
 
-;; メロディ定義（t120: テンポ, l8: 音長, cdefgab: 音階）
-(mml A tone-1 "t120 l8 cdefgab")
+## Scheme でフレーズを組み立てる
+
+次の内容を `phrase.sxl` に保存し、`sxlc -m pmd phrase.sxl` で変換できます。
+
+```scheme
+(define notes (map (lambda (name) (string-append name "8"))
+                   '("c" "d" "e" "f")))
+(mml G notes "r8")
 ```
 
-MMLの変換には一緒にインストールされるsxmml用トランスレータプログラム **sxlc** を使用するのが便利です。
+`mml` に文字列のリストを渡すと、要素を順につないだ MML として扱われます。MML 文字列の意味は [MML コマンドマニュアル](doc/sxmml-mml-manual.adoc)、ソース中のマクロは [MML 記述者向けリファレンス](doc/sxmml-reference-manual.adoc)を参照してください。
 
-```console
-$ sxlc -m pmd test.sxl
-```
+## 最適化と出力の指定
 
-現時点ではPMD向けMML出力のみをサポートしています。
+`-O` の既定値は `1` です。通常の最適化を避けるには `-O 0` を指定します。`-O 2` は追加の整理も行います。最適化は、コンパイル後のオブジェクトリストに連結されたオブジェクト数を減らす処理です。生成テキストの長さを評価基準にはしません。`-m pmd` は PMD4 向け、`-m pmd3` は PMD3 向けのモードです。オプションと既知の制約は [`sxlc` マニュアル](doc/sxlc.1.md)を参照してください。
 
-## ライセンス
+## 導入と詳しい資料
 
-sxmmlは **BSD 3-Clause License** のもとで提供されます。
-詳細は `LICENSE` ファイルを参照してください。
+現行リポジトリでは `./configure`、`make check`、`make install` が用意されています。インストール先とステージングの注意点は[配布・互換性](doc/release-guide.md)に記します。導入後は `sxlc` コマンドで変換します。
+
+- [入門・目的別手順](doc/getting-started.md)
+- [製品の目的と範囲](doc/product-overview.md)
+- [現行の外部動作仕様](doc/behavior-spec.md)
+- [開発者向け手順](doc/developer-guide.md)
+
+ライセンスは [BSD 3-Clause License](LICENSE) です。

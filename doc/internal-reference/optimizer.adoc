@@ -1,0 +1,33 @@
+= `sxmml.optimizer` のオブジェクト列最適化
+:toc: left
+
+`sxmml.optimizer` は九つの手続きを定義し、`sxmml-optimize-tree` を公開します。入力は登録済みトラックの `compiled-data` にある MML オブジェクト列です。戻り値は平坦化されたオブジェクトのリストで、元オブジェクトの `value` や `ticks` を更新する処理もあります。意味保持の判定原則は link:../verification.md#q-01-音楽的な意味の保持[検証方針]を参照してください。
+
+`sxmml-optimize-tree` は先にトラックの `total-ticks` と `loop-ticks` を設定します。`:optimize #f` は無操作オブジェクトを除いて平坦化、真値は第 1 段階、`:full` は第 1 段階に加えて第 2 段階を適用します。最適化の目的は、コンパイル後のオブジェクトリストに連結されたオブジェクト数の削減です。バックエンドの最終文字列長は評価基準に含めません。オブジェクト、ハッシュ表、tree map は Gauche 0.9.15 の動作に従います。
+
+[cols="2,4,4,1",options="header"]
+|===
+|名前・書式 |引数と役割 |戻り値・副作用・失敗条件 |ソース
+|[[ref-optimizer-sxmml-optimize-tree]]`(sxmml-optimize-tree track :key (optimize #t))` |登録済みトラックの列を指定水準で処理 |平坦なオブジェクトリストを返す。`total-ticks`・`loop-ticks` を更新。未登録トラックは検索で失敗 |link:../../sxmml/optimizer.scm[optimizer.scm]
+|[[ref-optimizer-internal-sxmml-optimize-tree]]`(%sxmml-optimize-tree mmlenv)` |第 1 段階。列の平坦化、同種設定の整理、音量変更の加算、無操作の除去 |新しいリストを返す。蓄積中のオブジェクトの `value` を更新する場合がある |link:../../sxmml/optimizer.scm[optimizer.scm]
+|[[ref-optimizer-object-sum-update-bang]]`(object-sum-update! env obj)` |音量差のオブジェクトをクラス別に蓄積 |同種の差分なら `value` を加算。`env` の表と順序表を更新 |link:../../sxmml/optimizer.scm[optimizer.scm]
+|[[ref-optimizer-object-store]]`(object-store env obj)` |蓄積した設定を順序に沿って取り出す |音量の絶対値と差分を合わせ、蓄積表を空にする。`obj` が EOF なら追加しない |link:../../sxmml/optimizer.scm[optimizer.scm]
+|[[ref-optimizer-object-set-bang]]`(object-set! env obj)` |同じクラスの設定を新しい値で置換 |蓄積表と順序表を更新 |link:../../sxmml/optimizer.scm[optimizer.scm]
+|[[ref-optimizer-object-rhythm-update-bang]]`(object-rhythm-update! env obj)` |リズム音量・パンの楽器 slot を更新 |既存の同種オブジェクトに真の slot 値を重ねる |link:../../sxmml/optimizer.scm[optimizer.scm]
+|[[ref-optimizer-object-rhythm-sum-update-bang]]`(object-rhythm-sum-update! env obj)` |リズム音量差を楽器ごとに加算 |既存の同種オブジェクトの該当 slot を更新 |link:../../sxmml/optimizer.scm[optimizer.scm]
+|[[ref-optimizer-internal-sxmml-optimize-2path]]`(%sxmml-optimize-2path lis)` |第 2 段階。反復を考慮して重複設定を省略し、隣接する休符を結合 |新しいリストを返す。結合先の休符の `ticks` を更新。反復構造が不整合なら内部処理で失敗し得る |link:../../sxmml/optimizer.scm[optimizer.scm]
+|[[ref-optimizer-internal-repeat-end-ctx]]`(%repeat-end-ctx lis)` |反復終了までの状態指定を先読み |`<sxmml-optimize-2path-context>` を返す。終了記号前に MML が終われば `MML terminated before repeat end` エラー |link:../../sxmml/optimizer.scm[optimizer.scm]
+|===
+
+蓄積用の `env` には xref:classes.adoc#ref-classes-class-sxmml-optimize-environment[`<sxmml-optimize-environment>`] を使用します。`object-*` は個別に呼ぶ公開 API ではなく、第 1 段階の状態更新を分担する手続きです。`lis` はコンパイル済みオブジェクトの列であり、文字列 MML ではありません。
+
+== 最適化例
+
+次の入力では、最適化なしで二つの休符、第 2 段階で一つの休符になります。Gauche 0.9.15 を使い、sxmml のリポジトリルートで実行します。
+
+[source,console]
+----
+$ gosh -I. -e '(use sxmml)' -e '(define-track G)' -e '(mml G "r8r8")' -e '(print (length (sxmml-optimize-tree (quote G) :optimize #f)))' -e '(print (length (sxmml-optimize-tree (quote G) :optimize :full)))'
+2
+1
+----

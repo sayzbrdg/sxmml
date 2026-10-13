@@ -1,0 +1,94 @@
+= `sxmml.classes` のクラス
+:toc: left
+
+`sxmml.classes` は 42 クラスを定義し、`export-all` で公開します。slot の初期化は Gauche 0.9.15 の `define-class`、`:init-keyword`、`:init-value`、`:init-form` に従います。MML の記法は xref:../sxmml-mml-manual.adoc[MML コマンドマニュアル]を参照してください。
+
+各行の「固有 slot」は親クラスから継承する slot を省きます。作成書式は `(make クラス [:初期化キーワード 値] ...)` で、結果はそのクラスのインスタンスです。`make` は新しいオブジェクトを作り、既存の sxmml 環境は変更しません。slot は `slot-ref` で参照し、処理中に `slot-set!` 等で更新されます。初期値の書かれていない slot には、この定義で既定値を与えていません。初期化キーワードのない slot を `make` の引数で設定することはできません。不正な初期化引数や未定義 slot へのアクセスは Gauche のオブジェクト操作で失敗します。数値や文字列の業務上の妥当性は、クラス定義では検査しません。
+
+== 環境と最適化状態
+
+[cols="2,1,2,5,1",options="header"]
+|===
+|クラス |親 |役割 |固有 slot と初期化 |ソース
+|[[ref-classes-class-sxmml-environment]]`<sxmml-environment>` |なし |生成全体の設定と登録表 |`resolution` (`:resolution`, 24)、`metadata`・`lfo`・`envelope`・`voice`・`track` (各インスタンスごとの空のハッシュ表)、`optimize` (`:optimize`, 1)、`mode` (`:mode`, `""`)、`backend` (`:backend`, `#f`) |link:../../sxmml/classes.scm[classes.scm]
+|[[ref-classes-class-sxmml-optimize-environment]]`<sxmml-optimize-environment>` |なし |最適化中の記録 |`inter-objects` (空のハッシュ表)、`objects-order` (空の整数順 tree map) |link:../../sxmml/classes.scm[classes.scm]
+|[[ref-classes-class-sxmml-optimize-2path-context]]`<sxmml-optimize-2path-context>` |なし |二経路最適化で既出の設定と反復深度を追跡 |`voice`・`volume`・`gatetime`・`pan`・`detune`・`envelope`・`lfo` は `#f`、対応する `*-placed?` も `#f`。`lfo-switch` は `init`、`lfo-switch-placed?` は `#f`、`repeat-depth` は 0 |link:../../sxmml/classes.scm[classes.scm]
+|[[ref-classes-class-sxmml-mml-context]]`<sxmml-mml-context>` |なし |トラック単位の解析状態 |`track` (`:track`, `#f`)、`part` (`:part`, `#f`)、`default-length` (`:default-length`, 4)、`volume-delta` (`:volume-delta`, 1)、`current-octave` (`:current-octave`, 4)、`current-transpose` (`:current-transpose`, 0)、`current-ticks` (`((0 . 0))` 相当)、`total-ticks` (`:total-ticks`, 0)、`loop-ticks` (`:loop-ticks`, 0)、`loop-exists?` (`:loop-exists`, `#f`)、`compiled-data`・`repeat-stack` (空リスト)、`ticks-statistics` (空のハッシュ表) |link:../../sxmml/classes.scm[classes.scm]
+|===
+
+`metadata` などの表と `current-ticks` などの可変状態は処理中に更新されます。`:init-form` の表はインスタンス作成ごとに生成されるため、別インスタンスと表を共有しません。`:init-value` に空リストを指定した slot は、作成時点では空です。
+
+== MML オブジェクト
+
+`<sxmml-mml>` は `value` を持ち、`:value` で初期化できます。`<sxmml-mml-note>` はさらに `ticks` を持ち、`:ticks` で初期化できます。両 slot とも定義上の既定値は、`ticks` の `#f` を除き指定されていません。下表で「追加なし」の型は親の slot を継承します。これらの型のインスタンスは解析結果の識別に使われ、作成時にトラックへ自動登録されません。
+
+[cols="2,2,3,2,1",options="header"]
+|===
+|クラス |親 |役割 |固有 slot |ソース
+|[[ref-classes-class-sxmml-mml]]`<sxmml-mml>` |なし |MML オブジェクトの基底 |`value` (`:value`, 初期値未指定) |link:../../sxmml/classes.scm[classes.scm]
+|[[ref-classes-class-sxmml-mml-nop]]`<sxmml-mml-nop>` |`<sxmml-mml>` |解析状態だけを変えた位置の占位 |追加なし |link:../../sxmml/classes.scm[classes.scm]
+|[[ref-classes-class-sxmml-mml-note]]`<sxmml-mml-note>` |`<sxmml-mml>` |音符 |`ticks` (`:ticks`, `#f`) |link:../../sxmml/classes.scm[classes.scm]
+|[[ref-classes-class-sxmml-mml-rest]]`<sxmml-mml-rest>` |`<sxmml-mml-note>` |休符 |追加なし |link:../../sxmml/classes.scm[classes.scm]
+|[[ref-classes-class-sxmml-mml-length]]`<sxmml-mml-length>` |`<sxmml-mml>` |音長設定を表す型 |追加なし |link:../../sxmml/classes.scm[classes.scm]
+|[[ref-classes-class-sxmml-mml-octave]]`<sxmml-mml-octave>` |`<sxmml-mml>` |オクターブ設定を表す型 |追加なし |link:../../sxmml/classes.scm[classes.scm]
+|[[ref-classes-class-sxmml-mml-volume]]`<sxmml-mml-volume>` |`<sxmml-mml>` |音量指定 |追加なし |link:../../sxmml/classes.scm[classes.scm]
+|[[ref-classes-class-sxmml-mml-volume-change]]`<sxmml-mml-volume-change>` |`<sxmml-mml>` |音量の相対変更 |追加なし |link:../../sxmml/classes.scm[classes.scm]
+|[[ref-classes-class-sxmml-mml-gatetime]]`<sxmml-mml-gatetime>` |`<sxmml-mml>` |ゲート時間指定 |追加なし |link:../../sxmml/classes.scm[classes.scm]
+|[[ref-classes-class-sxmml-mml-tie]]`<sxmml-mml-tie>` |`<sxmml-mml>` |タイ |追加なし |link:../../sxmml/classes.scm[classes.scm]
+|[[ref-classes-class-sxmml-mml-transpose]]`<sxmml-mml-transpose>` |`<sxmml-mml>` |移調値指定 |追加なし |link:../../sxmml/classes.scm[classes.scm]
+|[[ref-classes-class-sxmml-mml-transpose-change]]`<sxmml-mml-transpose-change>` |`<sxmml-mml>` |移調値の相対変更 |追加なし |link:../../sxmml/classes.scm[classes.scm]
+|[[ref-classes-class-sxmml-mml-tempo]]`<sxmml-mml-tempo>` |`<sxmml-mml>` |テンポ指定 |追加なし |link:../../sxmml/classes.scm[classes.scm]
+|[[ref-classes-class-sxmml-mml-tempo-absolute]]`<sxmml-mml-tempo-absolute>` |`<sxmml-mml>` |絶対テンポ指定 |追加なし |link:../../sxmml/classes.scm[classes.scm]
+|[[ref-classes-class-sxmml-mml-detune]]`<sxmml-mml-detune>` |`<sxmml-mml>` |デチューン指定 |追加なし |link:../../sxmml/classes.scm[classes.scm]
+|[[ref-classes-class-sxmml-mml-loop]]`<sxmml-mml-loop>` |`<sxmml-mml>` |ループ位置 |追加なし |link:../../sxmml/classes.scm[classes.scm]
+|[[ref-classes-class-sxmml-mml-repeat-start]]`<sxmml-mml-repeat-start>` |`<sxmml-mml>` |反復開始 |追加なし |link:../../sxmml/classes.scm[classes.scm]
+|[[ref-classes-class-sxmml-mml-repeat-break]]`<sxmml-mml-repeat-break>` |`<sxmml-mml>` |反復脱出位置 |追加なし |link:../../sxmml/classes.scm[classes.scm]
+|[[ref-classes-class-sxmml-mml-repeat-end]]`<sxmml-mml-repeat-end>` |`<sxmml-mml>` |反復終了と回数 |追加なし |link:../../sxmml/classes.scm[classes.scm]
+|[[ref-classes-class-sxmml-mml-voice]]`<sxmml-mml-voice>` |`<sxmml-mml>` |音色指定 |追加なし |link:../../sxmml/classes.scm[classes.scm]
+|[[ref-classes-class-sxmml-mml-pan]]`<sxmml-mml-pan>` |`<sxmml-mml>` |パン指定 |追加なし |link:../../sxmml/classes.scm[classes.scm]
+|[[ref-classes-class-sxmml-mml-lfo]]`<sxmml-mml-lfo>` |`<sxmml-mml>` |LFO 指定 |`channel` (`:channel`, `#f`) |link:../../sxmml/classes.scm[classes.scm]
+|[[ref-classes-class-sxmml-mml-lfo-switch]]`<sxmml-mml-lfo-switch>` |`<sxmml-mml-lfo>` |LFO の有効化・無効化 |追加なし |link:../../sxmml/classes.scm[classes.scm]
+|[[ref-classes-class-sxmml-mml-envelope]]`<sxmml-mml-envelope>` |`<sxmml-mml>` |エンベロープ指定 |追加なし |link:../../sxmml/classes.scm[classes.scm]
+|[[ref-classes-class-sxmml-mml-portament]]`<sxmml-mml-portament>` |`<sxmml-mml-note>` |開始・終了音と長さを持つポルタメント |追加なし |link:../../sxmml/classes.scm[classes.scm]
+|[[ref-classes-class-sxmml-mml-noise-frequency]]`<sxmml-mml-noise-frequency>` |`<sxmml-mml>` |ノイズ周波数指定 |追加なし |link:../../sxmml/classes.scm[classes.scm]
+|[[ref-classes-class-sxmml-mml-output-switch]]`<sxmml-mml-output-switch>` |`<sxmml-mml>` |出力切り替え指定 |追加なし |link:../../sxmml/classes.scm[classes.scm]
+|===
+
+== リズムオブジェクト
+
+`<sxmml-rhythm>` 系は、楽器ごとの `bass`、`snare`、`tom`、`cymbal`、`hihat`、`rimshot` を `:楽器名` で初期化できます。基底クラスでの各既定値は `#f` です。`<sxmml-rhythm-emit>` は多重継承により音符の `ticks` も持ちます。オブジェクト生成のみでは演奏時間や出力を更新せず、解析器と生成器が slot を参照します。
+
+[cols="2,2,3,2,1",options="header"]
+|===
+|クラス |親 |役割 |固有 slot |ソース
+|[[ref-classes-class-sxmml-rhythm]]`<sxmml-rhythm>` |なし |楽器別のリズム値の基底 |`value` と六楽器の slot（いずれも `:同名`, `#f`） |link:../../sxmml/classes.scm[classes.scm]
+|[[ref-classes-class-sxmml-rhythm-emit]]`<sxmml-rhythm-emit>` |`<sxmml-rhythm>`、`<sxmml-mml-note>` |発音または停止を表すイベント |追加なし |link:../../sxmml/classes.scm[classes.scm]
+|[[ref-classes-class-sxmml-rhythm-volume]]`<sxmml-rhythm-volume>` |`<sxmml-rhythm>` |リズム音量指定 |追加なし |link:../../sxmml/classes.scm[classes.scm]
+|[[ref-classes-class-sxmml-rhythm-volume-change]]`<sxmml-rhythm-volume-change>` |`<sxmml-rhythm>` |楽器ごとの音量相対変更 |追加なし |link:../../sxmml/classes.scm[classes.scm]
+|[[ref-classes-class-sxmml-rhythm-pan]]`<sxmml-rhythm-pan>` |`<sxmml-rhythm>` |楽器ごとのパン指定 |追加なし |link:../../sxmml/classes.scm[classes.scm]
+|===
+
+== 登録する設定値と音色
+
+次の三つの基底クラスでは、`id`、`type`、`number`、`value` のうち表に示す slot に初期化キーワードがありますが、既定値は定義されていません。利用する処理が必要とする値を指定してください。`<sxmml-opmn-voice>` は OPM と OPN に共通する音色型で、バックエンドが全 slot を生成物に使用することを意味しません。
+
+[cols="2,2,3,2,1",options="header"]
+|===
+|クラス |親 |役割 |固有 slot |ソース
+|[[ref-classes-class-sxmml-lfo]]`<sxmml-lfo>` |なし |LFO 定義 |`id` (`:id`)、`type` (`:type`)、`value` (`:value`) |link:../../sxmml/classes.scm[classes.scm]
+|[[ref-classes-class-sxmml-envelope]]`<sxmml-envelope>` |なし |エンベロープ定義 |`id` (`:id`)、`type` (`:type`)、`value` (`:value`) |link:../../sxmml/classes.scm[classes.scm]
+|[[ref-classes-class-sxmml-voice]]`<sxmml-voice>` |なし |音色定義 |`id` (`:id`)、`number` (`:number`)、`value` (`:value`) |link:../../sxmml/classes.scm[classes.scm]
+|[[ref-classes-class-sxmml-opmn-voice]]`<sxmml-opmn-voice>` |`<sxmml-voice>` |OPM・OPN 共通の四演算子音色 |追加なし |link:../../sxmml/classes.scm[classes.scm]
+|[[ref-classes-class-sxmml-opm-voice]]`<sxmml-opm-voice>` |`<sxmml-opmn-voice>` |OPM 音色 |追加なし |link:../../sxmml/classes.scm[classes.scm]
+|[[ref-classes-class-sxmml-opn-voice]]`<sxmml-opn-voice>` |`<sxmml-opmn-voice>` |OPN 音色 |追加なし |link:../../sxmml/classes.scm[classes.scm]
+|===
+
+== クラスの作成例
+
+リポジトリのルートで Gauche 0.9.15 を使用します。
+
+[source,console]
+----
+$ gosh -I. -e '(use sxmml.classes) (write (slot-ref (make <sxmml-mml-context>) (quote default-length))) (newline)'
+4
+----

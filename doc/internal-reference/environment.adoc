@@ -1,0 +1,68 @@
+= `sxmml.environment` の状態管理
+:toc: left
+
+`sxmml.environment` は、環境と登録表を操作する 24 の定義を公開します。パラメータ、マクロ、ハッシュ表の動作は Gauche 0.9.15 に従います。MML 記述者向けの使用例は xref:../sxmml-reference-manual.adoc[公開機能リファレンス]を参照してください。
+
+状態を保持する本体は xref:classes.adoc#ref-classes-class-sxmml-environment[`<sxmml-environment>`] です。`make-parameter` で作る束縛は手続きであり、引数なしで現在値を返し、値を一つ渡すと動的な現在値を変更して旧値を返します。表の設定手続きは、特記しない限り現在の環境オブジェクト内の slot または表を変更します。登録手続きの戻り値は呼び出し側では使用していません。`get` の未登録時の挙動は項目ごとに異なります。
+
+== 基本設定とメタデータ
+
+[cols="2,4,4,1",options="header"]
+|===
+|名前・書式 |引数と役割 |結果・副作用・失敗条件 |ソース
+|[[ref-environment-sxmml-environment]]`(sxmml-environment [env])` |現在の環境パラメータ。初期値は新規 `<sxmml-environment>` |引数なしで環境を返し、`env` 指定で現在値を変更 |link:../../sxmml/environment.scm[environment.scm]
+|[[ref-environment-sxmml-source-file]]`(sxmml-source-file [path])` |入力ソース名のパラメータ。初期値 `#f` |取得または設定。生成名の決定時に参照 |link:../../sxmml/environment.scm[environment.scm]
+|[[ref-environment-sxmml-output-file]]`(sxmml-output-file [path])` |出力先名のパラメータ。初期値 `#f` |取得または設定。PMD 出力先の決定時に参照 |link:../../sxmml/environment.scm[environment.scm]
+|[[ref-environment-sxmml-resolution-get]]`(sxmml-resolution-get)` |現在の解像度を得る |環境の `resolution` slot を返す。既定値 24 |link:../../sxmml/environment.scm[environment.scm]
+|[[ref-environment-sxmml-resolution-set-bang]]`(sxmml-resolution-set! resolution)` |四分音符あたりの正整数 tick 数を設定 |`resolution` slot を変更。整数でない値、0、負数は明示的にエラー |link:../../sxmml/environment.scm[environment.scm]
+|[[ref-environment-sxmml-resolution]]`(sxmml-resolution resolution)` |`sxmml-resolution-set!` の別名 |同じ値検査・状態変更を行う |link:../../sxmml/environment.scm[environment.scm]
+|[[ref-environment-sxmml-mode]]`(sxmml-mode proc args ...)` |指定した `proc` に、後続の識別子を引用したリストとして渡すマクロ |`(apply proc 'args)` に展開。実行時にモード手続きが環境を設定する。未定義の `proc` は失敗 |link:../../sxmml/environment.scm[environment.scm]
+|[[ref-environment-sxmml-metadata-get]]`(sxmml-metadata-get key)` |`metadata` 表から `key` を検索 |未登録なら `#f` |link:../../sxmml/environment.scm[environment.scm]
+|[[ref-environment-sxmml-metadata-set-bang]]`(sxmml-metadata-set! key value)` |`metadata` 表へ値を登録 |既存の同じ key を上書き |link:../../sxmml/environment.scm[environment.scm]
+|[[ref-environment-define-metadata]]`(define-metadata key value)` / `(define-metadata key (value ...))` |`key` を小文字化した symbol にし、文字列リテラル一つまたは文字列リテラルの列を登録するマクロ |値がない場合または値の構文が文字列でない場合は展開時にエラー。文字列を保持した変数名も受理しない |link:../../sxmml/environment.scm[environment.scm]
+|===
+
+`sxmml-mode` の呼び出し先を選ぶ処理は、backend モジュールが読み込まれていることを前提とします。CLI とソースの双方でモードを指定した場合の優先順位は link:../behavior-spec.md#要求との対応と既知の差[外部動作仕様]を参照してください。
+
+== LFO・エンベロープの登録
+
+`define-lfo` と `define-envelope` は Gauche の展開時に識別子と datum を構成し、実行時に対応する `set!` 手続きを呼びます。`type` を省略すると `default` です。datum は式として評価するのではなく、展開時に引用した値の列を登録します。未登録 ID の取得は、`get` に既定値を渡していないためハッシュ表の検索エラーになります。
+
+[cols="2,4,4,1",options="header"]
+|===
+|名前・書式 |引数と役割 |結果・副作用・失敗条件 |ソース
+|[[ref-environment-sxmml-lfo-get]]`(sxmml-lfo-get id)` |ID で LFO を検索 |登録済み `<sxmml-lfo>` を返す。未登録なら検索エラー |link:../../sxmml/environment.scm[environment.scm]
+|[[ref-environment-sxmml-lfo-set-bang]]`(sxmml-lfo-set! id type data)` |LFO オブジェクトを作り登録 |`lfo` 表の `id` を上書き |link:../../sxmml/environment.scm[environment.scm]
+|[[ref-environment-define-lfo]]`(define-lfo id (datum ...) ...)` / `(define-lfo id type (datum ...) ...)` |LFO の ID、種類、値の列を指定するマクロ |`sxmml-lfo-set!` を呼ぶ式に展開。列の構文が合わなければ展開できない |link:../../sxmml/environment.scm[environment.scm]
+|[[ref-environment-sxmml-envelope-get]]`(sxmml-envelope-get id)` |ID でエンベロープを検索 |登録済み `<sxmml-envelope>` を返す。未登録なら検索エラー |link:../../sxmml/environment.scm[environment.scm]
+|[[ref-environment-sxmml-envelope-set-bang]]`(sxmml-envelope-set! id type data)` |エンベロープオブジェクトを作り登録 |`envelope` 表の `id` を上書き |link:../../sxmml/environment.scm[environment.scm]
+|[[ref-environment-define-envelope]]`(define-envelope id (datum ...) ...)` / `(define-envelope id type (datum ...) ...)` |エンベロープの ID、種類、値の列を指定するマクロ |`sxmml-envelope-set!` を呼ぶ式に展開。列の構文が合わなければ展開できない |link:../../sxmml/environment.scm[environment.scm]
+|===
+
+== トラック表と登録済みオブジェクト
+
+各トラックは xref:classes.adoc#ref-classes-class-sxmml-mml-context[`<sxmml-mml-context>`] に格納されます。`track` と `part` は別の slot です。トラック名をリストで指定する `define-track` は複数の context を作り、`:part` 未指定なら各トラック名を part に設定します。
+
+[cols="2,4,4,1",options="header"]
+|===
+|名前・書式 |引数と役割 |結果・副作用・失敗条件 |ソース
+|[[ref-environment-sxmml-track-get]]`(sxmml-track-get track)` |名前でトラックを検索 |未登録なら `#f` |link:../../sxmml/environment.scm[environment.scm]
+|[[ref-environment-sxmml-track-set-bang]]`(sxmml-track-set! track . params)` |`:part` などの初期化引数から context を作る |`track` 表の同名項目を上書き。不正な初期化引数は `make` で失敗 |link:../../sxmml/environment.scm[environment.scm]
+|[[ref-environment-sxmml-track-delete-bang]]`(sxmml-track-delete! track)` |指定したトラックを削除 |`track` 表からその key を削除 |link:../../sxmml/environment.scm[environment.scm]
+|[[ref-environment-sxmml-track-clear-bang]]`(sxmml-track-clear!)` |トラック表を全件削除 |引数なしで `track` 表を空にする。一件だけ削除する場合は `sxmml-track-delete!` を使う |link:../../sxmml/environment.scm[environment.scm]
+|[[ref-environment-sxmml-track-list]]`(sxmml-track-list)` |現在の登録名を列挙 |key のリストを返す。順序は保証しない |link:../../sxmml/environment.scm[environment.scm]
+|[[ref-environment-sxmml-track-find]]`(sxmml-track-find part)` |`part` slot が一致する最初のトラック名を探す |見つからなければ `#f` |link:../../sxmml/environment.scm[environment.scm]
+|[[ref-environment-sxmml-sio-regist-bang]]`(sxmml-sio-regist! sio track)` |コンパイル済みオブジェクト列を登録 |登録済みなら context の `compiled-data` を更新。未登録なら更新しない |link:../../sxmml/environment.scm[environment.scm]
+|[[ref-environment-define-track]]`(define-track track param ...)` / `(define-track (track ...) param ...)` |一つまたは複数のトラックを設定するマクロ |`sxmml-track-set!` 呼び出しへ展開。複数トラック形は非空リストに一致する。`(define-track ())` は `define-track requires at least one track name` のエラー |link:../../sxmml/environment.scm[environment.scm]
+|===
+
+`sxmml-track-clear!` は引数なしでトラック表を全件削除します。次の例では `G` と `H` の両方を削除します。
+
+[source,console]
+----
+$ gosh -I. -e '(use sxmml)' -e '(define-track (G H))' -e '(print (sort (map symbol->string (sxmml-track-list))))' -e '(sxmml-track-clear!)' -e '(print (sxmml-track-list))'
+(G H)
+()
+----
+
+引数を渡すと arity エラーになります。

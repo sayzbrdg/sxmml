@@ -1,0 +1,115 @@
+= `sxmml.backend.pmd` の生成処理
+:toc: left
+
+`sxmml.backend.pmd` には、PMD 向け MML の生成に使う 60 の定義があります。公開名はモード選択と生成の手続きで、`%` で始まる手続き、トラック状態のクラスとパラメータは内部で使います。パラメータ、オブジェクト、文字コード変換、一時ファイル、ファイル名操作は Gauche 0.9.15 の動作に従います。
+
+生成系の `%pmd-...set!` 手続きは、特記しない限り `obj` を受けて現在の出力ポートへ PMD MML の文字列を書きます。名前の `set!` は文字列出力を含む内部の慣用名で、環境オブジェクトの slot を必ず変更するという意味ではありません。戻り値は生成側で使いません。必要なオブジェクト型と slot は xref:classes.adoc[クラス一覧]を参照してください。
+
+PMD4 向けに利用するときは `pmd`、PMD3 向けには `pmd3` を指定します。以下は生成処理を保守するための内部定義の説明です。
+
+== モード、状態、出力ファイル
+
+[cols="2,4,4,1",options="header"]
+|===
+|名前・書式 |役割・引数 |結果・状態・失敗条件 |ソース
+|[[ref-pmd-class-sxmml-pmd-track-environment]]`<sxmml-pmd-track-environment>` |一トラックを出力する際の状態クラス |`(make <sxmml-pmd-track-environment> [:octave 値] [:mode 値])`。`octave` 初期値 255、`mode` 初期値 0。新規インスタンスを返し、作成時に既存状態は変えない |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-sxmml-pmd-track-environment]]`(sxmml-pmd-track-environment [env])` |出力中のトラック状態パラメータ |初期値 `#f`。取得・設定に使用。状態未設定で emitter を直接呼ぶと slot 参照に失敗し得る |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-pmd3-source]]`(pmd3-source)` |PMD3 形式を選択 |環境の `backend` を PMD3 生成手続き、`mode` を `"PMD3"` に設定してトラックを登録 |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-pmd4-source]]`(pmd4-source)` |PMD4 形式を選択 |`backend` を PMD4 生成手続き、`mode` を `"PMD4"` に設定してトラックを登録 |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-pmd-source]]`(pmd-source)` |PMD4 向けの標準モードを選択 |`backend` を標準生成手続き、`mode` を `"PMD"` に設定してトラックを登録 |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-pmd3]]`pmd3` |`pmd3-source` の手続き別名 |書式・状態変更は元の手続きと同じ |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-pmd]]`pmd` |PMD4 向けに指定する `pmd-source` の手続き別名 |書式・状態変更は元の手続きと同じ |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-internal-pmd-source]]`(%pmd-source)` |出力名を決め A～J・L のトラックを登録 |出力名パラメータとトラック表を変更。FM A～F の `volume-delta` は 4、PCM J は 16 |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-sxmml-pmd3-source-generate]]`(sxmml-pmd3-source-generate)` |PMD3 向け生成 |PMD3 指定で共通生成処理を実行 |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-sxmml-pmd4-source-generate]]`(sxmml-pmd4-source-generate)` |PMD4 向け生成 |PMD4 指定で共通生成処理を実行 |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-sxmml-pmd-source-generate]]`(sxmml-pmd-source-generate :optional (mode #f))` |モード引数を渡して生成 |`mode` を PMD3 用の真値として共通処理へ渡す。省略時 `#f` |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-internal-sxmml-pmdx-source-generate]]`(%sxmml-pmdx-source-generate mode)` |共通の生成入口 |ファイル出力後に現在の `<sxmml-environment>` を返す。出力時のエラーは伝播 |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-internal-pmd-source-output]]`(%pmd-source-output :optional (pmd3? #f))` |ヘッダー、メタデータ、音色、各トラックを出力 |一時ファイルを CP932 で書き、出力先へ改名し、`sxmml-output-file` をその生成先に更新する。PMD3 では終端 `0x1a` を付加。出力先が使えない場合や変換できない文字は失敗し得る |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-internal-pmd-source-head-generate]]`(%pmd-source-head-generate :optional (pmd3? #f))` |生成元名と PMD バージョンの行を書く |`sxmml-source-file` が必要。PMD3 は `PMDver3.3`、それ以外は `PMDver4.8` |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-internal-pmd-source-meta-generate]]`(%pmd-source-meta-generate :optional (pmd3? #f))` |`title` 等と複数の `memo` を書く |PMD3 はメタデータ行の先頭に `; ` を付ける。値がないキーは書かない |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-internal-pmd-source-voice-generate]]`(%pmd-source-voice-generate)` |登録された音色を番号順ではなく表の反復順に書く |各演算子で `ar dr sr rr sl tl ks ml dt ams` を出力し、`dt2`・`seg` は出力しない |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-internal-output-file-get]]`(%output-file-get)` |出力先を決める |`filename` メタデータ、入力名の `.mml` への拡張子変更、`./a.mml` の順に選択。出力名は返すだけで書き込みはしない |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|===
+
+音色値の `DT2` は OPN にはないパラメータです。`SEG` はハードウェアに存在する SSG-EG に関する値ですが、PMD は音色パラメータとして持ちません。共通の OPM・OPN クラスは両値を保持しますが、PMD 向け音色行には出力しません。`filename` を後から指定した場合に生成先と CLI の `Translate` 表示が食い違う制約は link:../behavior-spec.md[外部動作仕様]を参照してください。
+
+== トラックとリズム行の組み立て
+
+`%track-generate` は最適化された列を取得し、最頻の tick 数を既定音長として出力します。トラックのデータが空なら行を出しません。リズムの L トラックは定義用 R 行と配置用 K 行に分かれます。以下の手続きは現在の出力ポートへ書き、戻り値は呼び出し側で使用しません。
+
+[cols="2,4,4,1",options="header"]
+|===
+|書式 |引数と役割 |出力・前提・失敗条件 |ソース
+|[[ref-pmd-internal-track-generate]]`(%track-generate track part voice-proc! vol-set-proc! vol-change-proc!)` |通常トラック共通。part 文字と音色・音量の処理手続きを受ける |登録済み track と正しい処理手続きが必要。トラック状態パラメータを動的に設定し、CRLF で終わる行を書く |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-internal-fm-track-generate]]`(%fm-track-generate track part)` |FM 向けの音色・音量処理を選ぶ |A～F の行生成に使用 |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-internal-ssg-track-generate]]`(%ssg-track-generate track part)` |SSG 向けの音色・音量処理を選ぶ |G～I の行生成に使用 |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-internal-pcm-track-generate]]`(%pcm-track-generate track part)` |PCM 向けの音色・音量処理を選ぶ |J の行生成に使用 |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-internal-pmd-track-generate]]`(%pmd-track-generate lis voiceproc volproc volcproc)` |オブジェクト型ごとに emitter を振り分ける |`lis` を順に走査。対応しない型は出力せず進む |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-internal-pmd-rhythm-track-generate]]`(%pmd-rhythm-track-generate track)` |L の最適化済み列を R と K に分ける |ループの有無を調べ、トラック状態を設定。未登録なら最適化で失敗 |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-internal-pmd-rhythm-definition-track-generate]]`(%pmd-rhythm-definition-track-generate has-loop? lis)` |リズムの発音、休符、音量、パン、反復を R0/R1 行に書く |ループがある場合は分割位置の後を R1 として続ける |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-internal-pmd-rhythm-deploy-track-generate]]`(%pmd-rhythm-deploy-track-generate has-loop? lis)` |R0 と任意の R1 を使う K 行を書く |L トラックの最頻 tick 数を既定音長にできる |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-internal-find-mode-ticks]]`(%find-mode-ticks track)` |`ticks-statistics` から最頻 tick 数を探す |記録が空なら `#f`。未登録 track なら検索で失敗 |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|===
+
+== 通常 MML オブジェクトの出力
+
+次の各手続きは一つの `obj` を受けます。型ごとの出力文字列を現在のポートへ書き、値が不適切なときには数値演算、slot 参照、明示的な検査で失敗します。必要なトラック状態は `%track-generate` が設定します。個々の数値の音響上の効果は外部ドライバーに依存します。
+
+[cols="2,5,3,1",options="header"]
+|===
+|書式 |入力と出力 |状態・失敗条件 |ソース
+|[[ref-pmd-internal-pmd-rest-set-bang]]`(%pmd-rest-set! obj)` |休符の `ticks` を `r` または `r%数` で書く |255 を超える長さは複数に分割。既定音長と一致すれば数値を省略 |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-internal-pmd-note-set-bang]]`(%pmd-note-set! obj)` |音高をオクターブ指定と音名、長さで書く |トラック状態の `octave` を更新。255 超の長さは `&` で分割 |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-internal-pmd-fm-voice-set-bang]]`(%pmd-fm-voice-set! obj)` |登録済み FM 音色を `@番号` で書く |ID が `voice` 表になければ `no instrument define` エラー |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-internal-pmd-gatetime-set-bang]]`(%pmd-gatetime-set! obj)` |ゲート時間を `q数` で書く |`value` が必要 |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-internal-pmd-fm-volume-set-bang]]`(%pmd-fm-volume-set! obj)` |FM 音量を `V数` で書く |`value` が必要 |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-internal-pmd-ssg-volume-set-bang]]`(%pmd-ssg-volume-set! obj)` |SSG 音量を `v数` で書く |`value` が必要 |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-internal-pmd-pcm-volume-set-bang]]`(%pmd-pcm-volume-set! obj)` |PCM 音量を `V数` で書く |`value` が必要 |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-internal-pmd-tempo-absolute-set-bang]]`(%pmd-tempo-absolute-set! obj)` |絶対値を `T数` で書く |`value` が必要 |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-internal-pmd-tempo-set-bang]]`(%pmd-tempo-set! obj)` |BPM を `bpm\->timerb` で変換し `T数` で書く |計算結果が範囲外ならエラー |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-internal-pmd-tie-set-bang]]`(%pmd-tie-set! obj)` |タイ記号 `&` を書く |`obj` の値を参照しない |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-internal-pmd-detune-set-bang]]`(%pmd-detune-set! obj)` |デチューンを `D数` で書く |`value` が必要 |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-internal-pmd-repeat-start-set-bang]]`(%pmd-repeat-start-set! obj)` |反復開始 `[` を書く |`obj` の値を参照しない |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-internal-pmd-repeat-end-set-bang]]`(%pmd-repeat-end-set! obj)` |反復終了と回数 `]数` を書く |`value` が必要 |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-internal-pmd-repeat-break-set-bang]]`(%pmd-repeat-break-set! obj)` |脱出位置 `:` を書く |`obj` の値を参照しない |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-internal-pmd-loop-set-bang]]`(%pmd-loop-set! obj)` |ループ位置 `L` を書く |`obj` の値を参照しない |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-internal-pmd-transpose-set-bang]]`(%pmd-transpose-set! obj)` |移調値を `_数` で書く |`value` が必要 |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-internal-pmd-lfo-set-bang]]`(%pmd-lfo-set! obj)` |LFO 定義を `M` または `MB` で書く |未登録 ID、4 値以外、値の範囲外、channel が A/B/`#f` 以外なら明示的にエラー |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-internal-pmd-lfo-switch-set-bang]]`(%pmd-lfo-switch-set! obj)` |LFO の ON/OFF を `*` または `*B` に続く 1/0 で書く |channel が A/B/`#f` 以外ならエラー |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-internal-pmd-envelope-set-bang]]`(%pmd-envelope-set! obj)` |登録されたエンベロープを `E` と値列で書く |未登録 ID、値の範囲外ならエラー。短すぎる値列は要素参照でも失敗し得る |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-internal-pmd-pan-set-bang]]`(%pmd-pan-set! obj)` |パンを `p数` で書く |`value` が必要 |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-internal-pmd-transpose-change-set-bang]]`(%pmd-transpose-change-set! obj)` |相対移調を `__数` で書く |`value` が必要 |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-internal-pmd-fm-volume-change-set-bang]]`(%pmd-fm-volume-change-set! obj)` |FM 音量差を `)` / `(` または `%数` 付きで書く |幅 4 を短い表記にする |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-internal-pmd-ssg-volume-change-set-bang]]`(%pmd-ssg-volume-change-set! obj)` |SSG 音量差を `)` / `(` または `%数` 付きで書く |幅 1 を短い表記にする |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-internal-pmd-pcm-volume-change-set-bang]]`(%pmd-pcm-volume-change-set! obj)` |PCM 音量差を `)` / `(` または `%数` 付きで書く |幅 16 を短い表記にする |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-internal-pmd-portament-set-bang]]`(%pmd-portament-set! obj)` |開始・終了音と tick 長を波括弧形式で書く |トラック状態の `octave` を更新。音高対と `ticks` が必要 |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-internal-pmd-ssg-voice-set-bang]]`(%pmd-ssg-voice-set! obj)` |数値 ID を `@数` で書く |0～9 以外で失敗。非数値 symbol も変換後の比較で失敗 |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-internal-pmd-pcm-voice-set-bang]]`(%pmd-pcm-voice-set! obj)` |数値 ID を `@数` で書く |0～255 以外で失敗。非数値 symbol も変換後の比較で失敗 |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-internal-pmd-noise-freq-set-bang]]`(%pmd-noise-freq-set! obj)` |ノイズ周波数を `w数` で書く |`value` が必要 |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-internal-pmd-output-switch-set-bang]]`(%pmd-output-switch-set! obj)` |出力切り替えを `P数` で書く |`value` が必要 |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|===
+
+== リズムオブジェクトと補助変換
+
+リズム行の emitter は、`bass`・`snare`・`tom`・`cymbal`・`hihat`・`rimshot` の真値になっている slot だけを出力します。`%pmd-rhythm-pan-set!` の値 1・2・3 は、それぞれ右・左・中央の記号に変換されます。
+
+[cols="2,5,3,1",options="header"]
+|===
+|書式 |入力と出力 |状態・失敗条件 |ソース
+|[[ref-pmd-internal-pmd-rhythm-emit-set-bang]]`(%pmd-rhythm-emit-set! obj)` |選択楽器の発音または停止記号を出力 |発音時には `ticks` に対応する休符表記も追加する |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-internal-pmd-rhythm-volume-set-bang]]`(%pmd-rhythm-volume-set! obj)` |全体値と楽器別の音量を出力 |設定済み slot だけを出す |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-internal-pmd-rhythm-volume-change-set-bang]]`(%pmd-rhythm-volume-change-set! obj)` |楽器別の符号付き音量差を出力 |設定済み slot だけを出す |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-internal-pmd-rhythm-pan-set-bang]]`(%pmd-rhythm-pan-set! obj)` |楽器別パンを出力 |1/2/3 または `#f` を前提とする |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-internal-note-number-to-pmd-note]]`(%note-number\->pmd-note note)` |半音番号をオクターブと音名の対に変換 |`quotient&remainder` で 12 分割し、`c`、`c+` 等を返す。状態は変更しない |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|===
+
+== PMD 生成例
+
+リポジトリのルートで実行します。生成物は新しく作った一時ディレクトリに置きます。
+
+[source,console]
+----
+$ scratch_dir=$(mktemp -d /tmp/sxmml-internal-pmd.XXXXXX)
+$ SXMML_DOC_DIR="$scratch_dir" gosh -I. -e '(use sxmml.backend.pmd)' -e '(use sxmml)' -e '(sxmml-source-file (string-append (sys-getenv "SXMML_DOC_DIR") "/melody.sxl"))' -e '(pmd-source)' -e '(mml G "c8")' -e '(sxmml-pmd-source-generate)' -e '(print (sys-basename (sxmml-output-file)) " " (file-exists? (sxmml-output-file)))'
+melody.mml #t
+----

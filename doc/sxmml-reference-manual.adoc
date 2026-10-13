@@ -1,69 +1,182 @@
-= sxmmlリファレンス
+= sxmml MML 記述者向けリファレンス
 :toc: left
 
-本書は、sxmmlのリファレンスを記載するものである。
+本書は、sxmml の Scheme ソースに直接記述する機能を説明します。動作環境は Gauche 0.9.15 です。MML 文字列のコマンドは link:sxmml-mml-manual.adoc[MML コマンドマニュアル]、CLI は link:sxlc.1.md[sxlc マニュアル]を参照してください。
 
-== Module: sxmml
+`sxlc` で読み込む `.sxl` ファイルは Scheme ソースです。`mml` などの本文には Scheme の式を渡せますが、`define-metadata` などの定義形式は個別の制約を持ちます。link:../README.md#最初の変換[README の導入手順]で `sxlc` をインストールすると、以下の例は `sxlc -m pmd ファイル名` として実行できます。PMD モードでは A～F が FM、G～I が SSG、J が PCM、L がリズム用です。
 
-== Module: sxmml.compiler
+== モードとトラック
 
-=== Macro: mml tracks string ...
+=== `sxmml-mode`
 
-stringをそれぞれコンパイルした結果をtracksに登録する。
-stringはsxmmlのMMLコマンドで構成された文字列である必要がある。
+書式: `(sxmml-mode モード名)`
 
-tracksは以下の形式のどれかでなければならない。
+ソース内で生成モードを選びます。PMD4 向けには `pmd`、PMD3 向けには `pmd3` を指定します。`sxlc -m` を使用すればソース内の指定は不要です。両方を指定した場合はソース側の指定が有効になる既知の問題があるため、この組み合わせは避けてください。
 
-`NAME`::
-この形式では1つのトラックを表すシンボルを指定する。
+[source,scheme]
+----
+(sxmml-mode pmd)
+(mml G "c8")
+----
 
-`(NAME ...)`::
-この形式ではトラックを表すシンボルをリスト形式で複数指定する。指定されたそれぞれのトラックにstringのコンパイル結果が登録される。
+=== `define-track`
 
-== Module: sxmml.processor
+書式: `(define-track トラック名 [設定 ...])`、`(define-track (トラック名 ...) [設定 ...])`
 
-=== Macro mml-delay tracks parameters string ...
+一つまたは複数のトラックを登録します。`mml` と `rhythm` で使う名前は登録済みである必要があります。`設定` には `:volume-delta 数値` を指定でき、通常 MML の `)` と `(` の変化幅になります。省略時の幅は 1 です。PMD モードを選ぶと A～J と L が登録されるため、通常は個別登録を要しません。別名のトラックを登録しても、その名前が PMD 向け生成対象になるとは限りません。モードを選ばずに `define-track` だけを記しても、`sxlc` の生成にはバックエンドの選択が必要です。
 
-stringのmml文字列内の音符が指定の音長より長い音符の時、指定音長経過の度に指定の音量ずつ下げて発音することで単独トラックで疑似ディレイを実現する。
+[source,scheme]
+----
+(define-track (G H))
+(mml (G H) "c8")
+----
 
-tracksは<<_Macro: mml tracks string ...,mml>>マクロと同様の形式でなければならない。
+== MML の登録と加工
 
-parametersは以下の形式で指定する。
+=== `mml` と `rhythm`
 
-`(TICKS FIRST REPEAT)`::
-TICKSは再発音までの遅延時間をtick数で指定する。FIRSTは最初の再発音時に減らすボリューム値、REPEATはその後の再発音時に減らすボリューム値を指定する。
+書式: `(mml トラック名 式 ...)`、`(rhythm トラック名 式 ...)`
 
-=== Macro mml-echo tracks parameters string ...
+式を評価して得た文字列や文字列のリストを連結し、通常 MML またはリズム MML として登録します。トラック名は一つ、または `(G H)` のような名前のリストです。文字列は各トラックの記法に従ってください。指定したトラックが未登録ならエラーになります。
 
-string内の音符の長さを半分にし、1つ前の音を発音することで、疑似エコーを実現する。
+[source,scheme]
+----
+(define phrase (map (lambda (name) (string-append name "8"))
+                    '("c" "d" "e")))
+(mml G phrase "r8")
+(rhythm L "@b8" "r8")
+----
 
-tracksは<<_Macro: mml tracks string ...,mml>>マクロと同様の形式でなければならない。
+[[mml-repeat]]
+=== `mml-repeat`
 
-parametersは以下の形式で指定する。
+書式: `(mml-repeat トラック名 正の整数回数 (本文 ...))`、`(mml-repeat トラック名 正の整数回数 (前半 ...) (後半 ...))`
 
-`(NOTE VOLUME REST)`::
-NOTEは最初の音符を半分にした後半に発音する音符を指定する。VOLUMEは1つ前の音を発音する時の音量の減少量を指定する。RESTは休符の時に再発音する1つ前の音の音量減少量を指定する。
+本文中に `mml` などを記述し、反復の開始・終了、二つの本文を使うときは最終回の脱出位置を登録します。トラック名には一つまたはリストを指定できます。単純な反復には次の形を使えます。
 
-== Macro mml-repeat tracks count clause1 [clause2 clause3]
+[source,scheme]
+----
+(mml-repeat G 2
+  ((mml G "c8d8")))
+----
 
-mmlコマンドで `[clause1:clause2]count` と記述するのと同じ意味である。
+二つの本文を指定した場合、最初の本文の後に脱出位置 `:`、次の本文の後に反復終了 `]回数` を登録します。
 
-clause3はtracksのうち一部のトラックのみリピートから脱出したい場合に以下の形式で使用する。
+三つの節を指定する書式は、単一トラックでは `(mml-repeat トラック名 回数 (前半 ...) (後半 ...) (反復後 ...))`、複数トラックでは `(mml-repeat (トラック名 ...) 回数 (前半 ...) (後半 ...) (脱出トラック 反復後 ...))` です。複数トラック形の脱出トラックには一つの名前または名前のリストを指定します。脱出位置は指定したトラックの前半と後半の間に置き、三つ目の節の本文は反復が終わった後に置きます。反復後の本文は省略できます。
 
-`((TRACK ...) MML ...)`::
-TRACKは脱出したいトラックを表すシンボルをリスト形式で複数指定する。MMLは脱出するトラックのmmlを記述する。
+次は、A/B/C に共通の前半と後半を置き、B/C だけに脱出位置を指定する例です。
 
-以下に使用例を示す。
-
-```
-(mml-repeat (A B C) 4 
+[source,scheme]
+----
+(mml-repeat (A B C) 4
   ((mml (A B C) "cdefg"))
-  ((mml A "ab"))
-  ((B C) (mml (B C) "ab")))
-```
-これは以下の様に展開される。
+  ((mml (A B C) "ab"))
+  ((B C)))
+----
 
-```
-(mml A "[cdefgab]4")
-(mml (B C) "[cdefg:ab]4")
-```
+これは `(mml A "[cdefgab]4")`、`(mml (B C) "[cdefg:ab]4")` 相当です。
+
+三つ目の節に本文を書くと、遅れて始まるパートの長さを反復後の音で調整できます。
+
+[source,scheme]
+----
+(mml B "((r8.")
+(mml-repeat (A B) 4
+  ((mml (A B) "l8 cdefg"))
+  ((mml (A B) "ab"))
+  (B (mml B "a16")))
+----
+
+これは次の記述と同じ A/B の生成行になります。解像度 24 では A/B とも合計 336 tick です。B は冒頭の休符で 18 tick 遅れ、最終回の `ab` 24 tick を脱出位置で省略し、反復後に `a16` 6 tick を加えて長さをそろえます。
+
+[source,scheme]
+----
+(mml A "[l8cdefg ab]4")
+(mml B "((r8.[l8cdefg:ab]4 a16")
+----
+
+[[mml-echo]]
+=== `mml-echo`
+
+書式: `(mml-echo トラック名 (最初の音 音量減少量 休符時の減少量) 式 ...)`
+
+指定した MML の各音符の長さを前半と後半に分け、後半に一つ前の音を再発音する記述へ加工します。続く休符にも前の音の再発音と音量変更を加えます。「最初の音」は最初の音符の後半に使う `"c"` のような音符文字列です。音量減少量は音符の後半に前の音を鳴らす際、休符時の減少量は休符で前の音を鳴らす際に使います。例えば `("g" 2 1)` と `"c8d8r8"` を指定すると、最初の `c8` の後半には `g`、次の `d8` の後半には `c`、休符の一部には `d` を配置します。トラック名は単一の登録済みトラック名を指定します。複数トラックを加工するには、トラックごとに `mml-echo` を呼びます。詳細は link:known-issues.md#ki-006[既知の課題]を参照してください。
+
+[source,scheme]
+----
+(mml-echo G ("g" 2 1) "c8d8r8")
+----
+
+=== `mml-delay`
+
+書式: `(mml-delay トラック名 (間隔tick 最初の音量減少量 以後の減少量) 式 ...)`
+
+音符の後に続く休符を対象に、直前の音を間隔 tick ごとに再発音するよう MML を加工します。間隔は正の整数、音量変化量は整数です。最初の音量減少量は最初の再発音に、以後の減少量は続く再発音に使います。間隔以下の休符と、直前に音符がない休符には再発音を追加しません。トラック名には一つまたはリストを指定できます。休符がない `"c4"` でも再発音を追加しません。
+
+[source,scheme]
+----
+(mml-delay G (6 2 1) "c8r8")
+----
+
+== 曲の設定と定義
+
+=== `sxmml-resolution`
+
+書式: `(sxmml-resolution 正の整数)`
+
+四分音符あたりの tick 数を変更します。初期値は 24 です。0 以下と整数以外はエラーです。解像度を変更すると、同じ `c8` でも tick 数が変わります。
+
+[source,scheme]
+----
+(sxmml-resolution 48)
+(mml G "c8")
+----
+
+=== `define-metadata`
+
+書式: `(define-metadata キー "文字列")`、`(define-metadata キー ("文字列" ...))`
+
+メタデータを定義します。値はマクロ記述時に文字列リテラルである必要があり、文字列を保持する Scheme 変数を値として渡す形は受け付けません。PMD 向け生成物では `title`、`composer`、`arranger`、`pcmfile`、`ppzfile`、`ppsfile`、`memo` が出力対象です。`filename` は生成先の指定に使われます。
+
+[source,scheme]
+----
+(define-metadata title "短い曲")
+(define-metadata memo ("練習用" "2小節"))
+----
+
+`filename` を指定すると、実際の生成先と `sxlc` の `Translate` 表示が食い違う場合があります。`-c` に渡す名前は生成先と一致します。対応状況は link:known-issues.md#ki-004[既知の課題]を参照してください。
+
+=== `define-lfo`、`define-envelope`
+
+書式: `(define-lfo 名前 (値 ...))`、`(define-envelope 名前 (値 ...))`。型名を明示する `(define-lfo 名前 型名 (値 ...))` と `(define-envelope 名前 型名 (値 ...))` も受け付けます。
+
+`M` と `E` のコマンドから参照する定義を作ります。次は PMD 向けの四値の例です。PMD 向け生成では LFO に四つ、エンベロープに四つまたは六つの値を使用します。LFO の四値の許容範囲は順に 0～255、0～255、-128～127、0～255 です。エンベロープの四値形式は順に 0～255、-15～15、0～255、0～255、六値形式は順に 0～31、0～31、0～31、0～15、0～15、0～15 です。音響上の効果は生成先のドライバーに依存します。
+
+[source,scheme]
+----
+(define-lfo L1 (1 2 3 4))
+(define-envelope E1 (1 2 3 4))
+(mml G "M{L1 A} E{E1} c8")
+----
+
+=== `define-opn-voice`
+
+書式: `(define-opn-voice 名前 (AL FB) OP1 OP2 OP3 OP4)`
+
+FM 音色を定義します。OP1～OP4 には、`(AR DR SR RR SL TL KS ML DT)` の九値、末尾に `AMS` を加えた十値、`SEG AMS` を加えた十一値、または `DT2 SEG AMS` を加えた十二値を指定できます。省略した末尾の値は 0 になります。PMD 向け生成では `DT2` と `SEG` は出力されません。FM トラックで数値 ID は `@0`、文字を含む名前は `@{tone}` の形で使い、先に対応する音色を定義してください。
+
+[source,scheme]
+----
+(define-opn-voice 0 (0 0)
+  (0 0 0 0 0 0 0 0 0)
+  (0 0 0 0 0 0 0 0 0)
+  (0 0 0 0 0 0 0 0 0)
+  (0 0 0 0 0 0 0 0 0))
+(mml A "@0c8")
+----
+
+不具合・未実装の対応状況と詳細は link:known-issues.md[既知の課題]を参照してください。
+
+== 対応範囲
+
+ここで説明したマクロは PMD 向けの生成に使用できます。MML オブジェクトの値を直接変更すると、関連する時間情報が更新されない場合があります。本書で扱う加工マクロの操作と制約を確認してください。

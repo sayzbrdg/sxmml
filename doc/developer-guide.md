@@ -1,0 +1,78 @@
+# 開発・改修手順
+
+この文書は sxmml の開発・改修手順を示す。検証基準は Gauche 0.9.15 とする。最初のコマンドはリポジトリのルートで実行する。構成と変更箇所は[構成と設計](architecture.md)、個々の内部定義は[内部リファレンス](internal-reference/index.adoc)、要求と検証範囲は[検証方針](verification.md)を参照する。
+
+## 必要な環境と生成物
+
+開発・検証環境は Gauche 0.9.15、GNU Make、`iconv` とする。`configure` は Gauche の `gauche.configure` を使用する。`package.scm` の依存条件は Gauche 0.9.15 以上である。`Makefile.in` は `gosh`、`gauche-config`、`gauche-package`、`gauche-install` を使用する。
+
+以下の手順には、リポジトリの Git チェックアウトが必要である。取得方法は[README](../README.md#最初の変換)を参照する。
+
+`./configure` は `Makefile`、`sxmml.gpd`、`VERSION` を生成する。`make` は `sxlc.in` に shebang を付けた `sxlc` を作る。`make check` は `test.scm` を実行し、`test.log` に結果を残す。設定と生成の規則は [`configure`](../configure)、[`Makefile.in`](../Makefile.in)、[`package.scm`](../package.scm)を参照する。
+
+## 隔離したコピーでの確認
+
+次の手順は現在の `HEAD` を `/tmp` に展開し、作業ツリーに生成物を置かない。別の版を検証するときは `source_rev` に対象のブランチやタグを指定する。`git archive` は未コミットの編集を含まない。Gauche 0.9.15 で `./configure`、`make check`、一時ディレクトリへのインストールと後述の変換を実行できる。配置したコマンドとモジュールを `PATH`・`GAUCHE_LOAD_PATH` で選ぶため、既存のインストールを上書きしない。
+
+```console
+scratch_dir=$(mktemp -d /tmp/sxmml-dev.XXXXXX)
+source_rev=HEAD
+git archive "$source_rev" | tar -x -C "$scratch_dir"
+cd "$scratch_dir"
+gosh -V
+./configure
+make check
+cat test.log
+install_dir=$(mktemp -d /tmp/sxmml-dev-install.XXXXXX)
+make bindir="$install_dir/bin" GAUCHE_PKGLIBDIR="$install_dir/share/sxmml" install
+export PATH="$install_dir/bin:$PATH"
+export GAUCHE_LOAD_PATH="$install_dir/share/sxmml${GAUCHE_LOAD_PATH:+:$GAUCHE_LOAD_PATH}"
+```
+
+`make check` の成功時は、`test.log` に `sxmml.classes` から `sxmml` まで 9 モジュールの binding 検査が全て `ok` と表示され、末尾が `passed.` となる。`test.scm` は `test-module` による binding 検査を行う。MML 変換、CLI 出力、最適化の検証は[検証方針](verification.md)の手順に従って別に行う。
+
+同じコピー内で PMD 生成を確認するには、次を続けて実行する。出力ファイルは `melody-and-rest.sxl` と同じディレクトリにできる。
+
+```console
+printf '%s\n' '(mml G "c8r8")' > melody-and-rest.sxl
+sxlc -m pmd -O 0 melody-and-rest.sxl
+cat melody-and-rest.mml
+```
+
+この例では `Processing Mode: PMD`、`Optimize level: 0`、`Track G: total: 24` と表示し、生成物に `G l%12o4cr` を含む。日本語メタデータの符号化を確かめる手順は[配布・互換性](release-guide.md#符号化と生成物の確認)に示す。エラー・境界値の再現コマンドは[外部動作仕様](behavior-spec.md#失敗条件と境界値)を参照する。
+
+## 文書生成の現状
+
+`Makefile.in` には文書や man ページを生成するターゲットがない。man ページは Pandoc で手動生成・配置する。[配布・互換性](release-guide.md#man-ページの手動生成と配置)に手順を示す。
+
+内部リファレンスの AsciiDoc は、Docker の Asciidoctor で HTML 表示を確認できる。リポジトリのルートから次を実行する。`-R doc` により元のディレクトリ構造を出力先にも保ち、文書間の相対リンクを使えるようにする。既存の両 AsciiDoc マニュアルも参照先として生成する。出力は新規の一時ディレクトリへ置き、ソースは読み取り専用でコンテナーに渡す。
+
+```console
+render_dir=$(mktemp -d /tmp/sxmml-internal-reference.XXXXXX)
+docker run --rm -v "$PWD:/work:ro" -v "$render_dir:/out" -w /work \
+  asciidoctor/docker-asciidoctor:latest asciidoctor -R doc -D /out \
+  doc/internal-reference/*.adoc \
+  doc/sxmml-mml-manual.adoc doc/sxmml-reference-manual.adoc
+```
+
+## 変更種別ごとの調査と確認
+
+変更前に[構成と設計の対応表](architecture.md#代表的な変更時の調査先)から関係モジュールを特定する。`make check` に加え、変更した振る舞いに対応する[検証方針](verification.md#要求と検証の対応)の入力・観測点を確認する。
+
+| 変更種別 | 調査の入口 | 確認する結果 |
+| --- | --- | --- |
+| MML 構文・音長 | `sxmml/mml.scm`、`sxmml/classes.scm` | 通常・リズム双方の解析結果、tick、生成行、失敗条件 |
+| マクロ・オブジェクト加工 | `sxmml/compiler.scm`、`sxmml/processor.scm`、`sxmml/environment.scm` | 反復・echo・delay の登録列と文脈、PMD 出力 |
+| 最適化 | `sxmml/optimizer.scm`、`sxmml/backend/pmd.scm` | 水準別のオブジェクト数と列、生成物、[Q-01 の検証方法](verification.md#q-01-音楽的な意味の保持)で比較できる範囲 |
+| CLI・出力先 | `sxlc.in`、`sxmml/environment.scm`、`sxmml/backend/pmd.scm` | 実際の生成先、表示、`-c` に渡す名前、モード優先関係 |
+| 配布 | `configure`、`package.scm`、`Makefile.in` | 生成物、テストログ、ステージングの配置、man ページの有無 |
+
+## 障害調査の入口
+
+`sxlc` がモード未指定で止まる場合は、CLI の `-m` またはソースの `sxmml-mode` と `backend` slot を確認する。構文エラーは入力付近とトラック名が出るため、`sxmml/mml.scm` と `sxmml/compiler.scm` を辿る。音色未定義は生成段階で起き得る。生成先と `Translate` 表示が異なる場合は `filename` とソース読み込み順を確認する。エラーの条件と境界値は[外部動作仕様](behavior-spec.md#失敗条件と境界値)を参照する。
+
+改修対象の現在の問題、再現条件と期待する動作は [既知の課題](known-issues.md)から確認する。
+
+## 関連資料
+
+ビルド規則は[`Makefile.in`](../Makefile.in)と[`configure`](../configure)、パッケージ情報は[`package.scm`](../package.scm)、テストは[`test.scm`](../test.scm)を参照する。Gauche の生成・テスト機能は [Gauche 0.9.15 Users’ Reference, 9.8 gauche.configure、9.34 gauche.test](https://practical-scheme.net/vault/Gauche-0.9.15-refe.pdf)を参照する。

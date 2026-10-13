@@ -1,0 +1,16 @@
+= `sxmml.util` の補助手続き
+
+`sxmml.util` は `bpm\->timerb` を公開します。
+
+[[ref-util-bpm-to-timerb]]
+== `(bpm\->timerb bpm :optional (res #f))`
+
+正の BPM と解像度から PMD 用 Timer B 値を計算します。`res` を省略するか `#f` にすると、現在の `sxmml-resolution-get` を使います。計算式は `floor(256 - 208000 / (bpm * res))` です。戻り値が 0～255 の範囲外なら明示的なエラーとなり、`bpm * res` が 0 なら除算に失敗します。環境は変更しません。定義は link:../../sxmml/util.scm[util.scm] にあります。
+
+次の例では解像度 24 の環境で BPM 120 を PMD 用 Timer B 値へ変換します。数値演算と `floor` は Gauche 0.9.15 の動作に従います。
+
+[source,console]
+----
+$ gosh -I. -e '(use sxmml.util) (print (bpm->timerb 120))'
+183
+----

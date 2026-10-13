@@ -1,0 +1,23 @@
+= `sxmml.voice` の音色定義
+:toc: left
+
+`sxmml.voice` には四つの定義があり、`define-opn-voice` と `sxmml-opmn-operator-zip` を公開します。音色の基底クラスは xref:classes.adoc#ref-classes-class-sxmml-voice[`<sxmml-voice>`] を参照してください。`util.match`、マクロ展開、ハッシュ表は Gauche 0.9.15 の動作に従います。
+
+[cols="2,4,4,1",options="header"]
+|===
+|名前・書式 |引数と役割 |戻り値・副作用・失敗条件 |ソース
+|[[ref-voice-sxmml-opmn-operator-zip]]`(sxmml-opmn-operator-zip op1 op2 op3 op4 afb)` |四つの演算子値列を PMD の並びへ交互に組み合わせ、末尾へ `afb` を加える |新しいリストを返す。四列の長さが揃うことを呼び出し側が前提とする |link:../../sxmml/voice.scm[voice.scm]
+|[[ref-voice-sxmml-opm-list-to-register]]`(sxmml-opm-list\->register form)` |演算子値 12 個をレジスタ用の六値へ結合 |`dt/ml`、`ks/ar`、`ams/dr`、`dt2/sr`、`sl/rr` 等を bit 演算でまとめたリスト。形が一致しなければ `match` で失敗。現行 PMD 出力からは呼ばれない |link:../../sxmml/voice.scm[voice.scm]
+|[[ref-voice-internal-4op-voice-shape]]`(%4op-voice-shape form id openum)` |演算子 `openum` の値列を 12 要素へ補完 |9～11 要素の形では省略された `dt2`、`seg`、`ams` を 0 で補う。その他は ID と演算子番号を含む `invalid voice format` エラー |link:../../sxmml/voice.scm[voice.scm]
+|[[ref-voice-define-opn-voice]]`(define-opn-voice id (al fb) op1 op2 op3 op4)` |音色 ID、アルゴリズム・フィードバック、四演算子の値列を受けるマクロ |`voice` 表へ `<sxmml-opn-voice>` を登録。同じ ID があれば既存オブジェクトの `value` を更新する。新規番号は展開時の表の件数から決まる |link:../../sxmml/voice.scm[voice.scm]
+|===
+
+演算子値は 9 要素の `ar dr sr rr sl tl ks ml dt`、10 要素の `ar dr sr rr sl tl ks ml dt ams`、11 要素の `ar dr sr rr sl tl ks ml dt seg ams`、12 要素の `ar dr sr rr sl tl ks ml dt dt2 seg ams` のいずれかです。省略された値は 0 で補います。`<sxmml-opmn-voice>` は OPM・OPN に共通する型であり、PMD 向け音色行では `DT2` と `SEG` を出力しません。`DT2` は OPN のパラメータではなく、`SEG` は PMD の音色パラメータにはない SSG-EG に関する値です。詳細は xref:pmd.adoc#ref-pmd-internal-pmd-source-voice-generate[PMD 音色生成]を参照してください。
+
+== 音色登録例
+
+[source,console]
+----
+$ gosh -I. -e '(use sxmml)' -e '(define-opn-voice 0 (0 0) (0 0 0 0 0 0 0 0 0) (0 0 0 0 0 0 0 0 0) (0 0 0 0 0 0 0 0 0) (0 0 0 0 0 0 0 0 0))' -e '(print (hash-table-size (slot-ref (sxmml-environment) (quote voice))))'
+1
+----
