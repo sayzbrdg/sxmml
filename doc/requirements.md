@@ -19,7 +19,7 @@ R-01・R-02 については、Scheme 式で作った MML 文字列リストを `
 
 `rhythm`、`mml-repeat`、`mml-echo`、`mml-delay` の基本形は利用できる。`mml-echo` は単一トラックを受け付ける。`mml-repeat` の三本文形式では第三節の本文を反復後に置く。`mml-delay` は音符の後の休符を対象とする。
 
-MML ソース内では `define-track`、`sxmml-resolution`、`define-metadata`、`define-lfo`、`define-envelope`、`define-opn-voice`、`sxmml-mode pmd` の基本形を使える。`define-metadata` の値は文字列リテラルで指定する。PMD4 向けには `pmd`、PMD3 向けには `pmd3` を指定する。CLI とソース内のモード指定が重なると、ソース側が優先されるが、要求する優先順位は CLI 側である。定義値の生成物への反映は[外部動作仕様](behavior-spec.md)を参照する。
+MML ソース内では `define-track`、`sxmml-resolution`、`define-metadata`、`define-lfo`、`define-envelope`、`define-opn-voice`、`sxmml-mode pmd` の基本形を使える。`define-metadata` の値は文字列リテラルで指定する。PMD4 向けには `pmd`、PMD3 向けには `pmd3` を指定する。CLI とソース内のモード指定が重なると、CLI 側が優先される。定義値の生成物への反映は[外部動作仕様](behavior-spec.md)を参照する。
 
 R-03 の最適化は、コンパイル後のオブジェクトリストに連結されたオブジェクト数を減らす処理である。バックエンドが出力する最終文字列の長さは評価基準に含めない。代表的な処理は、重複した音量指定の削減と連続休符の結合である。R-04 については、CP932 の PMD 向け MML ファイルを生成する。
 
@@ -32,7 +32,7 @@ R-03 の最適化は、コンパイル後のオブジェクトリストに連結
 | R-01 | Scheme の `map` 等で作った MML 断片を `mml` に渡して音符を登録できる。[外部動作仕様](behavior-spec.md)。tick 指定はゼロ埋めした正の整数も受理し、0 は拒否する | `define-metadata` は変数を値として受けない | Scheme 式による MML 記述を提供 |
 | R-02 | `mml-repeat`・`mml-echo`・`mml-delay` で MML オブジェクトを加工する。[公開マクロ](sxmml-reference-manual.adoc) | slot の直接編集では文脈値が同期しない場合がある。複数トラックのエコーは、トラックごとに `mml-echo` を呼ぶ。[issue #6](https://github.com/sayzbrdg/sxmml/issues/6) | 加工マクロを提供、複数トラックの `mml-echo` は未実装 |
 | R-03 | 重複音量指定の削減と休符の結合を自動で行う。[比較例](verification.md#r-03-オブジェクト数の削減) | 削減効果は入力に応じて評価する。意味保持は Q-01 として別に判定する | 水準別の最適化処理を提供 |
-| R-04 | PMD モードで CP932 の `.mml` ファイルを生成する。[外部動作仕様](behavior-spec.md) | `filename` 指定時の `Translate` 表示は要求と異なる。CLI とソース内のモード指定が重なる場合も要求と異なる。他形式は提供していない | PMD 向け生成を提供、既知の差あり |
+| R-04 | PMD モードで CP932 の `.mml` ファイルを生成する。[外部動作仕様](behavior-spec.md) | `filename` 指定時の `Translate` 表示は要求と異なる。他形式は提供していない | PMD 向け生成を提供、既知の差あり |
 
 現在残る不具合・未実装・検証不足・仕様確認待ちは [GitHub の issue](https://github.com/sayzbrdg/sxmml/issues)で課題ごとに参照できる。要求の内容と優先順位は本書で扱う。
 

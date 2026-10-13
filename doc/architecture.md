@@ -44,7 +44,7 @@ flowchart LR
 
 ## 処理とデータの流れ
 
-1. `sxlc.in` の `main` は引数から入力パス、モード、最適化水準を取得する。指定されたモード手続きの呼び出し後にソースを `load` し、環境の `backend` を呼ぶ。現在はソース中のモード指定が CLI 指定を上書きし得る。CLI 側を優先する要求との差は[外部動作仕様](behavior-spec.md)に示す。
+1. `sxlc.in` の `main` は引数から入力パス、モード、最適化水準を取得する。指定されたモード手続きの呼び出し後にソースを `load` し、環境の `backend` を呼ぶ。`-m` を指定した場合は `sxmml-mode-fixed?` を真にしてソースを読み込むため、ソース中の `sxmml-mode` は無視され、CLI のモードが有効になる。
 2. `sxmml/backend/pmd.scm` の `pmd`・`pmd3` は、環境の `backend` と `mode` を設定し、出力ファイル名とトラックを登録する。`environment.scm` の `sxmml-environment` などのパラメータと環境オブジェクトに変換中の状態が置かれる。
 3. `compiler.scm` の `mml` / `rhythm` は Scheme 式の結果を `write-tree` で文字列化する。`mml.scm` のパーサーが通常 MML またはリズム MML を中間オブジェクト列に変換し、トラック文脈の音長・音高・tick 等も更新する。結果はトラックの `compiled-data` に登録される。`processor.scm` の `mml-repeat`・`mml-echo`・`mml-delay` はこの登録経路を利用し、オブジェクト列を加工する。
 4. `backend/pmd.scm` の通常トラック処理 `%track-generate` とリズムトラック処理 `%pmd-rhythm-track-generate` は、それぞれ `optimizer.scm` の `sxmml-optimize-tree` を呼ぶ。水準 `0` は登録列を平坦化し、水準 `1` は近接する設定オブジェクトをまとめ、水準 `2` 以上は追加の状態比較と連続休符の結合を行う。これらはコンパイル後のオブジェクト数を減らす処理であり、最終文字列長を評価基準にはしない。水準別の比較は[検証方針](verification.md#r-03-オブジェクト数の削減)を参照する。
@@ -78,7 +78,7 @@ Scheme ソースは `load` で Gauche のコードとして実行される（`sx
 
 ## 制約
 
-* CLI とソースのモード優先、`filename` による実ファイルと CLI 表示の不一致がある。具体的な動作と回避方法は [issue #3](https://github.com/sayzbrdg/sxmml/issues/3)・[issue #4](https://github.com/sayzbrdg/sxmml/issues/4)を参照する。
+* `filename` による実ファイルと CLI 表示の不一致がある。具体的な動作と回避方法は [issue #4](https://github.com/sayzbrdg/sxmml/issues/4)を参照する。
 * `environment.scm` の `sxmml-track-clear!` はトラック表全体を消去する。引数は取らない。
 * `voice.scm` の `%4op-voice-shape` は `DT2`・`SEG` を含む値列を作り、`classes.scm` の `<sxmml-opmn-voice>` を継承する音色クラスがこの値列を保持する。`backend/pmd.scm` の `%pmd-source-voice-generate` は両値を使用しない。`DT2` は OPN にないパラメータ、`SEG` はハードウェアにあるが PMD の音色パラメータにない SSG-EG に関する値であり、この未使用はバックエンドの対応範囲による。全ての共通音色パラメータが各バックエンドの生成物に現れるとは限らない。
 

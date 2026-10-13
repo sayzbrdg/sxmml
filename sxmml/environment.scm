@@ -30,7 +30,7 @@
   (use util.match)
   (use gauche.unicode)
   (use sxmml.classes)
-  (export sxmml-environment sxmml-source-file sxmml-output-file sxmml-mode
+  (export sxmml-environment sxmml-source-file sxmml-output-file sxmml-mode sxmml-mode-fixed?
           define-metadata sxmml-metadata-get sxmml-metadata-set!
           sxmml-resolution sxmml-resolution-get sxmml-resolution-set!
           define-lfo sxmml-lfo-get sxmml-lfo-set!
@@ -46,6 +46,8 @@
 (define sxmml-environment (make-parameter (make <sxmml-environment>)))
 (define sxmml-source-file (make-parameter #f))
 (define sxmml-output-file (make-parameter #f))
+;; 真の場合、ソース中の sxmml-mode を無視する (sxlc の -m 指定を優先するため)
+(define sxmml-mode-fixed? (make-parameter #f))
 
 (define (sxmml-resolution-get)
   (slot-ref (sxmml-environment) 'resolution))
@@ -62,7 +64,13 @@
       (match form
         [(_ proc args ...)
          (quasirename rename
-           `(apply ,proc ',args))]))))
+           `(%sxmml-mode-select ,proc ',args))]))))
+
+(define (%sxmml-mode-select proc args)
+  (if (sxmml-mode-fixed?)
+    (format (current-error-port) "warning: sxmml-mode in source is ignored; mode is already set to ~a\n"
+            (slot-ref (sxmml-environment) 'mode))
+    (apply proc args)))
 
 ;;
 ;;  metadata information

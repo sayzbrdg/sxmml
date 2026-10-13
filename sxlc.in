@@ -46,7 +46,8 @@
       (format (current-error-port) "no source file specified\n")
       (%usage 1))
     (parameterize ([sxmml-source-file (sys-normalize-pathname (car args) :absolute #t)]
-                   [sxmml-output-file (path-swap-extension (car args) "sxo")])
+                   [sxmml-output-file (path-swap-extension (car args) "sxo")]
+                   [sxmml-mode-fixed? (boolean mode)])
       (when mode
         ((eval mode (interaction-environment))))
       (load (sxmml-source-file))

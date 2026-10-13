@@ -6,7 +6,7 @@
 
 `sxlc` は少なくとも一つの入力ファイル名を必要とする。渡された最初のファイルを Gauche の `load` で読み込み、ソース中の Scheme 式を評価する。入力ファイルの拡張子は制限しない。複数のファイル名を渡した場合、変換するのは最初の一つである。ソースは MML の文字列だけでなく、Scheme 式と `mml` / `rhythm`、定義・設定マクロを含められる。
 
-処理順は、オプションを読む → `-m` があればモードを選ぶ → 最初の入力ファイルを読み込む → 出力形式の設定を確認する → `-O` の水準を設定する → 生成する → トラックの tick 数を表示する → `-c` があれば後処理を起動する、である。入力ファイルの読み込み中にエラーが起きれば、出力形式の確認より先にそのエラーが出る。`-m pmd` がなくても、ソース中の `(sxmml-mode pmd)` で PMD モードを選べる。両方を指定すると、現在は後から読み込むソース側の指定が有効になる。要求する優先順位は CLI 側であり、この動作は既知の問題である。
+処理順は、オプションを読む → `-m` があればモードを選ぶ → 最初の入力ファイルを読み込む → 出力形式の設定を確認する → `-O` の水準を設定する → 生成する → トラックの tick 数を表示する → `-c` があれば後処理を起動する、である。入力ファイルの読み込み中にエラーが起きれば、出力形式の確認より先にそのエラーが出る。`-m pmd` がなくても、ソース中の `(sxmml-mode pmd)` で PMD モードを選べる。両方を指定すると `-m` の指定が有効になり、ソース中の `sxmml-mode` は無視される。このとき標準エラー出力に `warning: sxmml-mode in source is ignored; mode is already set to モード名` を表示する。
 
 PMD4 向けには `pmd`、PMD3 向けには `pmd3` を指定する。ソース内でモードを選ぶ場合、`sxlc` は起動時に利用可能なバックエンドを読み込む。各モードの出力差は「PMD 向け生成物」に示す。
 
@@ -47,7 +47,7 @@ PMD 向けの生成では、`filename` メタデータがあればその文字�
 | `sxlc -m pmd /tmp/sxmml-examples/pmd-output/modes.sxl` | `PMD` | `;; mode: PMDver4.8` | CRLF |
 | `sxlc -m pmd3 /tmp/sxmml-examples/pmd-output/modes.sxl` | `PMD3` | `;; mode: PMDver3.3` | `0x1A` |
 
-`/tmp/sxmml-examples/pmd-output/source-mode.sxl` に `(sxmml-mode pmd3)` と `(mml G "c8")` を保存し、`sxlc -m pmd /tmp/sxmml-examples/pmd-output/source-mode.sxl` を実行すると、`Processing Mode: PMD3` と表示され、生成物のモード行は `;; mode: PMDver3.3` となる。これは CLI 側を優先する要求と異なる。
+`/tmp/sxmml-examples/pmd-output/source-mode.sxl` に `(sxmml-mode pmd3)` と `(mml G "c8")` を保存し、`sxlc -m pmd /tmp/sxmml-examples/pmd-output/source-mode.sxl` を実行すると、ソース中の指定は無視されて `Processing Mode: PMD` と表示され、生成物のモード行は `;; mode: PMDver4.8` となる。`-m` を省くと、ソース中の指定により `Processing Mode: PMD3`、`;; mode: PMDver3.3` となる。
 
 ソース内で後から `filename` を定義すると、実際の生成先と `sxlc` が表示する出力名が食い違う。`-c` に渡す名前は実際の生成先と一致する。生成先を表示名にも反映する要求に対し、`Translate` 表示の不一致が残る。`-O` の水準によって生成行は変わる。例えば、`-O 0` の `G l%12v8v8o4crr`、`-O 1` の `G l%12v8o4crr`、`-O 2` の `G l%12v8o4cr%24` となる入力がある。通常の最適化を避けるには `-O 0` を指定する。品質上の制約は [issue #8](https://github.com/sayzbrdg/sxmml/issues/8)を参照する。
 
@@ -114,7 +114,7 @@ sxlc /tmp/sxmml-examples/melody-and-rhythm.sxl
 | R-01 柔軟な MML 記述 | 入力と実行順、MML ソース、失敗条件、使用例 | Scheme 式から MML を組み立てられるが、全ての定義マクロが式を値に受けるわけではない。tick 指定はゼロ埋めした正の整数も受け付け、0 は拒否する |
 | R-02 MML オブジェクト操作 | MML ソース、[公開マクロの範囲](sxmml-reference-manual.adoc) | 複数トラックのエコーはトラックごとに `mml-echo` を呼ぶ。[issue #6](https://github.com/sayzbrdg/sxmml/issues/6) |
 | R-03 自動最適化 | CLI、PMD 向け生成物、[オブジェクト数の比較](verification.md#r-03-オブジェクト数の削減) | 最適化水準によって削減処理が異なる。音楽的な意味の判定は要求仕様の Q-01 に従う |
-| R-04 生成物 | 入力と実行順、PMD 向け生成物、使用例 | 現在は PMD 向け MML を生成する。CLI とソースのモード優先関係、`filename` 指定時の `Translate` 表示は要求と異なる |
+| R-04 生成物 | 入力と実行順、PMD 向け生成物、使用例 | 現在は PMD 向け MML を生成する。`filename` 指定時の `Translate` 表示は要求と異なる |
 
 各差の現行内容・影響・対応状況は [既知の課題（GitHub の issue）](https://github.com/sayzbrdg/sxmml/issues)にまとめる。
 
