@@ -163,7 +163,7 @@
                    (apply make <sxmml-mml-context> :track track params)))
 (define (sxmml-track-delete! track)
   (hash-table-delete! (slot-ref (sxmml-environment) 'track) track))
-(define (sxmml-track-clear! track)
+(define (sxmml-track-clear!)
   (hash-table-clear! (slot-ref (sxmml-environment) 'track)))
 (define (sxmml-track-list)
   (hash-table-keys (slot-ref (sxmml-environment) 'track)))
@@ -188,6 +188,8 @@
           params
           (cons* :part `',track params)))
       (match form
+        [(_ () param ...)
+         (error "define-track requires at least one track name")]
         [(_ (track ..1) param ...)
          (quasirename rename
            `(begin
