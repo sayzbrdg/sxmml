@@ -24,6 +24,24 @@
 (use sxmml)
 (test-module 'sxmml)
 
+;; sxlc の -c 後処理へ渡す生成名
+(use gauche.process)
+(use file.util)
+(let* ([srcdir (sys-normalize-pathname (sys-dirname (current-load-path)) :absolute #t)]
+       [workdir (sys-mkdtemp (build-path (temporary-directory) "sxmml-test"))])
+  (define (run-sxlc-c name)
+    (let1 source (build-path workdir #"~|name|.sxl")
+      (with-output-to-file source (^[] (write '(mml G "c8"))))
+      (process-output->string-list
+       (list "gosh" #"-I~srcdir" (build-path srcdir "sxlc.in")
+             "-m" "pmd" "-c" "printf '<%s>\\n'" source))))
+  (unwind-protect
+      (dolist [name '("semi;name" "space name")]
+        (test* #"-c receives \"~|name|.mml\" as one argument"
+               #"<~(build-path workdir name).mml>"
+               (find #/^</ (run-sxlc-c name))))
+    (remove-directory* workdir)))
+
 ;; (test* "test-sxmml" "sxmml is working"
 ;;        (test-sxmml))
 
