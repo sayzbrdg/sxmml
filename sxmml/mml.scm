@@ -45,6 +45,11 @@
 ;;;
 (define-inline (rope->number rope)
   (string->number (rope->string rope)))
+(define-inline (rope->positive-number rope)
+  (let1 num (rope->number rope)
+    (unless (positive? num)
+      (error "ticks must be a positive integer: " num))
+    num))
 (define-inline (rope->symbol rope)
   (string->symbol (rope->string rope)))
 
@@ -150,7 +155,7 @@
 (define-inline $notelength ($or (length->$ $NUMBER ($many ($. #\.)))
                                 (length->$ ($return #f) ($many1 ($. #\.)))))
 (define-inline $notelength0 (length->$ ($optional $NUMBER) ($many ($. #\.))))
-(define $tickslength ($let ([($. #\%)] [$SPC] [num $NUMBER] [$SPC]) ($return (rope->number num))))
+(define $tickslength ($let ([($. #\%)] [$SPC] [num $NUMBER] [$SPC]) ($return (rope->positive-number num))))
 (define $duration ($let ([f ($or $tickslength $notelength0)]
                          [l ($many ($try ($seq ($. #\&) $SPC ($or $tickslength $notelength))))])
                         ($return (apply + f l))))
