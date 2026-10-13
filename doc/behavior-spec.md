@@ -16,7 +16,7 @@ PMD4 向けには `pmd`、PMD3 向けには `pmd3` を指定する。ソース�
 | --- | --- |
 | `-m MODE` / `--mode MODE` | 読み込み前に指定名のモード手続きを呼ぶ。未指定ならソース側でモード選択が必要 |
 | `-O N` / `--optimize N` | 整数を受け、既定値は 1。0 以下は通常の最適化なし、1 は第 1 段階、2 以上は第 1・第 2 段階。0 以下でも無操作の中間データは除かれる |
-| `-c COMMAND` / `--command COMMAND` | 生成後、指定コマンドの後ろに出力名を付けて起動する。`COMMAND` の引用・エスケープは指定する側が行う。sxmml が追加する出力パスはエスケープし、空白入りの名前も一引数として渡す。引用されない `;` 入りの名前は引数の分割でエラーになる。実行結果を Shift_JIS として読み取り、後処理の異常終了は無視する。例えば `-c false` を指定しても `sxlc` は終了値 0 となる |
+| `-c COMMAND` / `--command COMMAND` | 生成後、指定コマンドの後ろに出力名を付けて起動する。`COMMAND` の引用・エスケープは指定する側が行う。`COMMAND` だけを引数に分割し、sxmml が追加する出力パスは分割せず末尾の一引数として渡す。空白や `;` を含む名前も一引数になる。実行結果を Shift_JIS として読み取り、後処理の異常終了は無視する。例えば `-c false` を指定しても `sxlc` は終了値 0 となる |
 | `-w` / `--wsl` | `-c` と併用すると `wslpath -aw` で後処理に渡すパスを変換する。外部コマンド `wslpath` が必要 |
 | `-l` / `--list` | 実行環境で見つかる `sxmml.backend.*` モジュールを列挙する。表示件数は環境に依存する |
 | `-h` / `--help` | 使用法を表示して終了値 0 |
@@ -51,7 +51,7 @@ PMD 向けの生成では、`filename` メタデータがあればその文字�
 
 ソース内で後から `filename` を定義すると、実際の生成先と `sxlc` が表示する出力名が食い違う。`-c` に渡す名前は実際の生成先と一致する。生成先を表示名にも反映する要求に対し、`Translate` 表示の不一致が残る。`-O` の水準によって生成行は変わる。例えば、`-O 0` の `G l%12v8v8o4crr`、`-O 1` の `G l%12v8o4crr`、`-O 2` の `G l%12v8o4cr%24` となる入力がある。通常の最適化を避けるには `-O 0` を指定する。品質上の制約は [issue #8](https://github.com/sayzbrdg/sxmml/issues/8)を参照する。
 
-空白を含む `space name.sxl` を変換して `-c "printf '%s\\n'"` を指定すると、生成先 `space name.mml` は一引数として渡る。`-w` の有無にかかわらず生成名をエスケープする。ただし `semi;name.mml` のように `shell-escape-string` が引用しない名前では、`shell-tokenize-string` が分割エラーを返す。
+空白を含む `space name.sxl` を変換して `-c "printf '%s\\n'"` を指定すると、生成先 `space name.mml` は一引数として渡る。`semi;name.sxl` の生成先 `semi;name.mml` も同様に一引数として渡る。`-w` の有無にかかわらず、`shell-tokenize-string` で分割するのは `COMMAND` だけであり、生成名は分割しない。
 
 出力名の食い違いは、`/tmp/sxmml-examples/pmd-output/output-name.sxl` に以下を保存し、`sxlc -c 'printf %s' /tmp/sxmml-examples/pmd-output/output-name.sxl` で再現できる。実際には `melody.mml` が生成され、`Post process` 行と後処理にはその生成先が使われる。`Translate` 行には `output-name.mml` が表示される。
 
@@ -114,7 +114,7 @@ sxlc /tmp/sxmml-examples/melody-and-rhythm.sxl
 | R-01 柔軟な MML 記述 | 入力と実行順、MML ソース、失敗条件、使用例 | Scheme 式から MML を組み立てられるが、全ての定義マクロが式を値に受けるわけではない。tick 指定はゼロ埋めした正の整数も受け付け、0 は拒否する |
 | R-02 MML オブジェクト操作 | MML ソース、[公開マクロの範囲](sxmml-reference-manual.adoc) | 複数トラックのエコーはトラックごとに `mml-echo` を呼ぶ。[issue #6](https://github.com/sayzbrdg/sxmml/issues/6) |
 | R-03 自動最適化 | CLI、PMD 向け生成物、[オブジェクト数の比較](verification.md#r-03-オブジェクト数の削減) | 最適化水準によって削減処理が異なる。音楽的な意味の判定は要求仕様の Q-01 に従う |
-| R-04 生成物 | 入力と実行順、PMD 向け生成物、使用例 | 現在は PMD 向け MML を生成する。CLI とソースのモード優先関係、`filename` 指定時の `Translate` 表示は要求と異なる。引用されない `;` 入り出力名で後処理の分割エラーが起きる |
+| R-04 生成物 | 入力と実行順、PMD 向け生成物、使用例 | 現在は PMD 向け MML を生成する。CLI とソースのモード優先関係、`filename` 指定時の `Translate` 表示は要求と異なる |
 
 各差の現行内容・影響・対応状況は [既知の課題（GitHub の issue）](https://github.com/sayzbrdg/sxmml/issues)にまとめる。
 

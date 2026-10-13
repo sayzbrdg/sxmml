@@ -61,12 +61,13 @@
       ((slot-ref (sxmml-environment) 'backend))
       (%print-ticks-information)
       (when cmd
-        (let ([cmd-line (string-append cmd " " (if wsl
-                                                 (shell-escape-string
-                                                  (process-output->string (list "wslpath" "-aw" (sxmml-output-file))))
-                                                 (shell-escape-string (sxmml-output-file))))])
-          (format #t "Post process: ~a\n\n" cmd-line)
-          (for-each print (process-output->string-list (shell-tokenize-string cmd-line)
+        ;; 生成名はシェルの字句解析を通さず、末尾の一引数として渡す
+        (let* ([output (if wsl
+                         (process-output->string (list "wslpath" "-aw" (sxmml-output-file)))
+                         (sxmml-output-file))]
+               [cmd-line (append (shell-tokenize-string cmd) (list output))])
+          (format #t "Post process: ~a ~a\n\n" cmd (shell-escape-string output))
+          (for-each print (process-output->string-list cmd-line
                                                        :encoding "shift_jis" :on-abnormal-exit :ignore :error :merge))
           (newline)))
       0)))

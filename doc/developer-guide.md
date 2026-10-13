@@ -29,7 +29,7 @@ export PATH="$install_dir/bin:$PATH"
 export GAUCHE_LOAD_PATH="$install_dir/share/sxmml${GAUCHE_LOAD_PATH:+:$GAUCHE_LOAD_PATH}"
 ```
 
-`make check` の成功時は、`test.log` に `sxmml.classes` から `sxmml` まで 9 モジュールの binding 検査が全て `ok` と表示され、末尾が `passed.` となる。`test.scm` は `test-module` による binding 検査を行う。MML 変換、CLI 出力、最適化の検証は[検証方針](verification.md)の手順に従って別に行う。
+`make check` の成功時は、`test.log` に `sxmml.classes` から `sxmml` まで 9 モジュールの binding 検査と、`-c` の後処理へ生成名を一引数で渡す検査が全て `ok` と表示され、末尾が `passed.` となる。`test.scm` は `test-module` による binding 検査と、`sxlc.in` を `gosh` で起動する `-c` の検査を行う。それ以外の MML 変換、CLI 出力、最適化の検証は[検証方針](verification.md)の手順に従って別に行う。
 
 同じコピー内で PMD 生成を確認するには、次を続けて実行する。出力ファイルは `melody-and-rest.sxl` と同じディレクトリにできる。
 
