@@ -4,11 +4,11 @@
 
 ## 必要な環境と依存
 
-配布工程の検証には Gauche 0.9.15、GNU Make、`iconv` を使用する。man ページの生成には Pandoc、表示の確認には groff、コンテナーでの文書生成には Docker を使用する。`package.scm` の依存条件は Gauche 0.9.15 以上である。`configure` は `gauche.configure` により Gauche とパッケージ用のコマンドを検出する。
+配布工程の検証には Gauche 0.9.15、GNU Make、`iconv` を使用する。man ページの生成には Pandoc (任意。ない場合は man ページの生成・配置を省く)、表示の確認には groff、コンテナーでの文書生成には Docker を使用する。`package.scm` の依存条件は Gauche 0.9.15 以上である。`configure` は `gauche.configure` により Gauche とパッケージ用のコマンドを検出する。
 
 ## 現行の生成・配置
 
-`./configure` は `Makefile`、`sxmml.gpd`、`VERSION` を生成する。`VERSION` と `sxmml.gpd` のバージョンは `0.1`。`make check` は `sxlc` を作り、`test.scm` のモジュール binding 検査と `-c` の生成名受け渡し・モード優先順位の検査を実行する。`Makefile.in` の `install` 規則は `sxlc`、`SCMFILES` に列挙された Scheme ファイル、`sxmml.gpd` をそれぞれ実行ファイルディレクトリ、Gauche のパッケージ用ライブラリ、`.packages` に配置する。実際のインストール先は `./configure` の結果で変わるため、生成された `Makefile` を確認する。
+`./configure` は `Makefile`、`sxmml.gpd`、`VERSION` を生成する。`VERSION` と `sxmml.gpd` のバージョンは `0.1`。`make check` は `sxlc` を作り、`test.scm` のモジュール binding 検査と `-c` の生成名受け渡し・モード優先順位の検査を実行する。`Makefile.in` の `install` 規則は `sxlc`、`SCMFILES` に列挙された Scheme ファイル、`sxmml.gpd` をそれぞれ実行ファイルディレクトリ、Gauche のパッケージ用ライブラリ、`.packages` に配置する。Pandoc がある場合は、`sxlc.1` も `mandir` の `man1` に配置する ([man ページの生成と配置](#man-ページの生成と配置))。実際のインストール先は `./configure` の結果で変わるため、生成された `Makefile` を確認する。
 
 `DESTDIR` だけを与えた `make install` では、`bindir` に `DESTDIR` が付かない。次の一時配置では `bindir` と `GAUCHE_PKGLIBDIR` の両方を明示し、配置先と実行時の検索先を合わせる。以下の `scratch_dir` は[開発手順](developer-guide.md#隔離したコピーでの確認)で作ったコピーを指す。`stage_dir` は毎回新しいパスにする。
 
@@ -47,20 +47,28 @@ gauche-package make-tarball
 
 ソースの親ディレクトリに作成した `sxmml-0.1.tgz` を別のディレクトリへ展開し、展開先で `./configure`、`make check`、一時配置への `make install` と変換例を実行する。標準配置への導入は、配置先の権限と Gauche の検索先を確認してから行う。
 
-## man ページの手動生成と配置
+## man ページの生成と配置
 
-`doc/sxlc.1.md` から Pandoc で `sxlc.1` を生成する。`Makefile.in` には man の生成・インストール規則がないため、現在は手動で生成し、配布先の `share/man/man1/` に配置する。リポジトリのルートで、Pandoc 3.11 を使う場合の手順は次のとおり。
+`doc/sxlc.1.md` から Pandoc で `sxlc.1` を生成する。`./configure` は `pandoc` を検索し、見つかった場合はそのパスを `Makefile` の `PANDOC` に設定する。生成した `sxlc.1` は Git で管理しない。
+
+* `make man` は `sxlc.1` を生成する。`PANDOC` が空の場合はエラーで終了する。
+* `make install` は、`PANDOC` が設定されていれば `sxlc.1` を生成して `$(mandir)/man1` に配置する。`PANDOC` が空の場合は `pandoc is not found; skip installing sxlc.1` と表示し、man ページの配置だけを省く。
+* `make uninstall` は `$(mandir)/man1/sxlc.1` も削除し、`make clean` は生成した `sxlc.1` を削除する。
+
+`mandir` の既定値は `${prefix}/share/man` であり、`./configure --mandir=DIR` または `make mandir=DIR install` で変更できる。`bindir` と同様に `DESTDIR` は付かない ([issue #21](https://github.com/sayzbrdg/sxmml/issues/21))。[一時配置の手順](#現行の生成配置)に合わせる場合は、`mandir` も明示する。
+
+```console
+cd "$scratch_dir"
+make bindir="$stage_dir/bin" GAUCHE_PKGLIBDIR="$stage_dir/share/sxmml" mandir="$stage_dir/share/man" install
+test -f "$stage_dir/share/man/man1/sxlc.1"
+groff -Kutf8 -Tutf8 -man -rLL=120n "$stage_dir/share/man/man1/sxlc.1" > "$stage_dir/sxlc-rendered.txt"
+```
+
+配置した `sxlc.1` と表示結果を確認する。Pandoc のホストコマンドがない環境では、`./configure` の後に別の環境で生成した `sxlc.1` を配布先の `share/man/man1/` に手動で配置する。Pandoc の公式コンテナーでも生成できる。コンテナーで再現する場合は、リポジトリのルートから次を実行し、事前に `docker run --rm pandoc/core:latest --version` で Pandoc のバージョンを確認する。
 
 ```console
 man_stage_dir=$(mktemp -d /tmp/sxmml-man.XXXXXX)
 mkdir -p "$man_stage_dir/share/man/man1"
-pandoc --standalone --from=markdown --to=man doc/sxlc.1.md -o "$man_stage_dir/share/man/man1/sxlc.1"
-groff -Kutf8 -Tutf8 -man -rLL=120n "$man_stage_dir/share/man/man1/sxlc.1" > "$man_stage_dir/sxlc-rendered.txt"
-```
-
-生成した `sxlc.1` と表示結果を確認してから、配布先の `share/man/man1/` に配置する。Pandoc のホストコマンドがない場合は公式コンテナーを使える。コンテナーで再現する場合は、リポジトリのルートから次を実行し、事前に `docker run --rm pandoc/core:latest --version` で Pandoc のバージョンを確認する。
-
-```console
 docker run --rm -v "$PWD:/work:ro" -v "$man_stage_dir:/out" pandoc/core:latest \
   --standalone --from=markdown --to=man /work/doc/sxlc.1.md \
   -o /out/share/man/man1/sxlc.1
@@ -68,7 +76,7 @@ docker run --rm -v "$PWD:/work:ro" -v "$man_stage_dir:/out" pandoc/core:latest \
 
 配布確認の記録には、使用するソースと Gauche バージョン、`./configure`、`make check`、ステージングの配置、非 ASCII を含む PMD 生成物の復号、配布アーカイブと man ファイルの有無を残す。MML 変換と最適化の検証は[検証方針](verification.md)の手順に従って行う。
 
-man 自動生成の未実装は [issue #7](https://github.com/sayzbrdg/sxmml/issues/7)、配布工程の検証不足は [issue #10](https://github.com/sayzbrdg/sxmml/issues/10)にまとめる。
+配布工程の検証不足は [issue #10](https://github.com/sayzbrdg/sxmml/issues/10)にまとめる。
 
 ## 関連資料
 

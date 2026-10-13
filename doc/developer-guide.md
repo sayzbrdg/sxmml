@@ -43,7 +43,7 @@ cat melody-and-rest.mml
 
 ## 文書生成の現状
 
-`Makefile.in` には文書や man ページを生成するターゲットがない。man ページは Pandoc で手動生成・配置する。[配布・互換性](release-guide.md#man-ページの手動生成と配置)に手順を示す。
+man ページは `make man` で `doc/sxlc.1.md` から Pandoc により生成し、`make install` で配置する。Pandoc がない場合は man ページの生成・配置だけを省く。[配布・互換性](release-guide.md#man-ページの生成と配置)に手順を示す。`Makefile.in` には man ページ以外の文書を生成するターゲットはない。
 
 内部リファレンスの AsciiDoc は、Docker の Asciidoctor で HTML 表示を確認できる。リポジトリのルートから次を実行する。`-R doc` により元のディレクトリ構造を出力先にも保ち、文書間の相対リンクを使えるようにする。既存の両 AsciiDoc マニュアルも参照先として生成する。出力は新規の一時ディレクトリへ置き、ソースは読み取り専用でコンテナーに渡す。
 

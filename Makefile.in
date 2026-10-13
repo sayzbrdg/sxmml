@@ -6,6 +6,7 @@ bindir      = @bindir@
 libdir      = @libdir@
 datadir     = @datadir@
 datarootdir = @datarootdir@
+mandir      = @mandir@
 srcdir      = @srcdir@
 VPATH       = $(srcdir)
 
@@ -14,17 +15,19 @@ DESTDIR        =
 GOSH           = "@GOSH@"
 GAUCHE_CONFIG  = "@GAUCHE_CONFIG@"
 GAUCHE_PACKAGE = "@GAUCHE_PACKAGE@"
+PANDOC         = @PANDOC@
 INSTALL        = "@GAUCHE_INSTALL@" -S '$(srcdir)' -C
 
 # Module-specific stuff
 PACKAGE   = sxmml
 
 TARGET    = sxlc
+MANPAGE   = sxlc.1
 SCMFILES  = sxmml.scm sxmml/classes.scm sxmml/environment.scm sxmml/voice.scm sxmml/mml.scm \
             sxmml/compiler.scm sxmml/processor.scm sxmml/optimizer.scm sxmml/util.scm\
             sxmml/backend/pmd.scm
 
-GENERATED =
+GENERATED = $(MANPAGE)
 CONFIG_GENERATED = Makefile config.cache config.log config.status \
 		   configure.lineno autom4te*.cache $(PACKAGE).gpd
 
@@ -42,11 +45,19 @@ install : all
 	$(INSTALL) -m 555 -T $(bindir) $(TARGET)
 	$(INSTALL) -m 444 -T $(GAUCHE_PKGLIBDIR) $(SCMFILES)
 	$(INSTALL) -m 444 -T $(GAUCHE_PKGLIBDIR)/.packages $(PACKAGE).gpd
+	@if test -n "$(PANDOC)"; then \
+	  $(MAKE) $(MANPAGE) && \
+	  echo $(INSTALL) -m 444 -T $(mandir)/man1 $(MANPAGE) && \
+	  $(INSTALL) -m 444 -T $(mandir)/man1 $(MANPAGE); \
+	else \
+	  echo "pandoc is not found; skip installing $(MANPAGE)"; \
+	fi
 
 uninstall :
 	$(INSTALL) -U $(bindir) $(TARGET)
 	$(INSTALL) -U $(GAUCHE_PKGLIBDIR) $(SCMFILES)
 	$(INSTALL) -U $(GAUCHE_PKGLIBDIR)/.packages $(PACKAGE).gpd
+	$(INSTALL) -U $(mandir)/man1 $(MANPAGE)
 
 clean :
 	rm -rf core $(TARGET) $(GENERATED) *~ test.log so_locations
@@ -62,6 +73,14 @@ sxlc : sxlc.in
 	echo "#!$(GOSH)" > sxlc && \
 	cat $(srcdir)/sxlc.in >> sxlc
 	@chmod -w+x sxlc
+
+man : $(MANPAGE)
+
+$(MANPAGE) : doc/sxlc.1.md
+	@if test -z "$(PANDOC)"; then \
+	  echo "pandoc is not found; cannot generate $(MANPAGE)" >&2; exit 1; \
+	fi
+	$(PANDOC) --standalone --from=markdown --to=man $(srcdir)/doc/sxlc.1.md -o $(MANPAGE)
 
 
 # Local variables:
