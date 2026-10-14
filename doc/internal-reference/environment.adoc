@@ -12,7 +12,6 @@
 |名前・書式 |引数と役割 |結果・副作用・失敗条件 |ソース
 |[[ref-environment-sxmml-environment]]`(sxmml-environment [env])` |現在の環境パラメータ。初期値は新規 `<sxmml-environment>` |引数なしで環境を返し、`env` 指定で現在値を変更 |link:../../sxmml/environment.scm[environment.scm]
 |[[ref-environment-sxmml-source-file]]`(sxmml-source-file [path])` |入力ソース名のパラメータ。初期値 `#f` |取得または設定。生成名の決定時に参照 |link:../../sxmml/environment.scm[environment.scm]
-|[[ref-environment-sxmml-output-file]]`(sxmml-output-file [path])` |出力先名のパラメータ。初期値 `#f` |取得または設定。PMD 出力先の決定時に参照 |link:../../sxmml/environment.scm[environment.scm]
 |[[ref-environment-sxmml-resolution-get]]`(sxmml-resolution-get)` |現在の解像度を得る |環境の `resolution` slot を返す。既定値 24 |link:../../sxmml/environment.scm[environment.scm]
 |[[ref-environment-sxmml-resolution-set-bang]]`(sxmml-resolution-set! resolution)` |四分音符あたりの正整数 tick 数を設定 |`resolution` slot を変更。整数でない値、0、負数は明示的にエラー |link:../../sxmml/environment.scm[environment.scm]
 |[[ref-environment-sxmml-resolution]]`(sxmml-resolution resolution)` |`sxmml-resolution-set!` の別名 |同じ値検査・状態変更を行う |link:../../sxmml/environment.scm[environment.scm]

@@ -66,14 +66,14 @@ Q-01 は、最適化前後で、sxmml がコンパイルした後のオブジェ
 | `%0`、`%00`、`8&%00` | 正の整数が必要というエラー、終了値70、新規出力なし |
 | `define-track (G H)` の後に無引数の `sxmml-track-clear!` | トラック名の一覧が `()` |
 | `(define-track ())` | トラック名が必要というエラー |
-| `filename` に空白入り生成名を指定して `-c` で引数を表示 | 実際の生成先が一引数で渡る。`Translate` 表示は入力名由来のまま |
+| `-o` に空白入り生成名を指定して `-c` で引数を表示 | 実際の生成先が一引数で渡り、`Translate` 表示と一致する |
 
 `-w` と後処理の組み合わせは、`wslpath` のある環境で Windows 形式のパスと引数個数を確認する。生成物を実際の Windows ツールへ渡す確認は、パス変換の確認とは別に行う。
 
 ## 未実装・残る検証
 
 * 公開機能の境界入力は、binding 検査に加えて上記の動作検証を行う。動作テストの対応状況は [issue #9](https://github.com/sayzbrdg/sxmml/issues/9)を参照する。
-* `mml-echo` の複数トラック形、`Translate` 表示の現在の動作と再現手順は、それぞれ [issue #6](https://github.com/sayzbrdg/sxmml/issues/6)・[issue #4](https://github.com/sayzbrdg/sxmml/issues/4)を参照する。
+* `mml-echo` の複数トラック形の現在の動作と再現手順は [issue #6](https://github.com/sayzbrdg/sxmml/issues/6)を参照する。
 * 配布アーカイブからの導入は `tools/distcheck.sh` で確認する。標準配置と man の参照、外部ツールとの接続は各環境で確認し、[リリース確認のチェックリスト](release-guide.md#リリース確認のチェックリスト)に記録する。
 
 ## 関連資料

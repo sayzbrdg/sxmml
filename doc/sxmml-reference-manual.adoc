@@ -136,7 +136,7 @@
 
 書式: `(define-metadata キー "文字列")`、`(define-metadata キー ("文字列" ...))`
 
-メタデータを定義します。値はマクロ記述時に文字列リテラルである必要があり、文字列を保持する Scheme 変数を値として渡す形は受け付けません。PMD 向け生成物では `title`、`composer`、`arranger`、`pcmfile`、`ppzfile`、`ppsfile`、`memo` が出力対象です。`filename` は生成先の指定に使われます。
+メタデータを定義します。値はマクロ記述時に文字列リテラルである必要があり、文字列を保持する Scheme 変数を値として渡す形は受け付けません。PMD 向け生成物では `title`、`composer`、`arranger`、`pcmfile`、`ppzfile`、`ppsfile`、`memo` が出力対象です。
 
 [source,scheme]
 ----
@@ -144,7 +144,7 @@
 (define-metadata memo ("練習用" "2小節"))
 ----
 
-`filename` を指定すると、実際の生成先と `sxlc` の `Translate` 表示が食い違う場合があります。`-c` に渡す名前は生成先と一致します。対応状況は https://github.com/sayzbrdg/sxmml/issues/4[既知の課題 #4]を参照してください。
+`filename` は生成先の指定には使われず、指定すると警告を表示して無視されます。生成先は `sxlc` の `-o` で指定してください。
 
 === `define-lfo`、`define-envelope`
 

@@ -59,7 +59,7 @@ sxlc -m pmd japanese-title.sxl
 iconv -f CP932 -t UTF-8 japanese-title.mml
 ```
 
-`iconv` は終了値 0 となり、復号結果に `#title       曲` と `G l%12o4c` を含む。配布時には生成物の存在・出力先・内容・復号結果を確認する。モードと `filename` の既知の食い違いは[外部動作仕様](behavior-spec.md#要求との対応と既知の差)を参照する。
+`iconv` は終了値 0 となり、復号結果に `#title       曲` と `G l%12o4c` を含む。配布時には生成物の存在・出力先・内容・復号結果を確認する。
 
 ## 配布アーカイブ
 
