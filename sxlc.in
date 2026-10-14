@@ -37,6 +37,7 @@
       ([mode "m|mode=y" #f]
        [optimize "O|optimize=i" 1]
        [cmd "c|command=s" #f]
+       [output "o|output=s" #f]
        [wsl "w|wsl" #f]
        [#f "l|list" => %backend-list]
        [#f "h|help" => (^[] (%usage 0))]
@@ -46,7 +47,6 @@
       (format (current-error-port) "no source file specified\n")
       (%usage 1))
     (parameterize ([sxmml-source-file (sys-normalize-pathname (car args) :absolute #t)]
-                   [sxmml-output-file (path-swap-extension (car args) "sxo")]
                    [sxmml-mode-fixed? (boolean mode)])
       (when mode
         ((eval mode (interaction-environment))))
@@ -56,16 +56,21 @@
       (slot-set! (sxmml-environment) 'optimize (cond [(>= optimize 2) :full]
                                                      [(> optimize 0) #t]
                                                      [else #f]))
-      (format #t "Translate: ~a => ~a\n" (sxmml-source-file) (sxmml-output-file))
+      ;; 出力先は sxlc が決める。ソースが output slot を変更していても上書きする。
+      ;; #f の場合はバックエンドが既定値を設定する
+      (slot-set! (sxmml-environment) 'output
+                 (and output (sys-normalize-pathname output :absolute #t)))
+      ((slot-ref (sxmml-environment) 'backend))
+      (format #t "Translate: ~a => ~a\n" (sxmml-source-file) (slot-ref (sxmml-environment) 'output))
       (format #t "Processing Mode: ~a\n" (slot-ref (sxmml-environment) 'mode))
       (format #t "Optimize level: ~d\n\n" optimize)
-      ((slot-ref (sxmml-environment) 'backend))
       (%print-ticks-information)
       (when cmd
         ;; 生成名はシェルの字句解析を通さず、末尾の一引数として渡す
-        (let* ([output (if wsl
-                         (process-output->string (list "wslpath" "-aw" (sxmml-output-file)))
-                         (sxmml-output-file))]
+        (let* ([output-file (slot-ref (sxmml-environment) 'output)]
+               [output (if wsl
+                         (process-output->string (list "wslpath" "-aw" output-file))
+                         output-file)]
                [cmd-line (append (shell-tokenize-string cmd) (list output))])
           (format #t "Post process: ~a ~a\n\n" cmd (shell-escape-string output))
           (for-each print (process-output->string-list cmd-line
@@ -74,10 +79,11 @@
       0)))
 
 (define (%usage code)
-  (display "Usage: sxlc [-whlv] [-O opt_lv] [-m mode] [-c command] file\n\n")
+  (display "Usage: sxlc [-whlv] [-O opt_lv] [-m mode] [-o output] [-c command] file\n\n")
   (display "Options:\n")
   (format #t "    ~12a Set the optimize level to \"opt_lv\".\n" "-O opt_lv")
   (format #t "    ~12a Set the processing to \"mode\".\n" "-m mode")
+  (format #t "    ~12a Write the generated file to \"output\".\n" "-o output")
   (format #t "    ~12a Execute \"command\" as a post process.\n" "-c command")
   (format #t "    ~12a If used with the -c option, \"wslpath\" is used to convert to a Windows path.\n" "-w")
   (format #t "    ~12a Print backend modules list.\n" "-l")
