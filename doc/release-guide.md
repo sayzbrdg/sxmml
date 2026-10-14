@@ -70,7 +70,75 @@ gauche-package make-tarball --dry-run
 gauche-package make-tarball
 ```
 
-ソースの親ディレクトリに作成した `sxmml-0.1.tgz` を別のディレクトリへ展開し、展開先で `./configure`、`make check`、一時配置への `make install` と変換例を実行する。標準配置への導入は、配置先の権限と Gauche の検索先を確認してから行う。
+ソースの親ディレクトリに作成した `sxmml-0.1.tgz` を別のディレクトリへ展開し、展開先で `./configure`、`make check`、一時配置への `make install` と変換例を実行する。標準配置への導入は、配置先の権限と Gauche の検索先を確認してから行う。これらの手順は [`tools/distcheck.sh`](#toolsdistchecksh) が自動で行う。
+
+## 配布前の確認
+
+配布工程の正常性は `make check` の対象外である。リリース前に、自動化した確認（`tools/distcheck.sh`）と、自動化できない項目のチェックリストを組み合わせて確認する。
+
+### tools/distcheck.sh
+
+`tools/distcheck.sh` は、指定したリビジョンから配布アーカイブを作成し、展開、ビルド、`make check`、`DESTDIR` によるステージング配置、配置物での変換、man ページの表示、削除までを順に確認する。全ての処理は新しく作成した作業ディレクトリの中で行い、リポジトリの作業ツリーやシステムの標準配置先には書き込まない。
+
+```console
+tools/distcheck.sh [-r REV] [-m MAKE] [-w DIR] [-k] [-h]
+```
+
+| オプション | 意味 | 既定値 |
+| --- | --- | --- |
+| `-r REV` | 検証する Git のリビジョン（ブランチ、タグ、コミット） | `HEAD` |
+| `-m MAKE` | 使用する make コマンド | 環境変数 `MAKE`、なければ `make` |
+| `-w DIR` | 作業ディレクトリを作成する場所 | 環境変数 `TMPDIR`、なければ `/tmp` |
+| `-k` | 成功時も作業ディレクトリを残す（失敗時は常に残す） | 残さない |
+| `-h` | 使い方を表示して終了する | — |
+
+検証の対象はコミット済みのリビジョンであり、コミットしていない変更は含まない。各段階の結果を `[n/9] 段階名 ... ok` の形式で表示し、最後に検証したリビジョン、Gauche・make の版、Pandoc・groff の有無を表示する。失敗した場合は、その段階のログの末尾と作業ディレクトリの場所を表示する。終了値は、成功が 0、検証の失敗が 1、使い方の誤りや前提の不足が 2 である。
+
+| 段階 | 確認内容 |
+| --- | --- |
+| 1. 前提の確認 | 必須のコマンド（`git`、`gosh`、`gauche-package`、make、`tar`、`gzip`、`iconv`）と、任意のコマンド（`pandoc`、`groff`）の有無 |
+| 2. ソースの取り出し | `git archive` でリビジョンを作業ディレクトリに展開する |
+| 3. 配布アーカイブの作成 | 展開したコピーで `gauche-package make-tarball` を実行する |
+| 4. アーカイブの中身の照合 | 下記の規則でアーカイブの中身を照合する |
+| 5. 展開とビルド・テスト | アーカイブを展開し、`./configure`、make、`make check` を実行して `test.log` の末尾が `passed.` であることを確かめる |
+| 6. DESTDIR によるステージング配置 | `make -n` で全ての配置先に `DESTDIR` が付くことを確かめてから配置し、`sxlc`、Scheme モジュール、`sxmml.gpd`、（Pandoc がある場合）`sxlc.1` の配置を確かめる |
+| 7. 配置物での変換 | 配置した `sxlc` とモジュールで日本語メタデータを含む入力を変換し、CP932 の復号結果を確かめる |
+| 8. man ページの表示 | 配置した `sxlc.1` を groff で表示する。Pandoc または groff がない場合は省く |
+| 9. 配置物の削除 | `make DESTDIR=... uninstall` の後にファイルが残らないことを確かめる |
+
+アーカイブの中身は、リビジョンで Git 管理されているファイルから、VCS 関連ファイル（`.git` で始まる名前）と `DIST_EXCLUDE` の記載を除いたものと過不足なく一致しなければならない。アーカイブにのみ存在してよいのは、`configure` が生成する `VERSION` だけである。`DIST_EXCLUDE` には、リポジトリのルートからの相対パス（ファイルまたはディレクトリ）のみを記載する。配布アーカイブに含める範囲は [issue #29](https://github.com/sayzbrdg/sxmml/issues/29) で扱う。
+
+`gauche-package make-tarball` はカレントディレクトリを掃除して全体をアーカイブにまとめ、親ディレクトリに出力するため、作業ツリーでは直接実行しない。`make-tarball` は GNU tar の `--exclude-vcs` を使用するため、段階 3 には GNU tar が必要である。`Makefile.in` が `DESTDIR` に対応していないリビジョン（[issue #21](https://github.com/sayzbrdg/sxmml/issues/21) の修正前）は、システムの配置先に書き込むおそれがあるため、何も実行せずに拒否する。
+
+GNU make と bmake の両方で確認する場合は、`-m` を変えて 2 回実行する。
+
+```console
+tools/distcheck.sh
+tools/distcheck.sh -m bmake
+```
+
+### リリース確認のチェックリスト
+
+リリースごとに確認用の issue を作成し、次のひな形を貼り付けて結果を記録する。`tools/distcheck.sh` の出力（各段階の結果と環境）も同じ issue に貼り付ける。全ての項目を確認した後、リリースしてから issue を close する。
+
+```markdown
+## リリース確認: <版>（<リビジョン>）
+
+### 自動化した確認
+- [ ] `tools/distcheck.sh -r <リビジョン>`（GNU make）が成功した
+- [ ] `tools/distcheck.sh -r <リビジョン> -m bmake` が成功した（bmake がある環境の場合）
+
+### 自動化できない確認
+- [ ] 実際の環境で `man sxlc` により man ページを参照できた
+- [ ] システムの標準配置先（`./configure` の既定値）へ導入し、配置した `sxlc` で変換できた
+- [ ] `-w` と `-c` による Windows ツールとの接続を確認した（WSL 環境がある場合）
+- [ ] 生成物を実際のドライバー（PMD）で再生した
+
+### 実行環境
+- OS:
+- Gauche:
+- make:
+```
 
 ## man ページの生成と配置
 
