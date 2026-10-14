@@ -78,7 +78,7 @@ gauche-package make-tarball
 
 ### tools/distcheck.sh
 
-`tools/distcheck.sh` は、指定したリビジョンから配布アーカイブを作成し、展開、ビルド、`make check`、`DESTDIR` によるステージング配置、配置物での変換、man ページの表示、削除までを順に確認する。全ての処理は新しく作成した作業ディレクトリの中で行い、リポジトリの作業ツリーやシステムの標準配置先には書き込まない。
+`tools/distcheck.sh` は、指定したリビジョンから配布アーカイブを作成し、展開、ビルド、`make check`、`DESTDIR` によるステージング配置、配置物での変換、man ページの表示、削除までを順に確認する。全ての処理は新しく作成した作業ディレクトリの中で行い、リポジトリの作業ツリーやシステムの標準配置先には書き込まない。このスクリプトは Git リポジトリで実行するものであり、配布アーカイブには含まれない。
 
 ```console
 tools/distcheck.sh [-r REV] [-m MAKE] [-w DIR] [-k] [-h]
@@ -106,7 +106,16 @@ tools/distcheck.sh [-r REV] [-m MAKE] [-w DIR] [-k] [-h]
 | 8. man ページの表示 | 配置した `sxlc.1` を groff で表示する。Pandoc または groff がない場合は省く |
 | 9. 配置物の削除 | `make DESTDIR=... uninstall` の後にファイルが残らないことを確かめる |
 
-アーカイブの中身は、リビジョンで Git 管理されているファイルから、VCS 関連ファイル（`.git` で始まる名前）と `DIST_EXCLUDE` の記載を除いたものと過不足なく一致しなければならない。アーカイブにのみ存在してよいのは、`configure` が生成する `VERSION` だけである。`DIST_EXCLUDE` には、リポジトリのルートからの相対パス（ファイルまたはディレクトリ）のみを記載する。配布アーカイブに含める範囲は [issue #29](https://github.com/sayzbrdg/sxmml/issues/29) で扱う。
+アーカイブの中身は、リビジョンで Git 管理されているファイルから、VCS 関連ファイル（`.git` で始まる名前）と `DIST_EXCLUDE` の記載を除いたものと過不足なく一致しなければならない。アーカイブにのみ存在してよいのは、`configure` が生成する `VERSION` だけである。`DIST_EXCLUDE` には、リポジトリのルートからの相対パス（ファイルまたはディレクトリ）のみを記載する。
+
+配布アーカイブは、Git を使わずにビルド、テスト、導入ができる完全なソースとして扱う。ビルド・テスト・導入に必要なファイル、ライセンス、文書（`doc/internal-reference/` を含む）は含め、リポジトリでの開発作業にのみ意味を持つファイルや、アーカイブ内では動作しないファイルは `DIST_EXCLUDE` で除外する。現在除外しているのは次のとおり（[issue #29](https://github.com/sayzbrdg/sxmml/issues/29)）。
+
+| 除外するもの | 理由 |
+| --- | --- |
+| `AGENTS.md` | AI エージェント向けのリポジトリでの作業規則であり、配布物の利用者には意味を持たない |
+| `tools/` | `tools/distcheck.sh` は Git リポジトリを前提とし、アーカイブ内では動作しない |
+
+開発専用のファイルを追加する場合は、同じ基準で `DIST_EXCLUDE` に加える。
 
 `gauche-package make-tarball` はカレントディレクトリを掃除して全体をアーカイブにまとめ、親ディレクトリに出力するため、作業ツリーでは直接実行しない。`make-tarball` は GNU tar の `--exclude-vcs` を使用するため、段階 3 には GNU tar が必要である。`Makefile.in` が `DESTDIR` に対応していないリビジョン（[issue #21](https://github.com/sayzbrdg/sxmml/issues/21) の修正前）は、システムの配置先に書き込むおそれがあるため、何も実行せずに拒否する。
 
