@@ -74,7 +74,7 @@ Q-01 は、最適化前後で、sxmml がコンパイルした後のオブジェ
 
 * 公開機能の境界入力は、binding 検査に加えて上記の動作検証を行う。動作テストの対応状況は [issue #9](https://github.com/sayzbrdg/sxmml/issues/9)を参照する。
 * `mml-echo` の複数トラック形、`Translate` 表示の現在の動作と再現手順は、それぞれ [issue #6](https://github.com/sayzbrdg/sxmml/issues/6)・[issue #4](https://github.com/sayzbrdg/sxmml/issues/4)を参照する。
-* 標準配置と man の導入、外部ツールとの接続は各環境で確認する。
+* 配布アーカイブからの導入は `tools/distcheck.sh` で確認する。標準配置と man の参照、外部ツールとの接続は各環境で確認し、[リリース確認のチェックリスト](release-guide.md#リリース確認のチェックリスト)に記録する。
 
 ## 関連資料
 
