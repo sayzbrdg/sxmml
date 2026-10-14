@@ -73,12 +73,11 @@ Scheme ソースは `load` で Gauche のコードとして実行される（`sx
 | 通常・リズム MML の構文、音長 | `mml.scm` のパーサーと tick 更新、`classes.scm` の文脈 | `compiler.scm` の解析・登録、`optimizer.scm` の列、`backend/pmd.scm` の生成結果。通常・リズム双方の境界入力を確認 |
 | Scheme からのオブジェクト加工 | `processor.scm` のマクロと変換関数、`compiler.scm` の登録 | トラックの `compiled-data` と `current-ticks`、最適化前後の列、生成結果。`mml-repeat` 等の既知の差も参照 |
 | 最適化条件 | `optimizer.scm` の各水準と状態管理 | トラックの合計 tick、最適化前後の列、PMD 生成結果。[Q-01 の比較方法](verification.md#q-01-音楽的な意味の保持)を使う |
-| モード指定・生成先 | `sxlc.in` の引数・読み込み順、`environment.scm` のパラメータ、`backend/pmd.scm` のモード手続き・出力先計算 | CLI 表示、実際の生成パス、`-c` に渡す引数。CLI とソース、`filename` の既知の不一致を参照 |
+| モード指定・生成先 | `sxlc.in` の引数・読み込み順、`<sxmml-environment>` の `output` slot、`backend/pmd.scm` のモード手続き・出力先計算 | CLI 表示、実際の生成パス、`-c` に渡す引数が一致すること |
 | PMD 向け出力 | `backend/pmd.scm` のメタデータ・音色・型別出力 | CP932 のファイル内容、出力パス、代表トラックとリズム |
 
 ## 制約
 
-* `filename` による実ファイルと CLI 表示の不一致がある。具体的な動作と回避方法は [issue #4](https://github.com/sayzbrdg/sxmml/issues/4)を参照する。
 * `environment.scm` の `sxmml-track-clear!` はトラック表全体を消去する。引数は取らない。
 * `voice.scm` の `%4op-voice-shape` は `DT2`・`SEG` を含む値列を作り、`classes.scm` の `<sxmml-opmn-voice>` を継承する音色クラスがこの値列を保持する。`backend/pmd.scm` の `%pmd-source-voice-generate` は両値を使用しない。`DT2` は OPN にないパラメータ、`SEG` はハードウェアにあるが PMD の音色パラメータにない SSG-EG に関する値であり、この未使用はバックエンドの対応範囲による。全ての共通音色パラメータが各バックエンドの生成物に現れるとは限らない。
 

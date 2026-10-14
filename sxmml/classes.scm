@@ -44,6 +44,8 @@
    [optimize :init-keyword :optimize :init-value 1]
    [mode :init-keyword :mode :init-value ""]
    [backend :init-keyword :backend :init-value #f]
+   ;; 出力先。sxlc が読み込み後に設定し、#f の場合はバックエンドが既定値を設定する
+   [output :init-keyword :output :init-value #f]
    ))
 
 ;;;
