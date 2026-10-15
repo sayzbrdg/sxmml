@@ -71,6 +71,7 @@
 (define pmd pmd-source)
 
 (define (%pmd-source)
+  (slot-set! (sxmml-environment) 'output-extension "mml")
   (define-track (A B C D E F) :volume-delta 4)
   (define-track (G H I L))
   (define-track J :volume-delta 16))
@@ -597,7 +598,8 @@
 (define (%output-file-get)
   (or (slot-ref (sxmml-environment) 'output)
       (let1 output (or (and-let* ([current-file (sxmml-source-file)])
-                         (path-swap-extension current-file "mml"))
+                         (path-swap-extension current-file
+                                              (slot-ref (sxmml-environment) 'output-extension)))
                        "./a.mml")
         (slot-set! (sxmml-environment) 'output output)
         output)))

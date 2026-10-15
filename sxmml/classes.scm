@@ -46,6 +46,8 @@
    [backend :init-keyword :backend :init-value #f]
    ;; 出力先。sxlc が読み込み後に設定し、#f の場合はバックエンドが既定値を設定する
    [output :init-keyword :output :init-value #f]
+   ;; 既定の出力先の拡張子。モードを選ぶ手続きが設定し、sxlc が出力先を決める際に使う
+   [output-extension :init-keyword :output-extension :init-value #f]
    ))
 
 ;;;
