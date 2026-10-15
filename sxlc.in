@@ -47,6 +47,9 @@
          . args)
       (when (null? args)
         (%usage-error "no source file specified"))
+      ;; -o の指定先が入力ファイルと同じ場合は、ソースを読み込む前に使用法の誤りとする (#40)
+      (when output
+        (%output-file-check output (car args)))
       ;; -c の字句の誤りは、変換の前に使用法の誤りとして検出する
       (let1 cmd-args (and cmd
                           (guard (e [else (%usage-error (%error-message e))])
@@ -55,19 +58,16 @@
                        [sxmml-mode-fixed? (boolean mode)])
           (when mode
             (%mode-select mode))
-          ;; 変換中のエラーは、Gauche の通常の表示を出して変換の失敗とする
-          (guard (e [else (report-error e) (exit 1)])
-            (load (sxmml-source-file))
-            (unless (slot-ref (sxmml-environment) 'backend)
-              (error "backend is not specified by option or source file" ))
-            (slot-set! (sxmml-environment) 'optimize (cond [(>= optimize 2) :full]
-                                                           [(> optimize 0) #t]
-                                                           [else #f]))
-            ;; 出力先は sxlc が決める。ソースが output slot を変更していても上書きする。
-            ;; #f の場合はバックエンドが既定値を設定する
-            (slot-set! (sxmml-environment) 'output
-                       (and output (sys-normalize-pathname output :absolute #t)))
-            ((slot-ref (sxmml-environment) 'backend)))
+          (%convert (^[]
+                      (load (sxmml-source-file))
+                      (unless (slot-ref (sxmml-environment) 'backend)
+                        (error "backend is not specified by option or source file" ))
+                      (slot-set! (sxmml-environment) 'optimize (cond [(>= optimize 2) :full]
+                                                                     [(> optimize 0) #t]
+                                                                     [else #f]))))
+          ;; 出力先は sxlc が決める。ソースが output slot を変更していても上書きする
+          (slot-set! (sxmml-environment) 'output (%output-file-resolve output))
+          (%convert (slot-ref (sxmml-environment) 'backend))
           (format #t "Translate: ~a => ~a\n" (sxmml-source-file) (slot-ref (sxmml-environment) 'output))
           (format #t "Processing Mode: ~a\n" (slot-ref (sxmml-environment) 'mode))
           (format #t "Optimize level: ~d\n\n" optimize)
@@ -75,6 +75,28 @@
           (if cmd-args
             (%post-process cmd cmd-args wsl)
             0))))))
+
+;; 変換中のエラーは、Gauche の通常の表示を出して変換の失敗とする
+(define (%convert thunk)
+  (guard (e [else (report-error e) (exit 1)])
+    (thunk)))
+
+;; 出力先を決める。-o の指定、なければ入力ファイル名の拡張子を、選んだモードが
+;; 登録した拡張子に替えたものとする。拡張子が登録されていなければ #f を返し、
+;; バックエンドが既定値を設定する
+(define (%output-file-resolve output)
+  (rlet1 file (cond [output (sys-normalize-pathname output :absolute #t)]
+                    [(slot-ref (sxmml-environment) 'output-extension)
+                     => (cut path-swap-extension (sxmml-source-file) <>)]
+                    [else #f])
+    (when file
+      (%output-file-check file (sxmml-source-file)))))
+
+;; 出力先が入力ファイルと同じ場合は、ソースを上書きしないよう使用法の誤りとする (#40)。
+;; 書き方の違いやシンボリックリンクを含めて、同じファイルかを判定する
+(define (%output-file-check output source)
+  (when (and (file-exists? output) (file-exists? source) (file-eqv? output source))
+    (%usage-error #"output file is the same as the source file: ~output")))
 
 ;; -m で指定したモードを選ぶ。解決や呼び出しができない場合は使用法の誤りとする。
 ;; モード指定の設計は #38 で見直す
