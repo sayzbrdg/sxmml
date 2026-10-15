@@ -8,9 +8,21 @@ sxmml は、Scheme で MML を組み立て、MML オブジェクトを加工し�
 - make
 - Git（リポジトリを取得する場合）
 
+## 取得する版
+
+`main` ブランチは開発中の版です。リリースした版には `v0.2.0` の形式のタグを付けています。タグの一覧は [GitHub のタグ一覧](https://github.com/sayzbrdg/sxmml/tags)か、取得したリポジトリの `git tag -l` で確認できます。
+
+リリースした版を使う場合は、次節の `git clone` に `-b タグ名` を付けて取得します。取得済みのリポジトリでは `git checkout タグ名` で切り替えます。タグを指定すると Git は detached HEAD の状態になると表示しますが、ビルドとインストールには影響しません。
+
+```console
+git clone -b タグ名 https://github.com/sayzbrdg/sxmml.git
+```
+
+この README と `doc` の文書は、同じ版の内容を説明します。タグを指定して取得した場合は、取得したリポジトリ内の README と文書に従ってください。`sxlc -v` が表示する版数は `package.scm` の値です。`v0.2.0` は `package.scm` を更新していないため、`0.1` と表示されます。
+
 ## 最初の変換
 
-リポジトリを取得し、そのルートでビルド・インストールしてから最初のファイルを変換します。手元にリポジトリがある場合は、そのルートから始めてください。`sxlc.in` は生成用テンプレートです。変換には `make` が生成し、`make install` で配置した `sxlc` コマンドを使います。
+リポジトリを取得し、そのルートでビルド・インストールしてから最初のファイルを変換します。次の `git clone` は `main` の開発中の版を取得します。手元にリポジトリがある場合は、そのルートから始めてください。`sxlc.in` は生成用テンプレートです。変換には `make` が生成し、`make install` で配置した `sxlc` コマンドを使います。
 
 ```console
 git clone https://github.com/sayzbrdg/sxmml.git
