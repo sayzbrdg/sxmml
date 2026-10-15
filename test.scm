@@ -77,6 +77,19 @@
   (define (generated-text name forms)
     (run-sxlc name forms "-m" "pmd")
     (file->string (work-file #"~|name|.mml")))
+  ;; name.sxl に text を書いて返す
+  (define (write-source name text)
+    (rlet1 source (work-file #"~|name|.sxl")
+      (with-output-to-file source (^[] (display text)))))
+  ;; args を付けて sxlc を実行し、終了値と標準エラー出力の行のリストを返す
+  (define (sxlc-status . args)
+    (let* ([err (work-file "status.err")]
+           [p (run-process `("gosh" ,#"-I~srcdir" ,(build-path srcdir "sxlc.in") ,@args)
+                           :output :null :error err :wait #t)])
+      (list (sys-wait-exit-status (process-exit-status p)) (file->string-list err))))
+  ;; sxlc-status の結果から、終了値と、pattern に一致する標準エラー出力の行の有無を返す
+  (define (status-and-message result pattern)
+    (list (car result) (boolean (any pattern (cadr result)))))
   (unwind-protect
       (begin
         ;; -c の後処理へ渡す生成名
@@ -169,7 +182,57 @@
                               (mml A "@{a}c8@{e}c8")))
           (test* "the same input yields byte-identical output"
                  (generated-text "reproducible" forms)
-                 (generated-text "reproducible" forms))))
+                 (generated-text "reproducible" forms)))
+        ;; 終了値の体系 (#37)
+        ;; 0 成功、1 変換の失敗、2 使用法の誤り、3 後処理の失敗
+        (let1 ok (write-source "status-ok" "(mml G \"c8\")")
+          (test* "a successful conversion exits with 0" 0
+                 (car (sxlc-status "-m" "pmd" ok)))
+          (test* "a successful post process exits with 0" 0
+                 (car (sxlc-status "-m" "pmd" "-c" "true" ok)))
+          (dolist [c `(("no source file" ())
+                       ("an unknown option" ("-x" ,ok))
+                       ("a non-integer optimize level" ("-O" "abc" "-m" "pmd" ,ok))
+                       ("a missing option argument" ("-m"))
+                       ("an unknown mode" ("-m" "nosuch" ,ok))
+                       ("a mode that cannot be called" ("-m" "car" ,ok)))]
+            (test* #"~(car c) is a usage error with 2" 2
+                   (car (apply sxlc-status (cadr c)))))
+          ;; -c の字句の誤りは変換の前に検出し、生成物を作らない
+          (let1 source (write-source "status-bad-c" "(mml G \"c8\")")
+            (test* "a malformed -c is a usage error with 2 before conversion" '(2 #f)
+                   (list (car (sxlc-status "-m" "pmd" "-c" "echo 'a" source))
+                         (file-exists? (work-file "status-bad-c.mml"))))))
+        (dolist [c '(("an MML error" "status-mml" "(mml G \"c0\")" ())
+                     ("a read error" "status-read" "(mml G \"c8\"" ())
+                     ("a missing mode" "status-no-mode" "(mml G \"c8\")" #f)
+                     ("an output error" "status-output" "(mml G \"c8\")" ("-o" "/nonexistent-sxmml-dir/out.mml")))]
+          (test* #"~(car c) is a conversion failure with 1" 1
+                 (car (apply sxlc-status
+                             `(,@(if (cadddr c) '("-m" "pmd") '())
+                               ,@(or (cadddr c) '())
+                               ,(write-source (cadr c) (caddr c)))))))
+        ;; 後処理の失敗 (#32)
+        ;; 後処理の失敗は 3 で終了し、標準エラー出力に通知し、生成物は残す
+        (let1 source (write-source "post" "(mml G \"c8\")")
+          (test* "a failed post process exits with 3 and keeps the output" '(3 #t #t)
+                 (append (status-and-message (sxlc-status "-m" "pmd" "-c" "false" source)
+                                             #/^post process failed: exit status 1$/)
+                         (list (file-exists? (work-file "post.mml")))))
+          (test* "the exit status of the post process is reported" '(3 #t)
+                 (status-and-message (sxlc-status "-m" "pmd" "-c" "sh -c 'exit 7' sh" source)
+                                     #/^post process failed: exit status 7$/))
+          (test* "a post process killed by a signal exits with 3" '(3 #t)
+                 (status-and-message (sxlc-status "-m" "pmd" "-c" "sh -c 'kill -TERM $$' sh" source)
+                                     #/^post process killed by signal 15$/))
+          (test* "a post process that cannot be started exits with 3" '(3 #t)
+                 (status-and-message (sxlc-status "-m" "pmd" "-c" "no-such-sxmml-command" source)
+                                     #/^post process failed: exit status 1$/))
+          ;; wslpath がない環境でのみ確かめる
+          (unless (find-file-in-paths "wslpath")
+            (test* "a failure of wslpath with -w exits with 3" '(3 #t)
+                   (status-and-message (sxlc-status "-w" "-m" "pmd" "-c" "true" source)
+                                       #/^post process failed: wslpath/)))))
     (remove-directory* workdir)))
 
 ;; (test* "test-sxmml" "sxmml is working"
