@@ -17,8 +17,8 @@ PMD4 向けには `pmd`、PMD3 向けには `pmd3` を指定する。ソース�
 | `-m MODE` / `--mode MODE` | 読み込み前に指定名のモード手続きを呼ぶ。未指定ならソース側でモード選択が必要 |
 | `-O N` / `--optimize N` | 整数を受け、既定値は 1。0 以下は通常の最適化なし、1 は第 1 段階、2 以上は第 1・第 2 段階。0 以下でも無操作の中間データは除かれる |
 | `-o FILE` / `--output FILE` | 生成物の出力先を指定する。相対パスは現在のディレクトリを基準に絶対パスにする。省略時は入力ファイル名の拡張子を `.mml` に替えたパス。ソースの読み込み後に設定するため、ソースから出力先を変更することはできない |
-| `-c COMMAND` / `--command COMMAND` | 生成後、指定コマンドの後ろに出力名を付けて起動する。`COMMAND` の引用・エスケープは指定する側が行う。`COMMAND` だけを引数に分割し、sxmml が追加する出力パスは分割せず末尾の一引数として渡す。空白や `;` を含む名前も一引数になる。実行結果を Shift_JIS として読み取り、後処理の異常終了は無視する。例えば `-c false` を指定しても `sxlc` は終了値 0 となる |
-| `-w` / `--wsl` | `-c` と併用すると `wslpath -aw` で後処理に渡すパスを変換する。外部コマンド `wslpath` が必要 |
+| `-c COMMAND` / `--command COMMAND` | 生成後、指定コマンドの後ろに出力名を付けて起動する。`COMMAND` の引用・エスケープは指定する側が行う。`COMMAND` だけを引数に分割し、sxmml が追加する出力パスは分割せず末尾の一引数として渡す。空白や `;` を含む名前も一引数になる。実行結果を Shift_JIS として読み取る。`COMMAND` の字句の誤り（閉じていない引用符など）は、変換の前に使用法の誤りとして検出する。後処理が 0 以外の終了値やシグナルで終了した場合は、標準エラー出力に `post process failed: exit status N` または `post process killed by signal N` と表示し、終了値 3 で終了する。変換は成功しているため生成物は残る。例えば `-c false` を指定すると `sxlc` は終了値 3 となる |
+| `-w` / `--wsl` | `-c` と併用すると `wslpath -aw` で後処理に渡すパスを変換する。外部コマンド `wslpath` が必要。`wslpath` が失敗した場合は `post process failed: wslpath:` で始まる通知を表示し、終了値 3 で終了する |
 | `-l` / `--list` | 実行環境で見つかる `sxmml.backend.*` モジュールを列挙する。表示件数は環境に依存する |
 | `-h` / `--help` | 使用法を表示して終了値 0 |
 | `-v` / `--version` | パッケージのバージョンを表示して終了値 0 |
@@ -63,30 +63,39 @@ PMD 向けの生成では、`-o` で指定した出力先、指定がなけれ�
 
 ## 失敗条件と境界値
 
-入力ファイル名がない場合は終了値 1、Gauche の未処理例外は終了値 70 となる。
+`sxlc` の終了値は次のとおりである（[issue #37](https://github.com/sayzbrdg/sxmml/issues/37)）。ソース中の Scheme 式が `exit` を呼んだ場合は、その値で終了する。
+
+| 終了値 | 意味 |
+| --- | --- |
+| 0 | 成功。`-c` を指定した場合は後処理も成功 |
+| 1 | 変換の失敗。ソースの読み込み・評価、MML、生成、出力先のエラー。エラーの内容は Gauche の形式（`*** ERROR:` などで始まる）で標準エラー出力に表示する |
+| 2 | 使用法の誤り。不正なオプションや引数、入力ファイル名なし、`-m` のモードを選べない、`-c` の字句の誤り。誤りの内容を標準エラー出力に、使用法を標準出力に表示する |
+| 3 | 後処理の失敗。`-c` の後処理が 0 以外の終了値やシグナルで終了した、起動できなかった、`-w` の `wslpath` が失敗した |
 
 表中の Scheme 入力を試す場合は、それぞれ 1 行の `/tmp/sxmml-examples/invalid-input.sxl` に保存し、特記した条件以外は `sxlc -m pmd /tmp/sxmml-examples/invalid-input.sxl` を実行する。「モードを指定しない空ソース」は空ファイル、「未登録トラック」は `(mml G "c8r8")` だけを記したファイルを `-m` なしで読み込む。「入力ファイル名なし」は `sxlc` を実行する。
 
 | 条件と入力 | 結果 |
 | --- | --- |
-| 入力ファイル名なし | `no source file specified` と使用法を表示し、終了値 1 |
-| モードを指定しない空ソース | `backend is not specified by option or source file`、終了値 70 |
-| 未登録トラックへ `(mml G "c8r8")` を評価 | `no defined track: G`、終了値 70。モード未指定の判定より先に失敗 |
-| `(sxmml-resolution 0)` | 正の整数が必要というエラー、終了値 70 |
-| `(mml G "c0")` | 0 での除算エラー、終了値 70 |
-| `(rhythm L "@b0")` | 0 での除算エラー、終了値 70 |
-| `(mml G "c8?")` | 未登録の `?` コマンドに関するエラー、終了値 70 |
-| `(rhythm L "@x8")` | `sxmml syntax error, near "x8" on L track`、終了値 70 |
-| `(mml A "@0c8")` で未定義の FM 音色 `@0` を使う | 生成中に `no instrument define`、終了値 70 |
-| 通常トラック G で `(mml G "c%0")` | `ticks must be a positive integer:  0`、終了値 70。新規出力なし |
-| `(rhythm L "@b%0")` | `ticks must be a positive integer:  0`、終了値 70。新規出力なし |
-| `(rhythm L "r%0")` | `ticks must be a positive integer:  0`、終了値 70。新規出力なし |
-| `(mml G "c8")` を `-o /tmp/sxmml-examples/no-such-dir/out.mml` を付けて変換 | `mkstemp failed: No such file or directory`、終了値 70 |
-| `(mml G "c8")` を `-o /tmp/sxmml-examples` を付けて変換（出力先が既存のディレクトリ） | 一時ファイルを出力先へ改名できず `renaming` で始まるエラー、終了値 70 |
+| 入力ファイル名なし | `no source file specified` と使用法を表示し、終了値 2 |
+| `-m nosuch` で存在しないモードを指定 | `invalid mode: nosuch: unbound variable: nosuch` と使用法を表示し、終了値 2 |
+| モードを指定しない空ソース | `backend is not specified by option or source file`、終了値 1 |
+| 未登録トラックへ `(mml G "c8r8")` を評価 | `no defined track: G`、終了値 1。モード未指定の判定より先に失敗 |
+| `(sxmml-resolution 0)` | 正の整数が必要というエラー、終了値 1 |
+| `(mml G "c0")` | 0 での除算エラー、終了値 1 |
+| `(rhythm L "@b0")` | 0 での除算エラー、終了値 1 |
+| `(mml G "c8?")` | 未登録の `?` コマンドに関するエラー、終了値 1 |
+| `(rhythm L "@x8")` | `sxmml syntax error, near "x8" on L track`、終了値 1 |
+| `(mml A "@0c8")` で未定義の FM 音色 `@0` を使う | 生成中に `no instrument define`、終了値 1 |
+| 通常トラック G で `(mml G "c%0")` | `ticks must be a positive integer:  0`、終了値 1。新規出力なし |
+| `(rhythm L "@b%0")` | `ticks must be a positive integer:  0`、終了値 1。新規出力なし |
+| `(rhythm L "r%0")` | `ticks must be a positive integer:  0`、終了値 1。新規出力なし |
+| `(mml G "c8")` を `-o /tmp/sxmml-examples/no-such-dir/out.mml` を付けて変換 | `mkstemp failed: No such file or directory`、終了値 1 |
+| `(mml G "c8")` を `-o /tmp/sxmml-examples` を付けて変換（出力先が既存のディレクトリ） | 一時ファイルを出力先へ改名できず `renaming` で始まるエラー、終了値 1 |
+| `(mml G "c8")` を `-c false` を付けて変換 | 生成後に `post process failed: exit status 1`、終了値 3。生成物は残る |
 
 値が 0 の tick 指定は、先頭に 0 を追加しても同じエラーになる。`8&%00` など加算する部分が 0 の入力も拒否する。一方、`c%01` と `c%00012` はそれぞれ 1 tick と 12 tick で成功する。失敗の種類によっては、生成を開始した後でエラーになる。`@0` の例では生成中にエラーとなり、`Translate` 行は表示されない。
 
-上表の失敗はいずれも、ソースの読み込み、生成、出力先への書き込みのどこで起きても、出力先の既存ファイルを変更せず、途中までの生成物や一時ファイルを残さない（要求仕様の Q-02）。生成物は出力先と同じディレクトリの一時ファイルに書き、書き終えてから出力先へ改名する。変換に失敗した場合は、出力先に残っているファイルは以前の変換の生成物であるため、後処理へ渡さず、原因を修正して再実行する。
+上表の失敗のうち終了値 1 と 2 のものはいずれも、ソースの読み込み、生成、出力先への書き込みのどこで起きても、出力先の既存ファイルを変更せず、途中までの生成物や一時ファイルを残さない（要求仕様の Q-02）。生成物は出力先と同じディレクトリの一時ファイルに書き、書き終えてから出力先へ改名する。変換に失敗した場合は、出力先に残っているファイルは以前の変換の生成物であるため、後処理へ渡さず、原因を修正して再実行する。
 
 ## 使用例
 
