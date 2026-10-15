@@ -232,7 +232,40 @@
           (unless (find-file-in-paths "wslpath")
             (test* "a failure of wslpath with -w exits with 3" '(3 #t)
                    (status-and-message (sxlc-status "-w" "-m" "pmd" "-c" "true" source)
-                                       #/^post process failed: wslpath/)))))
+                                       #/^post process failed: wslpath/))))
+        ;; 出力先が入力ファイルと同じ場合 (#40)
+        ;; -o の指定でも既定の出力先でも、使用法の誤り 2 で終了し、ソースを変更しないこと
+        (let* ([text "(mml G \"c8\")"]
+               [check (^[source . args]
+                        (append (status-and-message
+                                 (apply sxlc-status `(,@args ,source))
+                                 #/^output file is the same as the source file: /)
+                                (list (equal? (file->string source) text))))])
+          (let1 source (write-source "same" text)
+            (test* "-o with the source file is a usage error" '(2 #t #t)
+                   (check source "-m" "pmd" "-o" source)))
+          (let1 source (write-source "same-spelling" text)
+            (test* "-o with another spelling of the source file is a usage error" '(2 #t #t)
+                   (check source "-m" "pmd" "-o" (string-append workdir "/./same-spelling.sxl"))))
+          (let1 source (begin (make-directory* (work-file "real"))
+                              (sys-symlink "real" (work-file "link"))
+                              (rlet1 f (work-file "real/via-link.sxl")
+                                (with-output-to-file f (^[] (display text)))))
+            (test* "-o with the source file through a symbolic link is a usage error" '(2 #t #t)
+                   (check source "-m" "pmd" "-o" (work-file "link/via-link.sxl"))))
+          ;; 既定の出力先は、モードを -m とソースのどちらで指定しても同じく検査すること
+          (let1 source (work-file "default-same.mml")
+            (with-output-to-file source (^[] (display text)))
+            (test* "the default output that is the source file is a usage error" '(2 #t #t)
+                   (check source "-m" "pmd")))
+          (let* ([mode-text #"(sxmml-mode pmd)~text"]
+                 [source (work-file "source-mode-same.mml")])
+            (with-output-to-file source (^[] (display mode-text)))
+            (test* "the default output is checked with the mode in source" '(2 #t #t)
+                   (list (car (sxlc-status source))
+                         (boolean (any #/^output file is the same as the source file: /
+                                       (cadr (sxlc-status source))))
+                         (equal? (file->string source) mode-text))))))
     (remove-directory* workdir)))
 
 ;; (test* "test-sxmml" "sxmml is working"
