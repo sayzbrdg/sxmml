@@ -87,6 +87,15 @@
            [p (run-process `("gosh" ,#"-I~srcdir" ,(build-path srcdir "sxlc.in") ,@args)
                            :output :null :error err :wait #t)])
       (list (sys-wait-exit-status (process-exit-status p)) (file->string-list err))))
+  ;; prefix のコマンドを前に付けて args で sxlc を実行し、終了値と、標準出力と
+  ;; 標準エラー出力の行のリストを返す。出力は復号できないバイト列もそのまま読む
+  (define (sxlc-run prefix . args)
+    (let* ([status 0]
+           [lines (process-output->string-list
+                   `(,@prefix "gosh" ,#"-I~srcdir" ,(build-path srcdir "sxlc.in") ,@args)
+                   :error :merge
+                   :on-abnormal-exit (^p (set! status (process-exit-status p))))])
+      (list (sys-wait-exit-status status) lines)))
   ;; sxlc-status の結果から、終了値と、pattern に一致する標準エラー出力の行の有無を返す
   (define (status-and-message result pattern)
     (list (car result) (boolean (any pattern (cadr result)))))
@@ -265,7 +274,31 @@
                    (list (car (sxlc-status source))
                          (boolean (any #/^output file is the same as the source file: /
                                        (cadr (sxlc-status source))))
-                         (equal? (file->string source) mode-text))))))
+                         (equal? (file->string source) mode-text)))))
+        ;; 後処理の出力の文字コード (#41)
+        ;; -w なしでは後処理の出力を変換せずにそのまま通し、-w ありでは CP932 から変換する。
+        ;; どちらも復号できない出力で異常終了しないこと
+        (let ([source (write-source "post-output" "(mml G \"c8\")")]
+              [utf8 "sh -c \"printf '\\346\\227\\245\\346\\234\\254\\350\\252\\236\\n'\" sh"]
+              [cp932 "sh -c \"printf '\\203\\145\\203\\130\\203\\147\\n'\" sh"]
+              [broken "sh -c \"printf '\\377\\376\\n'\" sh"]
+              ;; 引数のパスをそのまま返す wslpath を先に見つかる場所に置く
+              [fake-path (let1 dir (work-file "fake-bin")
+                           (make-directory* dir)
+                           (with-output-to-file (build-path dir "wslpath")
+                             (^[] (display "#!/bin/sh\nprintf '%s\\n' \"$2\"\n")))
+                           (sys-chmod (build-path dir "wslpath") #o755)
+                           (list "env" #"PATH=~|dir|:~(sys-getenv \"PATH\")"))])
+          (test* "UTF-8 output of the post process is passed through without -w" '(0 #t)
+                 (let1 r (sxlc-run '() "-m" "pmd" "-c" utf8 source)
+                   (list (car r) (boolean (member "日本語" (cadr r))))))
+          (test* "undecodable output of the post process does not fail without -w" 0
+                 (car (sxlc-run '() "-m" "pmd" "-c" broken source)))
+          (test* "CP932 output of the post process is converted with -w" '(0 #t)
+                 (let1 r (sxlc-run fake-path "-w" "-m" "pmd" "-c" cp932 source)
+                   (list (car r) (boolean (member "テスト" (cadr r))))))
+          (test* "undecodable output of the post process does not fail with -w" 0
+                 (car (sxlc-run fake-path "-w" "-m" "pmd" "-c" broken source)))))
     (remove-directory* workdir)))
 
 ;; (test* "test-sxmml" "sxmml is working"
