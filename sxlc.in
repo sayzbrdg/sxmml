@@ -33,50 +33,90 @@
 (use file.util)
 
 (define (main argv)
-  (let-args (cdr argv)
-      ([mode "m|mode=y" #f]
-       [optimize "O|optimize=i" 1]
-       [cmd "c|command=s" #f]
-       [output "o|output=s" #f]
-       [wsl "w|wsl" #f]
-       [#f "l|list" => %backend-list]
-       [#f "h|help" => (^[] (%usage 0))]
-       [#f "v|version" => %version]
-       . args)
-    (when (null? args)
-      (format (current-error-port) "no source file specified\n")
-      (%usage 1))
-    (parameterize ([sxmml-source-file (sys-normalize-pathname (car args) :absolute #t)]
-                   [sxmml-mode-fixed? (boolean mode)])
-      (when mode
-        ((eval mode (interaction-environment))))
-      (load (sxmml-source-file))
-      (unless (slot-ref (sxmml-environment) 'backend)
-        (error "backend is not specified by option or source file" ))
-      (slot-set! (sxmml-environment) 'optimize (cond [(>= optimize 2) :full]
-                                                     [(> optimize 0) #t]
-                                                     [else #f]))
-      ;; 出力先は sxlc が決める。ソースが output slot を変更していても上書きする。
-      ;; #f の場合はバックエンドが既定値を設定する
-      (slot-set! (sxmml-environment) 'output
-                 (and output (sys-normalize-pathname output :absolute #t)))
-      ((slot-ref (sxmml-environment) 'backend))
-      (format #t "Translate: ~a => ~a\n" (sxmml-source-file) (slot-ref (sxmml-environment) 'output))
-      (format #t "Processing Mode: ~a\n" (slot-ref (sxmml-environment) 'mode))
-      (format #t "Optimize level: ~d\n\n" optimize)
-      (%print-ticks-information)
-      (when cmd
-        ;; 生成名はシェルの字句解析を通さず、末尾の一引数として渡す
-        (let* ([output-file (slot-ref (sxmml-environment) 'output)]
-               [output (if wsl
-                         (process-output->string (list "wslpath" "-aw" output-file))
-                         output-file)]
-               [cmd-line (append (shell-tokenize-string cmd) (list output))])
-          (format #t "Post process: ~a ~a\n\n" cmd (shell-escape-string output))
-          (for-each print (process-output->string-list cmd-line
-                                                       :encoding "shift_jis" :on-abnormal-exit :ignore :error :merge))
-          (newline)))
-      0)))
+  ;; 終了値は 0 成功、1 変換の失敗、2 使用法の誤り、3 後処理の失敗とする (#37)
+  (guard (e [(<parseopt-error> e) (%usage-error (condition-message e))])
+    (let-args (cdr argv)
+        ([mode "m|mode=y" #f]
+         [optimize "O|optimize=i" 1]
+         [cmd "c|command=s" #f]
+         [output "o|output=s" #f]
+         [wsl "w|wsl" #f]
+         [#f "l|list" => %backend-list]
+         [#f "h|help" => (^[] (%usage 0))]
+         [#f "v|version" => %version]
+         . args)
+      (when (null? args)
+        (%usage-error "no source file specified"))
+      ;; -c の字句の誤りは、変換の前に使用法の誤りとして検出する
+      (let1 cmd-args (and cmd
+                          (guard (e [else (%usage-error (%error-message e))])
+                            (shell-tokenize-string cmd)))
+        (parameterize ([sxmml-source-file (sys-normalize-pathname (car args) :absolute #t)]
+                       [sxmml-mode-fixed? (boolean mode)])
+          (when mode
+            (%mode-select mode))
+          ;; 変換中のエラーは、Gauche の通常の表示を出して変換の失敗とする
+          (guard (e [else (report-error e) (exit 1)])
+            (load (sxmml-source-file))
+            (unless (slot-ref (sxmml-environment) 'backend)
+              (error "backend is not specified by option or source file" ))
+            (slot-set! (sxmml-environment) 'optimize (cond [(>= optimize 2) :full]
+                                                           [(> optimize 0) #t]
+                                                           [else #f]))
+            ;; 出力先は sxlc が決める。ソースが output slot を変更していても上書きする。
+            ;; #f の場合はバックエンドが既定値を設定する
+            (slot-set! (sxmml-environment) 'output
+                       (and output (sys-normalize-pathname output :absolute #t)))
+            ((slot-ref (sxmml-environment) 'backend)))
+          (format #t "Translate: ~a => ~a\n" (sxmml-source-file) (slot-ref (sxmml-environment) 'output))
+          (format #t "Processing Mode: ~a\n" (slot-ref (sxmml-environment) 'mode))
+          (format #t "Optimize level: ~d\n\n" optimize)
+          (%print-ticks-information)
+          (if cmd-args
+            (%post-process cmd cmd-args wsl)
+            0))))))
+
+;; -m で指定したモードを選ぶ。解決や呼び出しができない場合は使用法の誤りとする。
+;; モード指定の設計は #38 で見直す
+(define (%mode-select mode)
+  (guard (e [else (%usage-error (format #f "invalid mode: ~a: ~a" mode (%error-message e)))])
+    ((eval mode (interaction-environment)))))
+
+;; 後処理を実行し、終了値を返す。後処理が失敗した場合は標準エラー出力に通知して 3 を返す
+(define (%post-process cmd cmd-args wsl)
+  (let* ([output-file (slot-ref (sxmml-environment) 'output)]
+         [output (if wsl
+                   (guard (e [else (%post-failure #"failed: wslpath: ~(%error-message e)") #f])
+                     (process-output->string (list "wslpath" "-aw" output-file)))
+                   output-file)]
+         [status 0])
+    (cond
+     [output
+      ;; 生成名はシェルの字句解析を通さず、末尾の一引数として渡す
+      (format #t "Post process: ~a ~a\n\n" cmd (shell-escape-string output))
+      (for-each print (process-output->string-list
+                       (append cmd-args (list output))
+                       :encoding "shift_jis" :error :merge
+                       :on-abnormal-exit (^p (set! status (process-exit-status p)))))
+      (newline)
+      (cond [(sys-wait-signaled? status)
+             (%post-failure (format #f "killed by signal ~d" (sys-wait-termsig status)))]
+            [(zero? status) 0]
+            [else
+             (%post-failure (format #f "failed: exit status ~d" (sys-wait-exit-status status)))])]
+     [else 3])))
+
+(define (%post-failure message)
+  (format (current-error-port) "post process ~a\n" message)
+  3)
+
+;; 使用法の誤りを通知し、使用法を表示して終了値 2 で終了する
+(define (%usage-error message)
+  (format (current-error-port) "~a\n" message)
+  (%usage 2))
+
+(define (%error-message e)
+  (if (condition? e) (condition-message e) e))
 
 (define (%usage code)
   (display "Usage: sxlc [-whlv] [-O opt_lv] [-m mode] [-o output] [-c command] file\n\n")
