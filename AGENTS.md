@@ -9,6 +9,6 @@
 - 開発者向けドキュメントは doc/internal-reference ディレクトリの下に配置されている
 
 ## ブランチ運用
-- 作業の起点は常に work-improvements-sandbox ブランチとする。作業ブランチは work-improvements-sandbox の最新から作成すること
-- プルリクエストのマージ先（base）は work-improvements-sandbox とすること
+- 作業の起点は常に main ブランチとする。作業ブランチは main の最新から作成すること
+- プルリクエストのマージ先（base）は main とすること
 - 一つのプルリクエストには一つの目的の変更だけを含め、別の目的の変更と混ぜないこと
