@@ -292,11 +292,13 @@
             (hash-table-get (slot-ref (sxmml-environment) 'metadata) 'memo ()))
   (display "\r\n"))
 
+;; 同じ入力から同じ生成物を得るため、音色表の反復順ではなく番号順に出力する。
+;; 番号が同じ場合 (#27) は id の名前順とする
 (define (%pmd-source-voice-generate)
-  (hash-table-for-each (slot-ref (sxmml-environment) 'voice)
-    (^[key value]
-      (let ([number (slot-ref value 'number)]
-            [value (slot-ref value 'value)])
+  (for-each
+    (^[voice]
+      (let ([number (slot-ref voice 'number)]
+            [value (slot-ref voice 'value)])
         (format #t "@~3,'0d" number)
         (match (car value)
           [(al fb)
@@ -307,7 +309,13 @@
               [(ar dr sr rr sl tl ks ml dt dt2 seg ams)
                (format #t " ~3,'0d ~3,'0d ~3,'0d ~3,'0d ~3,'0d ~3,'0d ~3,'0d ~3,'0d ~3,'0d ~3,'0d\r\n"
                        ar dr sr rr sl tl ks ml dt ams)
-               (loop (cdr rest))]))))))
+               (loop (cdr rest))])))))
+    (sort (hash-table-values (slot-ref (sxmml-environment) 'voice))
+          (^[a b] (let ([na (slot-ref a 'number)] [nb (slot-ref b 'number)])
+                    (or (< na nb)
+                        (and (= na nb)
+                             (string<? (symbol->string (slot-ref a 'id))
+                                       (symbol->string (slot-ref b 'id)))))))))
   (display "\r\n"))
 
 ;;;

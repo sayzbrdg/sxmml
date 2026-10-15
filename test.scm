@@ -50,6 +50,33 @@
     (output-report
      (apply run-sxlc name forms "-m" "pmd" "-c" "printf '<%s>\\n'" options)))
   (define (work-file name) (build-path workdir name))
+  ;; 作業ディレクトリ name に既存の生成物 out.mml と空のディレクトリ adir を置き、
+  ;; text を書いた入力を -o output で変換して、終了値が 0 以外か、
+  ;; ディレクトリの内容（名前と中身）が変換前と同じかを返す
+  (define (run-failure-check name text output)
+    (let* ([dir (work-file name)]
+           [source (build-path dir "in.sxl")]
+           [snapshot (^[] (map (^f (let1 path (build-path dir f)
+                                     (cons f (if (file-is-directory? path)
+                                               (directory-list path :children? #t)
+                                               (file->string path)))))
+                               (directory-list dir :children? #t)))])
+      (make-directory* (build-path dir "adir"))
+      (with-output-to-file source (^[] (display text)))
+      (with-output-to-file (build-path dir "out.mml") (^[] (display "existing output\n")))
+      (let* ([before (snapshot)]
+             [p (run-process `("gosh" ,#"-I~srcdir" ,(build-path srcdir "sxlc.in")
+                               "-m" "pmd" "-o" ,output ,source)
+                             :directory dir :output :null :error :null :wait #t)])
+        (list (not (zero? (process-exit-status p)))
+              (equal? before (snapshot))))))
+  ;; 音色 id を定義する式。音色の値で出力を区別できるよう AL に al を使う
+  (define (voice-form id al)
+    `(define-opn-voice ,id (,al 0) ,@(make-list 4 '(0 0 0 0 0 0 0 0 0))))
+  ;; name.sxl の変換結果の生成物の内容を返す
+  (define (generated-text name forms)
+    (run-sxlc name forms "-m" "pmd")
+    (file->string (work-file #"~|name|.mml")))
   (unwind-protect
       (begin
         ;; -c の後処理へ渡す生成名
@@ -114,7 +141,35 @@
                  (append (run-output-check "slot-set"
                                            `((slot-set! (sxmml-environment) 'output ,slot-out)
                                              (mml G "c8")))
-                         (list (file-exists? default) (file-exists? slot-out))))))
+                         (list (file-exists? default) (file-exists? slot-out)))))
+        ;; 失敗時の生成物 (#16)
+        ;; 読み込み・生成・出力のいずれで失敗しても、0 以外の終了値で終了し、
+        ;; 既存の生成物を変更せず、途中までの生成物や一時ファイルを残さないこと
+        (dolist [c '(("fail-read" "(mml G \"c8\"" "out.mml" "a read error")
+                     ("fail-generate" "(mml A \"@0c8\")" "out.mml" "an undefined voice")
+                     ("fail-no-dir" "(mml G \"c8\")" "nodir/out.mml" "a missing output directory")
+                     ("fail-dir" "(mml G \"c8\")" "adir" "an output path that is a directory"))]
+          (test* #"~(cadddr c) fails without changing existing files"
+                 '(#t #t)
+                 (run-failure-check (car c) (cadr c) (caddr c))))
+        ;; 生成物の再現性 (#16)
+        ;; 音色定義は番号順に出力し、同じ入力からはバイト単位で同じ生成物が得られること
+        (test* "voice definitions are output in number order"
+               '(0 1 2 3 4 5 6 7 8 9)
+               (map (^m (string->number (m 1)))
+                    (filter-map #/^@(\d+)/
+                                (string-split (generated-text
+                                               "voice-order"
+                                               (append (map voice-form '(j i h g f e d c b a) (iota 10))
+                                                       '((mml A "@{a}c8"))))
+                                              "\r\n"))))
+        ;; begin 内の定義は同じ番号になる (#27)。その場合も出力は一致すること
+        (let1 forms (append (map voice-form '(c b a) '(0 1 2))
+                            `((begin ,(voice-form 'e 3) ,(voice-form 'd 4))
+                              (mml A "@{a}c8@{e}c8")))
+          (test* "the same input yields byte-identical output"
+                 (generated-text "reproducible" forms)
+                 (generated-text "reproducible" forms))))
     (remove-directory* workdir)))
 
 ;; (test* "test-sxmml" "sxmml is working"

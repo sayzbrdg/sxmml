@@ -24,10 +24,10 @@ PMD4 向けに利用するときは `pmd`、PMD3 向けには `pmd3` を指定�
 |[[ref-pmd-sxmml-pmd4-source-generate]]`(sxmml-pmd4-source-generate)` |PMD4 向け生成 |PMD4 指定で共通生成処理を実行 |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-sxmml-pmd-source-generate]]`(sxmml-pmd-source-generate :optional (mode #f))` |モード引数を渡して生成 |`mode` を PMD3 用の真値として共通処理へ渡す。省略時 `#f` |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-internal-sxmml-pmdx-source-generate]]`(%sxmml-pmdx-source-generate mode)` |共通の生成入口 |ファイル出力後に現在の `<sxmml-environment>` を返す。出力時のエラーは伝播 |link:../../sxmml/backend/pmd.scm[pmd.scm]
-|[[ref-pmd-internal-pmd-source-output]]`(%pmd-source-output :optional (pmd3? #f))` |ヘッダー、メタデータ、音色、各トラックを出力 |`filename` メタデータを確認した後、`%output-file-get` の出力先と同じディレクトリに一時ファイルを CP932 で書き、出力先へ改名する。生成先のパスを返す。PMD3 では終端 `0x1a` を付加。出力先が使えない場合や変換できない文字は失敗し得る |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-internal-pmd-source-output]]`(%pmd-source-output :optional (pmd3? #f))` |ヘッダー、メタデータ、音色、各トラックを出力 |`filename` メタデータを確認した後、`%output-file-get` の出力先と同じディレクトリに一時ファイルを CP932 で書き、出力先へ改名する。途中で失敗した場合は一時ファイルを削除し、出力先の既存ファイルは変更しない。生成先のパスを返す。PMD3 では終端 `0x1a` を付加。出力先が使えない場合や変換できない文字は失敗し得る |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-internal-pmd-source-head-generate]]`(%pmd-source-head-generate :optional (pmd3? #f))` |生成元名と PMD バージョンの行を書く |`sxmml-source-file` が必要。PMD3 は `PMDver3.3`、それ以外は `PMDver4.8` |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-internal-pmd-source-meta-generate]]`(%pmd-source-meta-generate :optional (pmd3? #f))` |`title` 等と複数の `memo` を書く |PMD3 はメタデータ行の先頭に `; ` を付ける。値がないキーは書かない |link:../../sxmml/backend/pmd.scm[pmd.scm]
-|[[ref-pmd-internal-pmd-source-voice-generate]]`(%pmd-source-voice-generate)` |登録された音色を番号順ではなく表の反復順に書く |各演算子で `ar dr sr rr sl tl ks ml dt ams` を出力し、`dt2`・`seg` は出力しない |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-internal-pmd-source-voice-generate]]`(%pmd-source-voice-generate)` |登録された音色を番号順に書く。番号が同じ音色は id の名前順に書く |各演算子で `ar dr sr rr sl tl ks ml dt ams` を出力し、`dt2`・`seg` は出力しない |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-internal-output-file-get]]`(%output-file-get)` |出力先を決める |環境の `output` slot が設定されていればその値を返す。`#f` の場合は入力名の `.mml` への拡張子変更、入力名がなければ `./a.mml` を slot に設定して返す。ファイルへの書き込みはしない |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-internal-check-obsolete-metadata]]`(%check-obsolete-metadata)` |廃止したメタデータの確認 |`filename` メタデータが設定されていれば、生成先には使わない旨の警告を標準エラー出力に表示する |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |===
