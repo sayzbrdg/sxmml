@@ -30,6 +30,7 @@
 (use gauche.parseopt)
 (use gauche.package)
 (use gauche.process)
+(use gauche.charconv)
 (use file.util)
 
 (define (main argv)
@@ -106,27 +107,41 @@
 
 ;; 後処理を実行し、終了値を返す。後処理が失敗した場合は標準エラー出力に通知して 3 を返す
 (define (%post-process cmd cmd-args wsl)
-  (let* ([output-file (slot-ref (sxmml-environment) 'output)]
-         [output (if wsl
-                   (guard (e [else (%post-failure #"failed: wslpath: ~(%error-message e)") #f])
-                     (process-output->string (list "wslpath" "-aw" output-file)))
-                   output-file)]
-         [status 0])
-    (cond
-     [output
-      ;; 生成名はシェルの字句解析を通さず、末尾の一引数として渡す
-      (format #t "Post process: ~a ~a\n\n" cmd (shell-escape-string output))
-      (for-each print (process-output->string-list
-                       (append cmd-args (list output))
-                       :encoding "shift_jis" :error :merge
-                       :on-abnormal-exit (^p (set! status (process-exit-status p)))))
-      (newline)
-      (cond [(sys-wait-signaled? status)
-             (%post-failure (format #f "killed by signal ~d" (sys-wait-termsig status)))]
-            [(zero? status) 0]
-            [else
-             (%post-failure (format #f "failed: exit status ~d" (sys-wait-exit-status status)))])]
-     [else 3])))
+  ;; 後処理の段階の予期しないエラーも後処理の失敗とする
+  (guard (e [else (%post-failure #"failed: ~(%error-message e)")])
+    (let* ([output-file (slot-ref (sxmml-environment) 'output)]
+           [output (if wsl
+                     (guard (e [else (%post-failure #"failed: wslpath: ~(%error-message e)") #f])
+                       (process-output->string (list "wslpath" "-aw" output-file)))
+                     output-file)])
+      (cond
+       [output
+        ;; 生成名はシェルの字句解析を通さず、末尾の一引数として渡す
+        (format #t "Post process: ~a ~a\n\n" cmd (shell-escape-string output))
+        (flush)
+        (let1 status ((if wsl %post-run-windows %post-run) (append cmd-args (list output)))
+          (newline)
+          (cond [(sys-wait-signaled? status)
+                 (%post-failure (format #f "killed by signal ~d" (sys-wait-termsig status)))]
+                [(zero? status) 0]
+                [else
+                 (%post-failure (format #f "failed: exit status ~d" (sys-wait-exit-status status)))]))]
+       [else 3]))))
+
+;; 後処理を起動し、出力は sxlc の標準出力・標準エラー出力へそのまま引き継ぐ。
+;; 終了状態を返す
+(define (%post-run args)
+  (process-exit-status (run-process args :wait #t)))
+
+;; -w の後処理は Windows のツールとして起動し、標準エラー出力を含む出力を CP932 から
+;; 変換して表示する。復号できないバイト列は置き換える (#41)。終了状態を返す
+(define (%post-run-windows args)
+  (let1 p (run-process args :output :pipe :redirects '((>& 2 1)))
+    (for-each print (port->string-list
+                     (open-input-conversion-port (process-output p) "CP932"
+                                                 :illegal-output 'replace :owner? #t)))
+    (process-wait p)
+    (process-exit-status p)))
 
 (define (%post-failure message)
   (format (current-error-port) "post process ~a\n" message)
