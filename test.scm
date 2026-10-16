@@ -275,6 +275,23 @@
                          (boolean (any #/^output file is the same as the source file: /
                                        (cadr (sxlc-status source))))
                          (equal? (file->string source) mode-text)))))
+        ;; 入力ファイルより後ろの引数 (#42)
+        ;; 入力ファイルは 1 つに限り、後ろの引数は使用法の誤り 2 としてソースを読み込む前に
+        ;; 検出し、生成物を作らないこと。オプションに見える引数には書く位置を通知すること
+        (let ([source (write-source "extra-a" "(mml G \"c8\")")]
+              [other (write-source "extra-b" "(mml G \"d8\")")]
+              [outputs (map work-file '("extra-a.mml" "extra-b.mml" "extra-o.mml"))])
+          (define (check pattern . args)
+            (for-each (^f (when (file-exists? f) (sys-unlink f))) outputs)
+            (append (status-and-message (apply sxlc-status args) pattern)
+                    (list (any file-exists? outputs))))
+          (test* "two source files are a usage error" '(2 #t #f)
+                 (check #/^unexpected argument after the source file: / "-m" "pmd" source other))
+          (test* "-o after the source file is a usage error" '(2 #t #f)
+                 (check #/^options must be placed before the source file$/
+                        "-m" "pmd" source "-o" (work-file "extra-o.mml")))
+          (test* "-m after the source file is a usage error" '(2 #t #f)
+                 (check #/^options must be placed before the source file$/ source "-m" "pmd")))
         ;; 後処理の出力の文字コード (#41)
         ;; -w なしでは後処理の出力を変換せずにそのまま通し、-w ありでは CP932 から変換する。
         ;; どちらも復号できない出力で異常終了しないこと
