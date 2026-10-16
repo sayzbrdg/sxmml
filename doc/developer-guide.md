@@ -29,7 +29,7 @@ export PATH="$install_dir/bin:$PATH"
 export GAUCHE_LOAD_PATH="$install_dir/share/sxmml${GAUCHE_LOAD_PATH:+:$GAUCHE_LOAD_PATH}"
 ```
 
-`make check` の成功時は、`test.log` に `sxmml.classes` から `sxmml` まで 9 モジュールの binding 検査と、`sxlc` の CLI の検査が全て `ok` と表示され、末尾が `passed.` となる。`test.scm` は `test-module` による binding 検査と、`sxlc.in` を `gosh` で起動する CLI の検査を行う。CLI の検査は、`-c` の後処理へ生成名を一引数で渡すこと、CLI とソースのモード指定の優先順位、出力先の決定、失敗時に既存の生成物を変更しないこと、同じ入力からの生成物の一致、失敗の種類ごとの終了値と後処理の失敗の通知、出力先が入力ファイルと同じ場合にソースを変更しないことを対象とする。それ以外の MML 変換、CLI 出力、最適化の検証は[検証方針](verification.md)の手順に従って別に行う。
+`make check` の成功時は、`test.log` に `sxmml.classes` から `sxmml` まで 9 モジュールの binding 検査と、`sxlc` の CLI の検査が全て `ok` と表示され、末尾が `passed.` となる。`test.scm` は `test-module` による binding 検査と、`sxlc.in` を `gosh` で起動する CLI の検査を行う。CLI の検査は、`-c` の後処理へ生成名を一引数で渡すこと、CLI とソースのモード指定の優先順位、出力先の決定、失敗時に既存の生成物を変更しないこと、同じ入力からの生成物の一致、失敗の種類ごとの終了値と後処理の失敗の通知、出力先が入力ファイルと同じ場合にソースを変更しないこと、後処理の出力の文字コードの扱いを対象とする。それ以外の MML 変換、CLI 出力、最適化の検証は[検証方針](verification.md)の手順に従って別に行う。
 
 同じコピー内で PMD 生成を確認するには、次を続けて実行する。出力ファイルは `melody-and-rest.sxl` と同じディレクトリにできる。
 
