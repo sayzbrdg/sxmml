@@ -78,5 +78,6 @@ export GAUCHE_LOAD_PATH="$sxmml_prefix/share/sxmml${GAUCHE_LOAD_PATH:+:$GAUCHE_L
 - [製品の目的と範囲](doc/product-overview.md)
 - [現行の外部動作仕様](doc/behavior-spec.md)
 - [開発者向け手順](doc/developer-guide.md)
+- [変更履歴](NEWS.md)
 
 ライセンスは [BSD 3-Clause License](LICENSE) です。
