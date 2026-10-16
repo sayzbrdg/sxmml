@@ -4,9 +4,9 @@
 
 ## 入力と実行順
 
-`sxlc` は少なくとも一つの入力ファイル名を必要とする。渡された最初のファイルを Gauche の `load` で読み込み、ソース中の Scheme 式を評価する。入力ファイルの拡張子は制限しない。複数のファイル名を渡した場合、変換するのは最初の一つである。ソースは MML の文字列だけでなく、Scheme 式と `mml` / `rhythm`、定義・設定マクロを含められる。
+`sxlc` は入力ファイル名を一つだけ受け付ける。そのファイルを Gauche の `load` で読み込み、ソース中の Scheme 式を評価する。入力ファイルの拡張子は制限しない。オプションは入力ファイル名より前に書く。入力ファイル名より後ろに引数があると、ソースを読み込む前に `unexpected argument after the source file: 引数` と使用法を表示し、終了値 2 で終了する。後ろの引数が `-` で始まる場合は、`options must be placed before the source file` も表示する。`-` で始まる入力ファイル名は `--` の後に書く。ソースは MML の文字列だけでなく、Scheme 式と `mml` / `rhythm`、定義・設定マクロを含められる。
 
-処理順は、オプションを読む → `-m` があればモードを選ぶ → 最初の入力ファイルを読み込む → 出力形式の設定を確認する → `-O` の水準と出力先を設定する → 生成する → 出力名・処理モード・最適化水準を表示する → トラックの tick 数を表示する → `-c` があれば後処理を起動する、である。入力ファイルの読み込み中にエラーが起きれば、出力形式の確認より先にそのエラーが出る。`-m pmd` がなくても、ソース中の `(sxmml-mode pmd)` で PMD モードを選べる。両方を指定すると `-m` の指定が有効になり、ソース中の `sxmml-mode` は無視される。このとき標準エラー出力に `warning: sxmml-mode in source is ignored; mode is already set to モード名` を表示する。
+処理順は、オプションを読む → `-m` があればモードを選ぶ → 入力ファイルを読み込む → 出力形式の設定を確認する → `-O` の水準と出力先を設定する → 生成する → 出力名・処理モード・最適化水準を表示する → トラックの tick 数を表示する → `-c` があれば後処理を起動する、である。入力ファイルの読み込み中にエラーが起きれば、出力形式の確認より先にそのエラーが出る。`-m pmd` がなくても、ソース中の `(sxmml-mode pmd)` で PMD モードを選べる。両方を指定すると `-m` の指定が有効になり、ソース中の `sxmml-mode` は無視される。このとき標準エラー出力に `warning: sxmml-mode in source is ignored; mode is already set to モード名` を表示する。
 
 PMD4 向けには `pmd`、PMD3 向けには `pmd3` を指定する。ソース内でモードを選ぶ場合、`sxlc` は起動時に利用可能なバックエンドを読み込む。各モードの出力差は「PMD 向け生成物」に示す。
 
@@ -69,7 +69,7 @@ PMD 向けの生成では、`-o` で指定した出力先、指定がなけれ�
 | --- | --- |
 | 0 | 成功。`-c` を指定した場合は後処理も成功 |
 | 1 | 変換の失敗。ソースの読み込み・評価、MML、生成、出力先のエラー。エラーの内容は Gauche の形式（`*** ERROR:` などで始まる）で標準エラー出力に表示する |
-| 2 | 使用法の誤り。不正なオプションや引数、入力ファイル名なし、`-m` のモードを選べない、`-c` の字句の誤り、出力先が入力ファイルと同じ。誤りの内容を標準エラー出力に、使用法を標準出力に表示する |
+| 2 | 使用法の誤り。不正なオプションや引数、入力ファイル名なし、`-m` のモードを選べない、`-c` の字句の誤り、出力先が入力ファイルと同じ、入力ファイル名より後ろの引数。誤りの内容を標準エラー出力に、使用法を標準出力に表示する |
 | 3 | 後処理の失敗。`-c` の後処理が 0 以外の終了値やシグナルで終了した、起動できなかった、`-w` の `wslpath` が失敗した |
 
 表中の Scheme 入力を試す場合は、それぞれ 1 行の `/tmp/sxmml-examples/invalid-input.sxl` に保存し、特記した条件以外は `sxlc -m pmd /tmp/sxmml-examples/invalid-input.sxl` を実行する。「モードを指定しない空ソース」は空ファイル、「未登録トラック」は `(mml G "c8r8")` だけを記したファイルを `-m` なしで読み込む。「入力ファイル名なし」は `sxlc` を実行する。
@@ -79,6 +79,7 @@ PMD 向けの生成では、`-o` で指定した出力先、指定がなけれ�
 | 入力ファイル名なし | `no source file specified` と使用法を表示し、終了値 2 |
 | `/tmp/sxmml-examples/invalid-input.sxl` を `-o /tmp/sxmml-examples/invalid-input.sxl` を付けて変換 | `output file is the same as the source file: /tmp/sxmml-examples/invalid-input.sxl` と使用法を表示し、終了値 2。ソースは変更しない |
 | `(mml G "c8")` を `/tmp/sxmml-examples/same.mml` に保存して `-o` なしで変換 | 既定の出力先が入力と同じになるため `output file is the same as the source file: /tmp/sxmml-examples/same.mml` と使用法を表示し、終了値 2。ソースは変更しない |
+| `sxlc -m pmd /tmp/sxmml-examples/invalid-input.sxl -o /tmp/sxmml-examples/out.mml` のように入力ファイル名の後ろにオプションを書く | `unexpected argument after the source file: -o`、`options must be placed before the source file` と使用法を表示し、終了値 2。生成物は作らない |
 | `-m nosuch` で存在しないモードを指定 | `invalid mode: nosuch: unbound variable: nosuch` と使用法を表示し、終了値 2 |
 | モードを指定しない空ソース | `backend is not specified by option or source file`、終了値 1 |
 | 未登録トラックへ `(mml G "c8r8")` を評価 | `no defined track: G`、終了値 1。モード未指定の判定より先に失敗 |
