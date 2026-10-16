@@ -8,7 +8,7 @@
 
 ## 現行の生成・配置
 
-`./configure` は `Makefile`、`sxmml.gpd`、`VERSION` を生成する。`VERSION` と `sxmml.gpd` のバージョンは `0.1`。`make check` は `sxlc` を作り、`test.scm` のモジュール binding 検査と `-c` の生成名受け渡し・モード優先順位の検査を実行する。`Makefile.in` の `install` 規則は `sxlc`、`SCMFILES` に列挙された Scheme ファイル、`sxmml.gpd` をそれぞれ実行ファイルディレクトリ、Gauche のパッケージ用ライブラリ、`.packages` に配置する。Pandoc がある場合は、`sxlc.1` も `mandir` の `man1` に配置する ([man ページの生成と配置](#man-ページの生成と配置))。実際のインストール先は `./configure` の結果で変わるため、生成された `Makefile` を確認する。
+`./configure` は `Makefile`、`sxmml.gpd`、`VERSION` を生成する。`VERSION` と `sxmml.gpd` のバージョンは `package.scm` の `:version` の値である。`make check` は `sxlc` を作り、`test.scm` のモジュール binding 検査と CLI の検査を実行する。検査の内容は[開発手順](developer-guide.md)を参照する。`Makefile.in` の `install` 規則は `sxlc`、`SCMFILES` に列挙された Scheme ファイル、`sxmml.gpd` をそれぞれ実行ファイルディレクトリ、Gauche のパッケージ用ライブラリ、`.packages` に配置する。Pandoc がある場合は、`sxlc.1` も `mandir` の `man1` に配置する ([man ページの生成と配置](#man-ページの生成と配置))。実際のインストール先は `./configure` の結果で変わるため、生成された `Makefile` を確認する。
 
 配置先の変数は次のとおり決まる。いずれも `make` の引数で上書きできる。
 
@@ -70,7 +70,7 @@ gauche-package make-tarball --dry-run
 gauche-package make-tarball
 ```
 
-ソースの親ディレクトリに作成した `sxmml-0.1.tgz` を別のディレクトリへ展開し、展開先で `./configure`、`make check`、一時配置への `make install` と変換例を実行する。標準配置への導入は、配置先の権限と Gauche の検索先を確認してから行う。これらの手順は [`tools/distcheck.sh`](#toolsdistchecksh) が自動で行う。
+ソースの親ディレクトリに作成した `sxmml-<版>.tgz`（`<版>` は `package.scm` の `:version` の値）を別のディレクトリへ展開し、展開先で `./configure`、`make check`、一時配置への `make install` と変換例を実行する。標準配置への導入は、配置先の権限と Gauche の検索先を確認してから行う。これらの手順は [`tools/distcheck.sh`](#toolsdistchecksh) が自動で行う。
 
 ## 配布前の確認
 
@@ -125,6 +125,13 @@ GNU make と bmake の両方で確認する場合は、`-m` を変えて 2 回�
 tools/distcheck.sh
 tools/distcheck.sh -m bmake
 ```
+
+### リリースの手順
+
+1. `package.scm` の `:version` を新しい版に変え、`NEWS.md` に変更点（互換性のない変更、不具合の修正、追加・変更、既知の問題）を記載する PR を作成し、取り込む。
+2. 取り込んだコミットを対象に、次のチェックリストで確認する。
+3. 確認したコミットに注釈付きタグ `v<版>`（例: `v0.3.0`）を付けて push する。GitHub の Release を作る場合は、本文を `NEWS.md` の該当する節にする。
+4. 確認用の issue と、その版のマイルストーンを close する。
 
 ### リリース確認のチェックリスト
 
