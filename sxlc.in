@@ -48,6 +48,15 @@
          . args)
       (when (null? args)
         (%usage-error "no source file specified"))
+      ;; 入力ファイルは 1 つに限る。オプションの解析は最初の入力ファイルで止まるため、
+      ;; 後ろに書いたオプションも含めて、残りの引数は使用法の誤りとする (#42)
+      (unless (null? (cdr args))
+        (let1 extra (cadr args)
+          (%usage-error
+           (string-append #"unexpected argument after the source file: ~extra"
+                          (if (#/^-/ extra)
+                            "\noptions must be placed before the source file"
+                            "")))))
       ;; -o の指定先が入力ファイルと同じ場合は、ソースを読み込む前に使用法の誤りとする (#40)
       (when output
         (%output-file-check output (car args)))
