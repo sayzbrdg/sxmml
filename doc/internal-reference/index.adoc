@@ -3,7 +3,7 @@
 
 この索引は、sxmml を保守・改修する際に内部定義を名前から探すためのものです。動作環境は Gauche 0.9.15 です。内部の名前は MML 記述者向け API を示しません。公開機能の使い方は xref:../sxmml-reference-manual.adoc[MML 記述者向けリファレンス]、MML 文字列の記法は xref:../sxmml-mml-manual.adoc[MML コマンドマニュアル]を参照してください。
 
-モジュール直下の手続き 171 件、クラス 43 件、マクロ 12 件、合計 226 件を掲載します。`sxmml.scm` は各モジュールを継承し、独自の直下定義はありません。各モジュールには `define-method` による定義はありません。局所関数と `sxlc.in` の直下定義は範囲外です。呼び出せないハッシュ表は対象外です。
+モジュール直下の手続き 177 件、クラス 44 件、マクロ 12 件、合計 233 件を掲載します。実験的な `sxmml.backend.pmd-binary` は公開名 7 件だけを掲載し、内部定義は xref:pmd-binary.adoc[本文]に概要だけを記します。`sxmml.scm` は各モジュールを継承し、独自の直下定義はありません。`sxmml.backend.pmd-binary` の `initialize` を除き、各モジュールには `define-method` による定義はありません。局所関数と `sxlc.in` の直下定義は範囲外です。呼び出せないハッシュ表は対象外です。
 
 == モジュール別目次
 
@@ -19,6 +19,7 @@
 |xref:voice.adoc[`sxmml.voice`] |音色定義 |4
 |xref:util.adoc[`sxmml.util`] |BPM の補助計算 |1
 |xref:pmd.adoc[`sxmml.backend.pmd`] |PMD 向け生成 |60
+|xref:pmd-binary.adoc[`sxmml.backend.pmd-binary`] |PMD バイナリ生成（実験的・公開名のみ） |7
 |===
 
 == 掲載範囲と読み方
@@ -185,6 +186,7 @@
 |`<sxmml-opn-voice>` |`sxmml.classes` |クラス・公開 |xref:classes.adoc#ref-classes-class-sxmml-opn-voice[項目へ]
 |`<sxmml-optimize-2path-context>` |`sxmml.classes` |クラス・公開 |xref:classes.adoc#ref-classes-class-sxmml-optimize-2path-context[項目へ]
 |`<sxmml-optimize-environment>` |`sxmml.classes` |クラス・公開 |xref:classes.adoc#ref-classes-class-sxmml-optimize-environment[項目へ]
+|`<sxmml-pmd-binary-environment>` |`sxmml.backend.pmd-binary` |クラス・公開 |xref:pmd-binary.adoc#ref-pmd-binary-class-sxmml-pmd-binary-environment[項目へ]
 |`<sxmml-pmd-track-environment>` |`sxmml.backend.pmd` |クラス・非公開 |xref:pmd.adoc#ref-pmd-class-sxmml-pmd-track-environment[項目へ]
 |`<sxmml-rhythm-emit>` |`sxmml.classes` |クラス・公開 |xref:classes.adoc#ref-classes-class-sxmml-rhythm-emit[項目へ]
 |`<sxmml-rhythm-pan>` |`sxmml.classes` |クラス・公開 |xref:classes.adoc#ref-classes-class-sxmml-rhythm-pan[項目へ]
@@ -218,9 +220,12 @@
 |`object-store` |`sxmml.optimizer` |手続き・非公開 |xref:optimizer.adoc#ref-optimizer-object-store[項目へ]
 |`object-sum-update!` |`sxmml.optimizer` |手続き・非公開 |xref:optimizer.adoc#ref-optimizer-object-sum-update-bang[項目へ]
 |`pmd` |`sxmml.backend.pmd` |手続き・公開 |xref:pmd.adoc#ref-pmd-pmd[項目へ]
+|`pmd-binary` |`sxmml.backend.pmd-binary` |手続き・公開 |xref:pmd-binary.adoc#ref-pmd-binary-pmd-binary[項目へ]
 |`pmd-source` |`sxmml.backend.pmd` |手続き・公開 |xref:pmd.adoc#ref-pmd-pmd-source[項目へ]
 |`pmd3` |`sxmml.backend.pmd` |手続き・公開 |xref:pmd.adoc#ref-pmd-pmd3[項目へ]
+|`pmd3-binary` |`sxmml.backend.pmd-binary` |手続き・公開 |xref:pmd-binary.adoc#ref-pmd-binary-pmd3-binary[項目へ]
 |`pmd3-source` |`sxmml.backend.pmd` |手続き・公開 |xref:pmd.adoc#ref-pmd-pmd3-source[項目へ]
+|`pmd4-binary` |`sxmml.backend.pmd-binary` |手続き・公開 |xref:pmd-binary.adoc#ref-pmd-binary-pmd4-binary[項目へ]
 |`pmd4-source` |`sxmml.backend.pmd` |手続き・公開 |xref:pmd.adoc#ref-pmd-pmd4-source[項目へ]
 |`rhythm` |`sxmml.compiler` |マクロ・公開 |xref:compiler.adoc#ref-compiler-rhythm[項目へ]
 |`rhythm-command\->$` |`sxmml.mml` |手続き・非公開 |xref:mml.adoc#ref-mml-rhythm-command-to-parser[項目へ]
@@ -245,9 +250,12 @@
 |`sxmml-opm-list\->register` |`sxmml.voice` |手続き・非公開 |xref:voice.adoc#ref-voice-sxmml-opm-list-to-register[項目へ]
 |`sxmml-opmn-operator-zip` |`sxmml.voice` |手続き・公開 |xref:voice.adoc#ref-voice-sxmml-opmn-operator-zip[項目へ]
 |`sxmml-optimize-tree` |`sxmml.optimizer` |手続き・公開 |xref:optimizer.adoc#ref-optimizer-sxmml-optimize-tree[項目へ]
+|`sxmml-pmd-binary-generate` |`sxmml.backend.pmd-binary` |手続き・公開 |xref:pmd-binary.adoc#ref-pmd-binary-sxmml-pmd-binary-generate[項目へ]
 |`sxmml-pmd-source-generate` |`sxmml.backend.pmd` |手続き・公開 |xref:pmd.adoc#ref-pmd-sxmml-pmd-source-generate[項目へ]
 |`sxmml-pmd-track-environment` |`sxmml.backend.pmd` |手続き・非公開 |xref:pmd.adoc#ref-pmd-sxmml-pmd-track-environment[項目へ]
+|`sxmml-pmd3-binary-generate` |`sxmml.backend.pmd-binary` |手続き・公開 |xref:pmd-binary.adoc#ref-pmd-binary-sxmml-pmd3-binary-generate[項目へ]
 |`sxmml-pmd3-source-generate` |`sxmml.backend.pmd` |手続き・公開 |xref:pmd.adoc#ref-pmd-sxmml-pmd3-source-generate[項目へ]
+|`sxmml-pmd4-binary-generate` |`sxmml.backend.pmd-binary` |手続き・公開 |xref:pmd-binary.adoc#ref-pmd-binary-sxmml-pmd4-binary-generate[項目へ]
 |`sxmml-pmd4-source-generate` |`sxmml.backend.pmd` |手続き・公開 |xref:pmd.adoc#ref-pmd-sxmml-pmd4-source-generate[項目へ]
 |`sxmml-resolution` |`sxmml.environment` |手続き・公開 |xref:environment.adoc#ref-environment-sxmml-resolution[項目へ]
 |`sxmml-resolution-get` |`sxmml.environment` |手続き・公開 |xref:environment.adoc#ref-environment-sxmml-resolution-get[項目へ]

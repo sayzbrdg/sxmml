@@ -9,9 +9,9 @@
 | R-01 | Scheme を使い、古い MML の制約に妨げられず柔軟に MML を記述できる | 現行実装で再現できる記述例と制約 | [`sxmml/compiler.scm`](../sxmml/compiler.scm) の `mml` / `rhythm`、[`sxlc.in`](../sxlc.in) のソース読み込み |
 | R-02 | Scheme から MML オブジェクトを操作できる | 現行実装で利用者が操作できる対象・方法・結果 | [`sxmml/classes.scm`](../sxmml/classes.scm) の MML クラス、[`sxmml/processor.scm`](../sxmml/processor.scm) の変換マクロ |
 | R-03 | 既存ドライバー向け MML で手作業だった最適化を自動化できる | 現行実装が行う最適化の種類とコンパイル後のオブジェクト数の削減 | [`sxmml/optimizer.scm`](../sxmml/optimizer.scm) の `sxmml-optimize-tree`、[`sxlc.in`](../sxlc.in) の `-O` |
-| R-04 | sxmml が変換結果の生成物を作る | 現行実装の入力・出力形式と生成結果 | [`sxmml/backend/pmd.scm`](../sxmml/backend/pmd.scm) の PMD 向け MML 生成 |
+| R-04 | sxmml が変換結果の生成物を作る | 現行実装の入力・出力形式と生成結果 | [`sxmml/backend/pmd.scm`](../sxmml/backend/pmd.scm) の PMD 向け MML 生成、[`sxmml/backend/pmd-binary.scm`](../sxmml/backend/pmd-binary.scm) の PMD バイナリ生成（実験的） |
 
-R-04 は生成物を MML に限定しない。現在の出力は PMD 向け MML である。生成先は `sxlc` の `-o` で指定し、生成先、CLI 表示、`-c` に渡す名前が一致することを要求する。ソースから生成先を変更する手段は設けない（`filename` メタデータは無視する）。
+R-04 は生成物を MML に限定しない。現在の出力は PMD 向け MML と、実験的な PMD バイナリである。PMD バイナリは、生成物が MC.EXE の出力と同じであることを保証しない。生成先は `sxlc` の `-o` で指定し、生成先、CLI 表示、`-c` に渡す名前が一致することを要求する。ソースから生成先を変更する手段は設けない（`filename` メタデータは無視する）。
 
 `-c` のコマンド文字列は指定者が引用・エスケープする。sxmml がその後ろに追加する生成ファイル名は、`-w` の有無にかかわらず一つの引数として後処理へ渡すことを要求する。空白や `;` を含む生成名も一引数で渡る。
 
@@ -21,7 +21,7 @@ R-01・R-02 については、Scheme 式で作った MML 文字列リストを `
 
 MML ソース内では `define-track`、`sxmml-resolution`、`define-metadata`、`define-lfo`、`define-envelope`、`define-opn-voice`、`sxmml-mode pmd` の基本形を使える。`define-metadata` の値は文字列リテラルで指定する。PMD4 向けには `pmd`、PMD3 向けには `pmd3` を指定する。CLI とソース内のモード指定が重なると、CLI 側が優先される。定義値の生成物への反映は[外部動作仕様](behavior-spec.md)を参照する。
 
-R-03 の最適化は、コンパイル後のオブジェクトリストに連結されたオブジェクト数を減らす処理である。バックエンドが出力する最終文字列の長さは評価基準に含めない。代表的な処理は、重複した音量指定の削減と連続休符の結合である。R-04 については、CP932 の PMD 向け MML ファイルを生成する。
+R-03 の最適化は、コンパイル後のオブジェクトリストに連結されたオブジェクト数を減らす処理である。バックエンドが出力する最終文字列の長さは評価基準に含めない。代表的な処理は、重複した音量指定の削減と連続休符の結合である。R-04 については、CP932 の PMD 向け MML ファイルを生成する。実験的な PMD バイナリのモードでは `.m` ファイルを生成する。
 
 ## 要求と現行実装の対応
 
@@ -32,7 +32,7 @@ R-03 の最適化は、コンパイル後のオブジェクトリストに連結
 | R-01 | Scheme の `map` 等で作った MML 断片を `mml` に渡して音符を登録できる。[外部動作仕様](behavior-spec.md)。tick 指定はゼロ埋めした正の整数も受理し、0 は拒否する | `define-metadata` は変数を値として受けない | Scheme 式による MML 記述を提供 |
 | R-02 | `mml-repeat`・`mml-echo`・`mml-delay` で MML オブジェクトを加工する。[公開マクロ](sxmml-reference-manual.adoc) | slot の直接編集では文脈値が同期しない場合がある。複数トラックのエコーは、トラックごとに `mml-echo` を呼ぶ。[issue #6](https://github.com/sayzbrdg/sxmml/issues/6) | 加工マクロを提供、複数トラックの `mml-echo` は未実装 |
 | R-03 | 重複音量指定の削減と休符の結合を自動で行う。[比較例](verification.md#r-03-オブジェクト数の削減) | 削減効果は入力に応じて評価する。意味保持は Q-01 として別に判定する | 水準別の最適化処理を提供 |
-| R-04 | PMD モードで CP932 の `.mml` ファイルを生成する。[外部動作仕様](behavior-spec.md) | 他形式は提供していない | PMD 向け生成を提供 |
+| R-04 | PMD モードで CP932 の `.mml` ファイルを生成する。実験的な PMD バイナリのモードで `.m` ファイルを生成する。[外部動作仕様](behavior-spec.md) | PMD バイナリは実験的であり、MC.EXE の出力と同じであることを保証しない。他形式は提供していない | PMD 向け生成と、実験的な PMD バイナリ生成を提供 |
 
 現在残る不具合・未実装・検証不足・仕様確認待ちは [GitHub の issue](https://github.com/sayzbrdg/sxmml/issues)で課題ごとに参照できる。要求の内容と優先順位は本書で扱う。
 
