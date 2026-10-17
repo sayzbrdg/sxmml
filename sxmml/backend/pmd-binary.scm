@@ -747,18 +747,31 @@
 (define-inline (%short->le-bytes shortint)
   (values (logand #b11111111 shortint) (ash (logand #b1111111100000000 shortint) -8)))
 
+;; 音高は 12 * オクターブ + 音名 (0～11) なので、負の音高も floor/ でオクターブと音名に分ける。
 ;; PMD の音高の 1 バイトは、上位 4 ビットがオクターブ - 1、下位 4 ビットが音名で、
 ;; o1c から o8b までを表す
 (define-inline (%note-number->pmd-note note)
   (unless (<= 12 note 107)
     (errorf "note out of range: ~a (o1c - o8b)" (%note-number->name note)))
-  (receive (octave notenum) (quotient&remainder note 12)
+  (receive (octave notenum) (floor/ note 12)
     (+ (ash (- octave 1) 4) notenum)))
 
+;; エラーの表示用に、音高を sxmml.backend.pmd と同じ MML の表記にする
 (define (%note-number->name note)
   (receive (octave notenum) (floor/ note 12)
-    (format "o~a~a" octave
-            (vector-ref #("c" "c+" "d" "d+" "e" "f" "f+" "g" "g+" "a" "a+" "b") notenum))))
+    (format "o~a~a" octave (case notenum
+                             [(0) "c"]
+                             [(1) "c+"]
+                             [(2) "d"]
+                             [(3) "e-"]
+                             [(4) "e"]
+                             [(5) "f"]
+                             [(6) "f+"]
+                             [(7) "g"]
+                             [(8) "a-"]
+                             [(9) "a"]
+                             [(10) "b-"]
+                             [(11) "b"]))))
 
 (define (%opn-voice-data-get form)
   (define (operator->register opform)

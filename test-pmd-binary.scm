@@ -340,7 +340,9 @@
                      (list (car result) (equal? before (snapshot dir)))))))
         ;; PMD の音高の 1 バイトで表せない音高は、範囲外の音高と許される範囲を示して失敗する。
         (dolist [case '(("上側" "o8c>c" "o9c")
+                       ("上側" "o8b>e-" "o9e-")
                        ("下側" "o1c<c" "o0c")
+                       ("下側" "o1c<<b" "o-1b")
                        ("ポルタメントの終了音" "o8/{b >c}8" "o9c"))]
           (let* ([source (write-source (work-file #"note-range-~(caddr case).sxl")
                                        `((mml A ,(cadr case))))]
