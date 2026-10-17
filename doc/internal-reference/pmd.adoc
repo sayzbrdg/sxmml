@@ -101,7 +101,7 @@ PMD4 向けに利用するときは `pmd`、PMD3 向けには `pmd3` を指定�
 |[[ref-pmd-internal-pmd-rhythm-volume-set-bang]]`(%pmd-rhythm-volume-set! obj)` |全体値と楽器別の音量を出力 |設定済み slot だけを出す |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-internal-pmd-rhythm-volume-change-set-bang]]`(%pmd-rhythm-volume-change-set! obj)` |楽器別の符号付き音量差を出力 |設定済み slot だけを出す |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-internal-pmd-rhythm-pan-set-bang]]`(%pmd-rhythm-pan-set! obj)` |楽器別パンを出力 |1/2/3 または `#f` を前提とする |link:../../sxmml/backend/pmd.scm[pmd.scm]
-|[[ref-pmd-internal-note-number-to-pmd-note]]`(%note-number\->pmd-note note)` |半音番号をオクターブと音名の対に変換 |`quotient&remainder` で 12 分割し、`c`、`c+` 等を返す。状態は変更しない |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-internal-note-number-to-pmd-note]]`(%note-number\->pmd-note note)` |半音番号をオクターブと音名の対に変換 |`floor/` で 12 分割し（負の音高も 0～11 の音名にする）、`c`、`c+` 等を返す。状態は変更しない |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |===
 
 == PMD 生成例

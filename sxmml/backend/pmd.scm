@@ -576,8 +576,9 @@
     (format #t "~a~a~a~a~a~a" b s t c h i)))
 
 ;; Misc
+;; 音高は 12 * オクターブ + 音名 (0～11) なので、負の音高も floor/ でオクターブと音名に分ける
 (define-inline (%note-number->pmd-note note)
-  (receive (octave notenum) (quotient&remainder note 12)
+  (receive (octave notenum) (floor/ note 12)
     (cons octave (case notenum
                    [(0) "c"]
                    [(1) "c+"]

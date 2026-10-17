@@ -192,6 +192,11 @@
           (test* "the same input yields byte-identical output"
                  (generated-text "reproducible" forms)
                  (generated-text "reproducible" forms)))
+        ;; 負の音高も、オクターブと 0～11 の音名に分けて出力すること
+        (test* "a negative note number is output with its octave and note name"
+               "A l%24o1co-1b"
+               (find #/^A / (string-split (generated-text "negative-note" '((mml A "o1c<<b")))
+                                          "\r\n")))
         ;; 終了値の体系 (#37)
         ;; 0 成功、1 変換の失敗、2 使用法の誤り、3 後処理の失敗
         (let1 ok (write-source "status-ok" "(mml G \"c8\")")
