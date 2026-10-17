@@ -251,6 +251,9 @@
                     "f9 25 00 30 0c f7 25 00 32 0c f8 02 01 1b 00 80")
                    ("無限反復" "repeat-infinite" ((mml A "o4[c8]0")) A
                     "f9 20 00 30 0c f8 00 00 1b 00 80")
+                   ("音域の両端" "note-range" ((mml A "o1c8o8b8")) A
+                    ;; o1c と o8b
+                    "00 0c 7b 0c 80")
                    ("ループ" "loop" ((mml A "o4c8Ld8")) A
                     "30 0c f6 32 0c 80")
                    ("LFO の定義・切り替え" "lfo"
@@ -322,7 +325,8 @@
         (dolist [case '(("read" "(mml G \"c8\"" "out.m" "読み込み")
                        ("generate" "(mml A \"@{undefined}c8\")" "out.m" "生成")
                        ("missing-dir" "(mml G \"c8\")" "missing/out.m" "出力先の不存在")
-                       ("directory" "(mml G \"c8\")" "adir" "出力先への rename"))]
+                       ("directory" "(mml G \"c8\")" "adir" "出力先への rename")
+                       ("note-range" "(mml A \"o8c>c\")" "out.m" "音高の範囲外"))]
           (let* ([dir (work-file (car case))]
                  [source (build-path dir "input.sxl")])
             (make-directory* (build-path dir "adir"))
@@ -334,6 +338,21 @@
               (test* #"~(cadddr case)の失敗は既存ファイルとディレクトリの内容を変えない"
                      '(1 #t)
                      (list (car result) (equal? before (snapshot dir)))))))
+        ;; PMD の音高の 1 バイトで表せない音高は、範囲外の音高と許される範囲を示して失敗する。
+        (dolist [case '(("上側" "o8c>c" "o9c")
+                       ("下側" "o1c<c" "o0c")
+                       ("ポルタメントの終了音" "o8/{b >c}8" "o9c"))]
+          (let* ([source (write-source (work-file #"note-range-~(caddr case).sxl")
+                                       `((mml A ,(cadr case))))]
+                 [output (work-file #"note-range-~(caddr case).m")]
+                 [result (run-sxlc source "-m" "pmd-binary" "-o" output)])
+            (test* #"音高が~(car case)の範囲外なら失敗する: ~(cadr case)"
+                   '(1 #t #f)
+                   (list (car result)
+                         (boolean (any (string->regexp
+                                        (regexp-quote #"note out of range: ~(caddr case) (o1c - o8b)"))
+                                       (cadr result)))
+                         (file-exists? output)))))
         (let* ([source (write-source (work-file "post-failure.sxl") '((mml G "c8")))]
                [result (run-sxlc source "-m" "pmd-binary" "-c" "false")])
           (test* "後処理の失敗は終了値 3 となり生成物は残る"
