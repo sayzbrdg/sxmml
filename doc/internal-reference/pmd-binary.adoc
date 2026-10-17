@@ -5,15 +5,15 @@
 
 このモジュールは、PMD4.8s のソースで命令コードの対応を確認し、MC.EXE の生成物の差分から形式を解析した独自実装です。処理の移植・翻訳はしていません。
 
-実験的な機能であるため、このページでは公開名 7 件だけを項目として記載します。`%` で始まる内部手続きは、群ごとの概要とバイナリの配置の概要に留めます。既知の欠陥は https://github.com/sayzbrdg/sxmml/issues/55[issue #55]〜https://github.com/sayzbrdg/sxmml/issues/58[#58] を参照してください。パラメータ、オブジェクト、文字コード変換、一時ファイル、ファイル名操作は Gauche 0.9.15 の動作に従います。
+実験的な機能であるため、このページでは公開名 7 件だけを項目として記載します。`%` で始まる内部手続きは、群ごとの概要とバイナリの配置の概要に留めます。既知の欠陥は https://github.com/sayzbrdg/sxmml/issues/55[issue #55]〜link:https://github.com/sayzbrdg/sxmml/issues/58[#58] を参照してください。パラメータ、オブジェクト、文字コード変換、一時ファイル、ファイル名操作は Gauche 0.9.15 の動作に従います。
 
 == 公開名
 
 [cols="2,4,4,1",options="header"]
 |===
 |名前・書式 |役割・引数 |結果・状態・失敗条件 |ソース
-|[[ref-pmd-binary-class-sxmml-pmd-binary-environment]]`<sxmml-pmd-binary-environment>` |生成中のバイナリの状態クラス |`(make <sxmml-pmd-binary-environment> :offset 値 [:mode 値] [:head-length 値])`。slot は、現在の書き込み位置 `offset`、PMD3 向けを示す `mode`（`fc88` または `#f`）、26 バイトのヘッダ `head` とその長さ `head-length`、13 個のトラック用バッファ `track` とその長さ `track-length`、最大の合計 tick `max-total-ticks`・loop tick `max-loop-ticks`、使用した FM 音色の表 `used-fm-voices`。`initialize` メソッドが各トラック用に 65600 バイトの `u8vector` を確保する |link:../../sxmml/backend/pmd-binary.scm[pmd-binary.scm]
-|[[ref-pmd-binary-pmd-binary]]`(pmd-binary)` |PMD4 向けのバイナリモードを選択 |環境の `backend` を `sxmml-pmd-binary-generate`、`mode` を `"pmd-binary"`、`output-extension` を `"m"` に設定し、`pmd` と同じトラック（A～F の `volume-delta` は 4、G～I と L、J の `volume-delta` は 16）を登録 |link:../../sxmml/backend/pmd-binary.scm[pmd-binary.scm]
+|[[ref-pmd-binary-class-sxmml-pmd-binary-environment]]`<sxmml-pmd-binary-environment>` |生成中のバイナリの状態クラス |`(make <sxmml-pmd-binary-environment> :offset 値 [:mode 値] [:head-length 値])`。slot は、現在の書き込み位置 `offset`、PMD3 向けを示す `mode`（`fc88` または `#f`）、26 バイトのヘッダ `head` とその長さ `head-length`、A～J・K・R の 12 トラックと、音色表・メタ情報に使う 13 個のバッファ `track` とその長さ `track-length`、最大の合計 tick `max-total-ticks`・loop tick `max-loop-ticks`、使用した FM 音色の表 `used-fm-voices`。`initialize` メソッドが各バッファに 65600 バイトの `u8vector` を確保する |link:../../sxmml/backend/pmd-binary.scm[pmd-binary.scm]
+|[[ref-pmd-binary-pmd-binary]]`(pmd-binary)` |PMD4 向けのバイナリモードを選択 |環境の `backend` を `sxmml-pmd-binary-generate`、`mode` を `"pmd-binary"`、`output-extension` を `"m"` に設定し、`pmd` と同じトラック（A～F の `volume-delta` は 4、J は 16）を登録 |link:../../sxmml/backend/pmd-binary.scm[pmd-binary.scm]
 |[[ref-pmd-binary-pmd3-binary]]`(pmd3-binary)` |PMD3 向けのバイナリモードを選択 |`backend` を `sxmml-pmd3-binary-generate`、`mode` を `"pmd3-binary"` に設定する。その他は `pmd-binary` と同じ |link:../../sxmml/backend/pmd-binary.scm[pmd-binary.scm]
 |[[ref-pmd-binary-pmd4-binary]]`(pmd4-binary)` |PMD4 向けのバイナリモードを選択 |`backend` を `sxmml-pmd4-binary-generate`、`mode` を `"pmd4-binary"` に設定する。その他は `pmd-binary` と同じ |link:../../sxmml/backend/pmd-binary.scm[pmd-binary.scm]
 |[[ref-pmd-binary-sxmml-pmd-binary-generate]]`(sxmml-pmd-binary-generate :optional (mode #f))` |モード引数を渡して生成 |`mode` が `fc88` なら PMD3 向け、それ以外は PMD4 向けとして共通の生成処理を実行し、現在の `<sxmml-environment>` を返す |link:../../sxmml/backend/pmd-binary.scm[pmd-binary.scm]
@@ -33,7 +33,7 @@
 |リズム |`%pmd-rhythm-track-u8vector-set!` は、K トラック（`%pmd-rhythm-deploy-track-u8vector-set!`）と R トラック（`%pmd-rhythm-definition-track-u8vector-set!`）に L の内容を分けて書きます。`%pmd-rhythm-emit-set!` などがリズム音源の命令を書きます
 |メタ情報・音色表 |`%pmd-meta-track-u8vector-set!` は、使用した FM 音色を音色番号の順（同じ番号では ID の名前順）に並べた音色表と、PMD4 向けのメタ情報を書きます。`%opn-voice-data-get` は音色定義を OPN のレジスタ値の並びに変換します
 |出力 |`%pmd-binary-output` は、先頭の `0x00`、ヘッダ、各トラックを一時ファイルに書き、出力先へ改名します。`%output-file-get` は出力先を決め、`%check-obsolete-metadata` は `filename` メタデータの警告を表示します
-|補助 |`%short->le-bytes` は 16 ビットのリトルエンディアンに分け、`%note-number->pmd-note` は音高を PMD のオクターブ・音名の 1 バイトに変換します。`%shift_jis-u8vector-copy!` は文字列を CP932 で書き、`%ticks-update!` は最大の合計 tick・loop tick を更新します
+|補助 |`%short\->le-bytes` は 16 ビットのリトルエンディアンに分け、`%note-number\->pmd-note` は音高を PMD のオクターブ・音名の 1 バイトに変換します。`%shift_jis-u8vector-copy!` は文字列を CP932 で書き、`%ticks-update!` は最大の合計 tick・loop tick を更新します
 |===
 
 == バイナリの配置
