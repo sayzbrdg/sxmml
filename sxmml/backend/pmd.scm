@@ -512,16 +512,19 @@
     (format #t "~a}%~d" (cdr end) ticks)))
 
 (define (%pmd-ssg-voice-set! obj)
-  (let1 value (string->number (symbol->string (slot-ref obj 'value)))
-    (unless (and (>= value 0) (< value 10))
-      (error "invalid voice parameter: " value))
-    (format #t "@~d" value)))
+  (format #t "@~d" (%pmd-voice-number obj 9)))
 
 (define (%pmd-pcm-voice-set! obj)
-  (let1 value (string->number (symbol->string (slot-ref obj 'value)))
-    (unless (and (>= value 0) (< value 256))
+  (format #t "@~d" (%pmd-voice-number obj 255)))
+
+;; SSG・PCM の音色の値は PMD の @ の数値としてそのまま出力するので、0 から max までの
+;; 整数に限る。数でない値は、エラーに書かれた値を示す
+(define (%pmd-voice-number obj max)
+  (let* ([name (slot-ref obj 'value)]
+         [value (or (string->number (symbol->string name)) name)])
+    (unless (and (exact-integer? value) (<= 0 value max))
       (error "invalid voice parameter: " value))
-    (format #t "@~d" value)))
+    value))
 
 (define (%pmd-noise-freq-set! obj)
   (format #t "w~d" (slot-ref obj 'value)))

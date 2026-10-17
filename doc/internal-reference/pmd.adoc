@@ -1,7 +1,7 @@
 = `sxmml.backend.pmd` の生成処理
 :toc: left
 
-`sxmml.backend.pmd` には、PMD 向け MML の生成に使う 60 の定義があります。公開名はモード選択と生成の手続きで、`%` で始まる手続き、トラック状態のクラスとパラメータは内部で使います。パラメータ、オブジェクト、文字コード変換、一時ファイル、ファイル名操作は Gauche 0.9.15 の動作に従います。
+`sxmml.backend.pmd` には、PMD 向け MML の生成に使う 61 の定義があります。公開名はモード選択と生成の手続きで、`%` で始まる手続き、トラック状態のクラスとパラメータは内部で使います。パラメータ、オブジェクト、文字コード変換、一時ファイル、ファイル名操作は Gauche 0.9.15 の動作に従います。
 
 生成系の `%pmd-...set!` 手続きは、特記しない限り `obj` を受けて現在の出力ポートへ PMD MML の文字列を書きます。名前の `set!` は文字列出力を含む内部の慣用名で、環境オブジェクトの slot を必ず変更するという意味ではありません。戻り値は生成側で使いません。必要なオブジェクト型と slot は xref:classes.adoc[クラス一覧]を参照してください。
 
@@ -84,8 +84,9 @@ PMD4 向けに利用するときは `pmd`、PMD3 向けには `pmd3` を指定�
 |[[ref-pmd-internal-pmd-ssg-volume-change-set-bang]]`(%pmd-ssg-volume-change-set! obj)` |SSG 音量差を `)` / `(` または `%数` 付きで書く |幅 1 を短い表記にする |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-internal-pmd-pcm-volume-change-set-bang]]`(%pmd-pcm-volume-change-set! obj)` |PCM 音量差を `)` / `(` または `%数` 付きで書く |幅 16 を短い表記にする |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-internal-pmd-portament-set-bang]]`(%pmd-portament-set! obj)` |開始・終了音と tick 長を波括弧形式で書く |トラック状態の `octave` を更新。音高対と `ticks` が必要 |link:../../sxmml/backend/pmd.scm[pmd.scm]
-|[[ref-pmd-internal-pmd-ssg-voice-set-bang]]`(%pmd-ssg-voice-set! obj)` |数値 ID を `@数` で書く |0～9 以外で失敗。非数値 symbol も変換後の比較で失敗 |link:../../sxmml/backend/pmd.scm[pmd.scm]
-|[[ref-pmd-internal-pmd-pcm-voice-set-bang]]`(%pmd-pcm-voice-set! obj)` |数値 ID を `@数` で書く |0～255 以外で失敗。非数値 symbol も変換後の比較で失敗 |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-internal-pmd-ssg-voice-set-bang]]`(%pmd-ssg-voice-set! obj)` |数値 ID を `@数` で書く |`%pmd-voice-number` で 0～9 の整数に限る |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-internal-pmd-pcm-voice-set-bang]]`(%pmd-pcm-voice-set! obj)` |数値 ID を `@数` で書く |`%pmd-voice-number` で 0～255 の整数に限る |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-internal-pmd-voice-number]]`(%pmd-voice-number obj max)` |SSG・PCM の音色の値を数にする |0 から `max` までの整数を返す。整数でない数と数でない値は、書かれた値を含む `invalid voice parameter` エラー |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-internal-pmd-noise-freq-set-bang]]`(%pmd-noise-freq-set! obj)` |ノイズ周波数を `w数` で書く |`value` が必要 |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-internal-pmd-output-switch-set-bang]]`(%pmd-output-switch-set! obj)` |出力切り替えを `P数` で書く |`value` が必要 |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |===

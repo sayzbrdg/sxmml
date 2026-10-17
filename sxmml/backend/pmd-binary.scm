@@ -641,12 +641,11 @@
        (error "invalid voice parameter: " value)])))
 
 (define (%pmd-pcm-voice-set! u8vec offset obj)
-  (let1 value (string->number (symbol->string (slot-ref obj 'value)))
-    (unless (and value
-                 (positive? value)
-                 (integer? value)
-                 (exact? value))
-      (error "invalid voice paramater: " value))
+  ;; sxmml.backend.pmd と同じく 0 から 255 までの整数に限り、数でない値は書かれた値を示す
+  (let* ([name (slot-ref obj 'value)]
+         [value (or (string->number (symbol->string name)) name)])
+    (unless (and (exact-integer? value) (<= 0 value 255))
+      (error "invalid voice parameter: " value))
     (%pmd-1byte-set! u8vec offset #xff value 255 0)))
 
 (define (%pmd-noise-freq-set! u8vec offset obj)

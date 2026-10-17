@@ -243,6 +243,8 @@
                    ("PCM の音色・音量・音量変化" "pcm" ((mml J "@1v100o4c8)c8(c8")) J
                     ;; ) は 16、( は -16
                     "ff 01 fd 64 30 0c f4 30 0c f3 30 0c 80")
+                   ("PCM の音色の両端" "pcm-voice-range" ((mml J "@0o4c8@255c8")) J
+                    "ff 00 30 0c ff ff 30 0c 80")
                    ("反復" "repeat" ((mml A "o4[c8d8]2")) A
                     ;; f9 は反復終了の次の位置 34、f8 は回数 2・2 と反復開始の次の位置 27
                     "f9 22 00 30 0c 32 0c f8 02 02 1b 00 80")
@@ -353,6 +355,19 @@
                    (list (car result)
                          (boolean (any (string->regexp
                                         (regexp-quote #"note out of range: ~(caddr case) (o1c - o8b)"))
+                                       (cadr result)))
+                         (file-exists? output)))))
+        ;; PCM の音色は 0 から 255 までの整数で、それ以外は書かれた値を示して失敗する (#58)
+        (dolist [case '(("@256" "256") ("@{1.5}" "1.5") ("@{x}" "x"))]
+          (let* ([source (write-source (work-file #"pcm-voice-~(cadr case).sxl")
+                                       `((mml J ,#"~(car case)c8")))]
+                 [output (work-file #"pcm-voice-~(cadr case).m")]
+                 [result (run-sxlc source "-m" "pmd-binary" "-o" output)])
+            (test* #"PCM の音色が 0 から 255 までの整数でなければ失敗する: ~(car case)"
+                   '(1 #t #f)
+                   (list (car result)
+                         (boolean (any (string->regexp
+                                        #"invalid voice parameter: +~(regexp-quote (cadr case))$")
                                        (cadr result)))
                          (file-exists? output)))))
         ;; 生成物は 65535 バイトまで、PMD4 の合計 tick は 65535 までとし、超えたら失敗する。

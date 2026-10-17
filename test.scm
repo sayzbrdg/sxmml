@@ -237,6 +237,20 @@
                    #"A l%24~(caddr case)"
                    (optimized-line "lfo" (car case)
                                    `(,@lfo-defs (mml A ,(cadr case)))))))
+        ;; PCM の音色は 0 から 255、SSG の音色は 0 から 9 までの整数とし、
+        ;; それ以外は書かれた値を示して失敗する (#58)
+        (test* "a PCM voice 0 is accepted"
+               0
+               (car (sxlc-status "-m" "pmd" "-o" (work-file "voice-pcm-0.mml")
+                                 (write-source "voice-pcm-0" "(mml J \"@0c8\")"))))
+        (dolist (case '(("J" "256") ("J" "1.5") ("J" "x") ("G" "10") ("G" "1.5") ("G" "x")))
+          (let1 source (write-source #"voice-~(car case)-~(cadr case)"
+                                     #"(mml ~(car case) \"@{~(cadr case)}c8\")")
+            (test* #"a voice ~(cadr case) on track ~(car case) fails"
+                   '(1 #t)
+                   (status-and-message (sxlc-status "-m" "pmd" "-o" (work-file "voice-invalid.mml") source)
+                                       (string->regexp
+                                        #"invalid voice parameter: +~(regexp-quote (cadr case))$")))))
         ;; 最適化で不正なチャンネルの命令が落ちず、-O 0 と同じく失敗する (#64)
         (let1 source (write-source "lfo-invalid-channel"
                                    "(mml A \"Mt{C} Mt c\")")
