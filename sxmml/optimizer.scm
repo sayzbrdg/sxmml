@@ -122,12 +122,20 @@
         (cons obj objs)))))
 
 (define (object-set! env obj)
-  (let ([class (class-of obj)]
+  (let ([key (%object-key obj)]
         [ht (slot-ref env 'inter-objects)]
         [tm (slot-ref env 'objects-order)])
-    (unless (hash-table-contains? ht class)
-      (tree-map-put! tm (tree-map-num-entries tm) class))
-    (hash-table-set! ht class obj)))
+    (unless (hash-table-contains? ht key)
+      (tree-map-put! tm (tree-map-num-entries tm) key))
+    (hash-table-set! ht key obj)))
+
+;; 後の命令が置き換える命令の鍵。LFO の状態はチャンネルごとにあるので、
+;; LFO の命令はクラスとチャンネルの組を鍵とする。チャンネルの値の意味は
+;; バックエンドが決めるので、省略 (#f) と A も別の鍵とする
+(define (%object-key obj)
+  (if (is-a? obj <sxmml-mml-lfo>)
+    (cons (class-of obj) (slot-ref obj 'channel))
+    (class-of obj)))
 
 (define (object-rhythm-update! env obj)
   (let ([class (class-of obj)]
@@ -173,10 +181,30 @@
            (slot-set! ctx slot (slot-ref obj 'value))
            (slot-set! ctx pslot #t)
            #f]))
+  ;; skip?! の LFO 版。LFO の状態はチャンネルごとの連想リストで持ち、
+  ;; 置いたチャンネルをリストで持つ。文脈は複製されるので、リストは作り直す
+  (define (lfo-skip?! ctx rctx obj slot pslot default)
+    (let* ([channel (slot-ref obj 'channel)]
+           [value (slot-ref obj 'value)]
+           [same? (equal? value (%channel-ref (slot-ref ctx slot) channel default))])
+      (cond [(and (null? rctx) same?)
+             #t]                        ; outer repeat
+            [(and (memq channel (slot-ref ctx pslot)) same?)
+             #t]
+            [(and (not (null? rctx))
+                  same?
+                  (equal? value (%channel-ref (slot-ref (car rctx) slot) channel default)))
+             #t]
+            [else
+             (slot-set! ctx slot (acons channel value (slot-ref ctx slot)))
+             (slot-set! ctx pslot (cons channel (slot-ref ctx pslot)))
+             #f])))
   (define (placed-init! ctx)
     (for-each (^s (slot-set! ctx s #f))
               '(voice-placed? volume-placed? gatetime-placed? pan-placed? detune-placed?
-                              envelope-placed? lfo-placed? lfo-switch-placed?))
+                              envelope-placed?))
+    (for-each (^s (slot-set! ctx s ()))
+              '(lfo-placed? lfo-switch-placed?))
     ctx)
   (define (ctx-copy ctx)
     (let1 new (make <sxmml-optimize-2path-context>)
@@ -226,11 +254,11 @@
              (loop (cdr rest) ctx rctx sctx result)
              (loop (cdr rest) ctx rctx sctx (cons (car rest) result)))]
           [(is-a? (car rest) <sxmml-mml-lfo-switch>)
-           (if (skip?! ctx rctx (car rest) 'lfo-switch 'lfo-switch-placed?)
+           (if (lfo-skip?! ctx rctx (car rest) 'lfo-switch 'lfo-switch-placed? 'init)
              (loop (cdr rest) ctx rctx sctx result)
              (loop (cdr rest) ctx rctx sctx (cons (car rest) result)))]
           [(is-a? (car rest) <sxmml-mml-lfo>)
-           (if (skip?! ctx rctx (car rest) 'lfo 'lfo-placed?)
+           (if (lfo-skip?! ctx rctx (car rest) 'lfo 'lfo-placed? #f)
              (loop (cdr rest) ctx rctx sctx result)
              (loop (cdr rest) ctx rctx sctx (cons (car rest) result)))]
           [(and (is-a? (car rest) <sxmml-mml-rest>)
@@ -242,6 +270,11 @@
           [else
            (loop (cdr rest) ctx rctx sctx (cons (car rest) result))])))
 
+;; チャンネルごとの連想リスト alist から channel の値を返す。なければ default を返す
+(define (%channel-ref alist channel default)
+  (if-let1 p (assq channel alist)
+    (cdr p)
+    default))
 
 (define (%repeat-end-ctx lis)
   (let loop ([rest lis]
@@ -276,10 +309,12 @@
            (slot-set! ctx 'envelope (slot-ref (car rest) 'value))
            (loop (cdr rest) ctx)]
           [(is-a? (car rest) <sxmml-mml-lfo-switch>)
-           (slot-set! ctx 'lfo-switch (slot-ref (car rest) 'value))
+           (slot-set! ctx 'lfo-switch (acons (slot-ref (car rest) 'channel) (slot-ref (car rest) 'value)
+                                             (slot-ref ctx 'lfo-switch)))
            (loop (cdr rest) ctx)]
           [(is-a? (car rest) <sxmml-mml-lfo>)
-           (slot-set! ctx 'lfo (slot-ref (car rest) 'value))
+           (slot-set! ctx 'lfo (acons (slot-ref (car rest) 'channel) (slot-ref (car rest) 'value)
+                                      (slot-ref ctx 'lfo)))
            (loop (cdr rest) ctx)]
           [else
            (loop (cdr rest) ctx)]

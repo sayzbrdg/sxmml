@@ -54,7 +54,8 @@
 ;;; Optimizer
 ;;;
 (define-class <sxmml-optimize-environment> ()
-  ([inter-objects :init-form (make-hash-table eq-comparator)]
+  ;; 鍵は命令のクラスで、LFO の命令はクラスとチャンネルの組とする
+  ([inter-objects :init-form (make-hash-table equal-comparator)]
    [objects-order :init-form (make-tree-map integer-comparator)]
    ))
 
@@ -71,10 +72,11 @@
    [detune-placed? :init-value #f]
    [envelope :init-value #f]
    [envelope-placed? :init-value #f]
-   [lfo :init-value #f]
-   [lfo-placed? :init-value #f]
-   [lfo-switch :init-value 'init]
-   [lfo-switch-placed? :init-value #f]
+   ;; LFO はチャンネルごとに、値をチャンネルの連想リスト、置いたかどうかをチャンネルのリストで持つ
+   [lfo :init-value ()]
+   [lfo-placed? :init-value ()]
+   [lfo-switch :init-value ()]
+   [lfo-switch-placed? :init-value ()]
    [repeat-depth :init-value 0]))
 
 ;;;

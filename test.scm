@@ -22,6 +22,7 @@
 (use sxmml.util)
 (test-module 'sxmml.util)
 (use sxmml)
+(use sxmml.backend.pmd)
 (test-module 'sxmml)
 
 ;; sxlc の CLI
@@ -99,6 +100,19 @@
   ;; sxlc-status の結果から、終了値と、pattern に一致する標準エラー出力の行の有無を返す
   (define (status-and-message result pattern)
     (list (car result) (boolean (any pattern (cadr result)))))
+  ;; forms を最適化の水準 level で PMD 向けに変換し、トラック A の行を返す。
+  ;; 最適化はオブジェクトを書き換えるので、水準ごとに読み込み直す
+  (define (optimized-line name level forms)
+    (let1 source (work-file #"optimize-~|name|.sxl")
+      (with-output-to-file source (^[] (for-each write forms)))
+      (parameterize ([sxmml-environment (make <sxmml-environment>)]
+                     [sxmml-source-file source])
+        (pmd-source)
+        (slot-set! (sxmml-environment) 'optimize level)
+        (load source)
+        ((slot-ref (sxmml-environment) 'backend))
+        (find #/^A / (string-split (file->string (slot-ref (sxmml-environment) 'output))
+                                   "\r\n")))))
   (unwind-protect
       (begin
         ;; -c の後処理へ渡す生成名
@@ -197,6 +211,39 @@
                "A l%24o1co-1b"
                (find #/^A / (string-split (generated-text "negative-note" '((mml A "o1c<<b")))
                                           "\r\n")))
+        ;; 最適化は、チャンネルの違う LFO の命令を互いに上書きしない (#64)。
+        ;; 同じチャンネルの冗長な命令は落とす。チャンネルの省略と A は別に扱う
+        (let1 lfo-defs '((define-lfo L1 (1 2 -3 4)) (define-lfo L2 (5 6 7 8)))
+          (dolist (case `((#t "Mf Mf{B} c" "*0*B0o4c")
+                          (#t "Mf{B} Mf c" "*B0*0o4c")
+                          (#t "Mt Mt{B} c" "*1*B1o4c")
+                          (#t "M{L1 A} M{L1 B} c" "M1,2,-3,4MB1,2,-3,4o4c")
+                          (#t "Mt Mf c" "*0o4c")
+                          (#t "Mt Mf{A} c" "*1*0o4c")
+                          (:full "Mf Mf{B} c" "*0*B0o4c")
+                          (:full "M{L1 A} M{L1 B} c" "M1,2,-3,4MB1,2,-3,4o4c")
+                          (:full "Mf c Mf{B} c" "*0o4c*B0c")
+                          (:full "M{L1 A} c M{L1 B} c" "M1,2,-3,4o4cMB1,2,-3,4c")
+                          (:full "Mt Mf{A} c" "*1*0o4c")
+                          (:full "Mt c Mt c" "*1o4cc")
+                          (:full "M{L1 A} c M{L2 B} c M{L1 A} c" "M1,2,-3,4o4cMB5,6,7,8cc")
+                          (:full "[Mt c Mt{B} c]2" "[*1o4c*B1c]2")
+                          (:full "Mt{B} [Mt c Mt{B} c]2" "*B1[*1o4cc]2")
+                          (:full "Mt [c Mt c Mf{B} c]2" "*1[o4cc*B0c]2")
+                          (:full "M{L1 A} [c M{L1 A} c M{L2 B} c]2" "M1,2,-3,4[o4ccMB5,6,7,8c]2")
+                          (:full "Mt [Mt{B} c Mt c Mf c]2" "*1[*B1o4c*1c*0c]2")
+                          (:full "Mt c [Mt c Mf c]2" "*1o4c[*1c*0c]2")))
+            (test* #"LFO commands \"~(cadr case)\" with optimize ~(car case)"
+                   #"A l%24~(caddr case)"
+                   (optimized-line "lfo" (car case)
+                                   `(,@lfo-defs (mml A ,(cadr case)))))))
+        ;; 最適化で不正なチャンネルの命令が落ちず、-O 0 と同じく失敗する (#64)
+        (let1 source (write-source "lfo-invalid-channel"
+                                   "(mml A \"Mt{C} Mt c\")")
+          (test* "an invalid LFO channel fails with optimize level 1"
+                 '(1 #t)
+                 (status-and-message (sxlc-status "-O" "1" "-m" "pmd" "-o" (work-file "lfo-invalid.mml") source)
+                                     #/invalid lfo channel/)))
         ;; 終了値の体系 (#37)
         ;; 0 成功、1 変換の失敗、2 使用法の誤り、3 後処理の失敗
         (let1 ok (write-source "status-ok" "(mml G \"c8\")")
