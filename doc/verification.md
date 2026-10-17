@@ -7,6 +7,7 @@
 | 層 | 確認方法 | 確認する内容 |
 | --- | --- | --- |
 | binding | `./configure`、`make check`、`test.log` | 9モジュールの binding 検査と、`-c` の後処理へ空白・`;` 入り生成名を一引数で渡す検査、CLI とソースのモード指定の優先順位の検査、出力先の決定の検査、失敗時に既存の生成物を変更せず何も残さないことの検査、音色定義の順序と同じ入力からの生成物の一致の検査、失敗の種類ごとの終了値と後処理の失敗の通知の検査、出力先が入力ファイルと同じ場合にソースを変更しないことの検査、後処理の出力の文字コードの扱いの検査、入力ファイル名より後ろの引数を使用法の誤りとする検査。他の変換結果は別に確認する |
+| PMD バイナリ（実験的） | `make check`、`test.log`（`test-pmd-binary.scm`） | `sxmml.backend.pmd-binary` の binding 検査と、3 つの PMD バイナリモードでの既定の出力先・`-o`・後処理へ渡す名前、入力と既定の出力先が同じ場合に上書きしないこと（`-m` とソース中のモード指定の双方）、`filename` メタデータの警告、ソース中の `output` の変更より CLI の出力先の決定を優先すること、ソースのモードからバイナリモードへの切り替え、ライブラリからの直接生成、`-m` の優先、使用した音色だけを番号順（同じ番号では ID 順）に出力すること、同じ入力からの生成物のバイト一致、読み込み・生成・出力先の失敗で既存のファイルを変更しないこと、後処理の失敗の終了値 3。命令列のバイト内容と MC.EXE の出力との一致は確認しない |
 | 解析・中間オブジェクト | `sxmml-compile-mml`、`sxmml-compile-rhythm` と公開マクロの評価 | オブジェクト列・トラック文脈・合計 tick |
 | CLI・生成物 | インストール済み `sxlc` で入力を変換 | 終了値、表示、生成先、CP932 の内容、後処理の引数 |
 | 意味保持 | 最適化前後の列を解釈して比較 | 下記 Q-01 の時間配置・音高・状態変更 |
@@ -80,4 +81,4 @@ Q-01 は、最適化前後で、sxmml がコンパイルした後のオブジェ
 
 ## 関連資料
 
-[`test.scm`](../test.scm)、[`Makefile.in`](../Makefile.in)、[`sxlc.in`](../sxlc.in)、[`sxmml/optimizer.scm`](../sxmml/optimizer.scm)、[Gauche 0.9.15 Users’ Reference](https://practical-scheme.net/vault/Gauche-0.9.15-refe.pdf)。
+[`test.scm`](../test.scm)、[`test-pmd-binary.scm`](../test-pmd-binary.scm)、[`Makefile.in`](../Makefile.in)、[`sxlc.in`](../sxlc.in)、[`sxmml/optimizer.scm`](../sxmml/optimizer.scm)、[Gauche 0.9.15 Users’ Reference](https://practical-scheme.net/vault/Gauche-0.9.15-refe.pdf)。

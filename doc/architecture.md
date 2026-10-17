@@ -29,7 +29,7 @@ flowchart LR
 | 箇所 | 責務 | 主な入出力・依存 |
 | --- | --- | --- |
 | [`sxlc.in`](../sxlc.in) | 引数解析、モード設定、ソースの `load`、最適化水準の設定、バックエンド呼び出し、情報表示、任意の後処理 | `sxmml` と列挙した `sxmml.backend.*` を使用。ソースファイル・生成先・プロセスを扱う |
-| [`sxmml.scm`](../sxmml.scm) | 基本モジュール群を `extend` して `sxmml` を構成 | PMD バックエンドは継承対象に含まれない |
+| [`sxmml.scm`](../sxmml.scm) | 基本モジュール群を `extend` して `sxmml` を構成 | PMD バックエンド（`backend/pmd.scm`・`backend/pmd-binary.scm`）は継承対象に含まれない |
 | [`sxmml/classes.scm`](../sxmml/classes.scm) | 環境、トラック文脈、解析結果、最適化文脈、音色等のクラス | 他モジュールが共有するオブジェクトの形を定義 |
 | [`sxmml/environment.scm`](../sxmml/environment.scm) | 環境・ファイル名のパラメータ、トラック・メタデータ・LFO・エンベロープの登録と参照 | 環境内の表とトラック文脈を更新 |
 | [`sxmml/mml.scm`](../sxmml/mml.scm) | 通常 MML とリズム MML の PEG パーサー、コマンドから中間オブジェクトへの変換 | トラック文脈を参照・更新し、解析結果を作る |
@@ -38,6 +38,7 @@ flowchart LR
 | [`sxmml/voice.scm`](../sxmml/voice.scm) | FM 音色の定義データを整形し環境に登録 | `define-opn-voice` と環境内の音色表 |
 | [`sxmml/optimizer.scm`](../sxmml/optimizer.scm) | トラックごとの登録済みオブジェクトを列に整え、指定水準に応じてまとめる・省く | `sxmml-optimize-tree` は列を返し、トラックの合計 tick 等も設定 |
 | [`sxmml/backend/pmd.scm`](../sxmml/backend/pmd.scm) | PMD モードの登録、トラック列の変換、メタデータ・音色・リズム・MML の出力 | 最適化結果と環境から CP932 のファイルを生成 |
+| [`sxmml/backend/pmd-binary.scm`](../sxmml/backend/pmd-binary.scm) | PMD バイナリモード（実験的）の登録、トラック列から PMD の命令列・音色表・メタ情報への変換 | 最適化結果と環境から `.m` を生成。生成物が MC.EXE の出力と同じであることは保証しない |
 | [`sxmml/util.scm`](../sxmml/util.scm) | BPM から PMD 向け Timer-B 値への計算 | バックエンドが使用 |
 
 `sxmml.scm` の `extend` は Gauche のモジュール継承であり、各モジュールでの `use` はそのモジュールが他モジュールの束縛を利用するための宣言である。継承・公開名の仕様は [Gauche 0.9.15 Users’ Reference, 4.13.4–4.13.5](https://practical-scheme.net/vault/Gauche-0.9.15-refe.pdf)に従う。MML 記述者向けの操作は[公開リファレンス](sxmml-reference-manual.adoc)、開発者向けのクラス・手続きは[内部リファレンス](internal-reference/index.adoc)に記す。
@@ -50,13 +51,15 @@ flowchart LR
 4. `backend/pmd.scm` の通常トラック処理 `%track-generate` とリズムトラック処理 `%pmd-rhythm-track-generate` は、それぞれ `optimizer.scm` の `sxmml-optimize-tree` を呼ぶ。水準 `0` は登録列を平坦化し、水準 `1` は近接する設定オブジェクトをまとめ、水準 `2` 以上は追加の状態比較と連続休符の結合を行う。これらはコンパイル後のオブジェクト数を減らす処理であり、最終文字列長を評価基準にはしない。水準別の比較は[検証方針](verification.md#r-03-オブジェクト数の削減)を参照する。
 5. PMD バックエンドはオブジェクト型ごとの出力手続きを呼び、メタデータ・音色・トラックの文字列を一時ファイルに CP932 で書いて生成先へ移す（`backend/pmd.scm` の `%pmd-source-output`）。その後 CLI がトラック情報を表示し、`-c` があれば外部コマンドを実行する（`sxlc.in` の `main`）。`main` はオプション解析・モード選択、変換、後処理の段階ごとにエラーを捕捉し、使用法の誤りを終了値 2、変換の失敗を 1、後処理の失敗を 3 として終了する。
 
+PMD バイナリモード（`backend/pmd-binary.scm`、実験的）も同じ流れをたどる。モード手続き `pmd-binary`・`pmd4-binary`・`pmd3-binary` が `output-extension` に `"m"` を設定し、生成手続きはトラックごとに `sxmml-optimize-tree` を呼んで、オブジェクト型ごとに PMD の命令をバイト列へ書き込む。全トラックの後に音色表と（PMD4 向けでは）メタ情報を置き、ヘッダに各トラックの位置を記して、一時ファイルを生成先へ移す（`%pmd-binary-output`）。
+
 `classes.scm` は `<sxmml-environment>` と `<sxmml-mml-context>` などのデータ構造を定義する。`<sxmml-environment>` は解像度・各定義表・モード・バックエンドを持ち、各 `<sxmml-mml-context>` はトラック名、解析時の状態、登録列、tick 統計を持つ。解析結果の音符・休符は `value` と `ticks` を持ち、その他の slot はオブジェクト型ごとに異なる。Gauche のクラスと slot 操作は [Users’ Reference, 7 Object system](https://practical-scheme.net/vault/Gauche-0.9.15-refe.pdf)に従う。単一オブジェクトの slot 変更でトラック文脈の値も同期するとは限らない。slot を直接編集する場合は、関連する文脈値も更新する必要がある。文脈の構造は[トラック文脈](internal-reference/classes.adoc#ref-classes-class-sxmml-mml-context)を参照する。
 
 ## 公開境界と拡張点
 
 * Scheme ソース向けの入口は `sxmml` モジュールに継承された `mml`、`rhythm`、定義・加工マクロと、別モジュールの PMD モード手続きである。マクロの実際の書式・制約を確認する入口は `compiler.scm`、`processor.scm`、`environment.scm`、`voice.scm`。個々の定義は[内部リファレンス](internal-reference/index.adoc)を参照する。
-* バックエンドの接続点は、モード手続きが環境の `backend` slot に生成手続きを置き、CLI がそれを呼ぶ箇所である（`backend/pmd.scm` の `pmd-source` と `sxlc.in` の `main`）。`sxlc.in` の `%backend-list` は `sxmml.backend.*` を列挙し、`use-backend` が読み込む。 モード手続きは既定の出力先の拡張子を環境の `output-extension` slot に設定する。出力先の決定と、出力先が入力ファイルと同じでないかの検査は `sxlc.in` の `%output-file-resolve` が生成の前に行うため、バックエンドはこれらを扱わない。
-* MML パーサーのコマンド登録は `mml.scm` の通常・リズム別の表、生成時の型別処理は `backend/pmd.scm` の分岐にある。新しいコマンドの影響を調べる際には、オブジェクト型、解析、加工・最適化、生成の対応を追う。
+* バックエンドの接続点は、モード手続きが環境の `backend` slot に生成手続きを置き、CLI がそれを呼ぶ箇所である（`backend/pmd.scm` の `pmd-source`、`backend/pmd-binary.scm` の `pmd-binary` と `sxlc.in` の `main`）。`sxlc.in` の `%backend-list` は `sxmml.backend.*` を列挙し、`use-backend` が読み込む。 モード手続きは既定の出力先の拡張子を環境の `output-extension` slot に設定する。出力先の決定と、出力先が入力ファイルと同じでないかの検査は `sxlc.in` の `%output-file-resolve` が生成の前に行うため、バックエンドはこれらを扱わない。
+* MML パーサーのコマンド登録は `mml.scm` の通常・リズム別の表、生成時の型別処理は `backend/pmd.scm` と `backend/pmd-binary.scm`（`%pmd-track-u8vector-set!`）の分岐にある。新しいコマンドの影響を調べる際には、オブジェクト型、解析、加工・最適化、生成の対応を追う。
 
 ## 外部依存と信頼境界
 
