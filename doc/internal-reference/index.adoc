@@ -3,7 +3,7 @@
 
 この索引は、sxmml を保守・改修する際に内部定義を名前から探すためのものです。動作環境は Gauche 0.9.15 です。内部の名前は MML 記述者向け API を示しません。公開機能の使い方は xref:../sxmml-reference-manual.adoc[MML 記述者向けリファレンス]、MML 文字列の記法は xref:../sxmml-mml-manual.adoc[MML コマンドマニュアル]を参照してください。
 
-モジュール直下の手続き 177 件、クラス 44 件、マクロ 12 件、合計 233 件を掲載します。実験的な `sxmml.backend.pmd-binary` は公開名 7 件だけを掲載し、内部定義は xref:pmd-binary.adoc[本文]に概要だけを記します。`sxmml.scm` は各モジュールを継承し、独自の直下定義はありません。`sxmml.backend.pmd-binary` の `initialize` を除き、各モジュールには `define-method` による定義はありません。局所関数と `sxlc.in` の直下定義は範囲外です。呼び出せないハッシュ表は対象外です。
+モジュール直下の手続き 179 件、クラス 44 件、マクロ 12 件、合計 235 件を掲載します。実験的な `sxmml.backend.pmd-binary` は公開名 7 件だけを掲載し、内部定義は xref:pmd-binary.adoc[本文]に概要だけを記します。`sxmml.scm` は各モジュールを継承し、独自の直下定義はありません。`sxmml.backend.pmd-binary` の `initialize` を除き、各モジュールには `define-method` による定義はありません。局所関数と `sxlc.in` の直下定義は範囲外です。呼び出せないハッシュ表は対象外です。
 
 == モジュール別目次
 
@@ -15,7 +15,7 @@
 |xref:environment.adoc[`sxmml.environment`] |環境と登録表 |24
 |xref:compiler.adoc[`sxmml.compiler`] |文字列の解析と登録マクロ |7
 |xref:processor.adoc[`sxmml.processor`] |反復・エコー・ディレイ |5
-|xref:optimizer.adoc[`sxmml.optimizer`] |オブジェクト列の最適化 |9
+|xref:optimizer.adoc[`sxmml.optimizer`] |オブジェクト列の最適化 |11
 |xref:voice.adoc[`sxmml.voice`] |音色定義 |4
 |xref:util.adoc[`sxmml.util`] |BPM の補助計算 |1
 |xref:pmd.adoc[`sxmml.backend.pmd`] |PMD 向け生成 |60
@@ -93,10 +93,12 @@
 |`$VOLUME-DOWN` |`sxmml.mml` |手続き・非公開 |xref:mml.adoc#ref-mml-parser-volume-down[項目へ]
 |`$VOLUME-UP` |`sxmml.mml` |手続き・非公開 |xref:mml.adoc#ref-mml-parser-volume-up[項目へ]
 |`%4op-voice-shape` |`sxmml.voice` |手続き・非公開 |xref:voice.adoc#ref-voice-internal-4op-voice-shape[項目へ]
+|`%channel-ref` |`sxmml.optimizer` |手続き・非公開 |xref:optimizer.adoc#ref-optimizer-internal-channel-ref[項目へ]
 |`%check-obsolete-metadata` |`sxmml.backend.pmd` |手続き・非公開 |xref:pmd.adoc#ref-pmd-internal-check-obsolete-metadata[項目へ]
 |`%find-mode-ticks` |`sxmml.backend.pmd` |手続き・非公開 |xref:pmd.adoc#ref-pmd-internal-find-mode-ticks[項目へ]
 |`%fm-track-generate` |`sxmml.backend.pmd` |手続き・非公開 |xref:pmd.adoc#ref-pmd-internal-fm-track-generate[項目へ]
 |`%note-number\->pmd-note` |`sxmml.backend.pmd` |手続き・非公開 |xref:pmd.adoc#ref-pmd-internal-note-number-to-pmd-note[項目へ]
+|`%object-key` |`sxmml.optimizer` |手続き・非公開 |xref:optimizer.adoc#ref-optimizer-internal-object-key[項目へ]
 |`%output-file-get` |`sxmml.backend.pmd` |手続き・非公開 |xref:pmd.adoc#ref-pmd-internal-output-file-get[項目へ]
 |`%pcm-track-generate` |`sxmml.backend.pmd` |手続き・非公開 |xref:pmd.adoc#ref-pmd-internal-pcm-track-generate[項目へ]
 |`%pmd-detune-set!` |`sxmml.backend.pmd` |手続き・非公開 |xref:pmd.adoc#ref-pmd-internal-pmd-detune-set-bang[項目へ]
