@@ -61,6 +61,29 @@
                                (snapshot path)
                                (file->bytevector path)))))
          (sort (directory-list dir :children? #t) string<?)))
+  ;; ヘッダの 13 個の位置が指す区間の順。PMD4 の音色表の区間は、続くメタ情報を含む。
+  (define binary-sections '(A B C D E F G H I J K R voice))
+  ;; モードを選んでソースを読み込み、このプロセスで生成した .m の内容を返す。
+  (define (generate-binary name mode forms)
+    (let1 source (write-source (work-file #"bytes-~|name|.sxl") forms)
+      (parameterize ([sxmml-environment (make <sxmml-environment>)]
+                     [sxmml-source-file source])
+        (mode)
+        ;; sxlc の既定の -O 1 と同じ最適化を使う。
+        (slot-set! (sxmml-environment) 'optimize #t)
+        (load source)
+        ((slot-ref (sxmml-environment) 'backend))
+        (file->bytevector (slot-ref (sxmml-environment) 'output)))))
+  (define (hex-bytes data :optional (start 0) (end (u8vector-length data)))
+    (string-join (map (cut format "~2,'0x" <>) (u8vector->list data start end)) " "))
+  (define (section-hex data name)
+    (let ([position (^i (+ 1 (u8vector-ref data (+ 1 (* i 2)))
+                           (ash (u8vector-ref data (+ 2 (* i 2))) 8)))]
+          [index (- 13 (length (memq name binary-sections)))])
+      (hex-bytes data (position index)
+                 (if (< index 12) (position (+ index 1)) (u8vector-length data)))))
+  (define zero-voice
+    `(define-opn-voice 0 (0 0) ,@(make-list 4 '(0 0 0 0 0 0 0 0 0))))
   (unwind-protect
       (begin
         (unless (file-is-readable? sxlc)
@@ -192,6 +215,109 @@
                      '(0 #t)
                      (list (car (run-sxlc source "-m" mode "-o" output))
                            (equal? before (file->bytevector output)))))))
+
+        ;; 命令列のバイト内容を固定する。期待値は MC.EXE との一致を主張せず、現在の出力を固定する。
+        ;; 既知の欠陥（#55〜#58、#61、#62、#64、#65）に当たる入力は使わない。
+        ;; 音高は (オクターブ - 1) * 16 + 音名、tick は解像度 24 の値。A トラックは位置 26 から始まる。
+        (dolist [case
+                 `(("音符・休符" "note" ((mml A "o3a8>c+4r8")) A
+                    ;; o3a 12、o4c+ 24、休符 12
+                    "29 0c 31 18 0f 0c 80")
+                   ("255 tick を超える音符はタイで分割する" "long-note" ((mml A "o4c%255c%256")) A
+                    "30 ff 30 ff fb 30 01 80")
+                   ("255 tick を超える休符は休符を続けて分割する" "long-rest" ((mml A "o4r%255c8r%256")) A
+                    "0f ff 30 0c 0f ff 0f 01 80")
+                   ("タイ" "tie" ((mml A "o4c8&d8")) A
+                    "30 0c fb 32 0c 80")
+                   ("ゲートタイム・テンポ・デチューン・移調・パン" "control"
+                    ((mml A "o4q4c8 t120c8 T200c8 D-2c8 K2c8 K*-1c8 p2c8")) A
+                    ;; q4、t120 はタイマー値 183、T200、D-2、K2、K*-1、p2
+                    "fe 04 30 0c fc b7 30 0c fc c8 30 0c fa fe ff 30 0c f5 02 30 0c e7 ff 30 0c ec 02 30 0c 80")
+                   ("FM の音色・音量・音量変化" "fm" (,zero-voice (mml A "@0v100o4c8)c8(c8v*-2c8v*3c8")) A
+                    ;; @0、v100、) は 4、( は -4、v*-2、v*3
+                    "ff 00 fd 64 30 0c f4 30 0c f3 30 0c e2 02 30 0c e3 03 30 0c 80")
+                   ("SSG の音色・音量・音量変化・ミックス・ノイズ・ポルタメント" "ssg"
+                    ((mml G "@1v10o4c8)c8P1w8c8/{c g}8")) G
+                    ;; @1 は f0 の 4 値、) は 1、P1 は 07、w8、/{c g}8
+                    "f0 02 ff 00 01 fd 0a 30 0c f4 30 0c ed 07 ee 08 30 0c da 30 37 0c 80")
+                   ("PCM の音色・音量・音量変化" "pcm" ((mml J "@1v100o4c8)c8(c8")) J
+                    ;; ) は 16、( は -16
+                    "ff 01 fd 64 30 0c f4 30 0c f3 30 0c 80")
+                   ("反復" "repeat" ((mml A "o4[c8d8]2")) A
+                    ;; f9 は反復終了の次の位置 34、f8 は回数 2・2 と反復開始の次の位置 27
+                    "f9 22 00 30 0c 32 0c f8 02 02 1b 00 80")
+                   ("脱出を含む反復" "repeat-break" ((mml A "o4[c8:d8]2")) A
+                    ;; f9 と f7 は反復終了の次の位置 37、f8 は回数 2・1
+                    "f9 25 00 30 0c f7 25 00 32 0c f8 02 01 1b 00 80")
+                   ("無限反復" "repeat-infinite" ((mml A "o4[c8]0")) A
+                    "f9 20 00 30 0c f8 00 00 1b 00 80")
+                   ("ループ" "loop" ((mml A "o4c8Ld8")) A
+                    "30 0c f6 32 0c 80")
+                   ("LFO の定義・切り替え" "lfo"
+                    ((define-lfo L1 (1 2 -3 4)) (mml A "M{L1 A}Mto4c8M{L1 B}Mt{B}c8Mfc8Mf{B}c8")) A
+                    ;; チャンネル A は f2・f1、B は bf・be。
+                    ;; チャンネルの違う LFO の命令を続けると最適化が前の命令を落とすため（#64）、音符をはさむ
+                    "f2 01 02 fd 04 f1 01 30 0c bf 01 02 fd 04 be 01 30 0c f1 00 30 0c be 00 30 0c 80")
+                   ("4 値と 6 値のエンベロープ" "envelope"
+                    ((define-envelope E4 (1 -2 3 4)) (define-envelope E6 (1 2 3 4 5 6))
+                     (mml G "E{E4}o4c8E{E6}c8")) G
+                    ;; 6 値の 4・5 番目は 1 バイトにまとめる
+                    "f0 01 fe 03 04 30 0c cd 01 02 03 54 06 30 0c 80")
+                   ("リズムの K トラック" "rhythm-k" ((rhythm L "@b8")) K
+                    "00 80")
+                   ("リズムの R トラック" "rhythm-r" ((rhythm L "V40vb10pb2)b1@b8(b1!sr8")) R-body
+                    ;; R は位置 38 から始まり、先頭の 2 バイトがパターンの位置 40。
+                    ;; V40、vb10、pb2、)b1、@b8 と 12 tick、(b1、!s、休符
+                    "28 00 e8 28 ea 2a e9 22 e5 01 01 eb 01 0f 0c e5 01 ff eb 82 0f 0c ff")
+                   ("ループを含むリズムの K トラック" "rhythm-loop-k" ((rhythm L "@b8L[@s8]2")) K
+                    "00 f6 01 80")
+                   ("ループと反復を含むリズムの R トラック" "rhythm-loop-r" ((rhythm L "@b8L[@s8]2")) R-body
+                    ;; R は位置 40 から始まり、パターンの位置 44 とループの位置 49 を持つ
+                    "2c 00 31 00 eb 01 0f 0c ff f9 39 00 eb 02 0f 0c f8 02 02 32 00 ff"))]
+          ;; R-body は R トラックの末尾 12 バイトを除く。末尾の tick には L トラックの長さが入らない
+          ;; 欠陥（#65）があるため、末尾はリズムを含まないファイル全体の検査で固定する。
+          (let1 section (cadddr case)
+            (test* #"pmd-binary の命令列: ~(car case)"
+                   (list-ref case 4)
+                   (let1 hex (section-hex (generate-binary (cadr case) pmd-binary (caddr case))
+                                          (if (eq? section 'R-body) 'R section))
+                     (if (eq? section 'R-body)
+                       (substring hex 0 (- (string-length hex) (* 12 3)))
+                       hex)))))
+
+        ;; ヘッダ、空のトラック、R トラックの末尾、音色表、メタ情報の配置を、ファイル全体で固定する。
+        (let* ([forms '((define-opn-voice 0 (2 5)
+                          (31 1 2 3 4 5 1 6 7) (30 8 9 10 11 12 2 13 1)
+                          (29 14 15 1 2 16 3 2 3) (28 3 4 5 6 17 0 4 2))
+                        (define-metadata title "テスト")
+                        (define-metadata composer "sxmml")
+                        (define-metadata memo ("m1" "m2"))
+                        (mml A "@0o4c8Ld8"))]
+               ;; 音色番号と、レジスタごとに OP1・OP3・OP2・OP4 の順の 24 バイト、FB/AL
+               [voice (string-append "00 76 32 1d 24 05 10 0c 11 5f dd 9e 1c"
+                                     " 01 0e 08 03 02 0f 09 04 43 21 ba 65 2a")]
+               ;; A～F、G～I、J、K、R の各トラック
+               [tracks (string-append "ff 00 30 0c f6 32 0c 80 80 80 80 80 80 80 80 80 80 80"
+                                      " 2e 00 ff")])
+          (test* "pmd-binary の生成物全体: PMD4 はメタ情報と R トラックの末尾 12 バイトを持つ"
+                 (string-join
+                  (list "00 1a 00 22 00 23 00 24 00 25 00 26 00 27 00 28 00 29 00 2a 00 2b 00 2c 00 3b 00"
+                        tracks
+                        ;; 合計 tick 24、0、loop tick 12、0、メタ情報の位置の表 110、48 fe
+                        "18 00 00 00 0c 00 00 00 6e 00 48 fe"
+                        voice "00 ff"
+                        ;; ppzfile・ppsfile・pcmfile は空、title は CP932、composer、arranger は空、memo 2 件
+                        "00 00 00 83 65 83 58 83 67 00 73 78 6d 6d 6c 00 00 6d 31 00 6d 32 00"
+                        ;; 各文字列の位置と 00 00
+                        "57 00 58 00 59 00 5a 00 61 00 67 00 68 00 6b 00 00 00")
+                  " ")
+                 (hex-bytes (generate-binary "whole-pmd4" pmd-binary forms)))
+          (test* "pmd3-binary の生成物全体: メタ情報・R トラックの末尾・音色表の終端を持たない"
+                 (string-join
+                  (list "00 1a 00 22 00 23 00 24 00 25 00 26 00 27 00 28 00 29 00 2a 00 2b 00 2c 00 2f 00"
+                        tracks voice)
+                  " ")
+                 (hex-bytes (generate-binary "whole-pmd3" pmd3-binary forms))))
 
         (dolist [case '(("read" "(mml G \"c8\"" "out.m" "読み込み")
                        ("generate" "(mml A \"@{undefined}c8\")" "out.m" "生成")
