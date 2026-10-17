@@ -80,4 +80,10 @@ export GAUCHE_LOAD_PATH="$sxmml_prefix/share/sxmml${GAUCHE_LOAD_PATH:+:$GAUCHE_L
 - [開発者向け手順](doc/developer-guide.md)
 - [変更履歴](NEWS.md)
 
+## 謝辞
+
+PMD バイナリ形式への対応にあたり、公開されている PMD 4.8s のソースから MML コマンドと命令コードの対応を確認し、MC.EXE に入力する MML を変更しながら生成バイナリの差分を調べ、データ形式を解析しました。`sxmml.backend.pmd-binary` の処理は独自に実装したものです。PMD ソースの処理の移植・翻訳は行っておらず、同一の動作・出力を目指すものでもありません。
+
+PMD の作者である梶原正裕氏に感謝します。
+
 ライセンスは [BSD 3-Clause License](LICENSE) です。
