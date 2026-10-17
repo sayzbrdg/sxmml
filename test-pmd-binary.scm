@@ -326,7 +326,8 @@
                        ("generate" "(mml A \"@{undefined}c8\")" "out.m" "生成")
                        ("missing-dir" "(mml G \"c8\")" "missing/out.m" "出力先の不存在")
                        ("directory" "(mml G \"c8\")" "adir" "出力先への rename")
-                       ("note-range" "(mml A \"o8c>c\")" "out.m" "音高の範囲外"))]
+                       ("note-range" "(mml A \"o8c>c\")" "out.m" "音高の範囲外")
+                       ("size-limit" "(mml A \"c%20000000\")" "out.m" "大きさの上限"))]
           (let* ([dir (work-file (car case))]
                  [source (build-path dir "input.sxl")])
             (make-directory* (build-path dir "adir"))
@@ -355,6 +356,69 @@
                                         (regexp-quote #"note out of range: ~(caddr case) (o1c - o8b)"))
                                        (cadr result)))
                          (file-exists? output)))))
+        ;; 生成物は 65535 バイトまで、PMD4 の合計 tick は 65535 までとし、超えたら失敗する。
+        ;; PMD3 の生成物は 2 * 音符の数 + 41 バイトなので、32747 個で上限になる。
+        (let1 repeat-mml (^[n unit] (apply string-append (make-list n unit)))
+          (dolist [case `(("2 トラックの合計が上限を超える" "pmd-binary" "sum"
+                           ((mml A ,(repeat-mml 9000 "c8d8")) (mml B ,(repeat-mml 9000 "c8d8")))
+                           "PMD data exceeds the size limit (65535 bytes) in track B")
+                          ("1 トラックが作業用のバッファを超える" "pmd-binary" "track"
+                           ((mml A ,(repeat-mml 25000 "c8d8")))
+                           "PMD data exceeds the size limit (65535 bytes) in track A")
+                          ("1 つの長い音符が上限を超える" "pmd-binary" "long-note"
+                           ((mml A "c%20000000"))
+                           "PMD data exceeds the size limit (65535 bytes) in track A")
+                          ("1 つの長い休符が上限を超える" "pmd-binary" "long-rest"
+                           ((mml G "r%20000000"))
+                           "PMD data exceeds the size limit (65535 bytes) in track G")
+                          ("音符を含まない命令が上限を超える" "pmd-binary" "commands"
+                           ((mml J ,(repeat-mml 33000 "v10")))
+                           "PMD data exceeds the size limit (65535 bytes) in track J")
+                          ("リズムが上限を超える" "pmd-binary" "rhythm"
+                           ((rhythm L ,(repeat-mml 33000 "!b")))
+                           "PMD data exceeds the size limit (65535 bytes) in track L")
+                          ("メタ情報が上限を超える" "pmd-binary" "metadata"
+                           ((define-metadata memo (,(make-string 70000 #\a))) (mml A "c8"))
+                           "PMD data exceeds the size limit (65535 bytes) in metadata")
+                          ;; memo の文字列は約 64000 バイトで上限に収まり、位置の表で超える
+                          ("メタ情報の位置の表が上限を超える" "pmd-binary" "metadata-table"
+                           ((define-metadata memo ,(make-list 1000 (make-string 63 #\a))) (mml A "c8"))
+                           "PMD data exceeds the size limit (65535 bytes) in metadata")
+                          ;; 音色表がなければ 65523 バイトに収まる
+                          ("音色表が上限を超える" "pmd3-binary" "voice-table"
+                           (,zero-voice (mml A ,(string-append "@0" (repeat-mml 32740 "c8"))))
+                           "PMD data exceeds the size limit (65535 bytes) in voice table")
+                          ("65535 バイトの生成物は成功する" "pmd3-binary" "size-max"
+                           ((mml A ,(repeat-mml 32747 "c8")))
+                           65535)
+                          ("65536 バイトの生成物は失敗する" "pmd3-binary" "size-over"
+                           ((mml A ,(string-append ")" (repeat-mml 32747 "c8"))))
+                           "PMD data exceeds the size limit (65535 bytes)")
+                          ("合計 65535 tick は成功する" "pmd-binary" "ticks-max"
+                           ((mml A "c%65535"))
+                           #t)
+                          ("合計 65536 tick は失敗する" "pmd-binary" "ticks-over"
+                           ((mml A "c%65536"))
+                           "total ticks exceed the limit: 65536 (max 65535)")
+                          ("合計 67200 tick は失敗する" "pmd-binary" "ticks-67200"
+                           ((mml A "c%67200"))
+                           "total ticks exceed the limit: 67200 (max 65535)")
+                          ("PMD3 は合計 tick を書かないので 67200 tick も成功する" "pmd3-binary" "ticks-pmd3"
+                           ((mml A "c%67200"))
+                           #t))]
+            (let* ([source (write-source (work-file #"limit-~(caddr case).sxl") (cadddr case))]
+                   [output (work-file #"limit-~(caddr case).m")]
+                   [expected (list-ref case 4)]
+                   [result (run-sxlc source "-m" (cadr case) "-O" "0" "-o" output)])
+              (test* #"~(car case)"
+                     (if (string? expected) '(1 #t #f) (list 0 expected))
+                     (if (string? expected)
+                       (list (car result)
+                             (boolean (any (string->regexp (regexp-quote expected)) (cadr result)))
+                             (file-exists? output))
+                       (list (car result)
+                             (and (file-exists? output)
+                                  (if (integer? expected) (file-size output) #t))))))))
         (let* ([source (write-source (work-file "post-failure.sxl") '((mml G "c8")))]
                [result (run-sxlc source "-m" "pmd-binary" "-c" "false")])
           (test* "後処理の失敗は終了値 3 となり生成物は残る"
