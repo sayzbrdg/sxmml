@@ -33,7 +33,7 @@
 |リズム |`%pmd-rhythm-track-u8vector-set!` は、K トラック（`%pmd-rhythm-deploy-track-u8vector-set!`）と R トラック（`%pmd-rhythm-definition-track-u8vector-set!`）に L の内容を分けて書きます。`%pmd-rhythm-emit-set!` などがリズム音源の命令を書きます
 |メタ情報・音色表 |`%pmd-meta-track-u8vector-set!` は、使用した FM 音色を音色番号の順（同じ番号では ID の名前順）に並べた音色表と、PMD4 向けのメタ情報を書きます。`%opn-voice-data-get` は音色定義を OPN のレジスタ値の並びに変換します
 |出力 |`%pmd-binary-output` は、先頭の `0x00`、ヘッダ、各トラックを一時ファイルに書き、出力先へ改名します。`%output-file-get` は出力先を決め、`%check-obsolete-metadata` は `filename` メタデータの警告を表示します
-|補助 |`%short\->le-bytes` は 16 ビットのリトルエンディアンに分け、`%note-number\->pmd-note` は音高を PMD のオクターブ・音名の 1 バイトに変換し、o1c～o8b の外の音高を `%note-number\->name` の表記（`o9c` など）で示して失敗とします。`%shift_jis-u8vector-copy!` は文字列を CP932 で書き、`%ticks-update!` は最大の合計 tick・loop tick を更新します
+|補助 |`%short\->le-bytes` は 16 ビットのリトルエンディアンに分け、`%note-number\->pmd-note` は音高を PMD のオクターブ・音名の 1 バイトに変換し、o1c～o8b の外の音高を `%note-number\->name` の表記（`o9c` など）で示して失敗とします。`%size-check!` は生成物の大きさの上限（65535 バイト）を検査し、超えたらパラメータ `%pmd-section` の場所を示して失敗とします。作業用のバッファがあふれる前に止めるため、トラックの命令ごと、長い音符・休符の分割、音色・メタ情報の書き込みで呼び、最後に全体の大きさを検査します。`%shift_jis-u8vector-copy!` は文字列を CP932 で書き、`%ticks-update!` は最大の合計 tick・loop tick を更新します
 |===
 
 == バイナリの配置
