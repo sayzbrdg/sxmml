@@ -25,7 +25,7 @@ TARGET    = sxlc
 MANPAGE   = sxlc.1
 SCMFILES  = sxmml.scm sxmml/classes.scm sxmml/environment.scm sxmml/voice.scm sxmml/mml.scm \
             sxmml/compiler.scm sxmml/processor.scm sxmml/optimizer.scm sxmml/util.scm\
-            sxmml/backend/pmd.scm
+            sxmml/backend/pmd.scm sxmml/backend/pmd-binary.scm
 
 GENERATED = $(MANPAGE)
 CONFIG_GENERATED = Makefile config.cache config.log config.status \
@@ -39,9 +39,12 @@ GAUCHE_PKGARCHDIR = @GAUCHE_PKGARCHDIR@
 
 all : $(TARGET)
 
+# test-pmd-binary.scm には SXMML_SXLC で、PATH 上の別のインストールではなく
+# ビルドした ./sxlc を検査させる
 check : all
 	@rm -f test.log
 	$(GOSH) -I. -I$(srcdir) $(srcdir)/test.scm > test.log
+	SXMML_SXLC=./sxlc $(GOSH) -I. -I$(srcdir) $(srcdir)/test-pmd-binary.scm >> test.log
 
 # man ページは生成と配置を別の行にする。GNU make は MAKE 変数を含む行を
 # make -n でも実行するため、配置を同じ行に書くと dry-run にならない

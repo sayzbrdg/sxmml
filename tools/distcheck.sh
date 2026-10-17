@@ -278,7 +278,7 @@ step_install() {
         [ "$(find "$stage" -type f -name "$f" | wc -l)" -eq 1 ] \
             || fail "$f が 1 つだけ配置されていません" || return 1
     done
-    for f in sxmml/backend/pmd.scm .packages/sxmml.gpd; do
+    for f in sxmml/backend/pmd.scm sxmml/backend/pmd-binary.scm .packages/sxmml.gpd; do
         [ -n "$(find "$stage" -type f -path "*/$f")" ] || fail "$f が配置されていません" || return 1
     done
     if [ "$pandoc_configured" = yes ]; then
