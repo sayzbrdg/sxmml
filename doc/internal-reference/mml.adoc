@@ -84,7 +84,7 @@
 |[[ref-mml-parser-detune]]`$DETUNE` |`<sxmml-mml-detune>` を作る |符号付き値 |link:../../sxmml/mml.scm[mml.scm]
 |[[ref-mml-parser-loop]]`$LOOP` |`<sxmml-mml-loop>` を作る |`loop-exists?` とループまでの tick を更新 |link:../../sxmml/mml.scm[mml.scm]
 |[[ref-mml-parser-repeat-start]]`$REPEAT-START` |`<sxmml-mml-repeat-start>` を作る |反復 stack と tick stack に開始状態を積む |link:../../sxmml/mml.scm[mml.scm]
-|[[ref-mml-parser-repeat-break]]`$REPEAT-BREAK` |`<sxmml-mml-repeat-break>` を作る |反復 stack の終了時復元値を記録。開始前ならエラー |link:../../sxmml/mml.scm[mml.scm]
+|[[ref-mml-parser-repeat-break]]`$REPEAT-BREAK` |`<sxmml-mml-repeat-break>` を作る |反復 stack の終了時復元値を記録。反復の外なら `break command cannot be used outside of repeats`、同じ反復の 2 個目以降なら `break command can be used only once in a repeat` エラー |link:../../sxmml/mml.scm[mml.scm]
 |[[ref-mml-parser-repeat-end]]`$REPEAT-END` |回数を値にした `<sxmml-mml-repeat-end>` を作る |stack から開始位置を取り累計 tick を更新。開始前ならエラー |link:../../sxmml/mml.scm[mml.scm]
 |[[ref-mml-parser-voice]]`$VOICE` |`<sxmml-mml-voice>` を作る |値を symbol 化 |link:../../sxmml/mml.scm[mml.scm]
 |[[ref-mml-parser-envelope]]`$ENVELOPE` |`<sxmml-mml-envelope>` を作る |値を symbol 化 |link:../../sxmml/mml.scm[mml.scm]

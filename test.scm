@@ -186,6 +186,20 @@
                  (same? (block (list (note 0) (note 2)) 2 #t) (block (list (note 0) (note 2)) 2 #f))
                  (same? (block (list (note 0) (note 2)) 2 #f) (note 0))))))
 
+;; 反復の : は一つの反復に一つだけ (#92)
+(let1 compile (^[text] (parameterize ([sxmml-environment (make <sxmml-environment>)])
+                         (define-track G)
+                         (mml G text)
+                         'compiled))
+  (test* "a second break in a repeat fails"
+         (test-error <error> "break command can be used only once in a repeat")
+         (compile "[c:d:e]2"))
+  (test* "breaks in nested repeats are accepted" 'compiled
+         (compile "[c:[d:e]2f]2"))
+  (test* "a break outside of repeats fails"
+         (test-error <error> "break command cannot be used outside of repeats")
+         (compile ":c")))
+
 ;; sxlc の CLI
 (use gauche.process)
 (use file.util)
