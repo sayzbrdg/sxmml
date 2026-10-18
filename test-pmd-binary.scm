@@ -245,6 +245,8 @@
                     "ff 01 fd 64 30 0c f4 30 0c f3 30 0c 80")
                    ("PCM の音色の両端" "pcm-voice-range" ((mml J "@0o4c8@255c8")) J
                     "ff 00 30 0c ff ff 30 0c 80")
+                   ("SSG のミックスの P2・P3" "ssg-mix" ((mml G "P2o4c8P3c8")) G
+                    "ed 38 30 0c ed 3f 30 0c 80")
                    ("反復" "repeat" ((mml A "o4[c8d8]2")) A
                     ;; f9 は反復終了の次の位置 34、f8 は回数 2・2 と反復開始の次の位置 27
                     "f9 22 00 30 0c 32 0c f8 02 02 1b 00 80")
@@ -368,6 +370,19 @@
                    (list (car result)
                          (boolean (any (string->regexp
                                         #"invalid voice parameter: +~(regexp-quote (cadr case))$")
+                                       (cadr result)))
+                         (file-exists? output)))))
+        ;; SSG のミックスは 1 から 3 までで、範囲外は値と範囲を示して失敗する (#55)
+        (dolist [value '("0" "4")]
+          (let* ([source (write-source (work-file #"ssg-mix-~|value|.sxl")
+                                       `((mml G ,#"P~|value|c8")))]
+                 [output (work-file #"ssg-mix-~|value|.m")]
+                 [result (run-sxlc source "-m" "pmd-binary" "-o" output)])
+            (test* #"SSG のミックスが 1 から 3 までの範囲外なら失敗する: P~value"
+                   '(1 #t #f)
+                   (list (car result)
+                         (boolean (any (string->regexp
+                                        (regexp-quote #"value exceeds the range: ~value (1 - 3): 237"))
                                        (cadr result)))
                          (file-exists? output)))))
         ;; 生成物は 65535 バイトまで、PMD4 の合計 tick は 65535 までとし、超えたら失敗する。
