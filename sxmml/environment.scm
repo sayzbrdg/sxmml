@@ -80,24 +80,23 @@
 (define (sxmml-metadata-set! key value)
   (hash-table-set! (slot-ref (sxmml-environment) 'metadata) key value))
 
+;; 値は式として評価する。括弧の中が全て文字列の旧書式 (key ("a" "b")) は、展開時に
+;; 警告を出して文字列のリストとして受け付ける。値の型はバックエンドが検査する
 (define-syntax define-metadata
   (er-macro-transformer
     (^[form rename id=?]
+      (define (keysym key) (string->symbol (string-downcase (x->string key))))
+      (define (old-form? x) (and (pair? x) (list? x) (every string? x)))
       (match form
-        [(_ key)
-         (error "value does not exist:" key)]
-        [(_ key (value ..1))
-         (if-let1 obj (find (^v (not (string? v))) value)
-           (error "metadata value must be a string: " obj)
-           (let ([keysym (string->symbol (string-downcase (x->string key)))])
-             (quasirename rename
-               `(sxmml-metadata-set! ',keysym (list ,@value)))))]
+        [(_ key (? old-form? values))
+         (sxmml-form-warn form "(define-metadata ~a (\"...\" ...)) is deprecated; use (list \"...\" ...) or '(\"...\" ...)"
+                          (keysym key))
+         (sxmml-form-wrap form rename
+           (quasirename rename `(sxmml-metadata-set! ',(keysym key) (list ,@values))))]
         [(_ key value)
-         (if (not (string? value))
-           (error "metadata value must be a string: " value)
-           (let ([keysym (string->symbol (string-downcase (x->string key)))])
-             (quasirename rename
-               `(sxmml-metadata-set! ',keysym ,value))))]))))
+         (sxmml-form-wrap form rename
+           (quasirename rename `(sxmml-metadata-set! ',(keysym key) ,value)))]
+        [_ (sxmml-form-error form "invalid define-metadata form: expected (define-metadata key value)")]))))
 
 ;;
 ;;  LFO

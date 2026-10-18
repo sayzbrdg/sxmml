@@ -554,6 +554,89 @@
                      (status-and-message (sxlc-status "-m" "pmd" "-o" (work-file #"~|macro|-sxlc-location.mml") source)
                                          (string->regexp
                                           (regexp-quote #"*** SXMML-FORM-ERROR: ~|source|:2: invalid ~macro form")))))))
+        ;; define-metadata の値は式として評価する。括弧の中が全て文字列の旧書式は、
+        ;; 展開時に位置付きの警告を 1 回出して文字列のリストとして受け付ける (#13)
+        (let* ([meta-load (^[name text :optional (after #f)]
+                            (let1 source (write-source name text)
+                              (parameterize ([sxmml-environment (make <sxmml-environment>)]
+                                             [sxmml-source-file source])
+                                (let* ([result #f]
+                                       [err (call-with-output-string
+                                              (^p (with-error-to-port p
+                                                    (^[] (set! result
+                                                               (guard (e [else e])
+                                                                 (load source)
+                                                                 (when after (after))
+                                                                 (slot-ref (sxmml-environment) 'metadata)))))))])
+                                  (list source result
+                                        (filter #/^warning:/ (string-split err "\n")))))))]
+               [value-of (^[r key] (hash-table-get (cadr r) key #f))]
+               [old-warning (^[location key]
+                              #"warning: ~|location|(define-metadata ~key (\"...\" ...)) is deprecated; use (list \"...\" ...) or '(\"...\" ...)")])
+          (dolist [case '(("variable" "(define %test-title \"曲\")\n(define-metadata title %test-title)\n" title "曲")
+                          ("list" "(define-metadata memo (list \"a\" \"b\"))\n" memo ("a" "b"))
+                          ("quote" "(define-metadata memo '(\"a\" \"b\"))\n" memo ("a" "b"))
+                          ("number" "(define-metadata title 1)\n" title 1)
+                          ("key" "(define-metadata Title \"x\")\n" title "x"))]
+            (let1 r (meta-load #"meta-~(car case)" (cadr case))
+              (test* #"define-metadata evaluates its value: ~(car case)"
+                     (list (cadddr case) '())
+                     (list (value-of r (caddr case)) (caddr r)))))
+          (let1 r (meta-load "meta-old" "; meta\n;\n(define-metadata memo (\"a\" \"b\"))\n")
+            (test* "the old define-metadata form is accepted with a warning"
+                   (list '("a" "b") (list (old-warning #"~(car r):3: " "memo")))
+                   (list (value-of r 'memo) (caddr r))))
+          (dolist [case `(("not-called" #f) ("called-twice" ,(^[] (%test-meta) (%test-meta))))]
+            (let1 r (meta-load #"meta-old-~(car case)" "(define (%test-meta) (define-metadata memo (\"a\")))\n"
+                               (cadr case))
+              (test* #"the old define-metadata form warns once at expansion: ~(car case)"
+                     1
+                     (length (caddr r)))))
+          (test* "the old define-metadata form without a location warns without it"
+                 (list (old-warning "" "memo"))
+                 (filter #/^warning:/
+                         (string-split (call-with-output-string
+                                         (^p (with-error-to-port p
+                                               (^[] (parameterize ([sxmml-environment (make <sxmml-environment>)])
+                                                      (eval (list 'define-metadata 'memo (list "a")) (interaction-environment)))))))
+                                       "\n")))
+          ;; 式が混ざった括弧は旧書式ではないので、式として評価して誤りになる
+          (let1 r (meta-load "meta-mixed" "(define-metadata memo (\"a\" (string-append \"b\" \"c\")))\n")
+            (test* "a mixed define-metadata value is evaluated, not taken as the old form"
+                   '(#t ())
+                   (list (sxmml-form-error? (cadr r)) (caddr r))))
+          ;; 空の括弧も旧書式ではない。Gauche は () を評価すると () を返すので、空のリストになる
+          (let1 r (meta-load "meta-empty" "(define-metadata memo ())\n")
+            (test* "an empty define-metadata value is evaluated, not taken as the old form"
+                   '(() ())
+                   (list (value-of r 'memo) (caddr r))))
+          (dolist [case '(("no-value" "") ("too-many" " \"a\" \"b\""))]
+            (let1 r (meta-load #"meta-~(car case)" #"; meta\n(begin\n  (define-metadata title~(cadr case))\n  1)\n")
+              (test* #"a wrong define-metadata form fails with its location: ~(car case)"
+                     (list #t #"~(car r):3: invalid define-metadata form: expected (define-metadata key value)" #"~(car r):3" #f)
+                     (let1 e (cadr r)
+                       (list (sxmml-form-error? e) (condition-message e)
+                             (sxmml-form-error-location e) (sxmml-form-error-cause e))))))
+          (let1 r (meta-load "meta-undefined" "; meta\n(begin\n  (define-metadata title %test-undefined-meta)\n  1)\n")
+            (test* "an undefined variable in define-metadata fails with its location"
+                   (list #t #t #"~(car r):3" #t)
+                   (let1 e (cadr r)
+                     (list (sxmml-form-error? e)
+                           (boolean (#/^\S+:3: / (condition-message e)))
+                           (sxmml-form-error-location e)
+                           (is-a? (sxmml-form-error-cause e) <unbound-variable-error>)))))
+          (let1 source (write-source "meta-sxlc-old" "(define-metadata memo (\"a\"))\n(mml G \"c8\")\n")
+            (test* "sxlc warns about the old define-metadata form"
+                   '(0 #t)
+                   (status-and-message (sxlc-status "-m" "pmd" "-o" (work-file "meta-sxlc-old.mml") source)
+                                       (string->regexp
+                                        (regexp-quote #"warning: ~|source|:1: (define-metadata memo")))))
+          (let1 source (write-source "meta-sxlc-wrong" "(mml G \"c8\")\n(define-metadata title)\n")
+            (test* "sxlc shows the location of a wrong define-metadata"
+                   '(1 #t)
+                   (status-and-message (sxlc-status "-m" "pmd" "-o" (work-file "meta-sxlc-wrong.mml") source)
+                                       (string->regexp
+                                        (regexp-quote #"*** SXMML-FORM-ERROR: ~|source|:2: invalid define-metadata form"))))))
         ;; LFO・エンベロープは、使うときに種類・値の数・値を検査し、何が悪いかを示して
         ;; 失敗する。種類は LFO が default・triangle、エンベロープが default (#28)
         (let ([lfo (^[def channel] `(,def (mml G ,#"M{L1 ~channel}c8")))]
@@ -618,7 +701,7 @@
                  (pmd-g-result "lfo-triangle" (lfo '(define-lfo L1 triangle (1 2 3 4)) "A"))))
         ;; memo は文字列 1 つなら 1 行、リストなら要素ごとに 1 行で出力すること (#87)
         (dolist [case '(("memo-string" "abc" ("#memo        abc"))
-                        ("memo-list" ("m1" "m2") ("#memo        m1" "#memo        m2")))]
+                        ("memo-list" (list "m1" "m2") ("#memo        m1" "#memo        m2")))]
           (test* #"memo is output as written: ~(car case)"
                  (caddr case)
                  (filter #/^#memo/ (string-split (generated-text (car case)
