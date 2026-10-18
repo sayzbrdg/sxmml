@@ -64,13 +64,13 @@
   ;; ヘッダの 13 個の位置が指す区間の順。PMD4 の音色表の区間は、続くメタ情報を含む。
   (define binary-sections '(A B C D E F G H I J K R voice))
   ;; モードを選んでソースを読み込み、このプロセスで生成した .m の内容を返す。
-  (define (generate-binary name mode forms)
+  ;; level は最適化の水準。省略時は sxlc の既定の -O 1 と同じ最適化を使う。
+  (define (generate-binary name mode forms :optional (level #t))
     (let1 source (write-source (work-file #"bytes-~|name|.sxl") forms)
       (parameterize ([sxmml-environment (make <sxmml-environment>)]
                      [sxmml-source-file source])
         (mode)
-        ;; sxlc の既定の -O 1 と同じ最適化を使う。
-        (slot-set! (sxmml-environment) 'optimize #t)
+        (slot-set! (sxmml-environment) 'optimize level)
         (load source)
         ((slot-ref (sxmml-environment) 'backend))
         (file->bytevector (slot-ref (sxmml-environment) 'output)))))
@@ -401,6 +401,10 @@
             (test* #"pmd-binary の LFO・エンベロープの検査: ~(car case)"
                    (cadddr case)
                    (caught #"check-~(car case)" (cadr case) (caddr case))))
+          ;; 圧縮で生成した : を含むループは、同じ形を手で書いた MML と同じバイト内容になる (#69)
+          (test* "pmd-binary の生成したループ"
+                 (section-hex (generate-binary "rep-hand" pmd-binary '((mml A "[cd:e]3"))) 'A)
+                 (section-hex (generate-binary "rep-gen" pmd-binary '((mml A "cdecdecd")) :repeat) 'A))
           (test* "pmd-binary の LFO の triangle は default と同じバイト内容になる"
                  (section-hex (generate-binary "lfo-default" pmd-binary
                                                '((define-lfo L1 (1 2 -3 4)) (mml A "M{L1 A}c8")))

@@ -72,7 +72,9 @@
                       (load (sxmml-source-file))
                       (unless (slot-ref (sxmml-environment) 'backend)
                         (error "backend is not specified by option or source file" ))
-                      (slot-set! (sxmml-environment) 'optimize (cond [(>= optimize 2) :full]
+                      (slot-set! (sxmml-environment) 'optimize (cond [(>= optimize 4) :repeat-expand]
+                                                                     [(= optimize 3) :repeat]
+                                                                     [(= optimize 2) :full]
                                                                      [(> optimize 0) #t]
                                                                      [else #f]))))
           ;; 出力先は sxlc が決める。ソースが output slot を変更していても上書きする
@@ -168,6 +170,7 @@
   (display "Usage: sxlc [-whlv] [-O opt_lv] [-m mode] [-o output] [-c command] file\n\n")
   (display "Options:\n")
   (format #t "    ~12a Set the optimize level to \"opt_lv\".\n" "-O opt_lv")
+  (format #t "    ~12a 0: none, 1-2: basic, 3: repeat, 4: repeat with expansion.\n" "")
   (format #t "    ~12a Set the processing to \"mode\".\n" "-m mode")
   (format #t "    ~12a Write the generated file to \"output\".\n" "-o output")
   (format #t "    ~12a Execute \"command\" as a post process.\n" "-c command")

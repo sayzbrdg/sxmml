@@ -1,9 +1,9 @@
 = `sxmml.optimizer` のオブジェクト列最適化
 :toc: left
 
-`sxmml.optimizer` は十一の手続きを定義し、`sxmml-optimize-tree` を公開します。入力は登録済みトラックの `compiled-data` にある MML オブジェクト列です。戻り値は平坦化されたオブジェクトのリストで、元オブジェクトの `value` や `ticks` を更新する処理もあります。意味保持の判定原則は link:../verification.md#q-01-音楽的な意味の保持[検証方針]を参照してください。
+`sxmml.optimizer` は二十九の手続きとクラス（record 型）一つを定義し、`sxmml-optimize-tree` を公開します。入力は登録済みトラックの `compiled-data` にある MML オブジェクト列です。戻り値は平坦化されたオブジェクトのリストで、元オブジェクトの `value` や `ticks` を更新する処理もあります。意味保持の判定原則は link:../verification.md#q-01-音楽的な意味の保持[検証方針]を参照してください。
 
-`sxmml-optimize-tree` は先にトラックの `total-ticks` と `loop-ticks` を設定します。`:optimize #f` は無操作オブジェクトを除いて平坦化、真値は第 1 段階、`:full` は第 1 段階に加えて第 2 段階を適用します。最適化の目的は、コンパイル後のオブジェクトリストに連結されたオブジェクト数の削減です。バックエンドの最終文字列長は評価基準に含めません。オブジェクト、ハッシュ表、tree map は Gauche 0.9.15 の動作に従います。
+`sxmml-optimize-tree` は先にトラックの `total-ticks` と `loop-ticks` を設定します。`:optimize #f` は無操作オブジェクトを除いて平坦化、真値は第 1 段階、`:full` は第 1 段階に加えて第 2 段階を適用します。`:repeat` は第 2 段階の後に、既存のリピートをひとまとめにして命令列を反復で圧縮し、`:repeat-expand` は展開後の長さが 256 以下の既存のリピートを展開してから圧縮します。圧縮は xref:repeat-tree.adoc[`sxmml.repeat-tree`] を使い、回数 2〜255、制御費用は `[ ]` が 2、`[ : ]` が 3、窓幅は 256 です。回数の上限 255 と入れ子の上限 32 は PMD の局所ループの範囲です。最適化の目的は、コンパイル後のオブジェクトリストに連結されたオブジェクト数の削減です。バックエンドの最終文字列長は評価基準に含めません。オブジェクト、ハッシュ表、tree map は Gauche 0.9.15 の動作に従います。
 
 [cols="2,4,4,1",options="header"]
 |===
@@ -19,6 +19,25 @@
 |[[ref-optimizer-internal-sxmml-optimize-2path]]`(%sxmml-optimize-2path lis)` |第 2 段階。反復を考慮して重複設定を省略し、隣接する休符を結合。LFO の定義・切り替えはチャンネルごとに重複を判定する |新しいリストを返す。結合先の休符の `ticks` を更新。反復構造が不整合なら内部処理で失敗し得る |link:../../sxmml/optimizer.scm[optimizer.scm]
 |[[ref-optimizer-internal-channel-ref]]`(%channel-ref alist channel default)` |チャンネルごとの連想リストから値を引く |`channel` の値を返す。なければ `default` を返す |link:../../sxmml/optimizer.scm[optimizer.scm]
 |[[ref-optimizer-internal-repeat-end-ctx]]`(%repeat-end-ctx lis)` |反復終了までの状態指定を先読み |`<sxmml-optimize-2path-context>` を返す。終了記号前に MML が終われば `MML terminated before repeat end` エラー |link:../../sxmml/optimizer.scm[optimizer.scm]
+|[[ref-optimizer-internal-sxmml-optimize-repeat]]`(%sxmml-optimize-repeat lis expand?)` |`:repeat`・`:repeat-expand` の圧縮。第 2 段階の後の `lis` をブロックに組み立て、`expand?` なら小さいブロックを展開し、`%repeat-compress` で圧縮する |平坦な新しいリストを返す。`%repeat-check` が出力と入力の不一致を見つければ `repeat optimization changed the expanded objects` エラー。リピートの組み立ての誤りは `%repeat-structure` のエラー |link:../../sxmml/optimizer.scm[optimizer.scm]
+|[[ref-optimizer-internal-repeat-block]]`%repeat-block` +
+[[ref-optimizer-internal-make-repeat-block]]`(%make-repeat-block start front break back end)` +
+[[ref-optimizer-internal-repeat-block-p]]`(%repeat-block? obj)` +
+[[ref-optimizer-internal-repeat-block-start]]`(%repeat-block-start b)` +
+[[ref-optimizer-internal-repeat-block-front]]`(%repeat-block-front b)` +
+[[ref-optimizer-internal-repeat-block-break]]`(%repeat-block-break b)` +
+[[ref-optimizer-internal-repeat-block-back]]`(%repeat-block-back b)` +
+[[ref-optimizer-internal-repeat-block-end]]`(%repeat-block-end b)` |既存のリピートのブロック（record 型）。`start`・`break`・`end` は `[`・`:`・`]` のオブジェクト、`front`・`back` は `:` の前後の要素のリスト。`:` がなければ `break`・`back` は `#f` |フィールドは変更できない |link:../../sxmml/optimizer.scm[optimizer.scm]
+|[[ref-optimizer-internal-repeat-structure]]`(%repeat-structure lis)` |平坦なオブジェクトのリストを、オブジェクトとブロックの要素のリストにする |新しいリストを返す。`]` が足りなければ `MML terminated before repeat end`、`[` のない `]` は `repeat end appeared before repeat start` エラー |link:../../sxmml/optimizer.scm[optimizer.scm]
+|[[ref-optimizer-internal-repeat-flatten]]`(%repeat-flatten items)` |`%repeat-structure` の逆 |平坦なオブジェクトのリストを返す |link:../../sxmml/optimizer.scm[optimizer.scm]
+|[[ref-optimizer-internal-repeat-expansion]]`(%repeat-expansion items)` |要素のリストを展開する。回数 r が 1 以上のブロックは (front back)^r−1^ front、回数 0 は front back を 1 回 |展開したオブジェクトのリストを返す。元のインスタンスを並べ、複製しない |link:../../sxmml/optimizer.scm[optimizer.scm]
+|[[ref-optimizer-internal-repeat-expanded-length]]`(%repeat-expanded-length items)` |`%repeat-expansion` の長さを、展開せずに求める |整数を返す |link:../../sxmml/optimizer.scm[optimizer.scm]
+|[[ref-optimizer-internal-repeat-expand-small]]`(%repeat-expand-small items limit)` |回数が 1 以上で、展開後の長さが `limit` 以下のブロックを、内側から順に展開する |新しい要素のリストを返す |link:../../sxmml/optimizer.scm[optimizer.scm]
+|[[ref-optimizer-internal-repeat-same-p]]`(%repeat-same? a b)` |圧縮で同じとみなすか。オブジェクトはクラスと全スロット（未束縛どうしは同じ）、ブロックは回数・`:` の有無・本文の要素で比べる |真偽値を返す |link:../../sxmml/optimizer.scm[optimizer.scm]
+|[[ref-optimizer-internal-repeat-compress]]`(%repeat-compress items depth settings)` |要素のリストを圧縮する。ブロックは本文を圧縮した原子とし、重みを出力の長さとする。`L` の前後は別の区間として `repeat-tree-compress` に渡す |平坦なオブジェクトのリストを返す。入れ子の深さ（外側の `depth` を含む）が 32 を超え、圧縮前より深くなる区間は圧縮しない |link:../../sxmml/optimizer.scm[optimizer.scm]
+|[[ref-optimizer-internal-repeat-emit]]`(%repeat-emit tree outputs)` |圧縮した木をオブジェクトのリストにする |葉は `outputs` の出力に置き換え、反復には新しい `[`・`:`・`]` のオブジェクトを作る |link:../../sxmml/optimizer.scm[optimizer.scm]
+|[[ref-optimizer-internal-repeat-depth]]`(%repeat-depth lis)` |平坦なオブジェクトのリストの、リピートの入れ子の最大の深さ |整数を返す |link:../../sxmml/optimizer.scm[optimizer.scm]
+|[[ref-optimizer-internal-repeat-check]]`(%repeat-check output input)` |圧縮の出力が入力と同じ列を表すかを確かめる。生成したループだけを展開し、既存のリピートは回数・`:` の有無・本文で比べる。オブジェクトは `%repeat-same?` で比べる |一致しなければ `repeat optimization changed the expanded objects` エラー |link:../../sxmml/optimizer.scm[optimizer.scm]
 |===
 
 蓄積用の `env` には xref:classes.adoc#ref-classes-class-sxmml-optimize-environment[`<sxmml-optimize-environment>`] を使用します。`object-*` は個別に呼ぶ公開 API ではなく、第 1 段階の状態更新を分担する手続きです。`lis` はコンパイル済みオブジェクトの列であり、文字列 MML ではありません。
@@ -32,4 +51,14 @@
 $ gosh -I. -e '(use sxmml)' -e '(define-track G)' -e '(mml G "r8r8")' -e '(print (length (sxmml-optimize-tree (quote G) :optimize #f)))' -e '(print (length (sxmml-optimize-tree (quote G) :optimize :full)))'
 2
 1
+----
+
+`:repeat` の例です。既存のリピートの本文 `cccc` を `[c]4` に圧縮し、`:repeat-expand` では展開した `c` 八つを `[c]8` にします。最適化はオブジェクトを書き換えるので、水準ごとに別のプロセスで実行します。
+
+[source,console]
+----
+$ gosh -I. -e '(use sxmml)' -e '(define-track G)' -e '(mml G "[c8c8c8c8]2")' -e '(print (length (sxmml-optimize-tree (quote G) :optimize :repeat)))'
+5
+$ gosh -I. -e '(use sxmml)' -e '(define-track G)' -e '(mml G "[c8c8c8c8]2")' -e '(print (length (sxmml-optimize-tree (quote G) :optimize :repeat-expand)))'
+3
 ----

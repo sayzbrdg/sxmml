@@ -648,6 +648,22 @@
                    #"A l%24~(caddr case)"
                    (optimized-line "lfo" (car case)
                                    `(,@lfo-defs (mml A ,(cadr case)))))))
+        ;; sxlc の -O 3 と -O 4 (#69)。標準出力の Optimize level の行と、生成物のトラック A の行
+        (let1 converted (^[name text level]
+                          (let1 lines (run-sxlc name `((mml A ,text)) "-m" "pmd" "-O" level)
+                            (list (find #/^Optimize level:/ lines)
+                                  (find #/^A / (file->string-list (work-file #"~|name|.mml")
+                                                                  :encoding "shift_jis")))))
+          (test* "-O 3 converts with the repeat optimization"
+                 (list "Optimize level: 3" (cadr (converted "cli-o2-hand" "[cd:e]3" "2")))
+                 (converted "cli-o3" "cdecdecd" "3"))
+          (dolist (level '("4" "9"))
+            (test* #"-O ~level expands small repeats"
+                   (list #"Optimize level: ~level" "A l%24[o4a]16")
+                   (converted #"cli-o~level" "[aaaaaaaa]2" level)))
+          (test* "-O 2 is unchanged"
+                 '("Optimize level: 2" "A l%24[o4aaaaaaaa]2")
+                 (converted "cli-o2" "[aaaaaaaa]2" "2")))
         ;; 命令列の反復による圧縮 (#69)。多くは、同じ形を手で書いた MML の :full の出力と比べる
         (let ([nest (^[depth body] (string-append (make-string depth #\[) body
                                                   (string-join (make-list depth "]2") "")))]
