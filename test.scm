@@ -274,6 +274,15 @@
         ((slot-ref (sxmml-environment) 'backend))
         (find #/^A / (string-split (file->string (slot-ref (sxmml-environment) 'output))
                                    "\r\n")))))
+  ;; forms を読み込み、トラック track を最適化の水準 level で最適化した列を返す
+  (define (optimized-objects track level forms)
+    (let1 source (work-file "optimize-objects.sxl")
+      (with-output-to-file source (^[] (for-each write forms)))
+      (parameterize ([sxmml-environment (make <sxmml-environment>)]
+                     [sxmml-source-file source])
+        (pmd-source)
+        (load source)
+        (sxmml-optimize-tree track :optimize level))))
   ;; forms をこのプロセスで PMD 向けに変換し、成功すればトラック G の行を、
   ;; 失敗すればエラーのメッセージを返す
   (define (pmd-g-result name forms)
@@ -639,6 +648,51 @@
                    #"A l%24~(caddr case)"
                    (optimized-line "lfo" (car case)
                                    `(,@lfo-defs (mml A ,(cadr case)))))))
+        ;; 命令列の反復による圧縮 (#69)。多くは、同じ形を手で書いた MML の :full の出力と比べる
+        (let ([nest (^[depth body] (string-append (make-string depth #\[) body
+                                                  (string-join (make-list depth "]2") "")))]
+              [expansion (with-module sxmml.optimizer %repeat-expansion)]
+              [structure (with-module sxmml.optimizer %repeat-structure)]
+              [same? (with-module sxmml.optimizer %repeat-same?)])
+          (dolist (case '(("[aaaaaaaa]2" "[[o4a]8]2")
+                          ("[[aaaa]4[aaaa]4]2" "[[[[o4a]4]4]2]2")
+                          ("[ab]2ab" "[o4ab]2ab")
+                          ("cdcdcdLcdcdcd" "[o4cd]3L[cd]3")
+                          ("[cdcdcdLcdcdcd]2" "[[o4cd]3L[cd]3]2")
+                          ("[cdcdcd]0" "[[o4cd]3]0")
+                          ("c4c4c4c4c8" "[o4c]4c%12")))
+            (test* #"\"~(car case)\" with optimize :repeat"
+                   #"A l%24~(cadr case)"
+                   (optimized-line "repeat" :repeat `((mml A ,(car case))))))
+          (dolist (case '(("cdecdecd" "[cd:e]3")
+                          ;; 本文が空の既存リピートと、短い列は :full と同じ
+                          ("[]2c" "[]2c") ("[c:]2" "[c:]2") ("[:c]2" "[:c]2")
+                          ("c" "c") ("cL" "cL") ("L" "L")))
+            (test* #"\"~(car case)\" with optimize :repeat is \"~(cadr case)\" with :full"
+                   (optimized-line "repeat-hand" :full `((mml A ,(cadr case))))
+                   (optimized-line "repeat" :repeat `((mml A ,(car case))))))
+          ;; 圧縮すると入れ子が 33 段になる区間は圧縮しない
+          (test* "nesting deeper than 32 is kept"
+                 (optimized-line "repeat-hand" :full `((mml A ,(nest 32 "cccccc"))))
+                 (optimized-line "repeat" :repeat `((mml A ,(nest 32 "cccccc")))))
+          (test* "nesting up to 32 is compressed" #t
+                 (boolean (#/\[o4c\]6/ (optimized-line "repeat" :repeat `((mml A ,(nest 31 "cccccc")))))))
+          (test* "rhythm L stays outside loops" '(0 2)
+                 (let1 lis (optimized-objects 'L :repeat
+                                              '((rhythm L "@b8@s8@b8@s8@b8@s8L@b8@s8@b8@s8@b8@s8")))
+                   (list (let loop ([rest lis] [depth 0])
+                           (cond [(is-a? (car rest) <sxmml-mml-loop>) depth]
+                                 [(is-a? (car rest) <sxmml-mml-repeat-start>) (loop (cdr rest) (+ depth 1))]
+                                 [(is-a? (car rest) <sxmml-mml-repeat-end>) (loop (cdr rest) (- depth 1))]
+                                 [else (loop (cdr rest) depth)]))
+                         (count (cut is-a? <> <sxmml-mml-repeat-start>) lis))))
+          ;; 別の読み込みで作った :full と :repeat の列は、展開すると同値なオブジェクトが同じ順に並ぶ
+          (dolist (text '("[aaaaaaaa]2" "[ab]2ab" "cdecdecd" "cdcdcdLcdcdcd" "[cdcdcdLcdcdcd]2"
+                          "[cdcdcd]0" "c4c4c4c4c8" "[c:]2" "v10cdv12cdv10cdv12cd" "[c&c&]4"))
+            (test* #"\"~|text|\" keeps its expansion with optimize :repeat" #t
+                   (let ([a (expansion (structure (optimized-objects 'A :full `((mml A ,text)))))]
+                         [b (expansion (structure (optimized-objects 'A :repeat `((mml A ,text)))))])
+                     (and (= (length a) (length b)) (every same? a b))))))
         ;; PCM の音色は 0 から 255、SSG の音色は 0 から 9 までの整数とし、
         ;; それ以外は書かれた値を示して失敗する (#58)
         (test* "a PCM voice 0 is accepted"

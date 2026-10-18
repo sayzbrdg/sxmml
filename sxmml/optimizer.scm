@@ -31,6 +31,7 @@
   (use sxmml.classes)
   (use sxmml.environment)
   (use sxmml.mml)
+  (use sxmml.repeat-tree)
   (export sxmml-optimize-tree
           ))
 (select-module sxmml.optimizer)
@@ -44,7 +45,9 @@
          [ct (car (slot-ref env 'current-ticks))])
     (slot-set! env 'total-ticks (car ct))
     (slot-set! env 'loop-ticks (- (car ct) (cdr ct)))
-    (cond [(eq? optimize :full)
+    (cond [(eq? optimize :repeat)
+           (%sxmml-optimize-repeat (%sxmml-optimize-2path (%sxmml-optimize-tree env)) #f)]
+          [(eq? optimize :full)
            (%sxmml-optimize-2path (%sxmml-optimize-tree env))]
           [optimize
            (%sxmml-optimize-tree env)]
@@ -401,3 +404,116 @@
                            (and (eq? ba bb)
                                 (or (not ba) (equal? (slot-ref a s) (slot-ref b s))))))
                      (map slot-definition-name (class-slots (class-of a)))))]))
+
+;; 圧縮の上限と既定値。回数の上限 255 と入れ子の上限 32 は PMD の局所ループの範囲と
+;; ネストの上限 (PMDMML.MAN §10-1)
+(define %repeat-count-max 255)
+(define %repeat-depth-max 32)
+(define %repeat-window 256)
+(define %repeat-expand-limit 256)
+
+;; 第 2 段階の後の列を、反復で圧縮する。既存のリピートはひとまとめ（原子）にし、
+;; その本文も同じように圧縮する。expand? なら、展開後の長さが %repeat-expand-limit
+;; 以下の既存のリピートを先に展開する
+(define (%sxmml-optimize-repeat lis expand?)
+  (let* ([input (%repeat-structure lis)]
+         [counts (iota (- %repeat-count-max 1) 2)]
+         [settings (make-repeat-tree-settings (map (cut cons <> 2) counts) (map (cut cons <> 3) counts)
+                                              #t %repeat-window)]
+         [output (%repeat-compress input 0 settings)])
+    (%repeat-check output input)
+    output))
+
+;; 要素のリスト items を圧縮した平坦なオブジェクトのリストを返す。depth は外側の
+;; ブロックの深さ。L の前後は別の区間として圧縮し、L をループに入れない
+(define (%repeat-compress items depth settings)
+  ;; ブロックは本文を圧縮した出力を持つ原子にする。(要素 . 出力)
+  (define (atom i)
+    (cons i (if (%repeat-block? i)
+              `(,(%repeat-block-start i) ,@(%repeat-compress (%repeat-block-front i) (+ depth 1) settings)
+                ,@(if (%repeat-block-break i)
+                    `(,(%repeat-block-break i)
+                      ,@(%repeat-compress (%repeat-block-back i) (+ depth 1) settings))
+                    ())
+                ,(%repeat-block-end i))
+              (list i))))
+  (define (segment atoms)
+    (if (null? atoms)
+      ()
+      (let* ([elements (list->vector (map car atoms))]
+             [outputs (list->vector (map cdr atoms))]
+             [raw (append-map cdr atoms)])
+        (receive (cost tree)
+            (repeat-tree-compress elements (vector-map length outputs) %repeat-same? settings)
+          (let1 compressed (%repeat-emit tree outputs)
+            ;; 入れ子が上限を超え、圧縮前より深くなる区間は圧縮しない
+            (if (and (> (+ depth (%repeat-depth compressed)) %repeat-depth-max)
+                     (> (%repeat-depth compressed) (%repeat-depth raw)))
+              raw
+              compressed))))))
+  (let loop ([rest (map atom items)] [atoms ()] [result ()])
+    (cond [(null? rest)
+           (concatenate (reverse (cons (segment (reverse atoms)) result)))]
+          [(is-a? (caar rest) <sxmml-mml-loop>)
+           (loop (cdr rest) () (cons* (cdar rest) (segment (reverse atoms)) result))]
+          [else
+           (loop (cdr rest) (cons (car rest) atoms) result)])))
+
+;; 圧縮した木を平坦なオブジェクトのリストにする。葉は outputs の出力に置き換え、
+;; 反復には新しい [、:、] のオブジェクトを作る
+(define (%repeat-emit tree outputs)
+  (cond [(literal? tree) (vector-ref outputs (literal-index tree))]
+        [(concat? tree) (append (%repeat-emit (concat-left tree) outputs)
+                                (%repeat-emit (concat-right tree) outputs))]
+        [(repeat? tree)
+         `(,(make <sxmml-mml-repeat-start>) ,@(%repeat-emit (repeat-body tree) outputs)
+           ,(make <sxmml-mml-repeat-end> :value (repeat-count tree)))]
+        [(final? tree)
+         `(,(make <sxmml-mml-repeat-start>) ,@(%repeat-emit (final-prefix tree) outputs)
+           ,(make <sxmml-mml-repeat-break>) ,@(%repeat-emit (final-suffix tree) outputs)
+           ,(make <sxmml-mml-repeat-end> :value (final-count tree)))]))
+
+;; 平坦なオブジェクトのリストの、リピートの入れ子の最大の深さ
+(define (%repeat-depth lis)
+  (let loop ([rest lis] [depth 0] [deepest 0])
+    (cond [(null? rest) deepest]
+          [(is-a? (car rest) <sxmml-mml-repeat-start>) (loop (cdr rest) (+ depth 1) (max deepest (+ depth 1)))]
+          [(is-a? (car rest) <sxmml-mml-repeat-end>) (loop (cdr rest) (- depth 1) deepest)]
+          [else (loop (cdr rest) depth deepest)])))
+
+;; 圧縮の出力 output が、圧縮の入力 input（要素のリスト）と同じ列を表すかを確かめる。
+;; 生成したループは一つの出現を繰り返し使うので、%repeat-same? で比べる。入れ子の深い
+;; 既存のリピートは展開すると大きくなるので、生成したループ（[ が入力にないもの）だけを
+;; 展開し、既存のリピートは回数・: の有無・本文で比べる
+(define (%repeat-check output input)
+  (define originals
+    (rlet1 h (make-hash-table eq-comparator)
+      (let mark ([items input])
+        (dolist [i items]
+          (when (%repeat-block? i)
+            (hash-table-put! h (%repeat-block-start i) #t)
+            (mark (%repeat-block-front i))
+            (mark (or (%repeat-block-back i) ())))))))
+  (define (unfold items)
+    (append-map (^i (if (and (%repeat-block? i)
+                             (not (hash-table-contains? originals (%repeat-block-start i))))
+                      (let ([r (slot-ref (%repeat-block-end i) 'value)]
+                            [front (unfold (%repeat-block-front i))]
+                            [back (unfold (or (%repeat-block-back i) ()))])
+                        (append (concatenate (make-list (- r 1) (append front back))) front))
+                      (list i)))
+                items))
+  ;; xs は出力の、ys は入力の要素のリスト
+  (define (match? xs ys)
+    (and (= (length xs) (length ys))
+         (every (^[x y] (cond [(and (%repeat-block? x) (%repeat-block? y))
+                               (and (equal? (slot-ref (%repeat-block-end x) 'value)
+                                            (slot-ref (%repeat-block-end y) 'value))
+                                    (eq? (not (%repeat-block-break x)) (not (%repeat-block-break y)))
+                                    (match? (unfold (%repeat-block-front x)) (%repeat-block-front y))
+                                    (match? (unfold (or (%repeat-block-back x) ())) (or (%repeat-block-back y) ())))]
+                              [(or (%repeat-block? x) (%repeat-block? y)) #f]
+                              [else (%repeat-same? x y)]))
+                xs ys)))
+  (unless (match? (unfold (%repeat-structure output)) input)
+    (error "repeat optimization changed the expanded objects")))
