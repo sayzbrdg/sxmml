@@ -38,7 +38,7 @@
 |[[ref-environment-sxmml-envelope-get]]`(sxmml-envelope-get id)` |ID でエンベロープを検索 |登録済み `<sxmml-envelope>` を返す。未登録なら検索エラー |link:../../sxmml/environment.scm[environment.scm]
 |[[ref-environment-sxmml-envelope-set-bang]]`(sxmml-envelope-set! id type data)` |エンベロープオブジェクトを作り登録 |`envelope` 表の `id` を上書き |link:../../sxmml/environment.scm[environment.scm]
 |[[ref-environment-define-envelope]]`(define-envelope id [type] (value ...))` |エンベロープの ID、種類、値の列を指定するマクロ |`sxmml-envelope-set!` を呼ぶ式に展開。形が合わなければ `invalid define-envelope form` の `<sxmml-form-error>` |link:../../sxmml/environment.scm[environment.scm]
-|[[ref-environment-internal-define-lfo-envelope-expand]]`(%define-lfo/envelope-expand form rename name set-proc)` |2 つのマクロの共通の展開 |`(_ id (value ...))` と `(_ id type (value ...))`（`type` はシンボル）だけを受け、`(sxmml-form-call 位置 (lambda () (set-proc 'id 'type (list value ...))))` を返す。それ以外は `invalid <name> form: expected (<name> id [type] (value ...))` |link:../../sxmml/environment.scm[environment.scm]
+|[[ref-environment-internal-define-lfo-envelope-expand]]`(%define-lfo/envelope-expand form rename name set-proc)` |2 つのマクロの共通の展開 |`(_ id (value ...))` と `(_ id type (value ...))`（`type` はシンボル）だけを受け、`sxmml-form-wrap` で `(sxmml-form-call 位置 (lambda () (set-proc 'id 'type (list value ...))))` を返す。それ以外は `invalid <name> form: expected (<name> id [type] (value ...))` |link:../../sxmml/environment.scm[environment.scm]
 |===
 
 == トラック表と登録済みオブジェクト

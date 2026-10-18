@@ -134,11 +134,10 @@
 ;; リテラルのシンボルとする。形は展開時に検査し、誤りと値の式の誤りには定義の位置を付ける
 (define (%define-lfo/envelope-expand form rename name set-proc)
   (define (expand id type exprs)
-    (let ([idsym (string->symbol (x->string id))]
-          [location (sxmml-form-location form)])
-      (quasirename rename
-        `(sxmml-form-call ,location
-           (lambda () (,(rename set-proc) ',idsym ',type (list ,@exprs)))))))
+    (let1 idsym (string->symbol (x->string id))
+      (sxmml-form-wrap form rename
+        (quasirename rename
+          `(,(rename set-proc) ',idsym ',type (list ,@exprs))))))
   (match form
     [(_ id (? list? exprs)) (expand id 'default exprs)]
     [(_ id (? symbol? type) (? list? exprs)) (expand id type exprs)]

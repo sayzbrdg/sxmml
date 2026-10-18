@@ -113,11 +113,9 @@
                      (unless (%voice-operator-form? op)
                        (sxmml-form-error form "invalid voice format: @~a, operator(~a), ~a" id openum op)))
                    ops '(1 2 3 4))
-         (let ([idsym (string->symbol (x->string id))]
-               [location (sxmml-form-location form)])
-           (quasirename rename
-             `(sxmml-form-call ,location
-                (lambda ()
-                  (sxmml-opn-voice-set! ',idsym (list ,@alfb)
-                                        ,@(map (^[op] (cons (rename 'list) op)) ops))))))]
+         (let1 idsym (string->symbol (x->string id))
+           (sxmml-form-wrap form rename
+             (quasirename rename
+               `(sxmml-opn-voice-set! ',idsym (list ,@alfb)
+                                      ,@(map (^[op] (cons (rename 'list) op)) ops)))))]
         [_ (form-error)]))))
