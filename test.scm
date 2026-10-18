@@ -359,10 +359,15 @@
             (test* "a wrong operator in begin fails with its location"
                    (list #t #"~(car r):3: invalid voice format: @V1, operator(2), (0 0 0)" #"~(car r):3" #f)
                    (append (error-report r) (list (sxmml-form-error-cause (cdr r))))))
-          (let1 r (load-result "voice-wrong-alfb" (voice-text "(0)" op0))
-            (test* "a wrong al/fb fails with its location"
-                   (list #t #"~(car r):3: invalid voice format: @V1, al/fb, (0)" #"~(car r):3")
-                   (error-report r)))
+          ;; 要素の数の誤りは展開時に検査するので、cause を持たない
+          (dolist [case `(("voice-wrong-alfb" "(0)" ,op0 "al/fb, (0)")
+                          ("voice-8-values" "(0 0)" "(0 0 0 0 0 0 0 0)" "operator(2), (0 0 0 0 0 0 0 0)")
+                          ("voice-13-values" "(0 0)" "(0 0 0 0 0 0 0 0 0 0 0 0 0)"
+                           "operator(2), (0 0 0 0 0 0 0 0 0 0 0 0 0)"))]
+            (let1 r (load-result (car case) (voice-text (cadr case) (caddr case)))
+              (test* #"a wrong number of values fails at expansion with its location: ~(car case)"
+                     (list #t #"~(car r):3: invalid voice format: @V1, ~(cadddr case)" #"~(car r):3" #f)
+                     (append (error-report r) (list (sxmml-form-error-cause (cdr r)))))))
           (dolist [case `(("voice-three-operators" ,#"; voice\n(begin\n  (define-opn-voice V1 (0 0)\n    ~op0 ~op0 ~op0)\n  1)\n")
                           ("voice-variable-operator" ,(voice-text "(0 0)" "op")))]
             (let1 r (load-result (car case) (cadr case))
