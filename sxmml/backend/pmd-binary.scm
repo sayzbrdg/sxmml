@@ -37,6 +37,7 @@
   (use sxmml.optimizer)
   (use sxmml.voice)
   (use sxmml.util)
+  (use sxmml.backend.pmd :only (sxmml-pmd-voice-numbers))
   (export <sxmml-pmd-binary-environment>
           sxmml-pmd3-binary-generate sxmml-pmd4-binary-generate sxmml-pmd-binary-generate
           pmd3-binary pmd4-binary pmd-binary
@@ -51,7 +52,9 @@
    [head :init-form (make-u8vector 26 0)] [head-length :init-keyword :head-length :init-value 26]
    [track :init-form (make-vector 13)] [track-length :init-form (make-vector 13 0)]
    [max-total-ticks :init-value 0] [max-loop-ticks :init-value 0]
-   [used-fm-voices :init-form (make-hash-table eq-comparator)]))
+   [used-fm-voices :init-form (make-hash-table eq-comparator)]
+   ;; 音色番号の表。環境は生成の最初に作るので、何かを書く前に番号が決まる
+   [voice-numbers :init-form (sxmml-pmd-voice-numbers)]))
 
 (define-method initialize ([self <sxmml-pmd-binary-environment>] initargs)
   (next-method)
@@ -319,18 +322,14 @@
       (parameterize ([%pmd-section "voice table"])
         (fold (^[value offset]
                 (%size-check! (+ track-start-pos offset 26))
-                (u8vector-set! t13u8vec offset (slot-ref value 'number))
+                (u8vector-set! t13u8vec offset (%pmd-fm-voice-number value))
                 (u8vector-copy! t13u8vec (+ offset 1) (list->u8vector (%opn-voice-data-get (slot-ref value 'value))))
                 (+ offset 26))
               0
               (sort (filter (cut hash-table-exists? (slot-ref (sxmml-pmd-binary-environment) 'used-fm-voices) <>)
                             (hash-table-values voice-ht))
-                    ;; 同番号の音色も ID 順に並べ、音色表の反復順に依存させない。
-                    (^[x y] (let ([nx (slot-ref x 'number)] [ny (slot-ref y 'number)])
-                              (or (< nx ny)
-                                  (and (= nx ny)
-                                       (string<? (symbol->string (slot-ref x 'id))
-                                                 (symbol->string (slot-ref y 'id))))))))))
+                    ;; 番号順に並べ、音色表の反復順に依存させない。
+                    (^[x y] (< (%pmd-fm-voice-number x) (%pmd-fm-voice-number y))))))
     (if (eq? (slot-ref (sxmml-pmd-binary-environment) 'mode) 'fc88)
       (begin (vector-set! (slot-ref (sxmml-pmd-binary-environment) 'track-length) 12 track-offset)
              (slot-set! (sxmml-pmd-binary-environment) 'offset (+ track-start-pos track-offset)))
@@ -438,7 +437,10 @@
     (unless inst
       (error "no instrument define: " (slot-ref obj 'value)))
     (hash-table-put! (slot-ref (sxmml-pmd-binary-environment) 'used-fm-voices) inst #t)
-    (%pmd-1byte-set! u8vec offset #xff (slot-ref inst 'number) 255 0)))
+    (%pmd-1byte-set! u8vec offset #xff (%pmd-fm-voice-number inst) 255 0)))
+
+(define (%pmd-fm-voice-number voice)
+  (hash-table-get (slot-ref (sxmml-pmd-binary-environment) 'voice-numbers) (slot-ref voice 'id)))
 
 (define (%pmd-gatetime-set! u8vec offset obj)
   (%pmd-1byte-set! u8vec offset #xfe (slot-ref obj 'value) 255 0))

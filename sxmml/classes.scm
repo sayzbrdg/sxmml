@@ -163,7 +163,6 @@
 ;; voice
 (define-class <sxmml-voice> ()
   ([id :init-keyword :id]
-   [number :init-keyword :number]
    [value :init-keyword :value]))
 
 (define-class <sxmml-opmn-voice> (<sxmml-voice>) ())

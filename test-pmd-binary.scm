@@ -197,24 +197,36 @@
                                         ,(voice-form 'm 2) ,(voice-form 'unused 7)
                                         (mml A "@{m}c8@{z}c8@{a}c8")))]
                  [output (work-file #"voices-~|mode|.m")])
+            ;; 番号は定義した全ての音色に id の辞書順で振る (#27)。a 0、m 1、unused 2、z 3
             (test* #"~mode は使用音色だけを番号順に出力する"
-                   '(0 ((0 3) (1 1) (2 2)))
+                   '(0 ((0 1) (1 2) (3 3)))
                    (list (car (run-sxlc source "-m" mode "-o" output))
                          (and (file-exists? output)
                               (voice-records output (string=? mode "pmd3-binary")))))
-            ;; begin 内の番号重複は上流の既知の問題。ここでは出力順だけを固定する。
             (write-source source `((begin ,(voice-form 'z 3) ,(voice-form 'a 0)
                                           ,(voice-form 'y 2) ,(voice-form 'b 1))
                                    (mml A "@{z}c8@{y}c8@{b}c8@{a}c8")))
-            (test* #"~mode は同じ番号の音色を ID 順に出力する"
-                   '(0 ((0 0) (0 1) (0 2) (0 3)))
+            (test* #"~mode は begin 内の音色にも別の番号を振る"
+                   '(0 ((0 0) (1 1) (2 2) (3 3)))
                    (list (car (run-sxlc source "-m" mode "-o" output))
                          (voice-records output (string=? mode "pmd3-binary"))))
             (let1 before (file->bytevector output)
               (test* #"~mode の同じ入力は別プロセスでもバイト単位で一致する"
                      '(0 #t)
                      (list (car (run-sxlc source "-m" mode "-o" output))
-                           (equal? before (file->bytevector output)))))))
+                           (equal? before (file->bytevector output)))))
+            ;; 定義した音色が 256 を超えたら、使った音色が 1 つでも失敗する (#27)
+            (let ([source (write-source (work-file #"voices-257-~|mode|.sxl")
+                                        `(,@(map (^i (voice-form (string->symbol (format "v~3,'0d" i)) 0))
+                                                 (iota 257))
+                                          (mml A "@{v000}c8")))]
+                  [output (work-file #"voices-257-~|mode|.m")])
+              (let1 result (run-sxlc source "-m" mode "-o" output)
+                (test* #"~mode は音色が 257 個なら失敗する"
+                       '(1 #t #f)
+                       (list (car result)
+                             (boolean (any #/too many voices: 257 \(max 256\)/ (cadr result)))
+                             (file-exists? output)))))))
 
         ;; 命令列のバイト内容を固定する。期待値は MC.EXE との一致を主張せず、現在の出力を固定する。
         ;; 既知の欠陥（#57、#62、#65）に当たる入力は使わない。
@@ -236,6 +248,9 @@
                    ("FM の音色・音量・音量変化" "fm" (,zero-voice (mml A "@0v100o4c8)c8(c8v*-2c8v*3c8")) A
                     ;; @0、v100、) は 4、( は -4、v*-2、v*3
                     "ff 00 fd 64 30 0c f4 30 0c f3 30 0c e2 02 30 0c e3 03 30 0c 80")
+                   ;; a は 0、b は 1。@ は音色番号の表の番号を書く (#27)
+                   ("FM の音色番号" "fm-voice-number" (,(voice-form 'b 0) ,(voice-form 'a 0) (mml A "@{b}o4c8")) A
+                    "ff 01 30 0c 80")
                    ("SSG の音色・音量・音量変化・ミックス・ノイズ・ポルタメント" "ssg"
                     ((mml G "@1v10o4c8)c8P1w8c8/{c g}8")) G
                     ;; @1 は f0 の 4 値、) は 1、P1 は 07、w8、/{c g}8

@@ -25,6 +25,65 @@
 (use sxmml.backend.pmd)
 (test-module 'sxmml)
 
+;; 音色の登録 (#27)
+;; sxmml-opn-voice-set! は実行時に検査して登録し、define-opn-voice はその呼び出しに展開する
+(let* ([op0 '(0 0 0 0 0 0 0 0 0)]
+       [ops (make-list 4 op0)]
+       [voice-value (^[env id] (slot-ref (hash-table-get (slot-ref env 'voice) id) 'value))])
+  (define (with-new-environment thunk)
+    (parameterize ([sxmml-environment (make <sxmml-environment>)])
+      (thunk)))
+  (test* "sxmml-opn-voice-set! registers a voice"
+         `((1 2) ,@(make-list 4 (make-list 12 0)))
+         (with-new-environment
+          (^[] (apply sxmml-opn-voice-set! 'v '(1 2) ops)
+               (voice-value (sxmml-environment) 'v))))
+  ;; 10 値は dt2 と seg、11 値は dt2 を 0 として補う
+  (let ([op10 '(1 2 3 4 5 6 7 8 9 10)]
+        [op11 '(1 2 3 4 5 6 7 8 9 11 12)]
+        [expected '((0 0) (1 2 3 4 5 6 7 8 9 0 0 10) (1 2 3 4 5 6 7 8 9 0 11 12)
+                    (0 0 0 0 0 0 0 0 0 0 0 0) (0 0 0 0 0 0 0 0 0 0 0 0))])
+    (test* "operators of 10 and 11 values are padded at dt2 and seg"
+           expected
+           (with-new-environment
+            (^[] (sxmml-opn-voice-set! 'v '(0 0) op10 op11 op0 op0)
+                 (voice-value (sxmml-environment) 'v))))
+    (test* "define-opn-voice pads operators of 10 and 11 values at dt2 and seg"
+           expected
+           (with-new-environment
+            (^[] (eval `(define-opn-voice v (0 0) ,op10 ,op11 ,op0 ,op0) (interaction-environment))
+                 (voice-value (sxmml-environment) 'v)))))
+  (dolist [case `(("a non-symbol voice id" "voice id must be a symbol: 0" (0 (0 0) ,@ops))
+                  ("an invalid al/fb" "invalid voice format: @v, al/fb, (0)" (v (0) ,@ops))
+                  ("an invalid operator" "invalid voice format: @v, operator(2), (0 0 0)"
+                   (v (0 0) ,op0 (0 0 0) ,op0 ,op0))
+                  ("a negative value" "invalid voice value: @v, operator(2), -1"
+                   (v (0 0) ,op0 (-1 0 0 0 0 0 0 0 0) ,op0 ,op0))
+                  ("an inexact value" "invalid voice value: @v, operator(2), 1.5"
+                   (v (0 0) ,op0 (1.5 0 0 0 0 0 0 0 0) ,op0 ,op0))
+                  ("a non-number value" "invalid voice value: @v, operator(2), x"
+                   (v (0 0) ,op0 (x 0 0 0 0 0 0 0 0) ,op0 ,op0))
+                  ("a negative al/fb" "invalid voice value: @v, al/fb, -1" (v (0 -1) ,@ops)))]
+    (test* #"~(car case) fails" (test-error <error> (cadr case))
+           (with-new-environment (^[] (apply sxmml-opn-voice-set! (caddr case))))))
+  ;; 同じ id の定義の判定は実行時に行う。前の環境で展開した定義も、実行した環境に登録する
+  (let ([env1 (make <sxmml-environment>)]
+        [env2 (make <sxmml-environment>)])
+    (parameterize ([sxmml-environment env1])
+      (eval `(define-opn-voice V (1 0) ,@ops) (interaction-environment))
+      (eval `(define (%test-define-voice-v) (define-opn-voice V (2 0) ,@ops)) (interaction-environment)))
+    (test* "a voice is registered when the definition runs"
+           '((1 0) (2 0))
+           (parameterize ([sxmml-environment env2])
+             ((eval '%test-define-voice-v (interaction-environment)))
+             (list (car (voice-value env1 'V)) (car (voice-value env2 'V))))))
+  (test* "the later definition of the same id in begin replaces the former"
+         '(2 0)
+         (with-new-environment
+          (^[] (eval `(begin (define-opn-voice W (1 0) ,@ops) (define-opn-voice W (2 0) ,@ops))
+                     (interaction-environment))
+               (car (voice-value (sxmml-environment) 'W))))))
+
 ;; sxlc の CLI
 (use gauche.process)
 (use file.util)
@@ -199,13 +258,47 @@
                                                (append (map voice-form '(j i h g f e d c b a) (iota 10))
                                                        '((mml A "@{a}c8"))))
                                               "\r\n"))))
-        ;; begin 内の定義は同じ番号になる (#27)。その場合も出力は一致すること
+        ;; begin 内で定義しても、同じ入力からは同じ出力になること
         (let1 forms (append (map voice-form '(c b a) '(0 1 2))
                             `((begin ,(voice-form 'e 3) ,(voice-form 'd 4))
                               (mml A "@{a}c8@{e}c8")))
           (test* "the same input yields byte-identical output"
                  (generated-text "reproducible" forms)
                  (generated-text "reproducible" forms)))
+        ;; 音色番号は、PMD のバックエンドが生成時に、定義した全ての音色へ id の辞書順で
+        ;; 0 から振る。begin の中で定義しても重複せず、257 個以上は失敗する (#27)
+        (let ([voice-lines (^[text] (filter-map (^l (and-let1 m (#/^@(\d{3}) (\d{3}) / l)
+                                                     (list (string->number (m 1))
+                                                           (string->number (m 2)))))
+                                               (string-split text "\r\n")))]
+              [a-line (^[text] (find #/^A / (string-split text "\r\n")))]
+              [many-voices (^[n] (map (^i (voice-form (string->symbol (format "v~3,'0d" i)) 0))
+                                      (iota n)))])
+          (let1 text (generated-text "voice-dictionary-order"
+                                     `(,(voice-form 2 3) ,(voice-form 10 2) ,(voice-form 0 1)
+                                       (mml A "@2c8")))
+            (test* "voice numbers follow the dictionary order of ids"
+                   '("A l%12@2o4c" ((0 1) (1 2) (2 3)))
+                   (list (a-line text) (voice-lines text))))
+          (let1 text (generated-text "voice-in-begin"
+                                     `((begin ,(voice-form 'b 1) ,(voice-form 'a 2))
+                                       (mml A "@{a}c8@{b}c8")))
+            (test* "voices defined in begin get distinct numbers"
+                   '("A l%12@0o4c@1c" ((0 2) (1 1)))
+                   (list (a-line text) (voice-lines text))))
+          (dolist [case '((256 0 #t) (257 1 #f))]
+            (let* ([n (car case)]
+                   [output (work-file #"voices-~|n|.mml")]
+                   [source (write-source #"voices-~n"
+                                         (with-output-to-string
+                                           (^[] (for-each write (append (many-voices n)
+                                                                        '((mml A "@{v000}c8")))))))]
+                   [result (sxlc-status "-m" "pmd" "-o" output source)])
+              (test* #"~n voices ~(if (zero? (cadr case)) \"are accepted\" \"fail\")"
+                     (list (cadr case) (not (caddr case)) (caddr case))
+                     (list (car result)
+                           (boolean (any #/too many voices: 257 \(max 256\)/ (cadr result)))
+                           (file-exists? output))))))
         ;; 負の音高も、オクターブと 0～11 の音名に分けて出力すること
         (test* "a negative note number is output with its octave and note name"
                "A l%24o1co-1b"

@@ -3,7 +3,7 @@
 
 この索引は、sxmml を保守・改修する際に内部定義を名前から探すためのものです。動作環境は Gauche 0.9.15 です。内部の名前は MML 記述者向け API を示しません。公開機能の使い方は xref:../sxmml-reference-manual.adoc[MML 記述者向けリファレンス]、MML 文字列の記法は xref:../sxmml-mml-manual.adoc[MML コマンドマニュアル]を参照してください。
 
-モジュール直下の手続き 180 件、クラス 44 件、マクロ 12 件、合計 236 件を掲載します。実験的な `sxmml.backend.pmd-binary` は公開名 7 件だけを掲載し、内部定義は xref:pmd-binary.adoc[本文]に概要だけを記します。`sxmml.scm` は各モジュールを継承し、独自の直下定義はありません。`sxmml.backend.pmd-binary` の `initialize` を除き、各モジュールには `define-method` による定義はありません。局所関数と `sxlc.in` の直下定義は範囲外です。呼び出せないハッシュ表は対象外です。
+モジュール直下の手続き 185 件、クラス 44 件、マクロ 12 件、合計 241 件を掲載します。実験的な `sxmml.backend.pmd-binary` は公開名 7 件だけを掲載し、内部定義は xref:pmd-binary.adoc[本文]に概要だけを記します。`sxmml.scm` は各モジュールを継承し、独自の直下定義はありません。`sxmml.backend.pmd-binary` の `initialize` を除き、各モジュールには `define-method` による定義はありません。局所関数と `sxlc.in` の直下定義は範囲外です。呼び出せないハッシュ表は対象外です。
 
 == モジュール別目次
 
@@ -16,9 +16,9 @@
 |xref:compiler.adoc[`sxmml.compiler`] |文字列の解析と登録マクロ |7
 |xref:processor.adoc[`sxmml.processor`] |反復・エコー・ディレイ |5
 |xref:optimizer.adoc[`sxmml.optimizer`] |オブジェクト列の最適化 |11
-|xref:voice.adoc[`sxmml.voice`] |音色定義 |4
+|xref:voice.adoc[`sxmml.voice`] |音色定義 |6
 |xref:util.adoc[`sxmml.util`] |BPM の補助計算 |1
-|xref:pmd.adoc[`sxmml.backend.pmd`] |PMD 向け生成 |61
+|xref:pmd.adoc[`sxmml.backend.pmd`] |PMD 向け生成 |64
 |xref:pmd-binary.adoc[`sxmml.backend.pmd-binary`] |PMD バイナリ生成（実験的・公開名のみ） |7
 |===
 
@@ -103,6 +103,7 @@
 |`%pcm-track-generate` |`sxmml.backend.pmd` |手続き・非公開 |xref:pmd.adoc#ref-pmd-internal-pcm-track-generate[項目へ]
 |`%pmd-detune-set!` |`sxmml.backend.pmd` |手続き・非公開 |xref:pmd.adoc#ref-pmd-internal-pmd-detune-set-bang[項目へ]
 |`%pmd-envelope-set!` |`sxmml.backend.pmd` |手続き・非公開 |xref:pmd.adoc#ref-pmd-internal-pmd-envelope-set-bang[項目へ]
+|`%pmd-fm-voice-number` |`sxmml.backend.pmd` |手続き・非公開 |xref:pmd.adoc#ref-pmd-internal-pmd-fm-voice-number[項目へ]
 |`%pmd-fm-voice-set!` |`sxmml.backend.pmd` |手続き・非公開 |xref:pmd.adoc#ref-pmd-internal-pmd-fm-voice-set-bang[項目へ]
 |`%pmd-fm-volume-change-set!` |`sxmml.backend.pmd` |手続き・非公開 |xref:pmd.adoc#ref-pmd-internal-pmd-fm-volume-change-set-bang[項目へ]
 |`%pmd-fm-volume-set!` |`sxmml.backend.pmd` |手続き・非公開 |xref:pmd.adoc#ref-pmd-internal-pmd-fm-volume-set-bang[項目へ]
@@ -144,6 +145,7 @@
 |`%pmd-transpose-change-set!` |`sxmml.backend.pmd` |手続き・非公開 |xref:pmd.adoc#ref-pmd-internal-pmd-transpose-change-set-bang[項目へ]
 |`%pmd-transpose-set!` |`sxmml.backend.pmd` |手続き・非公開 |xref:pmd.adoc#ref-pmd-internal-pmd-transpose-set-bang[項目へ]
 |`%pmd-voice-number` |`sxmml.backend.pmd` |手続き・非公開 |xref:pmd.adoc#ref-pmd-internal-pmd-voice-number[項目へ]
+|`%pmd-voice-numbers` |`sxmml.backend.pmd` |手続き・非公開 |xref:pmd.adoc#ref-pmd-internal-pmd-voice-numbers[項目へ]
 |`%proc-note-number` |`sxmml.mml` |手続き・非公開 |xref:mml.adoc#ref-mml-internal-proc-note-number[項目へ]
 |`%repeat-end-ctx` |`sxmml.optimizer` |手続き・非公開 |xref:optimizer.adoc#ref-optimizer-internal-repeat-end-ctx[項目へ]
 |`%rhythm-command-init-value-make` |`sxmml.mml` |手続き・非公開 |xref:mml.adoc#ref-mml-internal-rhythm-command-init-value-make[項目へ]
@@ -153,6 +155,7 @@
 |`%sxmml-optimize-tree` |`sxmml.optimizer` |手続き・非公開 |xref:optimizer.adoc#ref-optimizer-internal-sxmml-optimize-tree[項目へ]
 |`%sxmml-pmdx-source-generate` |`sxmml.backend.pmd` |手続き・非公開 |xref:pmd.adoc#ref-pmd-internal-sxmml-pmdx-source-generate[項目へ]
 |`%track-generate` |`sxmml.backend.pmd` |手続き・非公開 |xref:pmd.adoc#ref-pmd-internal-track-generate[項目へ]
+|`%voice-values-check` |`sxmml.voice` |手続き・非公開 |xref:voice.adoc#ref-voice-internal-voice-values-check[項目へ]
 |`<sxmml-envelope>` |`sxmml.classes` |クラス・公開 |xref:classes.adoc#ref-classes-class-sxmml-envelope[項目へ]
 |`<sxmml-environment>` |`sxmml.classes` |クラス・公開 |xref:classes.adoc#ref-classes-class-sxmml-environment[項目へ]
 |`<sxmml-lfo>` |`sxmml.classes` |クラス・公開 |xref:classes.adoc#ref-classes-class-sxmml-lfo[項目へ]
@@ -252,10 +255,12 @@
 |`sxmml-mode-fixed?` |`sxmml.environment` |手続き・公開 |xref:environment.adoc#ref-environment-sxmml-mode-fixed-p[項目へ]
 |`sxmml-opm-list\->register` |`sxmml.voice` |手続き・非公開 |xref:voice.adoc#ref-voice-sxmml-opm-list-to-register[項目へ]
 |`sxmml-opmn-operator-zip` |`sxmml.voice` |手続き・公開 |xref:voice.adoc#ref-voice-sxmml-opmn-operator-zip[項目へ]
+|`sxmml-opn-voice-set!` |`sxmml.voice` |手続き・公開 |xref:voice.adoc#ref-voice-sxmml-opn-voice-set-bang[項目へ]
 |`sxmml-optimize-tree` |`sxmml.optimizer` |手続き・公開 |xref:optimizer.adoc#ref-optimizer-sxmml-optimize-tree[項目へ]
 |`sxmml-pmd-binary-generate` |`sxmml.backend.pmd-binary` |手続き・公開 |xref:pmd-binary.adoc#ref-pmd-binary-sxmml-pmd-binary-generate[項目へ]
 |`sxmml-pmd-source-generate` |`sxmml.backend.pmd` |手続き・公開 |xref:pmd.adoc#ref-pmd-sxmml-pmd-source-generate[項目へ]
 |`sxmml-pmd-track-environment` |`sxmml.backend.pmd` |手続き・非公開 |xref:pmd.adoc#ref-pmd-sxmml-pmd-track-environment[項目へ]
+|`sxmml-pmd-voice-numbers` |`sxmml.backend.pmd` |手続き・公開 |xref:pmd.adoc#ref-pmd-sxmml-pmd-voice-numbers[項目へ]
 |`sxmml-pmd3-binary-generate` |`sxmml.backend.pmd-binary` |手続き・公開 |xref:pmd-binary.adoc#ref-pmd-binary-sxmml-pmd3-binary-generate[項目へ]
 |`sxmml-pmd3-source-generate` |`sxmml.backend.pmd` |手続き・公開 |xref:pmd.adoc#ref-pmd-sxmml-pmd3-source-generate[項目へ]
 |`sxmml-pmd4-binary-generate` |`sxmml.backend.pmd-binary` |手続き・公開 |xref:pmd-binary.adoc#ref-pmd-binary-sxmml-pmd4-binary-generate[項目へ]
