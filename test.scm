@@ -21,9 +21,45 @@
 (test-module 'sxmml.optimizer)
 (use sxmml.util)
 (test-module 'sxmml.util)
+(use sxmml.form)
+(test-module 'sxmml.form)
 (use sxmml)
 (use sxmml.backend.pmd)
 (test-module 'sxmml)
+
+;; 定義の誤りの位置 (#28)
+;; sxmml-form-call は、中で起きたエラーに定義の位置を付けた <sxmml-form-error> を投げる
+(let ([caught (^[thunk] (guard (e [else e]) (thunk)))]
+      [boom (^[] (errorf "boom: ~a" 1))])
+  (test* "sxmml-form-call adds the location to an error"
+         '(#t "./a.sxl:3: boom: 1" "./a.sxl:3" "boom: 1")
+         (let1 e (caught (^[] (sxmml-form-call "./a.sxl:3" boom)))
+           (list (sxmml-form-error? e) (condition-message e) (sxmml-form-error-location e)
+                 (condition-message (sxmml-form-error-cause e)))))
+  (test* "sxmml-form-call without a location passes the error"
+         '(#f "boom: 1")
+         (let1 e (caught (^[] (sxmml-form-call #f boom)))
+           (list (sxmml-form-error? e) (condition-message e))))
+  ;; 入れ子では、いちばん内側の定義の位置だけを残す
+  (test* "sxmml-form-call passes an inner form error"
+         '("./b.sxl:7: boom: 1" "./b.sxl:7")
+         (let1 e (caught (^[] (sxmml-form-call "./a.sxl:3"
+                                (^[] (sxmml-form-call "./b.sxl:7" boom)))))
+           (list (condition-message e) (sxmml-form-error-location e))))
+  (test* "sxmml-form-call passes a raised non-condition"
+         42
+         (caught (^[] (sxmml-form-call "./a.sxl:3" (^[] (raise 42))))))
+  (test* "sxmml-form-call returns the value of the thunk"
+         5
+         (sxmml-form-call "./a.sxl:3" (^[] 5)))
+  (test* "sxmml-form-location of a constructed form is #f"
+         #f
+         (sxmml-form-location (list 'a 'b)))
+  (test* "sxmml-form-error without a location"
+         '(#t "bad: 1" #f #f)
+         (let1 e (caught (^[] (sxmml-form-error (list 'a) "bad: ~a" 1)))
+           (list (sxmml-form-error? e) (condition-message e)
+                 (sxmml-form-error-location e) (sxmml-form-error-cause e)))))
 
 ;; 音色の登録 (#27)
 ;; sxmml-opn-voice-set! は実行時に検査して登録し、define-opn-voice はその呼び出しに展開する
