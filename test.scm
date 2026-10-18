@@ -49,6 +49,14 @@
   (test* "sxmml-form-call passes a raised non-condition"
          42
          (caught (^[] (sxmml-form-call "./a.sxl:3" (^[] (raise 42))))))
+  ;; 位置を付けるのはエラーだけで、続けられるエラーでない condition は、そのまま通して続けさせる
+  (test* "sxmml-form-call passes a continuable non-error condition"
+         '(handled 10)
+         (with-exception-handler
+          (^[c] (if (and (message-condition? c) (not (error? c))) 'handled (raise c)))
+          (^[] (sxmml-form-call "./a.sxl:3"
+                 (^[] (list (raise-continuable (make-condition <message-condition> 'message "note"))
+                            10))))))
   (test* "sxmml-form-call returns the value of the thunk"
          5
          (sxmml-form-call "./a.sxl:3" (^[] 5)))

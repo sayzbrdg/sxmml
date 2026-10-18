@@ -49,11 +49,11 @@
                        (cause #f))))))
 
 ;; thunk の中で起きたエラーを、定義の位置 location を付けて投げ直す。内側の定義の
-;; 誤りはその位置を残し、メッセージを持たない値はそのまま通す
+;; 誤りはその位置を残し、エラーでない値や condition はそのまま通す
 (define (sxmml-form-call location thunk)
   (if location
     (guard (e [(sxmml-form-error? e) (raise e)]
-              [(message-condition? e)
+              [(error? e)
                (raise (condition (<sxmml-form-error>
                                   (message (%located-message location (condition-message e)))
                                   (location location)
