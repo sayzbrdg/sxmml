@@ -387,9 +387,12 @@
                     (list i)))
               items))
 
+;; クラスごとのスロット名。%repeat-same? は圧縮で何度も呼ぶので覚えておく
+(define %repeat-slot-names (make-hash-table eq-comparator))
+
 ;; 圧縮で同じとみなすか。オブジェクトはクラスが同じで、全スロットが、両方とも未束縛か、
 ;; 両方とも束縛されて equal? なら同じ。ブロックは回数と : の有無が同じで、本文の要素が
-;; 順に同じなら同じ
+;; 順に同じなら同じ。音符と & をまとめた要素（オブジェクトのリスト）は要素ごとに比べる
 (define (%repeat-same? a b)
   (define (items-same? x y)
     (and (= (length x) (length y)) (every %repeat-same? x y)))
@@ -399,12 +402,16 @@
               (items-same? (%repeat-block-front a) (%repeat-block-front b))
               (items-same? (or (%repeat-block-back a) ()) (or (%repeat-block-back b) ())))]
         [(or (%repeat-block? a) (%repeat-block? b)) #f]
+        [(and (pair? a) (pair? b)) (items-same? a b)]
+        [(or (pair? a) (pair? b)) #f]
         [else
          (and (eq? (class-of a) (class-of b))
               (every (^s (let ([ba (slot-bound? a s)] [bb (slot-bound? b s)])
                            (and (eq? ba bb)
                                 (or (not ba) (equal? (slot-ref a s) (slot-ref b s))))))
-                     (map slot-definition-name (class-slots (class-of a)))))]))
+                     (or (hash-table-get %repeat-slot-names (class-of a) #f)
+                         (rlet1 names (map slot-definition-name (class-slots (class-of a)))
+                           (hash-table-put! %repeat-slot-names (class-of a) names)))))]))
 
 ;; 圧縮の上限と既定値。回数の上限 255 と入れ子の上限 32 は PMD の局所ループの範囲と
 ;; ネストの上限 (PMDMML.MAN §10-1)
@@ -436,7 +443,11 @@
                                                 (and-let1 back (%repeat-block-back i)
                                                   (%repeat-expand-small back limit))
                                                 (%repeat-block-end i))
+                      ;; L を含むブロックと、2 個目以降の : を持つブロックは展開しない
                       (if (and (>= (slot-ref (%repeat-block-end b) 'value) 1)
+                               (not (%repeat-loop? b))
+                               (not (any (cut is-a? <> <sxmml-mml-repeat-break>)
+                                         (or (%repeat-block-back b) ())))
                                (<= (%repeat-expanded-length (list b)) limit))
                         (%repeat-expansion (list b))
                         (list b)))
@@ -456,7 +467,9 @@
         0 items))
 
 ;; 要素のリスト items を圧縮した平坦なオブジェクトのリストを返す。depth は外側の
-;; ブロックの深さ。L の前後は別の区間として圧縮し、L をループに入れない
+;; ブロックの深さ。L、L を含むブロック、ブロックの 2 個目以降の : の前後は別の区間として
+;; 圧縮し、これらをループに入れない。& は音符の直後に置くので、音符と後に続く & を
+;; 一つの要素（オブジェクトのリスト）にまとめ、間にループの境界を入れない
 (define (%repeat-compress items depth settings)
   ;; ブロックは本文を圧縮した出力を持つ原子にする。(要素 . 出力)
   (define (atom i)
@@ -482,13 +495,33 @@
                      (> (%repeat-depth compressed) (%repeat-depth raw)))
               raw
               compressed))))))
-  (let loop ([rest (map atom items)] [atoms ()] [result ()])
+  (define (barrier? element)
+    (or (is-a? element <sxmml-mml-loop>) (is-a? element <sxmml-mml-repeat-break>)
+        (and (%repeat-block? element) (%repeat-loop? element))))
+  ;; & を直前の要素にまとめる。直前がオブジェクトかまとめた要素のときだけ
+  (define (tie-groups atoms)
+    (reverse
+     (fold (^[a groups]
+             (if (and (is-a? (car a) <sxmml-mml-tie>) (pair? groups)
+                      (not (%repeat-block? (caar groups))) (not (barrier? (caar groups))))
+               (let1 prev (car groups)
+                 (cons (cons (append (if (pair? (car prev)) (car prev) (list (car prev))) (list (car a)))
+                             (append (cdr prev) (cdr a)))
+                       (cdr groups)))
+               (cons a groups)))
+           () atoms)))
+  (let loop ([rest (tie-groups (map atom items))] [atoms ()] [result ()])
     (cond [(null? rest)
            (concatenate (reverse (cons (segment (reverse atoms)) result)))]
-          [(is-a? (caar rest) <sxmml-mml-loop>)
+          [(barrier? (caar rest))
            (loop (cdr rest) () (cons* (cdar rest) (segment (reverse atoms)) result))]
           [else
            (loop (cdr rest) (cons (car rest) atoms) result)])))
+
+;; ブロックの本文（入れ子を含む）に L があるか
+(define (%repeat-loop? block)
+  (any (^i (if (%repeat-block? i) (%repeat-loop? i) (is-a? i <sxmml-mml-loop>)))
+       (append (%repeat-block-front block) (or (%repeat-block-back block) ()))))
 
 ;; 圧縮した木を平坦なオブジェクトのリストにする。葉は outputs の出力に置き換え、
 ;; 反復には新しい [、:、] のオブジェクトを作る

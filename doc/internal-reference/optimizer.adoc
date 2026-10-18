@@ -1,7 +1,7 @@
 = `sxmml.optimizer` のオブジェクト列最適化
 :toc: left
 
-`sxmml.optimizer` は二十九の手続きとクラス（record 型）一つを定義し、`sxmml-optimize-tree` を公開します。入力は登録済みトラックの `compiled-data` にある MML オブジェクト列です。戻り値は平坦化されたオブジェクトのリストで、元オブジェクトの `value` や `ticks` を更新する処理もあります。意味保持の判定原則は link:../verification.md#q-01-音楽的な意味の保持[検証方針]を参照してください。
+`sxmml.optimizer` は三十の手続きとクラス（record 型）一つを定義し、`sxmml-optimize-tree` を公開します。入力は登録済みトラックの `compiled-data` にある MML オブジェクト列です。戻り値は平坦化されたオブジェクトのリストで、元オブジェクトの `value` や `ticks` を更新する処理もあります。意味保持の判定原則は link:../verification.md#q-01-音楽的な意味の保持[検証方針]を参照してください。
 
 `sxmml-optimize-tree` は先にトラックの `total-ticks` と `loop-ticks` を設定します。`:optimize #f` は無操作オブジェクトを除いて平坦化、真値は第 1 段階、`:full` は第 1 段階に加えて第 2 段階を適用します。`:repeat` は第 2 段階の後に、既存のリピートをひとまとめにして命令列を反復で圧縮し、`:repeat-expand` は展開後の長さが 256 以下の既存のリピートを展開してから圧縮します。圧縮は xref:repeat-tree.adoc[`sxmml.repeat-tree`] を使い、回数 2〜255、制御費用は `[ ]` が 2、`[ : ]` が 3、窓幅は 256 です。回数の上限 255 と入れ子の上限 32 は PMD の局所ループの範囲です。最適化の目的は、コンパイル後のオブジェクトリストに連結されたオブジェクト数の削減です。バックエンドの最終文字列長は評価基準に含めません。オブジェクト、ハッシュ表、tree map は Gauche 0.9.15 の動作に従います。
 
@@ -32,9 +32,10 @@
 |[[ref-optimizer-internal-repeat-flatten]]`(%repeat-flatten items)` |`%repeat-structure` の逆 |平坦なオブジェクトのリストを返す |link:../../sxmml/optimizer.scm[optimizer.scm]
 |[[ref-optimizer-internal-repeat-expansion]]`(%repeat-expansion items)` |要素のリストを展開する。回数 r が 1 以上のブロックは (front back)^r−1^ front、回数 0 は front back を 1 回 |展開したオブジェクトのリストを返す。元のインスタンスを並べ、複製しない |link:../../sxmml/optimizer.scm[optimizer.scm]
 |[[ref-optimizer-internal-repeat-expanded-length]]`(%repeat-expanded-length items)` |`%repeat-expansion` の長さを、展開せずに求める |整数を返す |link:../../sxmml/optimizer.scm[optimizer.scm]
-|[[ref-optimizer-internal-repeat-expand-small]]`(%repeat-expand-small items limit)` |回数が 1 以上で、展開後の長さが `limit` 以下のブロックを、内側から順に展開する |新しい要素のリストを返す |link:../../sxmml/optimizer.scm[optimizer.scm]
-|[[ref-optimizer-internal-repeat-same-p]]`(%repeat-same? a b)` |圧縮で同じとみなすか。オブジェクトはクラスと全スロット（未束縛どうしは同じ）、ブロックは回数・`:` の有無・本文の要素で比べる |真偽値を返す |link:../../sxmml/optimizer.scm[optimizer.scm]
-|[[ref-optimizer-internal-repeat-compress]]`(%repeat-compress items depth settings)` |要素のリストを圧縮する。ブロックは本文を圧縮した原子とし、重みを出力の長さとする。`L` の前後は別の区間として `repeat-tree-compress` に渡す |平坦なオブジェクトのリストを返す。入れ子の深さ（外側の `depth` を含む）が 32 を超え、圧縮前より深くなる区間は圧縮しない |link:../../sxmml/optimizer.scm[optimizer.scm]
+|[[ref-optimizer-internal-repeat-expand-small]]`(%repeat-expand-small items limit)` |回数が 1 以上で、展開後の長さが `limit` 以下のブロックを、内側から順に展開する。`L` を含むブロックと、2 個目以降の `:` を持つブロックは展開しない |新しい要素のリストを返す |link:../../sxmml/optimizer.scm[optimizer.scm]
+|[[ref-optimizer-internal-repeat-same-p]]`(%repeat-same? a b)` |圧縮で同じとみなすか。オブジェクトはクラスと全スロット（未束縛どうしは同じ）、ブロックは回数・`:` の有無・本文の要素、音符と `&` をまとめた要素（オブジェクトのリスト）は要素ごとに比べる。クラスごとのスロット名は表 `%repeat-slot-names` に覚える |真偽値を返す |link:../../sxmml/optimizer.scm[optimizer.scm]
+|[[ref-optimizer-internal-repeat-compress]]`(%repeat-compress items depth settings)` |要素のリストを圧縮する。ブロックは本文を圧縮した原子とし、重みを出力の長さとする。`&` は直前の音符と一つの要素にまとめ、間にループの境界を入れない（`&` は音符の直後に置く）。`L`、`L` を含むブロック、ブロックの 2 個目以降の `:` の前後は別の区間として `repeat-tree-compress` に渡し、これらを生成するループに入れない |平坦なオブジェクトのリストを返す。入れ子の深さ（外側の `depth` を含む）が 32 を超え、圧縮前より深くなる区間は圧縮しない |link:../../sxmml/optimizer.scm[optimizer.scm]
+|[[ref-optimizer-internal-repeat-loop-p]]`(%repeat-loop? block)` |ブロックの本文（入れ子を含む）に `L` があるか |真偽値を返す |link:../../sxmml/optimizer.scm[optimizer.scm]
 |[[ref-optimizer-internal-repeat-emit]]`(%repeat-emit tree outputs)` |圧縮した木をオブジェクトのリストにする |葉は `outputs` の出力に置き換え、反復には新しい `[`・`:`・`]` のオブジェクトを作る |link:../../sxmml/optimizer.scm[optimizer.scm]
 |[[ref-optimizer-internal-repeat-depth]]`(%repeat-depth lis)` |平坦なオブジェクトのリストの、リピートの入れ子の最大の深さ |整数を返す |link:../../sxmml/optimizer.scm[optimizer.scm]
 |[[ref-optimizer-internal-repeat-check]]`(%repeat-check output input)` |圧縮の出力が入力と同じ列を表すかを確かめる。生成したループだけを展開し、既存のリピートは回数・`:` の有無・本文で比べる。オブジェクトは `%repeat-same?` で比べる |一致しなければ `repeat optimization changed the expanded objects` エラー |link:../../sxmml/optimizer.scm[optimizer.scm]

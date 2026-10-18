@@ -687,6 +687,19 @@
             (test* #"\"~(car case)\" with optimize :repeat is \"~(cadr case)\" with :full"
                    (optimized-line "repeat-hand" :full `((mml A ,(cadr case))))
                    (optimized-line "repeat" :repeat `((mml A ,(car case))))))
+          ;; & は音符の直後に置くので、音符と & の間にループの境界を入れない
+          (test* "a tie stays right after its note" "A l%24[o4c&]4c"
+                 (optimized-line "repeat" :repeat '((mml A "c&c&c&c&c"))))
+          (test* "a tie stays right after its note with optimize :repeat-expand" "A l%24[o4c&]4c"
+                 (optimized-line "repeat" :repeat-expand '((mml A "[c&]4c"))))
+          ;; L を含むブロックと、ブロックの 2 個目以降の : は区切りとし、生成するループに入れない。
+          ;; L を含むブロックは展開しない
+          (dolist (case '(("cdefgab[dLe]2cdefgab" :repeat) ("[c:d:d:d:d]2" :repeat)
+                          ("[cdLcd]2" :repeat-expand) ("[c:Ld]1" :repeat-expand)
+                          ("[c:d:e]2" :repeat-expand) ("[c:d:d:d:d]2" :repeat-expand)))
+            (test* #"\"~(car case)\" with optimize ~(cadr case) keeps L and : out of generated loops"
+                   (optimized-line "repeat-hand" :full `((mml A ,(car case))))
+                   (optimized-line "repeat" (cadr case) `((mml A ,(car case))))))
           ;; 圧縮すると入れ子が 33 段になる区間は圧縮しない
           (test* "nesting deeper than 32 is kept"
                  (optimized-line "repeat-hand" :full `((mml A ,(nest 32 "cccccc"))))
