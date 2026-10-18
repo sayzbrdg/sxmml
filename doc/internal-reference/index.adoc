@@ -3,7 +3,7 @@
 
 この索引は、sxmml を保守・改修する際に内部定義を名前から探すためのものです。動作環境は Gauche 0.9.15 です。内部の名前は MML 記述者向け API を示しません。公開機能の使い方は xref:../sxmml-reference-manual.adoc[MML 記述者向けリファレンス]、MML 文字列の記法は xref:../sxmml-mml-manual.adoc[MML コマンドマニュアル]を参照してください。
 
-モジュール直下の手続き 196 件、クラス 46 件、マクロ 12 件、合計 254 件を掲載します。実験的な `sxmml.backend.pmd-binary` は公開名 7 件だけを掲載し、内部定義は xref:pmd-binary.adoc[本文]に概要だけを記します。`sxmml.scm` は各モジュールを継承し、独自の直下定義はありません。`sxmml.backend.pmd-binary` の `initialize` を除き、各モジュールには `define-method` による定義はありません。局所関数と `sxlc.in` の直下定義は範囲外です。呼び出せないハッシュ表は対象外です。
+モジュール直下の手続き 198 件、クラス 46 件、マクロ 12 件、合計 256 件を掲載します。実験的な `sxmml.backend.pmd-binary` は公開名 7 件だけを掲載し、内部定義は xref:pmd-binary.adoc[本文]に概要だけを記します。`sxmml.scm` は各モジュールを継承し、独自の直下定義はありません。`sxmml.backend.pmd-binary` の `initialize` を除き、各モジュールには `define-method` による定義はありません。局所関数と `sxlc.in` の直下定義は範囲外です。呼び出せないハッシュ表は対象外です。
 
 == モジュール別目次
 
@@ -12,14 +12,14 @@
 |モジュール |内容 |項目数
 |xref:classes.adoc[`sxmml.classes`] |環境・MML オブジェクト・音色のクラスとエラーの種類 |48
 |xref:mml.adoc[`sxmml.mml`] |通常・リズム MML の PEG パーサー |74
-|xref:environment.adoc[`sxmml.environment`] |環境と登録表 |25
+|xref:environment.adoc[`sxmml.environment`] |環境と登録表 |26
 |xref:compiler.adoc[`sxmml.compiler`] |文字列の解析と登録マクロ |7
 |xref:processor.adoc[`sxmml.processor`] |反復・エコー・ディレイ |5
 |xref:optimizer.adoc[`sxmml.optimizer`] |オブジェクト列の最適化 |11
 |xref:voice.adoc[`sxmml.voice`] |音色定義 |8
 |xref:util.adoc[`sxmml.util`] |BPM の補助計算 |1
 |xref:form.adoc[`sxmml.form`] |定義の誤りの位置 |4
-|xref:pmd.adoc[`sxmml.backend.pmd`] |PMD 向け生成 |64
+|xref:pmd.adoc[`sxmml.backend.pmd`] |PMD 向け生成 |65
 |xref:pmd-binary.adoc[`sxmml.backend.pmd-binary`] |PMD バイナリ生成（実験的・公開名のみ） |7
 |===
 

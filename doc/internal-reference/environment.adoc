@@ -1,7 +1,7 @@
 = `sxmml.environment` の状態管理
 :toc: left
 
-`sxmml.environment` は、環境と登録表を操作する 24 の定義を公開します。パラメータ、マクロ、ハッシュ表の動作は Gauche 0.9.15 に従います。MML 記述者向けの使用例は xref:../sxmml-reference-manual.adoc[公開機能リファレンス]を参照してください。
+`sxmml.environment` には環境と登録表を操作する 26 の定義があり、そのうち 24 を公開します。パラメータ、マクロ、ハッシュ表の動作は Gauche 0.9.15 に従います。MML 記述者向けの使用例は xref:../sxmml-reference-manual.adoc[公開機能リファレンス]を参照してください。
 
 状態を保持する本体は xref:classes.adoc#ref-classes-class-sxmml-environment[`<sxmml-environment>`] です。`make-parameter` で作る束縛は手続きであり、引数なしで現在値を返し、値を一つ渡すと動的な現在値を変更して旧値を返します。表の設定手続きは、特記しない限り現在の環境オブジェクト内の slot または表を変更します。登録手続きの戻り値は呼び出し側では使用していません。`get` の未登録時の挙動は項目ごとに異なります。
 
@@ -38,7 +38,7 @@
 |[[ref-environment-sxmml-envelope-get]]`(sxmml-envelope-get id)` |ID でエンベロープを検索 |登録済み `<sxmml-envelope>` を返す。未登録なら検索エラー |link:../../sxmml/environment.scm[environment.scm]
 |[[ref-environment-sxmml-envelope-set-bang]]`(sxmml-envelope-set! id type data)` |エンベロープオブジェクトを作り登録 |`envelope` 表の `id` を上書き |link:../../sxmml/environment.scm[environment.scm]
 |[[ref-environment-define-envelope]]`(define-envelope id [type] (value ...))` |エンベロープの ID、種類、値の列を指定するマクロ |`sxmml-envelope-set!` を呼ぶ式に展開。形が合わなければ `invalid define-envelope form` の `<sxmml-form-error>` |link:../../sxmml/environment.scm[environment.scm]
-|[[ref-environment-internal-define-lfo-envelope-expand]]`(%define-lfo/envelope-expand form rename name setter)` |2 つのマクロの共通の展開 |`(_ id (value ...))` と `(_ id type (value ...))`（`type` はシンボル）だけを受け、`(sxmml-form-call 位置 (lambda () (setter 'id 'type (list value ...))))` を返す。それ以外は `invalid <name> form: expected (<name> id [type] (value ...))` |link:../../sxmml/environment.scm[environment.scm]
+|[[ref-environment-internal-define-lfo-envelope-expand]]`(%define-lfo/envelope-expand form rename name set-proc)` |2 つのマクロの共通の展開 |`(_ id (value ...))` と `(_ id type (value ...))`（`type` はシンボル）だけを受け、`(sxmml-form-call 位置 (lambda () (set-proc 'id 'type (list value ...))))` を返す。それ以外は `invalid <name> form: expected (<name> id [type] (value ...))` |link:../../sxmml/environment.scm[environment.scm]
 |===
 
 == トラック表と登録済みオブジェクト

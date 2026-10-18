@@ -132,16 +132,16 @@
 
 ;; define-lfo・define-envelope の展開。枠の中の値は式として評価し、種類 (type) は
 ;; リテラルのシンボルとする。形は展開時に検査し、誤りと値の式の誤りには定義の位置を付ける
-(define (%define-lfo/envelope-expand form rename name setter)
-  (define (expand id type values)
+(define (%define-lfo/envelope-expand form rename name set-proc)
+  (define (expand id type exprs)
     (let ([idsym (string->symbol (x->string id))]
           [location (sxmml-form-location form)])
       (quasirename rename
         `(sxmml-form-call ,location
-           (lambda () (,(rename setter) ',idsym ',type (list ,@values)))))))
+           (lambda () (,(rename set-proc) ',idsym ',type (list ,@exprs)))))))
   (match form
-    [(_ id (? list? values)) (expand id 'default values)]
-    [(_ id (? symbol? type) (? list? values)) (expand id type values)]
+    [(_ id (? list? exprs)) (expand id 'default exprs)]
+    [(_ id (? symbol? type) (? list? exprs)) (expand id type exprs)]
     [_ (sxmml-form-error form "invalid ~a form: expected (~a id [type] (value ...))" name name)]))
 
 ;;
