@@ -456,6 +456,16 @@
                      (status-and-message (sxlc-status "-m" "pmd" "-o" (work-file #"~|macro|-sxlc-location.mml") source)
                                          (string->regexp
                                           (regexp-quote #"*** SXMML-FORM-ERROR: ~|source|:2: invalid ~macro form")))))))
+        ;; エンベロープは値の数で書式が決まる。5 値は 6 値の書式の 6 つ目を省いた形なので、
+        ;; 5 値のまま出力すること (#84)
+        (test* "a 5-value envelope is output with its 5 values"
+               "G l%12E1,2,3,4o4cE1,2,3,4,5cE1,2,3,4,5,6c"
+               (find #/^G / (string-split (generated-text "envelope-values"
+                                                          '((define-envelope E4 (1 2 3 4))
+                                                            (define-envelope E5 (1 2 3 4 5))
+                                                            (define-envelope E6 (1 2 3 4 5 6))
+                                                            (mml G "E{E4}c8E{E5}c8E{E6}c8")))
+                                          "\r\n")))
         ;; 負の音高も、オクターブと 0～11 の音名に分けて出力すること
         (test* "a negative note number is output with its octave and note name"
                "A l%24o1co-1b"

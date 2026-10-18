@@ -463,9 +463,9 @@
                        )]
                   [else #t])
         (error "invalid envelope defition: " (slot-ref obj 'value)))
+      ;; 書式は値の数で決まるので、5 値 (6 値の書式の 6 つ目を省いた形) も値をそのまま書く
       (format #t "E~d,~d,~d,~d" (car value) (cadr value) (caddr value) (cadddr value))
-      (when (= (length value) 6)
-        (format #t ",~d,~d" (cadddr (cdr value)) (cadddr (cddr value)))))))
+      (for-each (^v (format #t ",~d" v)) (cddddr value)))))
 
 (define (%pmd-pan-set! obj)
   (format #t "p~d" (slot-ref obj 'value)))
