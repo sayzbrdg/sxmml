@@ -30,6 +30,7 @@
   (use util.match)
   (use gauche.unicode)
   (use sxmml.classes)
+  (use sxmml.form)
   (export sxmml-environment sxmml-source-file sxmml-mode sxmml-mode-fixed?
           define-metadata sxmml-metadata-get sxmml-metadata-set!
           sxmml-resolution sxmml-resolution-get sxmml-resolution-set!
@@ -111,22 +112,7 @@
 (define-syntax define-lfo
   (er-macro-transformer
     (^[form rename id=?]
-      (match form
-        [(_ id (datum ...))
-         (quasirename rename
-           (define-lfo ,id default ,datum))]
-        [(_ id (datum ...) ...)
-         (quasirename rename
-           (define-lfo ,id default ,@datum))]
-        [(_ id type (datum ...))
-         (let ([idsym (string->symbol (x->string id))])
-           (quasirename rename
-             `(sxmml-lfo-set! ',idsym ',type (apply list ',datum))))]
-        [(_ id type (datum ...) ...)
-         (let ([idsym (string->symbol (x->string id))])
-           (quasirename rename
-             `(sxmml-lfo-set! ',idsym ',type (apply list ',datum))))]
-        ))))
+      (%define-lfo/envelope-expand form rename "define-lfo" 'sxmml-lfo-set!))))
 
 
 ;;
@@ -142,22 +128,21 @@
 (define-syntax define-envelope
   (er-macro-transformer
     (^[form rename id=?]
-      (match form
-        [(_ id (datum ...))
-         (quasirename rename
-           (define-envelope ,id default ,datum))]
-        [(_ id (datum ...) ...)
-         (quasirename rename
-           (define-envelope ,id default ,@datum))]
-        [(_ id type (datum ...))
-         (let ([idsym (string->symbol (x->string id))])
-           (quasirename rename
-             `(sxmml-envelope-set! ',idsym ',type (apply list ',datum))))]
-        [(_ id type (datum ...) ...)
-         (let ([idsym (string->symbol (x->string id))])
-           (quasirename rename
-             `(sxmml-envelope-set! ',idsym ',type (apply list ',datum))))]
-        ))))
+      (%define-lfo/envelope-expand form rename "define-envelope" 'sxmml-envelope-set!))))
+
+;; define-lfo・define-envelope の展開。枠の中の値は式として評価し、種類 (type) は
+;; リテラルのシンボルとする。形は展開時に検査し、誤りと値の式の誤りには定義の位置を付ける
+(define (%define-lfo/envelope-expand form rename name setter)
+  (define (expand id type values)
+    (let ([idsym (string->symbol (x->string id))]
+          [location (sxmml-form-location form)])
+      (quasirename rename
+        `(sxmml-form-call ,location
+           (lambda () (,(rename setter) ',idsym ',type (list ,@values)))))))
+  (match form
+    [(_ id (? list? values)) (expand id 'default values)]
+    [(_ id (? symbol? type) (? list? values)) (expand id type values)]
+    [_ (sxmml-form-error form "invalid ~a form: expected (~a id [type] (value ...))" name name)]))
 
 ;;
 ;;  track

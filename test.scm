@@ -403,6 +403,59 @@
                    (status-and-message (sxlc-status "-m" "pmd" "-o" (work-file "voice-sxlc-location.mml") source)
                                        (string->regexp
                                         (regexp-quote #"*** SXMML-FORM-ERROR: ~|source|:4: invalid voice value"))))))
+        ;; define-lfo・define-envelope の枠の中の値は式として評価し、種類はリテラルとする。
+        ;; 形の誤りと値の式の誤りには、定義の開始位置を付ける (#28)
+        (dolist [def '((define-lfo lfo) (define-envelope envelope))]
+          (let* ([macro (car def)]
+                 [table (cadr def)]
+                 [load-result (^[name text]
+                                (let1 source (write-source name text)
+                                  (parameterize ([sxmml-environment (make <sxmml-environment>)]
+                                                 [sxmml-source-file source])
+                                    (guard (e [else (cons source e)])
+                                      (load source)
+                                      (cons source (hash-table-get (slot-ref (sxmml-environment) table) 'X1 #f))))))]
+                 [registered (^[name text]
+                               (let1 obj (cdr (load-result name text))
+                                 (list (slot-ref obj 'type) (slot-ref obj 'value))))]
+                 [form-message #"invalid ~|macro| form: expected (~|macro| id [type] (value ...))"])
+            (test* #"elements of ~macro are evaluated"
+                   '(default (1 2 3 4))
+                   (registered #"~|macro|-evaluated"
+                               #"(define %test-depth 3)\n(~macro X1 (1 2 %test-depth (+ 1 3)))\n"))
+            (test* #"~macro takes a literal type"
+                   '(sw (1 2 3 4))
+                   (registered #"~|macro|-type" #"(define sw 1)\n(~macro X1 sw (1 2 3 4))\n"))
+            (test* #"~macro accepts an empty frame"
+                   '(default ())
+                   (registered #"~|macro|-empty" #"(~macro X1 ())\n"))
+            (dolist [case '(("no-frame" "") ("not-list" " 1") ("two-frames" " (1 2) (3 4)")
+                            ("non-symbol-type" " 1 (1 2)") ("too-many" " sw (1 2) 3"))]
+              (let1 r (load-result #"~|macro|-~(car case)" #"; def\n(begin\n  (~macro X1~(cadr case))\n  1)\n")
+                (test* #"a wrong ~macro form fails with its location: ~(car case)"
+                       (list #t #"~(car r):3: ~form-message" #"~(car r):3" #f)
+                       (let1 e (cdr r)
+                         (list (sxmml-form-error? e) (condition-message e)
+                               (sxmml-form-error-location e) (sxmml-form-error-cause e))))))
+            (let1 r (load-result #"~|macro|-undefined" #"; def\n(begin\n  (~macro X1 (1 %test-undefined-value))\n  1)\n")
+              (test* #"an undefined variable in ~macro fails with its location"
+                     (list #t #t #"~(car r):3" #t)
+                     (let1 e (cdr r)
+                       (list (sxmml-form-error? e)
+                             (boolean (#/^\S+:3: / (condition-message e)))
+                             (sxmml-form-error-location e)
+                             (is-a? (sxmml-form-error-cause e) <unbound-variable-error>)))))
+            (test* #"~macro without a location registers"
+                   '(5 6)
+                   (parameterize ([sxmml-environment (make <sxmml-environment>)])
+                     (eval `(,macro X2 (5 6)) (interaction-environment))
+                     (slot-ref (hash-table-get (slot-ref (sxmml-environment) table) 'X2) 'value)))
+            (let1 source (write-source #"~|macro|-sxlc-location" #"(mml G \"c8\")\n(~macro X1)\n")
+              (test* #"sxlc shows the location of a wrong ~macro"
+                     '(1 #t)
+                     (status-and-message (sxlc-status "-m" "pmd" "-o" (work-file #"~|macro|-sxlc-location.mml") source)
+                                         (string->regexp
+                                          (regexp-quote #"*** SXMML-FORM-ERROR: ~|source|:2: invalid ~macro form")))))))
         ;; 負の音高も、オクターブと 0～11 の音名に分けて出力すること
         (test* "a negative note number is output with its octave and note name"
                "A l%24o1co-1b"
