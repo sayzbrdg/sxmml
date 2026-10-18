@@ -1,7 +1,7 @@
 = `sxmml.backend.pmd` の生成処理
 :toc: left
 
-`sxmml.backend.pmd` には、PMD 向け MML の生成に使う 65 の定義があります。公開名はモード選択と生成の手続きで、`%` で始まる手続き、トラック状態のクラスとパラメータは内部で使います。パラメータ、オブジェクト、文字コード変換、一時ファイル、ファイル名操作は Gauche 0.9.15 の動作に従います。
+`sxmml.backend.pmd` には、PMD 向け MML の生成に使う 68 の定義と、LFO・エンベロープの規則の 4 つの表（`%pmd-lfo-types`・`%pmd-lfo-ranges`・`%pmd-envelope-types`・`%pmd-envelope-ranges`）があります。公開名はモード選択と生成の手続きで、`%` で始まる手続き、トラック状態のクラスとパラメータは内部で使います。パラメータ、オブジェクト、文字コード変換、一時ファイル、ファイル名操作は Gauche 0.9.15 の動作に従います。
 
 生成系の `%pmd-...set!` 手続きは、特記しない限り `obj` を受けて現在の出力ポートへ PMD MML の文字列を書きます。名前の `set!` は文字列出力を含む内部の慣用名で、環境オブジェクトの slot を必ず変更するという意味ではありません。戻り値は生成側で使いません。必要なオブジェクト型と slot は xref:classes.adoc[クラス一覧]を参照してください。
 
@@ -25,6 +25,9 @@ PMD4 向けに利用するときは `pmd`、PMD3 向けには `pmd3` を指定�
 |[[ref-pmd-sxmml-pmd4-source-generate]]`(sxmml-pmd4-source-generate)` |PMD4 向け生成 |PMD4 指定で共通生成処理を実行 |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-sxmml-pmd-source-generate]]`(sxmml-pmd-source-generate :optional (mode #f))` |モード引数を渡して生成 |`mode` を PMD3 用の真値として共通処理へ渡す。省略時 `#f` |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-internal-sxmml-pmdx-source-generate]]`(%sxmml-pmdx-source-generate mode)` |共通の生成入口 |出力の前に音色番号の表を作って `%pmd-voice-numbers` に設定し、ファイル出力後に現在の `<sxmml-environment>` を返す。出力時のエラーは伝播 |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-sxmml-pmd-lfo-values]]`(sxmml-pmd-lfo-values lfo)` |LFO の定義を PMD の規則で検査する |`<sxmml-lfo>` の種類が `%pmd-lfo-types`（`default`・`triangle`）にあり、値が 4 個で、各値が `%pmd-lfo-ranges` の範囲の正確な整数なら、値のリストを返す。誤りは `unsupported lfo type`・`invalid lfo values`・`invalid lfo value`。`sxmml.backend.pmd-binary` も使う |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-sxmml-pmd-envelope-values]]`(sxmml-pmd-envelope-values envelope)` |エンベロープの定義を PMD の規則で検査する |種類が `%pmd-envelope-types`（`default`）にあり、値が 4・5・6 個で、各値が `%pmd-envelope-ranges` の値の数ごとの範囲の正確な整数なら、値のリストを返す。誤りは `unsupported envelope type`・`invalid envelope values`・`invalid envelope value`。`sxmml.backend.pmd-binary` も使う |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-internal-pmd-definition-values]]`(%pmd-definition-values kind obj types ranges expected)` |2 つの検査の共通の本体 |種類、値の数（`ranges` は値の数から範囲の並びへの連想リスト）、各値を順に検査する。値の位置は 1 から数え、数でない値は `~s` で示す |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-sxmml-pmd-voice-numbers]]`(sxmml-pmd-voice-numbers)` |定義した全ての音色に、PMD の音色番号を振る |`voice` 表の id を `symbol\->string` の `string<?` の順に並べ、0 から振った id から番号への `eq` のハッシュ表を返す。音色が 256 を超えると `too many voices: 257 (max 256)` のエラー。`sxmml.backend.pmd-binary` も使う |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-internal-pmd-source-output]]`(%pmd-source-output :optional (pmd3? #f))` |ヘッダー、メタデータ、音色、各トラックを出力 |`filename` メタデータを確認した後、`%output-file-get` の出力先と同じディレクトリに一時ファイルを CP932 で書き、出力先へ改名する。途中で失敗した場合は一時ファイルを削除し、出力先の既存ファイルは変更しない。生成先のパスを返す。PMD3 では終端 `0x1a` を付加。出力先が使えない場合や変換できない文字は失敗し得る |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-internal-pmd-source-head-generate]]`(%pmd-source-head-generate :optional (pmd3? #f))` |生成元名と PMD バージョンの行を書く |`sxmml-source-file` が必要。PMD3 は `PMDver3.3`、それ以外は `PMDver4.8` |link:../../sxmml/backend/pmd.scm[pmd.scm]
@@ -78,9 +81,9 @@ PMD4 向けに利用するときは `pmd`、PMD3 向けには `pmd3` を指定�
 |[[ref-pmd-internal-pmd-repeat-break-set-bang]]`(%pmd-repeat-break-set! obj)` |脱出位置 `:` を書く |`obj` の値を参照しない |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-internal-pmd-loop-set-bang]]`(%pmd-loop-set! obj)` |ループ位置 `L` を書く |`obj` の値を参照しない |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-internal-pmd-transpose-set-bang]]`(%pmd-transpose-set! obj)` |移調値を `_数` で書く |`value` が必要 |link:../../sxmml/backend/pmd.scm[pmd.scm]
-|[[ref-pmd-internal-pmd-lfo-set-bang]]`(%pmd-lfo-set! obj)` |LFO 定義を `M` または `MB` で書く |未登録 ID、4 値以外、値の範囲外、channel が A/B/`#f` 以外なら明示的にエラー |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-internal-pmd-lfo-set-bang]]`(%pmd-lfo-set! obj)` |LFO 定義を `M` または `MB` で書く |未登録 ID はエラー。channel が A/B/`#f` 以外なら `invalid lfo channel`。値は `sxmml-pmd-lfo-values` で検査する |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-internal-pmd-lfo-switch-set-bang]]`(%pmd-lfo-switch-set! obj)` |LFO の ON/OFF を `*` または `*B` に続く 1/0 で書く |channel が A/B/`#f` 以外ならエラー |link:../../sxmml/backend/pmd.scm[pmd.scm]
-|[[ref-pmd-internal-pmd-envelope-set-bang]]`(%pmd-envelope-set! obj)` |登録されたエンベロープを `E` と値列で書く |4・5・6 値を、値の数のまま書く（5 値は 6 値の形式の 6 つ目を省いた形）。未登録 ID、値の範囲外ならエラー。短すぎる値列は要素参照でも失敗し得る |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-internal-pmd-envelope-set-bang]]`(%pmd-envelope-set! obj)` |登録されたエンベロープを `E` と値列で書く |4・5・6 値を、値の数のまま書く（5 値は 6 値の形式の 6 つ目を省いた形）。未登録 ID はエラー。値は `sxmml-pmd-envelope-values` で検査する |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-internal-pmd-pan-set-bang]]`(%pmd-pan-set! obj)` |パンを `p数` で書く |`value` が必要 |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-internal-pmd-transpose-change-set-bang]]`(%pmd-transpose-change-set! obj)` |相対移調を `__数` で書く |`value` が必要 |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-internal-pmd-fm-volume-change-set-bang]]`(%pmd-fm-volume-change-set! obj)` |FM 音量差を `)` / `(` または `%数` 付きで書く |幅 4 を短い表記にする |link:../../sxmml/backend/pmd.scm[pmd.scm]
