@@ -63,7 +63,7 @@ PMD 向けの生成では、`-o` で指定した出力先、指定がなけれ�
 
 ## PMD バイナリ生成物（実験的）
 
-`pmd-binary`・`pmd4-binary`・`pmd3-binary` は実験的な機能であり、外部コンパイラを使わずに PMD のバイナリを直接生成する。生成物が MC.EXE の出力と同じであることは保証しない（PMD 向け MML を MC.EXE でコンパイルした結果と一致するとは限らない）。正式機能とするかどうかは [issue #54](https://github.com/sayzbrdg/sxmml/issues/54)で判断する。既知の欠陥は [issue #55](https://github.com/sayzbrdg/sxmml/issues/55)〜[#58](https://github.com/sayzbrdg/sxmml/issues/58)を参照する。
+`pmd-binary`・`pmd4-binary`・`pmd3-binary` は実験的な機能であり、外部コンパイラを使わずに PMD のバイナリを直接生成する。生成物が MC.EXE の出力と同じであることは保証しない（PMD 向け MML を MC.EXE でコンパイルした結果と一致するとは限らない）。正式機能とするかどうかは [issue #54](https://github.com/sayzbrdg/sxmml/issues/54)で判断する。既知の欠陥は、ラベル `pmd-binary` の付いた[開いている不具合の issue](https://github.com/sayzbrdg/sxmml/issues?q=is%3Aissue%20is%3Aopen%20label%3Apmd-binary%20label%3Abug)を参照する。
 
 生成先は、`-o` で指定した出力先、指定がなければ入力ファイル名の拡張子を `.m` に替えた名前である。拡張子 `.m` の入力を `-o` なしで変換すると、出力先が入力ファイルと同じになるため使用法の誤り（終了値 2）となる。`filename` メタデータは PMD 向け生成物と同じく生成先の指定に使わず、警告を表示して無視する。トラックの登録（A～F が FM、G～I が SSG、J が PCM、L がリズム）も PMD 向けのモードと同じである。生成物はバイナリであり、生成先と同じディレクトリの一時ファイルに書いてから生成先へ移す。
 
