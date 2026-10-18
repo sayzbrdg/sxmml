@@ -525,7 +525,7 @@
         [switch (slot-ref obj 'value)])
     (when (or (and (not (eq? channel 'A)) (not (eq? channel 'B)) (not (eq? channel #f)))
               (and (eq? (slot-ref (sxmml-pmd-binary-environment) 'mode) 'fc88) (eq? channel 'B)))
-        (error "invalid lfo channel: " (slot-ref obj 'channel)))
+        (errorf "invalid lfo channel: ~a" channel))
     (u8vector-set! u8vec offset (if (or (eq? channel #f) (eq? channel 'A)) #xf1 #xbe))
     (u8vector-set! u8vec (+ offset 1) (if switch 1 0))
     (+ offset 2)))

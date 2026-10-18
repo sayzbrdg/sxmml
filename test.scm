@@ -519,6 +519,9 @@
                           ("envelope-6-max" ,(envelope '(define-envelope E1 (31 31 31 15 15 15)))
                            "G l%12E31,31,31,15,15,15o4c")
                           ("lfo-channel" ,(lfo '(define-lfo L1 (1 2 3 4)) "C")
+                           "invalid lfo channel: C")
+                          ;; LFO の切り替えのチャンネルの誤りも、定義と同じメッセージにする
+                          ("lfo-switch-channel" ((mml G "Mt{C}c8"))
                            "invalid lfo channel: C"))]
             (test* #"PMD checks LFO and envelope definitions: ~(car case)"
                    (caddr case)

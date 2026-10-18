@@ -431,8 +431,8 @@
 (define (%pmd-lfo-switch-set! obj)
   (let ([channel (slot-ref obj 'channel)]
         [switch (slot-ref obj 'value)])
-    (when (and (not (eq? channel 'A)) (not (eq? channel 'B)) (not (eq? channel #f)))
-      (error "invalid lfo channel: " (slot-ref obj 'channel)))
+    (unless (memq channel '(#f A B))
+      (errorf "invalid lfo channel: ~a" channel))
     (display "*")
       (when (eq? channel 'B)
         (display "B"))

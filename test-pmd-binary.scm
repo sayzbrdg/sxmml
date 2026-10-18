@@ -392,6 +392,9 @@
                           ("pmd3-lfo-b" ,pmd3-binary
                            ((define-lfo L1 (1 2 3 4)) (mml A "M{L1 B}c8"))
                            "invalid lfo channel: B")
+                          ("pmd3-lfo-switch-b" ,pmd3-binary
+                           ((mml A "Mt{B}c8"))
+                           "invalid lfo channel: B")
                           ("pmd3-envelope-6" ,pmd3-binary
                            ((define-envelope E6 (1 2 3 4 5 6)) (mml G "E{E6}c8"))
                            "unsupported envelope values in PMD3: E6 has 6 values (expected 4)"))]
