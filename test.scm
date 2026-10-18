@@ -63,6 +63,10 @@
   (test* "sxmml-form-location of a constructed form is #f"
          #f
          (sxmml-form-location (list 'a 'b)))
+  ;; 定義のマクロは、登録の呼び出しを sxmml-form-wrap で包んで展開する
+  (test* "sxmml-form-wrap wraps a call with sxmml-form-call"
+         '(sxmml-form-call #f (lambda () (foo 1)))
+         (sxmml-form-wrap (list 'define-x 'a) (^[x] x) '(foo 1)))
   (test* "sxmml-form-error without a location"
          '(#t "bad: 1" #f #f)
          (let1 e (caught (^[] (sxmml-form-error (list 'a) "bad: ~a" 1)))

@@ -30,7 +30,7 @@
 (define-module sxmml.form
   (use util.match)
   (use sxmml.classes)
-  (export sxmml-form-location sxmml-form-error sxmml-form-call))
+  (export sxmml-form-location sxmml-form-error sxmml-form-call sxmml-form-wrap))
 (select-module sxmml.form)
 
 ;; フォームの開始位置を "ファイル:行" で返す。わからなければ #f
@@ -60,6 +60,11 @@
                                   (cause e))))])
       (thunk))
     (thunk)))
+
+;; 定義のマクロの展開で、登録の呼び出し call を、フォームの位置を付ける
+;; sxmml-form-call で包む。rename はマクロの名前の付け替えの手続きである
+(define (sxmml-form-wrap form rename call)
+  `(,(rename 'sxmml-form-call) ,(sxmml-form-location form) (,(rename 'lambda) () ,call)))
 
 (define (%located-message location message)
   (if location #"~|location|: ~message" message))
