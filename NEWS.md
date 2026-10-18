@@ -1,6 +1,8 @@
 # sxmml の変更履歴
 
-## 未リリース
+## v0.3.1
+
+不具合を修正し、PMD のバイナリを直接生成する実験的なモードを追加した版である。互換性のない変更は含まない。
 
 ### 不具合の修正
 
@@ -11,6 +13,12 @@
 ### 追加・変更
 
 - 実験的な機能として、外部コンパイラを使わずに PMD のバイナリ（`.m`）を直接生成するモード `pmd-binary`・`pmd4-binary`（PMD4 向け）と `pmd3-binary`（PMD3 向け）を追加した。生成物が MC.EXE の出力と同じであることは保証しない。正式機能とするかどうかは #54 で判断する（#53）。
+
+### 既知の問題
+
+- `begin` の中や手続きの本体で `define-opn-voice` を複数書くと、同じ音色番号が振られ、誤った MML が出力される。トップレベルに一つずつ書けば回避できる（#27）。
+- 実験的なモード `pmd-binary` の既知の欠陥は、ラベル `pmd-binary` の付いた[開いている不具合の issue](https://github.com/sayzbrdg/sxmml/issues?q=is%3Aissue%20is%3Aopen%20label%3Apmd-binary%20label%3Abug)を参照する。
+- その他の既知の問題は [GitHub の issue](https://github.com/sayzbrdg/sxmml/issues) を参照する。
 
 ## v0.3.0
 

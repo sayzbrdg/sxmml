@@ -8,7 +8,7 @@
   :repository "https://github.com/sayzbrdg/sxmml.git"
 
   ;;
-  :version "0.3.0"
+  :version "0.3.1"
 
   ;; Description of the package.  The first line is used as a short
   ;; summary.
