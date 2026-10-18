@@ -70,14 +70,14 @@
 
 == 登録する設定値と音色
 
-次の三つの基底クラスでは、`id`、`type`、`number`、`value` のうち表に示す slot に初期化キーワードがありますが、既定値は定義されていません。利用する処理が必要とする値を指定してください。`<sxmml-opmn-voice>` は OPM と OPN に共通する音色型で、バックエンドが全 slot を生成物に使用することを意味しません。
+次の三つの基底クラスでは、`id`、`type`、`value` のうち表に示す slot に初期化キーワードがありますが、既定値は定義されていません。利用する処理が必要とする値を指定してください。`<sxmml-opmn-voice>` は OPM と OPN に共通する音色型で、バックエンドが全 slot を生成物に使用することを意味しません。
 
 [cols="2,2,3,2,1",options="header"]
 |===
 |クラス |親 |役割 |固有 slot |ソース
 |[[ref-classes-class-sxmml-lfo]]`<sxmml-lfo>` |なし |LFO 定義 |`id` (`:id`)、`type` (`:type`)、`value` (`:value`) |link:../../sxmml/classes.scm[classes.scm]
 |[[ref-classes-class-sxmml-envelope]]`<sxmml-envelope>` |なし |エンベロープ定義 |`id` (`:id`)、`type` (`:type`)、`value` (`:value`) |link:../../sxmml/classes.scm[classes.scm]
-|[[ref-classes-class-sxmml-voice]]`<sxmml-voice>` |なし |音色定義 |`id` (`:id`)、`number` (`:number`)、`value` (`:value`) |link:../../sxmml/classes.scm[classes.scm]
+|[[ref-classes-class-sxmml-voice]]`<sxmml-voice>` |なし |音色定義。番号はバックエンドが決めるので持たない |`id` (`:id`)、`value` (`:value`) |link:../../sxmml/classes.scm[classes.scm]
 |[[ref-classes-class-sxmml-opmn-voice]]`<sxmml-opmn-voice>` |`<sxmml-voice>` |OPM・OPN 共通の四演算子音色 |追加なし |link:../../sxmml/classes.scm[classes.scm]
 |[[ref-classes-class-sxmml-opm-voice]]`<sxmml-opm-voice>` |`<sxmml-opmn-voice>` |OPM 音色 |追加なし |link:../../sxmml/classes.scm[classes.scm]
 |[[ref-classes-class-sxmml-opn-voice]]`<sxmml-opn-voice>` |`<sxmml-opmn-voice>` |OPN 音色 |追加なし |link:../../sxmml/classes.scm[classes.scm]

@@ -1,7 +1,7 @@
 = `sxmml.backend.pmd` の生成処理
 :toc: left
 
-`sxmml.backend.pmd` には、PMD 向け MML の生成に使う 61 の定義があります。公開名はモード選択と生成の手続きで、`%` で始まる手続き、トラック状態のクラスとパラメータは内部で使います。パラメータ、オブジェクト、文字コード変換、一時ファイル、ファイル名操作は Gauche 0.9.15 の動作に従います。
+`sxmml.backend.pmd` には、PMD 向け MML の生成に使う 64 の定義があります。公開名はモード選択と生成の手続きで、`%` で始まる手続き、トラック状態のクラスとパラメータは内部で使います。パラメータ、オブジェクト、文字コード変換、一時ファイル、ファイル名操作は Gauche 0.9.15 の動作に従います。
 
 生成系の `%pmd-...set!` 手続きは、特記しない限り `obj` を受けて現在の出力ポートへ PMD MML の文字列を書きます。名前の `set!` は文字列出力を含む内部の慣用名で、環境オブジェクトの slot を必ず変更するという意味ではありません。戻り値は生成側で使いません。必要なオブジェクト型と slot は xref:classes.adoc[クラス一覧]を参照してください。
 
@@ -14,6 +14,7 @@ PMD4 向けに利用するときは `pmd`、PMD3 向けには `pmd3` を指定�
 |名前・書式 |役割・引数 |結果・状態・失敗条件 |ソース
 |[[ref-pmd-class-sxmml-pmd-track-environment]]`<sxmml-pmd-track-environment>` |一トラックを出力する際の状態クラス |`(make <sxmml-pmd-track-environment> [:octave 値] [:mode 値])`。`octave` 初期値 255、`mode` 初期値 0。新規インスタンスを返し、作成時に既存状態は変えない |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-sxmml-pmd-track-environment]]`(sxmml-pmd-track-environment [env])` |出力中のトラック状態パラメータ |初期値 `#f`。取得・設定に使用。状態未設定で emitter を直接呼ぶと slot 参照に失敗し得る |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-internal-pmd-voice-numbers]]`(%pmd-voice-numbers [table])` |生成中の音色番号の表のパラメータ |初期値 `#f`。`%sxmml-pmdx-source-generate` が `sxmml-pmd-voice-numbers` の値を設定する |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-pmd3-source]]`(pmd3-source)` |PMD3 形式を選択 |環境の `backend` を PMD3 生成手続き、`mode` を `"PMD3"` に設定してトラックを登録 |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-pmd4-source]]`(pmd4-source)` |PMD4 形式を選択 |`backend` を PMD4 生成手続き、`mode` を `"PMD4"` に設定してトラックを登録 |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-pmd-source]]`(pmd-source)` |PMD4 向けの標準モードを選択 |`backend` を標準生成手続き、`mode` を `"PMD"` に設定してトラックを登録 |link:../../sxmml/backend/pmd.scm[pmd.scm]
@@ -23,11 +24,12 @@ PMD4 向けに利用するときは `pmd`、PMD3 向けには `pmd3` を指定�
 |[[ref-pmd-sxmml-pmd3-source-generate]]`(sxmml-pmd3-source-generate)` |PMD3 向け生成 |PMD3 指定で共通生成処理を実行 |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-sxmml-pmd4-source-generate]]`(sxmml-pmd4-source-generate)` |PMD4 向け生成 |PMD4 指定で共通生成処理を実行 |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-sxmml-pmd-source-generate]]`(sxmml-pmd-source-generate :optional (mode #f))` |モード引数を渡して生成 |`mode` を PMD3 用の真値として共通処理へ渡す。省略時 `#f` |link:../../sxmml/backend/pmd.scm[pmd.scm]
-|[[ref-pmd-internal-sxmml-pmdx-source-generate]]`(%sxmml-pmdx-source-generate mode)` |共通の生成入口 |ファイル出力後に現在の `<sxmml-environment>` を返す。出力時のエラーは伝播 |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-internal-sxmml-pmdx-source-generate]]`(%sxmml-pmdx-source-generate mode)` |共通の生成入口 |出力の前に音色番号の表を作って `%pmd-voice-numbers` に設定し、ファイル出力後に現在の `<sxmml-environment>` を返す。出力時のエラーは伝播 |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-sxmml-pmd-voice-numbers]]`(sxmml-pmd-voice-numbers)` |定義した全ての音色に、PMD の音色番号を振る |`voice` 表の id を `symbol\->string` の `string<?` の順に並べ、0 から振った id から番号への `eq` のハッシュ表を返す。音色が 256 を超えると `too many voices: 257 (max 256)` のエラー。`sxmml.backend.pmd-binary` も使う |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-internal-pmd-source-output]]`(%pmd-source-output :optional (pmd3? #f))` |ヘッダー、メタデータ、音色、各トラックを出力 |`filename` メタデータを確認した後、`%output-file-get` の出力先と同じディレクトリに一時ファイルを CP932 で書き、出力先へ改名する。途中で失敗した場合は一時ファイルを削除し、出力先の既存ファイルは変更しない。生成先のパスを返す。PMD3 では終端 `0x1a` を付加。出力先が使えない場合や変換できない文字は失敗し得る |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-internal-pmd-source-head-generate]]`(%pmd-source-head-generate :optional (pmd3? #f))` |生成元名と PMD バージョンの行を書く |`sxmml-source-file` が必要。PMD3 は `PMDver3.3`、それ以外は `PMDver4.8` |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-internal-pmd-source-meta-generate]]`(%pmd-source-meta-generate :optional (pmd3? #f))` |`title` 等と複数の `memo` を書く |PMD3 はメタデータ行の先頭に `; ` を付ける。値がないキーは書かない |link:../../sxmml/backend/pmd.scm[pmd.scm]
-|[[ref-pmd-internal-pmd-source-voice-generate]]`(%pmd-source-voice-generate)` |登録された音色を番号順に書く。番号が同じ音色は id の名前順に書く |各演算子で `ar dr sr rr sl tl ks ml dt ams` を出力し、`dt2`・`seg` は出力しない |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-internal-pmd-source-voice-generate]]`(%pmd-source-voice-generate)` |登録された全ての音色を番号順に書く |各演算子で `ar dr sr rr sl tl ks ml dt ams` を出力し、`dt2`・`seg` は出力しない |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-internal-output-file-get]]`(%output-file-get)` |出力先を決める |環境の `output` slot が設定されていればその値を返す。`#f` の場合は入力名の拡張子を `output-extension` の値に替えたもの、入力名がなければ `./a.mml` を slot に設定して返す。`sxlc` から使う場合は `sxlc` が出力先を設定するため、この既定値は `sxlc` を通さずに使う場合にだけ使われる。ファイルへの書き込みはしない |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-internal-check-obsolete-metadata]]`(%check-obsolete-metadata)` |廃止したメタデータの確認 |`filename` メタデータが設定されていれば、生成先には使わない旨の警告を標準エラー出力に表示する |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |===
@@ -61,7 +63,8 @@ PMD4 向けに利用するときは `pmd`、PMD3 向けには `pmd3` を指定�
 |書式 |入力と出力 |状態・失敗条件 |ソース
 |[[ref-pmd-internal-pmd-rest-set-bang]]`(%pmd-rest-set! obj)` |休符の `ticks` を `r` または `r%数` で書く |255 を超える長さは複数に分割。既定音長と一致すれば数値を省略 |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-internal-pmd-note-set-bang]]`(%pmd-note-set! obj)` |音高をオクターブ指定と音名、長さで書く |トラック状態の `octave` を更新。255 超の長さは `&` で分割 |link:../../sxmml/backend/pmd.scm[pmd.scm]
-|[[ref-pmd-internal-pmd-fm-voice-set-bang]]`(%pmd-fm-voice-set! obj)` |登録済み FM 音色を `@番号` で書く |ID が `voice` 表になければ `no instrument define` エラー |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-internal-pmd-fm-voice-set-bang]]`(%pmd-fm-voice-set! obj)` |登録済み FM 音色を `@番号` で書く |番号は `%pmd-fm-voice-number` で引く。ID が `voice` 表になければ `no instrument define` エラー |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-internal-pmd-fm-voice-number]]`(%pmd-fm-voice-number voice)` |音色オブジェクトの番号を返す |`%pmd-voice-numbers` の表を `id` で引く |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-internal-pmd-gatetime-set-bang]]`(%pmd-gatetime-set! obj)` |ゲート時間を `q数` で書く |`value` が必要 |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-internal-pmd-fm-volume-set-bang]]`(%pmd-fm-volume-set! obj)` |FM 音量を `V数` で書く |`value` が必要 |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-internal-pmd-ssg-volume-set-bang]]`(%pmd-ssg-volume-set! obj)` |SSG 音量を `v数` で書く |`value` が必要 |link:../../sxmml/backend/pmd.scm[pmd.scm]
