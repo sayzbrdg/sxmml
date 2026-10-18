@@ -501,6 +501,23 @@
                            "invalid envelope value: E1, value 1 is 32 (0 - 31)")
                           ("lfo-bounds" ,(lfo '(define-lfo L1 (0 255 -128 127)) "A")
                            "G l%12M0,255,-128,127o4c")
+                          ;; 各値の範囲の両端は通る
+                          ("lfo-min" ,(lfo '(define-lfo L1 (0 0 -128 0)) "A")
+                           "G l%12M0,0,-128,0o4c")
+                          ("lfo-max" ,(lfo '(define-lfo L1 (255 255 127 255)) "A")
+                           "G l%12M255,255,127,255o4c")
+                          ("envelope-4-min" ,(envelope '(define-envelope E1 (0 -15 0 0)))
+                           "G l%12E0,-15,0,0o4c")
+                          ("envelope-4-max" ,(envelope '(define-envelope E1 (255 15 255 255)))
+                           "G l%12E255,15,255,255o4c")
+                          ("envelope-5-min" ,(envelope '(define-envelope E1 (0 0 0 0 0)))
+                           "G l%12E0,0,0,0,0o4c")
+                          ("envelope-5-max" ,(envelope '(define-envelope E1 (31 31 31 15 15)))
+                           "G l%12E31,31,31,15,15o4c")
+                          ("envelope-6-min" ,(envelope '(define-envelope E1 (0 0 0 0 0 0)))
+                           "G l%12E0,0,0,0,0,0o4c")
+                          ("envelope-6-max" ,(envelope '(define-envelope E1 (31 31 31 15 15 15)))
+                           "G l%12E31,31,31,15,15,15o4c")
                           ("lfo-channel" ,(lfo '(define-lfo L1 (1 2 3 4)) "C")
                            "invalid lfo channel: C"))]
             (test* #"PMD checks LFO and envelope definitions: ~(car case)"
