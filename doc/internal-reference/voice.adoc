@@ -1,7 +1,7 @@
 = `sxmml.voice` の音色定義
 :toc: left
 
-`sxmml.voice` には六つの定義があり、`define-opn-voice`、`sxmml-opn-voice-set!`、`sxmml-opmn-operator-zip` を公開します。音色の基底クラスは xref:classes.adoc#ref-classes-class-sxmml-voice[`<sxmml-voice>`] を参照してください。`util.match`、マクロ展開、ハッシュ表は Gauche 0.9.15 の動作に従います。
+`sxmml.voice` には八つの定義があり、`define-opn-voice`、`sxmml-opn-voice-set!`、`sxmml-opmn-operator-zip` を公開します。音色の基底クラスは xref:classes.adoc#ref-classes-class-sxmml-voice[`<sxmml-voice>`] を参照してください。`util.match`、マクロ展開、ハッシュ表は Gauche 0.9.15 の動作に従います。
 
 [cols="2,4,4,1",options="header"]
 |===
@@ -9,9 +9,11 @@
 |[[ref-voice-sxmml-opmn-operator-zip]]`(sxmml-opmn-operator-zip op1 op2 op3 op4 afb)` |四つの演算子値列を PMD の並びへ交互に組み合わせ、末尾へ `afb` を加える |新しいリストを返す。四列の長さが揃うことを呼び出し側が前提とする |link:../../sxmml/voice.scm[voice.scm]
 |[[ref-voice-sxmml-opm-list-to-register]]`(sxmml-opm-list\->register form)` |演算子値 12 個をレジスタ用の六値へ結合 |`dt/ml`、`ks/ar`、`ams/dr`、`dt2/sr`、`sl/rr` 等を bit 演算でまとめたリスト。形が一致しなければ `match` で失敗。現行 PMD 出力からは呼ばれない |link:../../sxmml/voice.scm[voice.scm]
 |[[ref-voice-internal-4op-voice-shape]]`(%4op-voice-shape form id openum)` |演算子 `openum` の値列を 12 要素へ補完 |9～11 要素の形では省略された `dt2`、`seg`、`ams` を 0 で補う。その他は ID と演算子番号を含む `invalid voice format` エラー。`sxmml-opn-voice-set!` が実行時に呼ぶ |link:../../sxmml/voice.scm[voice.scm]
-|[[ref-voice-sxmml-opn-voice-set-bang]]`(sxmml-opn-voice-set! id alfb op1 op2 op3 op4)` |音色を検査して登録する |`id` はシンボル（違えば `voice id must be a symbol`）、`alfb` は 2 値（違えば `invalid voice format: @id, al/fb, …`）。演算子は `%4op-voice-shape` で 12 値に直す。値は 0 以上の正確な整数で、違えば `%voice-values-check` が `invalid voice value` エラー。`voice` 表へ新しい `<sxmml-opn-voice>` を入れ、同じ ID の前の定義を置き換える。番号は持たない |link:../../sxmml/voice.scm[voice.scm]
+|[[ref-voice-sxmml-opn-voice-set-bang]]`(sxmml-opn-voice-set! id alfb op1 op2 op3 op4)` |音色を検査して登録する |`id` はシンボル（違えば `voice id must be a symbol`）、`alfb` は 2 値（違えば `invalid voice format: @id, al/fb, …`）、演算子は 9～12 値（違えば `invalid voice format: @id, operator(n), …`）。要素の数は `%voice-alfb-form?`・`%voice-operator-form?` で判定する。演算子は `%4op-voice-shape` で 12 値に直す。値は 0 以上の正確な整数で、違えば `%voice-values-check` が `invalid voice value` エラー。`voice` 表へ新しい `<sxmml-opn-voice>` を入れ、同じ ID の前の定義を置き換える。番号は持たない |link:../../sxmml/voice.scm[voice.scm]
 |[[ref-voice-internal-voice-values-check]]`(%voice-values-check values id place)` |値が全て 0 以上の正確な整数か検査 |最初に外れた値を `invalid voice value: @id, place, 値` で示して失敗 |link:../../sxmml/voice.scm[voice.scm]
-|[[ref-voice-define-opn-voice]]`(define-opn-voice id (al fb) op1 op2 op3 op4)` |音色 ID、アルゴリズム・フィードバック、四演算子の値列を受けるマクロ |ID をシンボルにし、要素を quote したまま `sxmml-opn-voice-set!` の呼び出しに展開する。登録と同じ ID の判定は実行時に行う |link:../../sxmml/voice.scm[voice.scm]
+|[[ref-voice-internal-voice-alfb-form-p]]`(%voice-alfb-form? x)` |`(al fb)` の枠の形の規則 |正しいリストで 2 要素なら真。マクロと `sxmml-opn-voice-set!` が使う |link:../../sxmml/voice.scm[voice.scm]
+|[[ref-voice-internal-voice-operator-form-p]]`(%voice-operator-form? x)` |演算子の枠の形の規則 |正しいリストで 9～12 要素なら真。マクロと `sxmml-opn-voice-set!` が使う |link:../../sxmml/voice.scm[voice.scm]
+|[[ref-voice-define-opn-voice]]`(define-opn-voice id (al fb) op1 op2 op3 op4)` |音色 ID、アルゴリズム・フィードバック、四演算子の値列を受けるマクロ |展開時に形を検査し、誤りは `sxmml-form-error` で投げる（枠の数・枠がリストでない場合は `invalid define-opn-voice form`、要素の数は `invalid voice format`）。ID をシンボルにし、`(sxmml-form-call 位置 (lambda () (sxmml-opn-voice-set! 'id (list al fb) (list 要素 …) …)))` に展開する。枠の中の要素は式として評価する。登録と同じ ID の判定、値の検査は実行時に行い、その誤りにもフォームの位置が付く |link:../../sxmml/voice.scm[voice.scm]
 |===
 
 演算子値は 9 要素の `ar dr sr rr sl tl ks ml dt`、10 要素の `ar dr sr rr sl tl ks ml dt ams`、11 要素の `ar dr sr rr sl tl ks ml dt seg ams`、12 要素の `ar dr sr rr sl tl ks ml dt dt2 seg ams` のいずれかです。省略された値は 0 で補います。`<sxmml-opmn-voice>` は OPM・OPN に共通する型であり、PMD 向け音色行では `DT2` と `SEG` を出力しません。`DT2` は OPN のパラメータではなく、`SEG` は PMD の音色パラメータにはない SSG-EG に関する値です。詳細は xref:pmd.adoc#ref-pmd-internal-pmd-source-voice-generate[PMD 音色生成]を参照してください。
