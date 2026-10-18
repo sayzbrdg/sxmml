@@ -477,7 +477,8 @@
               kind type id (string-join (map symbol->string types) ", ")))
     (let1 range (assv (length value) ranges)
       (unless range
-        (errorf "invalid ~a values: ~a has ~a values (expected ~a)" kind id (length value) expected))
+        (errorf "invalid ~a values: ~a has ~a value~a (expected ~a)"
+                kind id (length value) (if (= (length value) 1) "" "s") expected))
       (for-each (^[v r i]
                   (unless (and (exact-integer? v) (<= (car r) v (cadr r)))
                     (errorf (if (number? v)

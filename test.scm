@@ -481,6 +481,8 @@
                            "G l%12o4c")
                           ("lfo-count" ,(lfo '(define-lfo L1 (1 2 3)) "A")
                            "invalid lfo values: L1 has 3 values (expected 4)")
+                          ("lfo-count-1" ,(lfo '(define-lfo L1 (1)) "A")
+                           "invalid lfo values: L1 has 1 value (expected 4)")
                           ("envelope-count-3" ,(envelope '(define-envelope E1 (1 2 3)))
                            "invalid envelope values: E1 has 3 values (expected 4, 5 or 6)")
                           ("envelope-count-7" ,(envelope '(define-envelope E1 (1 2 3 4 5 6 7)))
