@@ -531,6 +531,15 @@
           (test* "a triangle LFO is output the same as the default"
                  (pmd-g-result "lfo-default" (lfo '(define-lfo L1 (1 2 3 4)) "A"))
                  (pmd-g-result "lfo-triangle" (lfo '(define-lfo L1 triangle (1 2 3 4)) "A"))))
+        ;; memo は文字列 1 つなら 1 行、リストなら要素ごとに 1 行で出力すること (#87)
+        (dolist [case '(("memo-string" "abc" ("#memo        abc"))
+                        ("memo-list" ("m1" "m2") ("#memo        m1" "#memo        m2")))]
+          (test* #"memo is output as written: ~(car case)"
+                 (caddr case)
+                 (filter #/^#memo/ (string-split (generated-text (car case)
+                                                                 `((define-metadata memo ,(cadr case))
+                                                                   (mml G "c8")))
+                                                 "\r\n"))))
         ;; エンベロープは値の数で書式が決まる。5 値は 6 値の書式の 6 つ目を省いた形なので、
         ;; 5 値のまま出力すること (#84)
         (test* "a 5-value envelope is output with its 5 values"
