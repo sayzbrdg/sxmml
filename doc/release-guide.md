@@ -8,7 +8,7 @@
 
 ## 現行の生成・配置
 
-`./configure` は `Makefile`、`sxmml.gpd`、`VERSION` を生成する。`VERSION` と `sxmml.gpd` のバージョンは `package.scm` の `:version` の値である。`make check` は `sxlc` を作り、`test.scm` のモジュール binding 検査と CLI の検査、`test-pmd-binary.scm` の実験的な PMD バイナリのバックエンドの検査を実行する。検査の内容は[開発手順](developer-guide.md)を参照する。`Makefile.in` の `install` 規則は `sxlc`、`SCMFILES` に列挙された Scheme ファイル、`sxmml.gpd` をそれぞれ実行ファイルディレクトリ、Gauche のパッケージ用ライブラリ、`.packages` に配置する。Pandoc がある場合は、`sxlc.1` も `mandir` の `man1` に配置する ([man ページの生成と配置](#man-ページの生成と配置))。実際のインストール先は `./configure` の結果で変わるため、生成された `Makefile` を確認する。
+`./configure` は `Makefile`、`sxmml.gpd`、`VERSION` を生成する。`VERSION` と `sxmml.gpd` のバージョンは `package.scm` の `:version` の値である。`make check` は `sxlc` を作り、`test.scm` のモジュール binding 検査と CLI の検査、`test-repeat-tree.scm` の局所反復木の圧縮器の検査、`test-pmd-binary.scm` の実験的な PMD バイナリのバックエンドの検査を実行する。検査の内容は[開発手順](developer-guide.md)を参照する。`Makefile.in` の `install` 規則は `sxlc`、`SCMFILES` に列挙された Scheme ファイル、`sxmml.gpd` をそれぞれ実行ファイルディレクトリ、Gauche のパッケージ用ライブラリ、`.packages` に配置する。Pandoc がある場合は、`sxlc.1` も `mandir` の `man1` に配置する ([man ページの生成と配置](#man-ページの生成と配置))。実際のインストール先は `./configure` の結果で変わるため、生成された `Makefile` を確認する。
 
 配置先の変数は次のとおり決まる。いずれも `make` の引数で上書きできる。
 
