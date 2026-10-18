@@ -24,8 +24,8 @@ PACKAGE   = sxmml
 TARGET    = sxlc
 MANPAGE   = sxlc.1
 SCMFILES  = sxmml.scm sxmml/classes.scm sxmml/environment.scm sxmml/voice.scm sxmml/mml.scm \
-            sxmml/compiler.scm sxmml/processor.scm sxmml/optimizer.scm sxmml/util.scm sxmml/form.scm \
-            sxmml/backend/pmd.scm sxmml/backend/pmd-binary.scm
+            sxmml/compiler.scm sxmml/processor.scm sxmml/optimizer.scm sxmml/repeat-tree.scm \
+            sxmml/util.scm sxmml/form.scm sxmml/backend/pmd.scm sxmml/backend/pmd-binary.scm
 
 GENERATED = $(MANPAGE)
 CONFIG_GENERATED = Makefile config.cache config.log config.status \
@@ -44,6 +44,7 @@ all : $(TARGET)
 check : all
 	@rm -f test.log
 	$(GOSH) -I. -I$(srcdir) $(srcdir)/test.scm > test.log
+	$(GOSH) -I. -I$(srcdir) $(srcdir)/test-repeat-tree.scm >> test.log
 	SXMML_SXLC=./sxlc $(GOSH) -I. -I$(srcdir) $(srcdir)/test-pmd-binary.scm >> test.log
 
 # man ページは生成と配置を別の行にする。GNU make は MAKE 変数を含む行を
