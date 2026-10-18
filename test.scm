@@ -686,13 +686,33 @@
                                  [(is-a? (car rest) <sxmml-mml-repeat-end>) (loop (cdr rest) (- depth 1))]
                                  [else (loop (cdr rest) depth)]))
                          (count (cut is-a? <> <sxmml-mml-repeat-start>) lis))))
+          ;; :repeat-expand は、展開後の長さが上限以下の既存のリピートを展開してから圧縮する
+          (dolist (case '(("[aaaaaaaa]2" "[o4a]16")
+                          ("[[aaaa]4[aaaa]4]2" "[o4a]64")
+                          ("[ab]2ab" "[o4ab]3")
+                          ("[cdcdcd]0" "[[o4cd]3]0")
+                          ("[cdcdcd]1" "[o4cd]3")))
+            (test* #"\"~(car case)\" with optimize :repeat-expand"
+                   #"A l%24~(cadr case)"
+                   (optimized-line "repeat" :repeat-expand `((mml A ,(car case))))))
+          (test* "a block of count 1 is kept with optimize :repeat"
+                 "A l%24[[o4cd]3]1"
+                 (optimized-line "repeat" :repeat '((mml A "[cdcdcd]1"))))
+          ;; [cd]3 は展開後の長さ 6 が上限 4 を超えるのでブロックのまま、[cd]2 は展開する
+          (test* "a block longer than the limit is kept" '(#t 5)
+                 (let* ([o (^[] (make <sxmml-mml-note> :value 0 :ticks 24))]
+                        [lis (list (make <sxmml-mml-repeat-start>) (o) (o) (make <sxmml-mml-repeat-end> :value 3)
+                                   (make <sxmml-mml-repeat-start>) (o) (o) (make <sxmml-mml-repeat-end> :value 2))]
+                        [items ((with-module sxmml.optimizer %repeat-expand-small) (structure lis) 4)])
+                   (list ((with-module sxmml.optimizer %repeat-block?) (car items)) (length items))))
           ;; 別の読み込みで作った :full と :repeat の列は、展開すると同値なオブジェクトが同じ順に並ぶ
           (dolist (text '("[aaaaaaaa]2" "[ab]2ab" "cdecdecd" "cdcdcdLcdcdcd" "[cdcdcdLcdcdcd]2"
                           "[cdcdcd]0" "c4c4c4c4c8" "[c:]2" "v10cdv12cdv10cdv12cd" "[c&c&]4"))
-            (test* #"\"~|text|\" keeps its expansion with optimize :repeat" #t
-                   (let ([a (expansion (structure (optimized-objects 'A :full `((mml A ,text)))))]
-                         [b (expansion (structure (optimized-objects 'A :repeat `((mml A ,text)))))])
-                     (and (= (length a) (length b)) (every same? a b))))))
+            (dolist (level '(:repeat :repeat-expand))
+              (test* #"\"~|text|\" keeps its expansion with optimize ~level" #t
+                     (let ([a (expansion (structure (optimized-objects 'A :full `((mml A ,text)))))]
+                           [b (expansion (structure (optimized-objects 'A level `((mml A ,text)))))])
+                       (and (= (length a) (length b)) (every same? a b)))))))
         ;; PCM の音色は 0 から 255、SSG の音色は 0 から 9 までの整数とし、
         ;; それ以外は書かれた値を示して失敗する (#58)
         (test* "a PCM voice 0 is accepted"

@@ -45,8 +45,9 @@
          [ct (car (slot-ref env 'current-ticks))])
     (slot-set! env 'total-ticks (car ct))
     (slot-set! env 'loop-ticks (- (car ct) (cdr ct)))
-    (cond [(eq? optimize :repeat)
-           (%sxmml-optimize-repeat (%sxmml-optimize-2path (%sxmml-optimize-tree env)) #f)]
+    (cond [(memq optimize '(:repeat :repeat-expand))
+           (%sxmml-optimize-repeat (%sxmml-optimize-2path (%sxmml-optimize-tree env))
+                                   (eq? optimize :repeat-expand))]
           [(eq? optimize :full)
            (%sxmml-optimize-2path (%sxmml-optimize-tree env))]
           [optimize
@@ -416,13 +417,43 @@
 ;; その本文も同じように圧縮する。expand? なら、展開後の長さが %repeat-expand-limit
 ;; 以下の既存のリピートを先に展開する
 (define (%sxmml-optimize-repeat lis expand?)
-  (let* ([input (%repeat-structure lis)]
+  (let* ([input (let1 items (%repeat-structure lis)
+                  (if expand? (%repeat-expand-small items %repeat-expand-limit) items))]
          [counts (iota (- %repeat-count-max 1) 2)]
          [settings (make-repeat-tree-settings (map (cut cons <> 2) counts) (map (cut cons <> 3) counts)
                                               #t %repeat-window)]
          [output (%repeat-compress input 0 settings)])
     (%repeat-check output input)
     output))
+
+;; 回数が 1 以上で、展開後の長さが limit 以下のブロックを、内側から順に展開する。
+;; 展開した列は元のインスタンスを並べ、複製しない
+(define (%repeat-expand-small items limit)
+  (append-map (^i (if (%repeat-block? i)
+                    (let1 b (%make-repeat-block (%repeat-block-start i)
+                                                (%repeat-expand-small (%repeat-block-front i) limit)
+                                                (%repeat-block-break i)
+                                                (and-let1 back (%repeat-block-back i)
+                                                  (%repeat-expand-small back limit))
+                                                (%repeat-block-end i))
+                      (if (and (>= (slot-ref (%repeat-block-end b) 'value) 1)
+                               (<= (%repeat-expanded-length (list b)) limit))
+                        (%repeat-expansion (list b))
+                        (list b)))
+                    (list i)))
+              items))
+
+;; %repeat-expansion の長さ。入れ子の深いリピートでも展開せずに求める
+(define (%repeat-expanded-length items)
+  (fold (^[i total]
+          (+ total
+             (if (%repeat-block? i)
+               (let ([r (slot-ref (%repeat-block-end i) 'value)]
+                     [front (%repeat-expanded-length (%repeat-block-front i))]
+                     [back (%repeat-expanded-length (or (%repeat-block-back i) ()))])
+                 (if (zero? r) (+ front back) (+ (* (- r 1) (+ front back)) front)))
+               1)))
+        0 items))
 
 ;; 要素のリスト items を圧縮した平坦なオブジェクトのリストを返す。depth は外側の
 ;; ブロックの深さ。L の前後は別の区間として圧縮し、L をループに入れない
