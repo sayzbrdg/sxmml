@@ -30,6 +30,7 @@
   (use util.match)
   (use sxmml.classes)
   (use sxmml.environment)
+  (use sxmml.form)
   (export define-opn-voice sxmml-opn-voice-set!
           sxmml-opmn-operator-zip))
 (select-module sxmml.voice)
@@ -73,8 +74,12 @@
 (define (sxmml-opn-voice-set! id alfb op1 op2 op3 op4)
   (unless (symbol? id)
     (errorf "voice id must be a symbol: ~a" id))
-  (unless (and (list? alfb) (= (length alfb) 2))
+  (unless (%voice-alfb-form? alfb)
     (errorf "invalid voice format: @~a, al/fb, ~a" id alfb))
+  (for-each (^[op openum]
+              (unless (%voice-operator-form? op)
+                (errorf "invalid voice format: @~a, operator(~a), ~a" id openum op)))
+            (list op1 op2 op3 op4) '(1 2 3 4))
   (let1 ops (map (cut %4op-voice-shape <> id <>) (list op1 op2 op3 op4) '(1 2 3 4))
     (%voice-values-check alfb id "al/fb")
     (for-each (^[op openum] (%voice-values-check op id #"operator(~openum)")) ops '(1 2 3 4))
@@ -85,12 +90,34 @@
   (if-let1 v (find (^v (not (and (exact-integer? v) (>= v 0)))) values)
     (errorf "invalid voice value: @~a, ~a, ~a" id place v)))
 
-;; 登録は実行時に行うので、展開時には音色表を見ない
+;; 音色の枠の要素の数の規則。マクロの展開時と、登録の手続きの両方で使う
+(define (%voice-alfb-form? x)
+  (and (list? x) (= (length x) 2)))
+(define (%voice-operator-form? x)
+  (and (list? x) (<= 9 (length x) 12)))
+
+;; 枠の中の要素は式として評価する。形は展開時に検査し、登録は実行時に行う。
+;; 定義の誤りには、展開時でも実行時でも、このフォームの位置を付ける
 (define-syntax define-opn-voice
   (er-macro-transformer
     (^[form rename id=?]
+      (define (form-error)
+        (sxmml-form-error form "invalid define-opn-voice form: expected (define-opn-voice id (al fb) op1 op2 op3 op4)"))
       (match form
-        [(_ id (al fb) op1 op2 op3 op4)
-         (let1 idsym (string->symbol (x->string id))
+        [(_ id alfb . ops)
+         (unless (and (list? ops) (= (length ops) 4) (every list? (cons alfb ops)))
+           (form-error))
+         (unless (%voice-alfb-form? alfb)
+           (sxmml-form-error form "invalid voice format: @~a, al/fb, ~a" id alfb))
+         (for-each (^[op openum]
+                     (unless (%voice-operator-form? op)
+                       (sxmml-form-error form "invalid voice format: @~a, operator(~a), ~a" id openum op)))
+                   ops '(1 2 3 4))
+         (let ([idsym (string->symbol (x->string id))]
+               [location (sxmml-form-location form)])
            (quasirename rename
-             `(sxmml-opn-voice-set! ',idsym '(,al ,fb) ',op1 ',op2 ',op3 ',op4)))]))))
+             `(sxmml-form-call ,location
+                (lambda ()
+                  (sxmml-opn-voice-set! ',idsym (list ,@alfb)
+                                        ,@(map (^[op] (cons (rename 'list) op)) ops))))))]
+        [_ (form-error)]))))
