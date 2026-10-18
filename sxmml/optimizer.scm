@@ -27,6 +27,7 @@
 ;;; SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 (define-module sxmml.optimizer
+  (use gauche.record)
   (use sxmml.classes)
   (use sxmml.environment)
   (use sxmml.mml)
@@ -319,3 +320,65 @@
           [else
            (loop (cdr rest) ctx)]
           )))
+
+;;
+;; repeat
+;; 既存のリピートのブロック。front は : の前、back は : の後の要素のリストで、
+;; : がなければ break と back は #f。要素はオブジェクトかブロック
+(define-record-type %repeat-block
+  (%make-repeat-block start front break back end) %repeat-block?
+  (start %repeat-block-start)
+  (front %repeat-block-front)
+  (break %repeat-block-break)
+  (back %repeat-block-back)
+  (end %repeat-block-end))
+
+;; 平坦なオブジェクトのリストを、オブジェクトとブロックの要素のリストにする
+(define (%repeat-structure lis)
+  ;; rest の先頭から、] か終わりまでの要素を読む。(values 要素 : の後の要素 終わりの ] 残り)
+  (define (body rest)
+    (let loop ([rest rest] [items ()] [front #f] [break #f])
+      (cond [(null? rest)
+             (values (reverse items) front break #f ())]
+            [(is-a? (car rest) <sxmml-mml-repeat-end>)
+             (values (reverse items) front break (car rest) (cdr rest))]
+            [(and (is-a? (car rest) <sxmml-mml-repeat-break>) (not break))
+             (loop (cdr rest) () (reverse items) (car rest))]
+            [(is-a? (car rest) <sxmml-mml-repeat-start>)
+             (receive (items* front* break* end rest*) (body (cdr rest))
+               (unless end (error "MML terminated before repeat end"))
+               (loop rest*
+                     (cons (if break*
+                             (%make-repeat-block (car rest) front* break* items* end)
+                             (%make-repeat-block (car rest) items* #f #f end))
+                           items)
+                     front break))]
+            [else
+             (loop (cdr rest) (cons (car rest) items) front break)])))
+  (receive (items front break end rest) (body lis)
+    (when (or end break) (error "repeat end appeared before repeat start"))
+    items))
+
+;; %repeat-structure の逆。要素のリストを平坦なオブジェクトのリストにする
+(define (%repeat-flatten items)
+  (append-map (^i (if (%repeat-block? i)
+                    `(,(%repeat-block-start i) ,@(%repeat-flatten (%repeat-block-front i))
+                      ,@(if (%repeat-block-break i)
+                          `(,(%repeat-block-break i) ,@(%repeat-flatten (%repeat-block-back i)))
+                          ())
+                      ,(%repeat-block-end i))
+                    (list i)))
+              items))
+
+;; 要素のリストを展開したオブジェクトのリスト。回数 r >= 1 のブロックは
+;; (front back)^(r-1) front、回数 0（無限）は front back を 1 回とする
+(define (%repeat-expansion items)
+  (append-map (^i (if (%repeat-block? i)
+                    (let ([r (slot-ref (%repeat-block-end i) 'value)]
+                          [front (%repeat-expansion (%repeat-block-front i))]
+                          [back (%repeat-expansion (or (%repeat-block-back i) ()))])
+                      (if (zero? r)
+                        (append front back)
+                        (append (concatenate (make-list (- r 1) (append front back))) front)))
+                    (list i)))
+              items))

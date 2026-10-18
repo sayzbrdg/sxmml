@@ -132,6 +132,31 @@
                      (interaction-environment))
                (car (voice-value (sxmml-environment) 'W))))))
 
+;; 命令列の圧縮で使う、既存のリピートのブロックへの組み立て (#69)
+(let* ([note (^[v] (make <sxmml-mml-note> :value v :ticks 24))]
+       [c (note 0)] [d (note 2)] [e (note 4)]
+       [start1 (make <sxmml-mml-repeat-start>)] [start2 (make <sxmml-mml-repeat-start>)]
+       [break1 (make <sxmml-mml-repeat-break>)]
+       [end1 (make <sxmml-mml-repeat-end> :value 3)] [end2 (make <sxmml-mml-repeat-end> :value 2)]
+       ;; [c [d]2 : e]3
+       [lis (list start1 c start2 d end2 break1 e end1)]
+       [structure (with-module sxmml.optimizer %repeat-structure)]
+       [flatten (with-module sxmml.optimizer %repeat-flatten)]
+       [expansion (with-module sxmml.optimizer %repeat-expansion)]
+       [same-objects? (^[a b] (and (= (length a) (length b)) (every eq? a b)))])
+  (test* "repeat structure round-trips" #t
+         (same-objects? lis (flatten (structure lis))))
+  (test* "repeat expansion" #t
+         (same-objects? (list c d d e c d d e c d d) (expansion (structure lis))))
+  (test* "infinite repeat expands once" #t
+         (let ([s (make <sxmml-mml-repeat-start>)] [b (make <sxmml-mml-repeat-break>)]
+               [z (make <sxmml-mml-repeat-end> :value 0)])
+           (same-objects? (list c d) (expansion (structure (list s c b d z))))))
+  (test* "a repeat without its end fails" (test-error <error>)
+         (structure (list start1 c)))
+  (test* "a repeat end without its start fails" (test-error <error>)
+         (structure (list c end1))))
+
 ;; sxlc の CLI
 (use gauche.process)
 (use file.util)
