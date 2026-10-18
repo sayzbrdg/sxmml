@@ -248,6 +248,9 @@
                    ("FM の音色・音量・音量変化" "fm" (,zero-voice (mml A "@0v100o4c8)c8(c8v*-2c8v*3c8")) A
                     ;; @0、v100、) は 4、( は -4、v*-2、v*3
                     "ff 00 fd 64 30 0c f4 30 0c f3 30 0c e2 02 30 0c e3 03 30 0c 80")
+                   ;; a は 0、b は 1。@ は音色番号の表の番号を書く (#27)
+                   ("FM の音色番号" "fm-voice-number" (,(voice-form 'b 0) ,(voice-form 'a 0) (mml A "@{b}o4c8")) A
+                    "ff 01 30 0c 80")
                    ("SSG の音色・音量・音量変化・ミックス・ノイズ・ポルタメント" "ssg"
                     ((mml G "@1v10o4c8)c8P1w8c8/{c g}8")) G
                     ;; @1 は f0 の 4 値、) は 1、P1 は 07、w8、/{c g}8
