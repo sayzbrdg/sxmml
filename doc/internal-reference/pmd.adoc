@@ -80,7 +80,7 @@ PMD4 向けに利用するときは `pmd`、PMD3 向けには `pmd3` を指定�
 |[[ref-pmd-internal-pmd-transpose-set-bang]]`(%pmd-transpose-set! obj)` |移調値を `_数` で書く |`value` が必要 |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-internal-pmd-lfo-set-bang]]`(%pmd-lfo-set! obj)` |LFO 定義を `M` または `MB` で書く |未登録 ID、4 値以外、値の範囲外、channel が A/B/`#f` 以外なら明示的にエラー |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-internal-pmd-lfo-switch-set-bang]]`(%pmd-lfo-switch-set! obj)` |LFO の ON/OFF を `*` または `*B` に続く 1/0 で書く |channel が A/B/`#f` 以外ならエラー |link:../../sxmml/backend/pmd.scm[pmd.scm]
-|[[ref-pmd-internal-pmd-envelope-set-bang]]`(%pmd-envelope-set! obj)` |登録されたエンベロープを `E` と値列で書く |未登録 ID、値の範囲外ならエラー。短すぎる値列は要素参照でも失敗し得る |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-internal-pmd-envelope-set-bang]]`(%pmd-envelope-set! obj)` |登録されたエンベロープを `E` と値列で書く |4・5・6 値を、値の数のまま書く（5 値は 6 値の形式の 6 つ目を省いた形）。未登録 ID、値の範囲外ならエラー。短すぎる値列は要素参照でも失敗し得る |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-internal-pmd-pan-set-bang]]`(%pmd-pan-set! obj)` |パンを `p数` で書く |`value` が必要 |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-internal-pmd-transpose-change-set-bang]]`(%pmd-transpose-change-set! obj)` |相対移調を `__数` で書く |`value` が必要 |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-internal-pmd-fm-volume-change-set-bang]]`(%pmd-fm-volume-change-set! obj)` |FM 音量差を `)` / `(` または `%数` 付きで書く |幅 4 を短い表記にする |link:../../sxmml/backend/pmd.scm[pmd.scm]
