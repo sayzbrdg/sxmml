@@ -36,7 +36,8 @@ flowchart LR
 | [`sxmml/compiler.scm`](../sxmml/compiler.scm) | Scheme 式の結果を MML 文字列にし、パーサーを起動して解析結果を登録 | `mml` / `rhythm` マクロ、文字列、トラック文脈、中間オブジェクト列 |
 | [`sxmml/processor.scm`](../sxmml/processor.scm) | `mml-repeat`、`mml-echo`、`mml-delay` による解析結果の加工・登録 | コンパイラと環境を使用。書式と既知の差は[公開マクロ](sxmml-reference-manual.adoc)を参照 |
 | [`sxmml/voice.scm`](../sxmml/voice.scm) | FM 音色の定義データを整形し環境に登録 | `define-opn-voice` と環境内の音色表 |
-| [`sxmml/optimizer.scm`](../sxmml/optimizer.scm) | トラックごとの登録済みオブジェクトを列に整え、指定水準に応じてまとめる・省く | `sxmml-optimize-tree` は列を返し、トラックの合計 tick 等も設定 |
+| [`sxmml/optimizer.scm`](../sxmml/optimizer.scm) | トラックごとの登録済みオブジェクトを列に整え、指定水準に応じてまとめる・省く | `sxmml-optimize-tree` は列を返し、トラックの合計 tick 等も設定。水準 `3` 以上は `sxmml.repeat-tree` を使う |
+| [`sxmml/repeat-tree.scm`](../sxmml/repeat-tree.scm) | 同値比較できる要素の列を、展開すると元の列になる最小費用の局所反復木に圧縮する | sxmml のクラスに依存しない。`sxmml.optimizer` が使用。`sxmml` の継承対象に含まれない |
 | [`sxmml/backend/pmd.scm`](../sxmml/backend/pmd.scm) | PMD モードの登録、トラック列の変換、メタデータ・音色・リズム・MML の出力 | 最適化結果と環境から CP932 のファイルを生成 |
 | [`sxmml/backend/pmd-binary.scm`](../sxmml/backend/pmd-binary.scm) | PMD バイナリモード（実験的）の登録、トラック列から PMD の命令列・音色表・メタ情報への変換 | 最適化結果と環境から `.m` を生成。生成物が MC.EXE の出力と同じであることは保証しない |
 | [`sxmml/util.scm`](../sxmml/util.scm) | BPM から PMD 向け Timer-B 値への計算 | バックエンドが使用 |
@@ -49,7 +50,7 @@ flowchart LR
 1. `sxlc.in` の `main` は引数から入力パス、モード、最適化水準を取得する。指定されたモード手続きの呼び出し後にソースを `load` し、環境の `backend` を呼ぶ。`-m` を指定した場合は `sxmml-mode-fixed?` を真にしてソースを読み込むため、ソース中の `sxmml-mode` は無視され、CLI のモードが有効になる。
 2. `sxmml/backend/pmd.scm` の `pmd`・`pmd3` は、環境の `backend` と `mode`、既定の出力先の拡張子（`output-extension` slot に `"mml"`）を設定し、トラックを登録する。`environment.scm` の `sxmml-environment` などのパラメータと環境オブジェクトに変換中の状態が置かれる。
 3. `compiler.scm` の `mml` / `rhythm` は Scheme 式の結果を `write-tree` で文字列化する。`mml.scm` のパーサーが通常 MML またはリズム MML を中間オブジェクト列に変換し、トラック文脈の音長・音高・tick 等も更新する。結果はトラックの `compiled-data` に登録される。`processor.scm` の `mml-repeat`・`mml-echo`・`mml-delay` はこの登録経路を利用し、オブジェクト列を加工する。
-4. `backend/pmd.scm` の通常トラック処理 `%track-generate` とリズムトラック処理 `%pmd-rhythm-track-generate` は、それぞれ `optimizer.scm` の `sxmml-optimize-tree` を呼ぶ。水準 `0` は登録列を平坦化し、水準 `1` は近接する設定オブジェクトをまとめ、水準 `2` 以上は追加の状態比較と連続休符の結合を行う。これらはコンパイル後のオブジェクト数を減らす処理であり、最終文字列長を評価基準にはしない。水準別の比較は[検証方針](verification.md#r-03-オブジェクト数の削減)を参照する。
+4. `backend/pmd.scm` の通常トラック処理 `%track-generate` とリズムトラック処理 `%pmd-rhythm-track-generate` は、それぞれ `optimizer.scm` の `sxmml-optimize-tree` を呼ぶ。水準 `0` は登録列を平坦化し、水準 `1` は近接する設定オブジェクトをまとめ、水準 `2` は追加の状態比較と連続休符の結合を行う。水準 `3` 以上はさらに、`repeat-tree.scm` の圧縮器で命令列を反復（`[ ]`・`[ : ]`）に圧縮する。水準 `3` は既存のリピートをひとまとめにし、水準 `4` 以上は小さい既存のリピートを展開してから圧縮する。これらはコンパイル後のオブジェクト数を減らす処理であり、最終文字列長を評価基準にはしない。水準別の比較は[検証方針](verification.md#r-03-オブジェクト数の削減)を参照する。
 5. PMD バックエンドはオブジェクト型ごとの出力手続きを呼び、メタデータ・音色・トラックの文字列を一時ファイルに CP932 で書いて生成先へ移す（`backend/pmd.scm` の `%pmd-source-output`）。その後 CLI がトラック情報を表示し、`-c` があれば外部コマンドを実行する（`sxlc.in` の `main`）。`main` はオプション解析・モード選択、変換、後処理の段階ごとにエラーを捕捉し、使用法の誤りを終了値 2、変換の失敗を 1、後処理の失敗を 3 として終了する。
 
 PMD バイナリモード（`backend/pmd-binary.scm`、実験的）も同じ流れをたどる。モード手続き `pmd-binary`・`pmd4-binary`・`pmd3-binary` が `output-extension` に `"m"` を設定し、生成手続きはトラックごとに `sxmml-optimize-tree` を呼んで、オブジェクト型ごとに PMD の命令をバイト列へ書き込む。全トラックの後に音色表と（PMD4 向けでは）メタ情報を置き、ヘッダに各トラックの位置を記して、一時ファイルを生成先へ移す（`%pmd-binary-output`）。

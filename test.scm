@@ -132,6 +132,60 @@
                      (interaction-environment))
                (car (voice-value (sxmml-environment) 'W))))))
 
+;; 命令列の圧縮で使う、既存のリピートのブロックへの組み立て (#69)
+(let* ([note (^[v] (make <sxmml-mml-note> :value v :ticks 24))]
+       [c (note 0)] [d (note 2)] [e (note 4)]
+       [start1 (make <sxmml-mml-repeat-start>)] [start2 (make <sxmml-mml-repeat-start>)]
+       [break1 (make <sxmml-mml-repeat-break>)]
+       [end1 (make <sxmml-mml-repeat-end> :value 3)] [end2 (make <sxmml-mml-repeat-end> :value 2)]
+       ;; [c [d]2 : e]3
+       [lis (list start1 c start2 d end2 break1 e end1)]
+       [structure (with-module sxmml.optimizer %repeat-structure)]
+       [flatten (with-module sxmml.optimizer %repeat-flatten)]
+       [expansion (with-module sxmml.optimizer %repeat-expansion)]
+       [same-objects? (^[a b] (and (= (length a) (length b)) (every eq? a b)))])
+  (test* "repeat structure round-trips" #t
+         (same-objects? lis (flatten (structure lis))))
+  (test* "repeat expansion" #t
+         (same-objects? (list c d d e c d d e c d d) (expansion (structure lis))))
+  (test* "infinite repeat expands once" #t
+         (let ([s (make <sxmml-mml-repeat-start>)] [b (make <sxmml-mml-repeat-break>)]
+               [z (make <sxmml-mml-repeat-end> :value 0)])
+           (same-objects? (list c d) (expansion (structure (list s c b d z))))))
+  (test* "a repeat without its end fails" (test-error <error>)
+         (structure (list start1 c)))
+  (test* "a repeat end without its start fails" (test-error <error>)
+         (structure (list c end1)))
+  ;; 同値判定。オブジェクトはクラスと全スロット、ブロックは回数・: の有無・本文で比べる
+  (let ([same? (with-module sxmml.optimizer %repeat-same?)]
+        [block (^[text-items count break?]
+                 (car (structure `(,(make <sxmml-mml-repeat-start>)
+                                   ,@(if break?
+                                       (list (car text-items) (make <sxmml-mml-repeat-break>) (cadr text-items))
+                                       text-items)
+                                   ,(make <sxmml-mml-repeat-end> :value count)))))])
+    (test* "same notes are same" #t (same? (note 0) (note 0)))
+    (test* "notes with different ticks are not same" #f
+           (same? (note 0) (make <sxmml-mml-note> :value 0 :ticks 12)))
+    (test* "a note and a rest are not same" #f
+           (same? (note 0) (make <sxmml-mml-rest> :value 0 :ticks 24)))
+    (test* "lfo switches on different channels are not same" '(#f #f)
+           (list (same? (make <sxmml-mml-lfo-switch> :value 1 :channel 'A)
+                        (make <sxmml-mml-lfo-switch> :value 1 :channel 'B))
+                 (same? (make <sxmml-mml-lfo-switch> :value 1 :channel #f)
+                        (make <sxmml-mml-lfo-switch> :value 1 :channel 'A))))
+    (test* "rhythm volumes on different instruments are not same" #f
+           (same? (make <sxmml-rhythm-volume> :bass 1) (make <sxmml-rhythm-volume> :snare 1)))
+    ;; value を持たない命令はスロットが未束縛のまま比べる
+    (test* "unbound slots are compared" '(#t #f)
+           (list (same? (make <sxmml-mml-tie>) (make <sxmml-mml-tie>))
+                 (same? (make <sxmml-mml-repeat-start>) (make <sxmml-mml-tie>))))
+    (test* "blocks compare counts, breaks and bodies" '(#t #f #f #f)
+           (list (same? (block (list (note 0) (note 2)) 2 #f) (block (list (note 0) (note 2)) 2 #f))
+                 (same? (block (list (note 0) (note 2)) 2 #f) (block (list (note 0) (note 2)) 3 #f))
+                 (same? (block (list (note 0) (note 2)) 2 #t) (block (list (note 0) (note 2)) 2 #f))
+                 (same? (block (list (note 0) (note 2)) 2 #f) (note 0))))))
+
 ;; sxlc の CLI
 (use gauche.process)
 (use file.util)
@@ -220,6 +274,15 @@
         ((slot-ref (sxmml-environment) 'backend))
         (find #/^A / (string-split (file->string (slot-ref (sxmml-environment) 'output))
                                    "\r\n")))))
+  ;; forms を読み込み、トラック track を最適化の水準 level で最適化した列を返す
+  (define (optimized-objects track level forms)
+    (let1 source (work-file "optimize-objects.sxl")
+      (with-output-to-file source (^[] (for-each write forms)))
+      (parameterize ([sxmml-environment (make <sxmml-environment>)]
+                     [sxmml-source-file source])
+        (pmd-source)
+        (load source)
+        (sxmml-optimize-tree track :optimize level))))
   ;; forms をこのプロセスで PMD 向けに変換し、成功すればトラック G の行を、
   ;; 失敗すればエラーのメッセージを返す
   (define (pmd-g-result name forms)
@@ -585,6 +648,100 @@
                    #"A l%24~(caddr case)"
                    (optimized-line "lfo" (car case)
                                    `(,@lfo-defs (mml A ,(cadr case)))))))
+        ;; sxlc の -O 3 と -O 4 (#69)。標準出力の Optimize level の行と、生成物のトラック A の行
+        (let1 converted (^[name text level]
+                          (let1 lines (run-sxlc name `((mml A ,text)) "-m" "pmd" "-O" level)
+                            (list (find #/^Optimize level:/ lines)
+                                  (find #/^A / (file->string-list (work-file #"~|name|.mml")
+                                                                  :encoding "shift_jis")))))
+          (test* "-O 3 converts with the repeat optimization"
+                 (list "Optimize level: 3" (cadr (converted "cli-o2-hand" "[cd:e]3" "2")))
+                 (converted "cli-o3" "cdecdecd" "3"))
+          (dolist (level '("4" "9"))
+            (test* #"-O ~level expands small repeats"
+                   (list #"Optimize level: ~level" "A l%24[o4a]16")
+                   (converted #"cli-o~level" "[aaaaaaaa]2" level)))
+          (test* "-O 2 is unchanged"
+                 '("Optimize level: 2" "A l%24[o4aaaaaaaa]2")
+                 (converted "cli-o2" "[aaaaaaaa]2" "2")))
+        ;; 命令列の反復による圧縮 (#69)。多くは、同じ形を手で書いた MML の :full の出力と比べる
+        (let ([nest (^[depth body] (string-append (make-string depth #\[) body
+                                                  (string-join (make-list depth "]2") "")))]
+              [expansion (with-module sxmml.optimizer %repeat-expansion)]
+              [structure (with-module sxmml.optimizer %repeat-structure)]
+              [same? (with-module sxmml.optimizer %repeat-same?)])
+          (dolist (case '(("[aaaaaaaa]2" "[[o4a]8]2")
+                          ("[[aaaa]4[aaaa]4]2" "[[[[o4a]4]4]2]2")
+                          ("[ab]2ab" "[o4ab]2ab")
+                          ("cdcdcdLcdcdcd" "[o4cd]3L[cd]3")
+                          ("[cdcdcdLcdcdcd]2" "[[o4cd]3L[cd]3]2")
+                          ("[cdcdcd]0" "[[o4cd]3]0")
+                          ("c4c4c4c4c8" "[o4c]4c%12")))
+            (test* #"\"~(car case)\" with optimize :repeat"
+                   #"A l%24~(cadr case)"
+                   (optimized-line "repeat" :repeat `((mml A ,(car case))))))
+          (dolist (case '(("cdecdecd" "[cd:e]3")
+                          ;; 本文が空の既存リピートと、短い列は :full と同じ
+                          ("[]2c" "[]2c") ("[c:]2" "[c:]2") ("[:c]2" "[:c]2")
+                          ("c" "c") ("cL" "cL") ("L" "L")))
+            (test* #"\"~(car case)\" with optimize :repeat is \"~(cadr case)\" with :full"
+                   (optimized-line "repeat-hand" :full `((mml A ,(cadr case))))
+                   (optimized-line "repeat" :repeat `((mml A ,(car case))))))
+          ;; & は音符の直後に置くので、音符と & の間にループの境界を入れない
+          (test* "a tie stays right after its note" "A l%24[o4c&]4c"
+                 (optimized-line "repeat" :repeat '((mml A "c&c&c&c&c"))))
+          (test* "a tie stays right after its note with optimize :repeat-expand" "A l%24[o4c&]4c"
+                 (optimized-line "repeat" :repeat-expand '((mml A "[c&]4c"))))
+          ;; L を含むブロックと、ブロックの 2 個目以降の : は区切りとし、生成するループに入れない。
+          ;; L を含むブロックは展開しない
+          (dolist (case '(("cdefgab[dLe]2cdefgab" :repeat) ("[c:d:d:d:d]2" :repeat)
+                          ("[cdLcd]2" :repeat-expand) ("[c:Ld]1" :repeat-expand)
+                          ("[c:d:e]2" :repeat-expand) ("[c:d:d:d:d]2" :repeat-expand)))
+            (test* #"\"~(car case)\" with optimize ~(cadr case) keeps L and : out of generated loops"
+                   (optimized-line "repeat-hand" :full `((mml A ,(car case))))
+                   (optimized-line "repeat" (cadr case) `((mml A ,(car case))))))
+          ;; 圧縮すると入れ子が 33 段になる区間は圧縮しない
+          (test* "nesting deeper than 32 is kept"
+                 (optimized-line "repeat-hand" :full `((mml A ,(nest 32 "cccccc"))))
+                 (optimized-line "repeat" :repeat `((mml A ,(nest 32 "cccccc")))))
+          (test* "nesting up to 32 is compressed" #t
+                 (boolean (#/\[o4c\]6/ (optimized-line "repeat" :repeat `((mml A ,(nest 31 "cccccc")))))))
+          (test* "rhythm L stays outside loops" '(0 2)
+                 (let1 lis (optimized-objects 'L :repeat
+                                              '((rhythm L "@b8@s8@b8@s8@b8@s8L@b8@s8@b8@s8@b8@s8")))
+                   (list (let loop ([rest lis] [depth 0])
+                           (cond [(is-a? (car rest) <sxmml-mml-loop>) depth]
+                                 [(is-a? (car rest) <sxmml-mml-repeat-start>) (loop (cdr rest) (+ depth 1))]
+                                 [(is-a? (car rest) <sxmml-mml-repeat-end>) (loop (cdr rest) (- depth 1))]
+                                 [else (loop (cdr rest) depth)]))
+                         (count (cut is-a? <> <sxmml-mml-repeat-start>) lis))))
+          ;; :repeat-expand は、展開後の長さが上限以下の既存のリピートを展開してから圧縮する
+          (dolist (case '(("[aaaaaaaa]2" "[o4a]16")
+                          ("[[aaaa]4[aaaa]4]2" "[o4a]64")
+                          ("[ab]2ab" "[o4ab]3")
+                          ("[cdcdcd]0" "[[o4cd]3]0")
+                          ("[cdcdcd]1" "[o4cd]3")))
+            (test* #"\"~(car case)\" with optimize :repeat-expand"
+                   #"A l%24~(cadr case)"
+                   (optimized-line "repeat" :repeat-expand `((mml A ,(car case))))))
+          (test* "a block of count 1 is kept with optimize :repeat"
+                 "A l%24[[o4cd]3]1"
+                 (optimized-line "repeat" :repeat '((mml A "[cdcdcd]1"))))
+          ;; [cd]3 は展開後の長さ 6 が上限 4 を超えるのでブロックのまま、[cd]2 は展開する
+          (test* "a block longer than the limit is kept" '(#t 5)
+                 (let* ([o (^[] (make <sxmml-mml-note> :value 0 :ticks 24))]
+                        [lis (list (make <sxmml-mml-repeat-start>) (o) (o) (make <sxmml-mml-repeat-end> :value 3)
+                                   (make <sxmml-mml-repeat-start>) (o) (o) (make <sxmml-mml-repeat-end> :value 2))]
+                        [items ((with-module sxmml.optimizer %repeat-expand-small) (structure lis) 4)])
+                   (list ((with-module sxmml.optimizer %repeat-block?) (car items)) (length items))))
+          ;; 別の読み込みで作った :full と :repeat の列は、展開すると同値なオブジェクトが同じ順に並ぶ
+          (dolist (text '("[aaaaaaaa]2" "[ab]2ab" "cdecdecd" "cdcdcdLcdcdcd" "[cdcdcdLcdcdcd]2"
+                          "[cdcdcd]0" "c4c4c4c4c8" "[c:]2" "v10cdv12cdv10cdv12cd" "[c&c&]4"))
+            (dolist (level '(:repeat :repeat-expand))
+              (test* #"\"~|text|\" keeps its expansion with optimize ~level" #t
+                     (let ([a (expansion (structure (optimized-objects 'A :full `((mml A ,text)))))]
+                           [b (expansion (structure (optimized-objects 'A level `((mml A ,text)))))])
+                       (and (= (length a) (length b)) (every same? a b)))))))
         ;; PCM の音色は 0 から 255、SSG の音色は 0 から 9 までの整数とし、
         ;; それ以外は書かれた値を示して失敗する (#58)
         (test* "a PCM voice 0 is accepted"
