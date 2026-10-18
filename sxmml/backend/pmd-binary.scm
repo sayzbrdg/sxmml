@@ -654,7 +654,7 @@
 (define (%pmd-output-switch-set! u8vec offset obj)
   (let1 value (slot-ref obj 'value)
     (when (or (> value 3) (< value 1))
-      (errorf "value exceeds the range: ~a (~a - ~a): ~a" value min max #xed))
+      (errorf "value exceeds the range: ~a (~a - ~a): ~a" value 1 3 #xed))
     (u8vector-set! u8vec offset #xed)
     (u8vector-set! u8vec (+ offset 1) (case value ([1] #x07) ([2] #x38) ([3] #x3f)))
     (+ offset 2)))
