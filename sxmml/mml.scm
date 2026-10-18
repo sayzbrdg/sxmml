@@ -236,7 +236,10 @@
 (hash-table-set! *note-command* #\[ $REPEAT-START)
 (define $REPEAT-BREAK
   ($%return
-   (guard (e [else (error "break command cannot be used outside of repeats")])
+   ;; 反復の記録は [ で #f を積み、: でその位置の設定に置き換える。: は一つの反復に一つだけ
+   (let1 stack (slot-ref (sxmml-mml-context) 'repeat-stack)
+     (cond [(null? stack) (error "break command cannot be used outside of repeats")]
+           [(car stack) (error "break command can be used only once in a repeat")])
      (let1 ct (car (slot-ref (sxmml-mml-context) 'current-ticks))
        (set! (cdr ct) (car ct)))
      (slot-pop! (sxmml-mml-context) 'repeat-stack)
