@@ -20,7 +20,7 @@
 |[[ref-environment-internal-sxmml-mode-select]]`(%sxmml-mode-select proc args)` |`sxmml-mode` の展開先。非公開 |`sxmml-mode-fixed?` が偽なら `(apply proc args)`、真なら警告のみ表示 |link:../../sxmml/environment.scm[environment.scm]
 |[[ref-environment-sxmml-metadata-get]]`(sxmml-metadata-get key)` |`metadata` 表から `key` を検索 |未登録なら `#f` |link:../../sxmml/environment.scm[environment.scm]
 |[[ref-environment-sxmml-metadata-set-bang]]`(sxmml-metadata-set! key value)` |`metadata` 表へ値を登録 |既存の同じ key を上書き |link:../../sxmml/environment.scm[environment.scm]
-|[[ref-environment-define-metadata]]`(define-metadata key value)` / `(define-metadata key (value ...))` |`key` を小文字化した symbol にし、文字列リテラル一つまたは文字列リテラルの列を登録するマクロ |値がない場合または値の構文が文字列でない場合は展開時にエラー。文字列を保持した変数名も受理しない |link:../../sxmml/environment.scm[environment.scm]
+|[[ref-environment-define-metadata]]`(define-metadata key value)` |`key` を小文字化した symbol にし、`value` を式として評価して登録するマクロ |括弧の中が 1 つ以上で全て文字列の旧書式 `(key ("a" ...))` は、展開時に `sxmml-form-warn` で非推奨の警告を出し、文字列のリストとして登録する。値がない、引数が多いなどは `invalid define-metadata form` の `<sxmml-form-error>`。登録の呼び出しは `sxmml-form-wrap` で包むので、値の式の誤りにも定義の位置が付く。値の型は検査しない |link:../../sxmml/environment.scm[environment.scm]
 |===
 
 `sxmml-mode` の呼び出し先を選ぶ処理は、backend モジュールが読み込まれていることを前提とします。CLI とソースの双方でモードを指定した場合は CLI 側が優先されます。動作は link:../behavior-spec.md#入力と実行順[外部動作仕様]を参照してください。

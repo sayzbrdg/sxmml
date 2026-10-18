@@ -134,15 +134,19 @@
 
 === `define-metadata`
 
-書式: `(define-metadata キー "文字列")`、`(define-metadata キー ("文字列" ...))`
+書式: `(define-metadata キー 値)`
 
-メタデータを定義します。値はマクロ記述時に文字列リテラルである必要があり、文字列を保持する Scheme 変数を値として渡す形は受け付けません。PMD 向け生成物では `title`、`composer`、`arranger`、`pcmfile`、`ppzfile`、`ppsfile`、`memo` が出力対象です。
+メタデータを定義します。キーは単語をそのまま書き、大文字は小文字にそろえます。値は式として評価されます。文字列のほか、文字列を入れた変数や、複数の値を持たせる `(list "練習用" "2小節")` や `'("練習用" "2小節")` を書けます。値に何を使えるかは生成先が決めます。PMD 向け生成物では `title`、`composer`、`arranger`、`pcmfile`、`ppzfile`、`ppsfile`、`memo` が出力対象です。
 
 [source,scheme]
 ----
 (define-metadata title "短い曲")
-(define-metadata memo ("練習用" "2小節"))
+(define-metadata memo (list "練習用" "2小節"))
 ----
+
+括弧の中に文字列だけを並べる `(define-metadata memo ("練習用" "2小節"))` は以前の書式で、非推奨です。今は文字列のリストとして受け付けますが、`warning: ./song.sxl:12: (define-metadata memo ("..." ...)) is deprecated; use (list "..." ...) or '("..." ...)` のように、書かれた位置を示す警告を表示します。`(list ...)` か `'(...)` に書き換えてください。括弧の中に式を混ぜると、以前の書式とはみなされず、式として評価されます。
+
+値のない `(define-metadata title)` などの書式の誤りや、値の式の誤り（未定義の変数など）は、`*** SXMML-FORM-ERROR: ./song.sxl:3: invalid define-metadata form: expected (define-metadata key value)` のように、その定義の開始位置を示して変換の失敗になります。
 
 `filename` は生成先の指定には使われず、指定すると警告を表示して無視されます。生成先は `sxlc` の `-o` で指定してください。
 

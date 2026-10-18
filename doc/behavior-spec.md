@@ -27,7 +27,7 @@ PMD4 向けには `pmd`、PMD3 向けには `pmd3` を指定する。実験的�
 
 ## MML ソースに記述できる内容
 
-`mml TRACK EXPR ...` は、Scheme 式を評価し、得られた値を MML 文字列に組み立てて通常 MML として登録する。`rhythm TRACK EXPR ...` は同様にリズム MML として登録する。両者とも単一の登録済みトラック名、または登録済みトラック名のリストを指定できる。式の値がリストなら要素を順に文字列化できる。入力がトラックの構文に合わなければ変換は失敗する。ソース中の定義・設定として `define-track`、`sxmml-resolution`、`define-metadata`、`define-lfo`、`define-envelope`、`define-opn-voice`、`sxmml-mode` がある。定義形式と PMD 向け生成物への反映は[MML 記述者向けリファレンス](sxmml-reference-manual.adoc)を参照する。
+`mml TRACK EXPR ...` は、Scheme 式を評価し、得られた値を MML 文字列に組み立てて通常 MML として登録する。`rhythm TRACK EXPR ...` は同様にリズム MML として登録する。両者とも単一の登録済みトラック名、または登録済みトラック名のリストを指定できる。式の値がリストなら要素を順に文字列化できる。入力がトラックの構文に合わなければ変換は失敗する。ソース中の定義・設定として `define-track`、`sxmml-resolution`、`define-metadata`、`define-lfo`、`define-envelope`、`define-opn-voice`、`sxmml-mode` がある。`define-metadata` の値は式として評価する。括弧の中に文字列だけを並べる旧書式 `(define-metadata memo ("a" "b"))` は、文字列のリストとして受け付け、標準エラー出力に `warning: ./song.sxl:12: (define-metadata memo ("..." ...)) is deprecated; use (list "..." ...) or '("..." ...)` のように位置を示す警告を表示する。警告は変換の成否に影響しない。定義形式と PMD 向け生成物への反映は[MML 記述者向けリファレンス](sxmml-reference-manual.adoc)を参照する。
 
 通常 MML では、`c d e f g a b` の音符、`r` の休符、`/` のポルタメント、音長・音高の `l o > < q &`、音量・定位の `v v* ) ( p`、移調・テンポ等の `K K$ K* t T D`、制御・定義参照の `L [ : ] @ E M Mt Mf w P` を使える。音符と休符には分母指定、`%` による tick 指定、付点、`&` による長さの加算がある。解像度の既定値は 24、音長の既定の分母は 4、オクターブの初期値は 4。`(mml G "c8r8")` は既定の解像度で合計 24 tick となる。個々のコマンドの効果は対象トラックと生成モードにも依存する。
 
@@ -86,7 +86,7 @@ PMD 向けの生成では、`-o` で指定した出力先、指定がなけれ�
 | 終了値 | 意味 |
 | --- | --- |
 | 0 | 成功。`-c` を指定した場合は後処理も成功 |
-| 1 | 変換の失敗。ソースの読み込み・評価、MML、生成、出力先のエラー。エラーの内容は Gauche の形式（`*** ERROR:` などで始まる）で標準エラー出力に表示する。`define-opn-voice`・`define-lfo`・`define-envelope` の誤りは、`*** SXMML-FORM-ERROR: ./song.sxl:3: invalid voice value: @V1, operator(2), -1` のように、その定義の開始位置（ファイルと行）を付けて表示する |
+| 1 | 変換の失敗。ソースの読み込み・評価、MML、生成、出力先のエラー。エラーの内容は Gauche の形式（`*** ERROR:` などで始まる）で標準エラー出力に表示する。`define-opn-voice`・`define-lfo`・`define-envelope`・`define-metadata` の誤りは、`*** SXMML-FORM-ERROR: ./song.sxl:3: invalid voice value: @V1, operator(2), -1` のように、その定義の開始位置（ファイルと行）を付けて表示する |
 | 2 | 使用法の誤り。不正なオプションや引数、入力ファイル名なし、`-m` のモードを選べない、`-c` の字句の誤り、出力先が入力ファイルと同じ、入力ファイル名より後ろの引数。誤りの内容を標準エラー出力に、使用法を標準出力に表示する |
 | 3 | 後処理の失敗。`-c` の後処理が 0 以外の終了値やシグナルで終了した、起動できなかった、`-w` の `wslpath` が失敗した |
 
