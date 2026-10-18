@@ -24,7 +24,7 @@ PACKAGE   = sxmml
 TARGET    = sxlc
 MANPAGE   = sxlc.1
 SCMFILES  = sxmml.scm sxmml/classes.scm sxmml/environment.scm sxmml/voice.scm sxmml/mml.scm \
-            sxmml/compiler.scm sxmml/processor.scm sxmml/optimizer.scm sxmml/util.scm\
+            sxmml/compiler.scm sxmml/processor.scm sxmml/optimizer.scm sxmml/util.scm sxmml/form.scm \
             sxmml/backend/pmd.scm sxmml/backend/pmd-binary.scm
 
 GENERATED = $(MANPAGE)

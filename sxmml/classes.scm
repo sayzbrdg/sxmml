@@ -51,6 +51,16 @@
    ))
 
 ;;;
+;;; Errors
+;;;
+;; sxmml のエラーの基底
+(define-condition-type <sxmml-error> <error> sxmml-error?)
+;; 定義のフォームの誤り。location はフォームの位置 ("ファイル:行" か #f)、cause は元のエラーか #f
+(define-condition-type <sxmml-form-error> <sxmml-error> sxmml-form-error?
+  (location sxmml-form-error-location)
+  (cause sxmml-form-error-cause))
+
+;;;
 ;;; Optimizer
 ;;;
 (define-class <sxmml-optimize-environment> ()

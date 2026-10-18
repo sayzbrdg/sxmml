@@ -30,7 +30,7 @@ flowchart LR
 | --- | --- | --- |
 | [`sxlc.in`](../sxlc.in) | 引数解析、モード設定、ソースの `load`、最適化水準の設定、バックエンド呼び出し、情報表示、任意の後処理 | `sxmml` と列挙した `sxmml.backend.*` を使用。ソースファイル・生成先・プロセスを扱う |
 | [`sxmml.scm`](../sxmml.scm) | 基本モジュール群を `extend` して `sxmml` を構成 | PMD バックエンド（`backend/pmd.scm`・`backend/pmd-binary.scm`）は継承対象に含まれない |
-| [`sxmml/classes.scm`](../sxmml/classes.scm) | 環境、トラック文脈、解析結果、最適化文脈、音色等のクラス | 他モジュールが共有するオブジェクトの形を定義 |
+| [`sxmml/classes.scm`](../sxmml/classes.scm) | 環境、トラック文脈、解析結果、最適化文脈、音色等のクラスと、エラーの種類（`<sxmml-error>`・`<sxmml-form-error>`） | 他モジュールが共有するオブジェクトの形を定義 |
 | [`sxmml/environment.scm`](../sxmml/environment.scm) | 環境・ファイル名のパラメータ、トラック・メタデータ・LFO・エンベロープの登録と参照 | 環境内の表とトラック文脈を更新 |
 | [`sxmml/mml.scm`](../sxmml/mml.scm) | 通常 MML とリズム MML の PEG パーサー、コマンドから中間オブジェクトへの変換 | トラック文脈を参照・更新し、解析結果を作る |
 | [`sxmml/compiler.scm`](../sxmml/compiler.scm) | Scheme 式の結果を MML 文字列にし、パーサーを起動して解析結果を登録 | `mml` / `rhythm` マクロ、文字列、トラック文脈、中間オブジェクト列 |
@@ -40,6 +40,7 @@ flowchart LR
 | [`sxmml/backend/pmd.scm`](../sxmml/backend/pmd.scm) | PMD モードの登録、トラック列の変換、メタデータ・音色・リズム・MML の出力 | 最適化結果と環境から CP932 のファイルを生成 |
 | [`sxmml/backend/pmd-binary.scm`](../sxmml/backend/pmd-binary.scm) | PMD バイナリモード（実験的）の登録、トラック列から PMD の命令列・音色表・メタ情報への変換 | 最適化結果と環境から `.m` を生成。生成物が MC.EXE の出力と同じであることは保証しない |
 | [`sxmml/util.scm`](../sxmml/util.scm) | BPM から PMD 向け Timer-B 値への計算 | バックエンドが使用 |
+| [`sxmml/form.scm`](../sxmml/form.scm) | 定義のマクロの誤りに、フォームの開始位置（ファイルと行）を付けて投げる | `sxmml.voice` が使用。`sxmml` の継承対象に含まれない |
 
 `sxmml.scm` の `extend` は Gauche のモジュール継承であり、各モジュールでの `use` はそのモジュールが他モジュールの束縛を利用するための宣言である。継承・公開名の仕様は [Gauche 0.9.15 Users’ Reference, 4.13.4–4.13.5](https://practical-scheme.net/vault/Gauche-0.9.15-refe.pdf)に従う。MML 記述者向けの操作は[公開リファレンス](sxmml-reference-manual.adoc)、開発者向けのクラス・手続きは[内部リファレンス](internal-reference/index.adoc)に記す。
 
