@@ -39,6 +39,7 @@
   (use sxmml.util)
   (export sxmml-pmd3-source-generate sxmml-pmd4-source-generate sxmml-pmd-source-generate
           pmd3-source pmd4-source pmd-source pmd3 pmd
+          sxmml-pmd-voice-numbers
           ))
 (select-module sxmml.backend.pmd)
 
@@ -50,6 +51,10 @@
    [mode :init-keyword :mode :init-value 0]))
 
 (define sxmml-pmd-track-environment
+  (make-parameter #f))
+
+;; 生成中の音色番号の表 (sxmml-pmd-voice-numbers の値)
+(define %pmd-voice-numbers
   (make-parameter #f))
 
 ;;;
@@ -89,7 +94,8 @@
   (%sxmml-pmdx-source-generate mode))
 
 (define (%sxmml-pmdx-source-generate mode)
-  (%pmd-source-output mode)
+  (parameterize ([%pmd-voice-numbers (sxmml-pmd-voice-numbers)])
+    (%pmd-source-output mode))
   (sxmml-environment))
 
 (define (%track-generate track part voice-proc! vol-set-proc! vol-change-proc!)
@@ -293,12 +299,22 @@
             (hash-table-get (slot-ref (sxmml-environment) 'metadata) 'memo ()))
   (display "\r\n"))
 
-;; 同じ入力から同じ生成物を得るため、音色表の反復順ではなく番号順に出力する。
-;; 番号が同じ場合 (#27) は id の名前順とする
+;; PMD は音色を 0 から 255 の番号で指定するので、定義した全ての音色に、id の
+;; 辞書順で 0 から番号を振る。id から番号への表を返す
+(define (sxmml-pmd-voice-numbers)
+  (let ([ids (sort (hash-table-keys (slot-ref (sxmml-environment) 'voice))
+                   (^[a b] (string<? (symbol->string a) (symbol->string b))))]
+        [table (make-hash-table eq-comparator)])
+    (when (> (length ids) 256)
+      (errorf "too many voices: ~a (max 256)" (length ids)))
+    (for-each (^[id number] (hash-table-put! table id number)) ids (iota (length ids)))
+    table))
+
+;; 同じ入力から同じ生成物を得るため、音色表の反復順ではなく番号順に出力する
 (define (%pmd-source-voice-generate)
   (for-each
     (^[voice]
-      (let ([number (slot-ref voice 'number)]
+      (let ([number (%pmd-fm-voice-number voice)]
             [value (slot-ref voice 'value)])
         (format #t "@~3,'0d" number)
         (match (car value)
@@ -312,11 +328,7 @@
                        ar dr sr rr sl tl ks ml dt ams)
                (loop (cdr rest))])))))
     (sort (hash-table-values (slot-ref (sxmml-environment) 'voice))
-          (^[a b] (let ([na (slot-ref a 'number)] [nb (slot-ref b 'number)])
-                    (or (< na nb)
-                        (and (= na nb)
-                             (string<? (symbol->string (slot-ref a 'id))
-                                       (symbol->string (slot-ref b 'id)))))))))
+          (^[a b] (< (%pmd-fm-voice-number a) (%pmd-fm-voice-number b)))))
   (display "\r\n"))
 
 ;;;
@@ -359,7 +371,10 @@
   (let1 inst (hash-table-get (slot-ref (sxmml-environment) 'voice) (slot-ref obj 'value) #f)
     (unless inst
       (error "no instrument define: " (slot-ref obj 'value)))
-    (format #t "@~d" (slot-ref inst 'number))))
+    (format #t "@~d" (%pmd-fm-voice-number inst))))
+
+(define (%pmd-fm-voice-number voice)
+  (hash-table-get (%pmd-voice-numbers) (slot-ref voice 'id)))
 
 (define (%pmd-gatetime-set! obj)
   (format #t "q~d" (slot-ref obj 'value)))

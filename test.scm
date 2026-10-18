@@ -199,13 +199,47 @@
                                                (append (map voice-form '(j i h g f e d c b a) (iota 10))
                                                        '((mml A "@{a}c8"))))
                                               "\r\n"))))
-        ;; begin 内の定義は同じ番号になる (#27)。その場合も出力は一致すること
+        ;; begin 内で定義しても、同じ入力からは同じ出力になること
         (let1 forms (append (map voice-form '(c b a) '(0 1 2))
                             `((begin ,(voice-form 'e 3) ,(voice-form 'd 4))
                               (mml A "@{a}c8@{e}c8")))
           (test* "the same input yields byte-identical output"
                  (generated-text "reproducible" forms)
                  (generated-text "reproducible" forms)))
+        ;; 音色番号は、PMD のバックエンドが生成時に、定義した全ての音色へ id の辞書順で
+        ;; 0 から振る。begin の中で定義しても重複せず、257 個以上は失敗する (#27)
+        (let ([voice-lines (^[text] (filter-map (^l (and-let1 m (#/^@(\d{3}) (\d{3}) / l)
+                                                     (list (string->number (m 1))
+                                                           (string->number (m 2)))))
+                                               (string-split text "\r\n")))]
+              [a-line (^[text] (find #/^A / (string-split text "\r\n")))]
+              [many-voices (^[n] (map (^i (voice-form (string->symbol (format "v~3,'0d" i)) 0))
+                                      (iota n)))])
+          (let1 text (generated-text "voice-dictionary-order"
+                                     `(,(voice-form 2 3) ,(voice-form 10 2) ,(voice-form 0 1)
+                                       (mml A "@2c8")))
+            (test* "voice numbers follow the dictionary order of ids"
+                   '("A l%12@2o4c" ((0 1) (1 2) (2 3)))
+                   (list (a-line text) (voice-lines text))))
+          (let1 text (generated-text "voice-in-begin"
+                                     `((begin ,(voice-form 'b 1) ,(voice-form 'a 2))
+                                       (mml A "@{a}c8@{b}c8")))
+            (test* "voices defined in begin get distinct numbers"
+                   '("A l%12@0o4c@1c" ((0 2) (1 1)))
+                   (list (a-line text) (voice-lines text))))
+          (dolist [case '((256 0 #t) (257 1 #f))]
+            (let* ([n (car case)]
+                   [output (work-file #"voices-~|n|.mml")]
+                   [source (write-source #"voices-~n"
+                                         (with-output-to-string
+                                           (^[] (for-each write (append (many-voices n)
+                                                                        '((mml A "@{v000}c8")))))))]
+                   [result (sxlc-status "-m" "pmd" "-o" output source)])
+              (test* #"~n voices ~(if (zero? (cadr case)) \"are accepted\" \"fail\")"
+                     (list (cadr case) (not (caddr case)) (caddr case))
+                     (list (car result)
+                           (boolean (any #/too many voices: 257 \(max 256\)/ (cadr result)))
+                           (file-exists? output))))))
         ;; 負の音高も、オクターブと 0～11 の音名に分けて出力すること
         (test* "a negative note number is output with its octave and note name"
                "A l%24o1co-1b"
