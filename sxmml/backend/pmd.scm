@@ -293,10 +293,13 @@
                         (display "; "))
                       (format #t "#~10a  ~a\r\n" k value))))
             '(title composer arranger pcmfile ppzfile ppsfile))
+  ;; memo は文字列 1 つか、文字列のリストである。for-each は文字列も 1 文字ずつ回すので、
+  ;; 文字列はリストにしてから回す
   (for-each (^[m] (when pmd3?
                     (display "; "))
               (format #t "#~10a  ~a\r\n" "memo" m))
-            (hash-table-get (slot-ref (sxmml-environment) 'metadata) 'memo ()))
+            (let1 memo (hash-table-get (slot-ref (sxmml-environment) 'metadata) 'memo ())
+              (if (string? memo) (list memo) memo)))
   (display "\r\n"))
 
 ;; PMD は音色を 0 から 255 の番号で指定するので、定義した全ての音色に、id の
