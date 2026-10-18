@@ -168,15 +168,17 @@
 ;;; 圧縮
 ;;;
 ;; 仕様 §6 の全周期・LCP・区間 DP を、深さ無制限の 1 層で解く。区間 [i,i+m) を
-;; セル (i,m) とし、費用表と根の記述の表に持つ。根の記述は割り当てを減らすため
-;; kind + 4x の整数に符号化する。kind は raw 0、cat 1 (x=k-i)、rep 2 (x=p)、
-;; final 3 (x=p*span+a)。回数は m と p から求め直す
+;; セル (i,m) とし、長さ m が窓幅 W 以下の区間だけを費用表と根の記述の表に持つ。
+;; 列全体は G(j) = min G(i) + F(i,j) (j-W <= i < j) でつなぐ。W >= n なら G(n) は
+;; F(0,n) となり、厳密な区間 DP と同じ費用・同じ木になる。時間 O(nW^2)、領域 O(nW)。
+;; 根の記述は割り当てを減らすため kind + 4x の整数に符号化する。kind は raw 0、
+;; cat 1 (x=k-i)、rep 2 (x=p)、final 3 (x=p*span+a)。回数は m と p から求め直す
 (define (repeat-tree-compress items weights same? settings)
   (%check-input items weights)
   (unless (repeat-tree-settings? settings)
     (errorf "repeat-tree: settings required: ~s" settings))
   (let* ([n (vector-length items)]
-         [span n]
+         [span (min n (repeat-tree-settings-window settings))]
          [sums (rlet1 v (make-vector (+ n 1) 0)
                  (dotimes [t n] (vector-set! v (+ t 1) (+ (vector-ref v t) (vector-ref weights t)))))]
          [fee-table (^[costs] (rlet1 v (make-vector (+ n 1) #f)
@@ -185,18 +187,19 @@
          [fees-r (fee-table (repeat-tree-settings-repeat-costs settings))]
          [fees-f (and (repeat-tree-settings-allow-final? settings)
                       (fee-table (repeat-tree-settings-final-costs settings)))]
-         [lcp (make-vector (* n n) 0)]
+         [lcp (make-vector (* n span) 0)]
          [costs (make-vector (* n span) #f)]
          [roots (make-vector (* n span) 0)])
-    (define (lcp-ref u v) (if (= v n) 0 (vector-ref lcp (+ (* u n) v))))
+    ;; λ(u,u+d) は d < span の組だけを持つ。DP が問うのは m <= span の区間の p < m だけ
+    (define (lcp-ref u v) (if (= v n) 0 (vector-ref lcp (+ (* u span) (- v u)))))
     (define (cell i m) (+ (* i span) (- m 1)))
     (define (cost i m) (vector-ref costs (cell i m)))
     ;; λ(u,v): u < v から連続して一致する要素数
     (define (build-lcp!)
       (do ([u (- n 2) (- u 1)]) [(< u 0)]
-        (do ([v (- n 1) (- v 1)]) [(<= v u)]
-          (when (%same? same? (vector-ref items u) (vector-ref items v))
-            (vector-set! lcp (+ (* u n) v) (+ 1 (lcp-ref (+ u 1) (+ v 1))))))))
+        (do ([d 1 (+ d 1)]) [(or (>= d span) (>= (+ u d) n))]
+          (when (%same? same? (vector-ref items u) (vector-ref items (+ u d)))
+            (vector-set! lcp (+ (* u span) d) (+ 1 (lcp-ref (+ u 1) (+ u 1 d))))))))
     ;; 同率では raw、分割点の昇順、周期の昇順の先に見つけた候補を残す
     (define (solve-cell! i m)
       (let ([best (- (vector-ref sums (+ i m)) (vector-ref sums i))] [root 0])
@@ -227,10 +230,28 @@
           [(2) (make-repeat (quotient m x) (restore i x))]
           [(3) (receive (p a) (quotient&remainder x span)
                  (make-final (+ (quotient m p) 1) (restore i a) (restore (+ i a) (- p a))))])))
+    ;; G(j) と、選んだブロックの始点。始点は昇順に試し、厳密に小さいときだけ更新する
+    (define (chain)
+      (rlet1 g (make-vector (+ n 1) 0)
+        (dotimes [j n]
+          (let1 end (+ j 1)
+            (let loop ([i (max 0 (- end span))] [best #f] [from #f])
+              (if (= i end)
+                (vector-set! g end (cons best from))
+                (let1 value (+ (if (zero? i) 0 (car (vector-ref g i))) (cost i (- end i)))
+                  (if (or (not best) (< value best))
+                    (loop (+ i 1) value i)
+                    (loop (+ i 1) best from)))))))))
+    (define (restore-chain g)
+      (let loop ([end n] [blocks ()])
+        (if (zero? end)
+          (fold (^[b tree] (make-concat tree b)) (car blocks) (cdr blocks))
+          (let1 from (cdr (vector-ref g end))
+            (loop from (cons (restore from (- end from)) blocks))))))
     (build-lcp!)
-    (do ([m 1 (+ m 1)]) [(> m n)]
+    (do ([m 1 (+ m 1)]) [(> m span)]
       (do ([i 0 (+ i 1)]) [(> i (- n m))]
         (solve-cell! i m)))
-    (let ([total (cost 0 n)] [tree (restore 0 n)])
+    (let* ([g (chain)] [total (car (vector-ref g n))] [tree (restore-chain g)])
       (repeat-tree-inspect items weights same? settings tree total)
       (values total tree))))

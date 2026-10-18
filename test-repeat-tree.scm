@@ -132,6 +132,47 @@
                    oracle-settings)))
         (append (all-sequences 2 7) (all-sequences 3 5))))
 
+;; 窓幅。長さ w 以下のブロックの連結に限った最小費用（試験専用）
+(define (window-oracle items weights rc fc final? w)
+  (let* ([n (vector-length items)] [g (make-vector (+ n 1) #f)])
+    (vector-set! g 0 0)
+    (dolist [j (iota n 1)]
+      (vector-set! g j (apply min (map (^i (+ (vector-ref g i)
+                                              (oracle (vector-copy items i j) (vector-copy weights i j)
+                                                      rc fc final?)))
+                                       (iota (- j (max 0 (- j w))) (max 0 (- j w)))))))
+    (vector-ref g n)))
+(test* "windowed cost equals the window oracle" '()
+       (append-map
+        (^[seq] (let* ([items (list->vector seq)] [n (vector-length items)])
+                  (append-map
+                   (^[s] (append-map
+                          (^[wf] (filter-map
+                                  (^[w] (let* ([weights (wf n)]
+                                               [expected (apply window-oracle items weights `(,@s ,w))]
+                                               [actual (car (apply compress-sexp items weights `(,@s ,w)))])
+                                          (and (not (= expected actual)) (list seq s weights w expected actual))))
+                                  '(1 2 3)))
+                          oracle-weights))
+                   (list (list-ref oracle-settings 0) (list-ref oracle-settings 2)))))
+        (all-sequences 2 7)))
+(test* "window 1 keeps raw" 4
+       (car (compress-sexp #(0 0 0 0) (ones 4) '((4 . 0)) '() #f 1)))
+(test* "a window not smaller than n gives the same tree" '()
+       (filter-map (^[seq] (let* ([items (list->vector seq)] [n (vector-length items)]
+                                  [s (list-ref oracle-settings 0)]
+                                  [a (apply compress-sexp items (ones n) `(,@s ,n))]
+                                  [b (apply compress-sexp items (ones n) `(,@s ,(+ n 3)))])
+                             (and (not (equal? a b)) (list seq a b))))
+                   (all-sequences 2 7)))
+;; 窓幅で区間表が n×W に収まることの確認。時間は測らない
+(test* "a long input runs within the window" #t
+       (let* ([items (list->vector (map (cut modulo <> 5) (iota 600)))]
+              [settings (apply make-repeat-tree-settings `(,@(list-ref oracle-settings 0) 16))])
+         (receive (cost tree) (repeat-tree-compress items (ones 600) eqv? settings)
+           (and (< cost 600)
+                (list? (repeat-tree-inspect items (ones 600) eqv? settings tree cost))))))
+
 ;; If you don't want `gosh' to exit with nonzero status even if
 ;; the test fails, pass #f to :exit-on-failure.
 (test-end :exit-on-failure #t)

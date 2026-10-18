@@ -1,0 +1,70 @@
+= `sxmml.repeat-tree` の局所反復木による列の圧縮
+:toc: left
+
+`sxmml.repeat-tree` は、同値比較できる要素の列を、展開すると元の列になる木（局所反復木）のうち保存費用が最小のものに圧縮します。sxmml のクラスには依存しません。手続き 29 件とクラス（record 型）5 件を定義し、手続き 24 件を公開します。`sxmml` はこのモジュールを `extend` しません。record 型と整数は Gauche 0.9.15 の動作に従います。
+
+== 取り込み元と仕様との違い
+
+repeat-tree の Gauche 移植（`ports/gauche`、実装 ID `gauche-all-periods/2`、仕様 ID `local-repeat-tree/1`、commit `7e521ec46950b9c9a42424ea1199db5f2170a766`）をもとにしています。開発者は sxmml と同じで、sxmml と同じ 3-clause BSD として取り込み、sxmml に合わせて変更しました。
+
+`local-repeat-tree/1` との違いは次のとおりです。
+
+* 葉の費用を要素ごとの重み（正の整数）にしました。仕様 §4 では、葉の費用を変える拡張は適用域外です。
+* 窓幅 W を加えました。長さ W 以下の区間だけを区間 DP で解き、列全体は長さ W 以下のブロックの連結として最小にします。W < n では探索範囲を狭めるので、`local-repeat-tree/1` への適合は名乗りません。
+* 有限の深さの層を除き、深さ無制限の 1 層だけで解きます。入れ子の上限は呼び出し側が検査します。
+* 入力長と費用表の組数の受付上限を除き、エラーの分類を `error` にまとめ、根の記述を整数に符号化しました。適合試験用の JSON は取り込んでいません。
+
+W ≥ n のとき、仕様 §6 の参照算法を重み付きに一般化したものと同じ費用・同じ木を返します。同率では raw、分割点の昇順、周期の昇順、全体の連結の始点の昇順で、厳密に小さい候補だけが選ばれます。重み付きへの一般化の証明は、repeat-tree の研究側の課題です。
+
+時間は O(nW²)、領域は O(nW)、比較手続きの呼び出しは O(nW) 回です（n は列の長さ）。成功の前に、探索とは別に木をたどって費用・回数・展開を検査します。
+
+== 定義
+
+[cols="2,4,4,1",options="header"]
+|===
+|名前・書式 |引数と役割 |戻り値・副作用・失敗条件 |ソース
+|[[ref-repeat-tree-class-literal]]`<literal>` +
+[[ref-repeat-tree-make-literal]]`(make-literal index)` +
+[[ref-repeat-tree-literal-p]]`(literal? obj)` +
+[[ref-repeat-tree-literal-index]]`(literal-index lit)` |元の列の `index` 番目の要素を表す葉 |フィールドは変更できない。添字の妥当性は検査で確かめる |link:../../sxmml/repeat-tree.scm[repeat-tree.scm]
+|[[ref-repeat-tree-class-concat]]`<concat>` +
+[[ref-repeat-tree-make-concat]]`(make-concat left right)` +
+[[ref-repeat-tree-concat-p]]`(concat? obj)` +
+[[ref-repeat-tree-concat-left]]`(concat-left c)` +
+[[ref-repeat-tree-concat-right]]`(concat-right c)` |`left` の展開の後に `right` の展開を続ける |同上 |link:../../sxmml/repeat-tree.scm[repeat-tree.scm]
+|[[ref-repeat-tree-class-repeat]]`<repeat>` +
+[[ref-repeat-tree-make-repeat]]`(make-repeat count body)` +
+[[ref-repeat-tree-repeat-p]]`(repeat? obj)` +
+[[ref-repeat-tree-repeat-count]]`(repeat-count r)` +
+[[ref-repeat-tree-repeat-body]]`(repeat-body r)` |`body` を `count` 回展開する |同上 |link:../../sxmml/repeat-tree.scm[repeat-tree.scm]
+|[[ref-repeat-tree-class-final]]`<final>` +
+[[ref-repeat-tree-make-final]]`(make-final count prefix suffix)` +
+[[ref-repeat-tree-final-p]]`(final? obj)` +
+[[ref-repeat-tree-final-count]]`(final-count f)` +
+[[ref-repeat-tree-final-prefix]]`(final-prefix f)` +
+[[ref-repeat-tree-final-suffix]]`(final-suffix f)` |(`prefix` `suffix`)^`count`−1^ `prefix` と展開する。最後の回は `suffix` の前で終わる |同上 |link:../../sxmml/repeat-tree.scm[repeat-tree.scm]
+|[[ref-repeat-tree-class-repeat-tree-settings]]`<repeat-tree-settings>` +
+[[ref-repeat-tree-repeat-tree-settings-p]]`(repeat-tree-settings? obj)` +
+[[ref-repeat-tree-repeat-tree-settings-repeat-costs]]`(repeat-tree-settings-repeat-costs s)` +
+[[ref-repeat-tree-repeat-tree-settings-final-costs]]`(repeat-tree-settings-final-costs s)` +
+[[ref-repeat-tree-repeat-tree-settings-allow-final-p]]`(repeat-tree-settings-allow-final? s)` +
+[[ref-repeat-tree-repeat-tree-settings-window]]`(repeat-tree-settings-window s)` |圧縮の設定 |`make-repeat-tree-settings` で作る。フィールドは変更できない |link:../../sxmml/repeat-tree.scm[repeat-tree.scm]
+|[[ref-repeat-tree-make-repeat-tree-settings]]`(make-repeat-tree-settings repeat-costs final-costs allow-final? window)` |`repeat-costs`・`final-costs` は Repeat・Final の `((回数 . 制御費用) ...)`。回数は昇順・重複なしの exact 整数 2 以上、費用は exact 整数 0 以上。`allow-final?` は真偽値、`window` は exact 整数 1 以上 |設定を返す。費用表はコピーする。使わない表も検査し、誤りは `repeat-tree:` で始まる `error` |link:../../sxmml/repeat-tree.scm[repeat-tree.scm]
+|[[ref-repeat-tree-internal-make-repeat-tree-settings]]`(%make-repeat-tree-settings repeat-costs final-costs allow-final? window)` |設定の record の構築子 |検査しない。`make-repeat-tree-settings` が使う |link:../../sxmml/repeat-tree.scm[repeat-tree.scm]
+|[[ref-repeat-tree-repeat-tree-compress]]`(repeat-tree-compress items weights same? settings)` |`items`・`weights` は同じ長さ 1 以上のベクタで、重みは exact 整数 1 以上。`same?` は停止する同値関係で真偽値を返す |`(values cost tree)`。`tree` は保存費用 `cost` が窓幅の下で最小の木。成功の前に `repeat-tree-inspect` で検査する。不正な入力・設定、比較手続きの真偽値以外の戻り値、検査の不一致は `error` |link:../../sxmml/repeat-tree.scm[repeat-tree.scm]
+|[[ref-repeat-tree-repeat-tree-inspect]]`(repeat-tree-inspect items weights same? settings tree cost)` |木を探索とは別にたどって検査する |展開した添字のリストを返す。訪問は 2n−1 回まで、部分展開の長さは n までとし、展開列は長さを確かめてから作る。許可されない回数、無効な Final、範囲外の添字、費用・長さ・値の不一致は `error` |link:../../sxmml/repeat-tree.scm[repeat-tree.scm]
+|[[ref-repeat-tree-internal-exact-integer-p]]`(%exact-integer? x)` |exact な整数か |真偽値 |link:../../sxmml/repeat-tree.scm[repeat-tree.scm]
+|[[ref-repeat-tree-internal-copy-costs]]`(%copy-costs pairs)` |費用表を検査してコピーする |新しいリスト。誤りは `error` |link:../../sxmml/repeat-tree.scm[repeat-tree.scm]
+|[[ref-repeat-tree-internal-check-input]]`(%check-input items weights)` |列と重みを検査する |未定義値。誤りは `error` |link:../../sxmml/repeat-tree.scm[repeat-tree.scm]
+|[[ref-repeat-tree-internal-same-p]]`(%same? same? a b)` |比較手続きを呼ぶ |その戻り値。真偽値でなければ `error` |link:../../sxmml/repeat-tree.scm[repeat-tree.scm]
+|===
+
+== 使用例
+
+ABABA を、Final の回数 3（制御費用 0）で圧縮します。sxmml のリポジトリルートで実行します。
+
+[source,console]
+----
+$ gosh -I. -e '(use sxmml.repeat-tree)' -e '(receive (cost tree) (repeat-tree-compress #(a b a b a) #(1 1 1 1 1) eq? (make-repeat-tree-settings (quote ()) (quote ((3 . 0))) #t 256)) (print cost " " (final? tree) " " (final-count tree)))'
+2 #t 3
+----
