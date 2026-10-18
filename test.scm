@@ -706,14 +706,25 @@
                  (optimized-line "repeat" :repeat '((mml A "c&c&c&c&c"))))
           (test* "a tie stays right after its note with optimize :repeat-expand" "A l%24[o4c&]4c"
                  (optimized-line "repeat" :repeat-expand '((mml A "[c&]4c"))))
-          ;; L を含むブロックと、ブロックの 2 個目以降の : は区切りとし、生成するループに入れない。
-          ;; L を含むブロックは展開しない
-          (dolist (case '(("cdefgab[dLe]2cdefgab" :repeat) ("[c:d:d:d:d]2" :repeat)
-                          ("[cdLcd]2" :repeat-expand) ("[c:Ld]1" :repeat-expand)
-                          ("[c:d:e]2" :repeat-expand) ("[c:d:d:d:d]2" :repeat-expand)))
-            (test* #"\"~(car case)\" with optimize ~(cadr case) keeps L and : out of generated loops"
+          ;; L を含むブロックは区切りとし、生成するループに入れない。展開もしない
+          (dolist (case '(("cdefgab[dLe]2cdefgab" :repeat)
+                          ("[cdLcd]2" :repeat-expand) ("[c:Ld]1" :repeat-expand)))
+            (test* #"\"~(car case)\" with optimize ~(cadr case) keeps L out of generated loops"
                    (optimized-line "repeat-hand" :full `((mml A ,(car case))))
                    (optimized-line "repeat" (cadr case) `((mml A ,(car case))))))
+          ;; ブロックの 2 個目以降の : も区切りとし、そのブロックは展開しない。MML の解析は
+          ;; 2 個目以降の : を失敗にする (#92) ので、オブジェクトの列を直接渡す
+          (let* ([d (^[] (make <sxmml-mml-note> :value 2 :ticks 24))]
+                 [break (^[] (make <sxmml-mml-repeat-break>))]
+                 ;; [c:d:d:d:d]2
+                 [lis (list (make <sxmml-mml-repeat-start>) (make <sxmml-mml-note> :value 0 :ticks 24)
+                            (break) (d) (break) (d) (break) (d) (break) (d)
+                            (make <sxmml-mml-repeat-end> :value 2))]
+                 [optimize-repeat (with-module sxmml.optimizer %sxmml-optimize-repeat)])
+            (dolist (expand? '(#f #t))
+              (test* #"a second break stays out of generated loops (expand? ~expand?)" #t
+                     (let1 result (optimize-repeat lis expand?)
+                       (and (= (length result) (length lis)) (every eq? result lis))))))
           ;; 圧縮すると入れ子が 33 段になる区間は圧縮しない
           (test* "nesting deeper than 32 is kept"
                  (optimized-line "repeat-hand" :full `((mml A ,(nest 32 "cccccc"))))
