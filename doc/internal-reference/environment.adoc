@@ -1,7 +1,7 @@
 = `sxmml.environment` の状態管理
 :toc: left
 
-`sxmml.environment` は、環境と登録表を操作する 24 の定義を公開します。パラメータ、マクロ、ハッシュ表の動作は Gauche 0.9.15 に従います。MML 記述者向けの使用例は xref:../sxmml-reference-manual.adoc[公開機能リファレンス]を参照してください。
+`sxmml.environment` には環境と登録表を操作する 26 の定義があり、そのうち 24 を公開します。パラメータ、マクロ、ハッシュ表の動作は Gauche 0.9.15 に従います。MML 記述者向けの使用例は xref:../sxmml-reference-manual.adoc[公開機能リファレンス]を参照してください。
 
 状態を保持する本体は xref:classes.adoc#ref-classes-class-sxmml-environment[`<sxmml-environment>`] です。`make-parameter` で作る束縛は手続きであり、引数なしで現在値を返し、値を一つ渡すと動的な現在値を変更して旧値を返します。表の設定手続きは、特記しない限り現在の環境オブジェクト内の slot または表を変更します。登録手続きの戻り値は呼び出し側では使用していません。`get` の未登録時の挙動は項目ごとに異なります。
 
@@ -27,17 +27,18 @@
 
 == LFO・エンベロープの登録
 
-`define-lfo` と `define-envelope` は Gauche の展開時に識別子と datum を構成し、実行時に対応する `set!` 手続きを呼びます。`type` を省略すると `default` です。datum は式として評価するのではなく、展開時に引用した値の列を登録します。未登録 ID の取得は、`get` に既定値を渡していないためハッシュ表の検索エラーになります。
+`define-lfo` と `define-envelope` は、共通の `%define-lfo/envelope-expand` で展開し、実行時に対応する `set!` 手続きを呼びます。`type`（LFO・エンベロープの種類。波形の種類）はリテラルのシンボルで、省略すると `default` です。枠の中の値は式として評価し、`(list 値 …)` を登録します。形は展開時に検査し、誤りは xref:form.adoc[`sxmml.form`] の `sxmml-form-error` で定義の位置を付けて投げます。値の式の誤りも、`sxmml-form-call` が定義の位置を付けた `<sxmml-form-error>` にします。未登録 ID の取得は、`get` に既定値を渡していないためハッシュ表の検索エラーになります。
 
 [cols="2,4,4,1",options="header"]
 |===
 |名前・書式 |引数と役割 |結果・副作用・失敗条件 |ソース
 |[[ref-environment-sxmml-lfo-get]]`(sxmml-lfo-get id)` |ID で LFO を検索 |登録済み `<sxmml-lfo>` を返す。未登録なら検索エラー |link:../../sxmml/environment.scm[environment.scm]
 |[[ref-environment-sxmml-lfo-set-bang]]`(sxmml-lfo-set! id type data)` |LFO オブジェクトを作り登録 |`lfo` 表の `id` を上書き |link:../../sxmml/environment.scm[environment.scm]
-|[[ref-environment-define-lfo]]`(define-lfo id (datum ...) ...)` / `(define-lfo id type (datum ...) ...)` |LFO の ID、種類、値の列を指定するマクロ |`sxmml-lfo-set!` を呼ぶ式に展開。列の構文が合わなければ展開できない |link:../../sxmml/environment.scm[environment.scm]
+|[[ref-environment-define-lfo]]`(define-lfo id [type] (value ...))` |LFO の ID、種類、値の列を指定するマクロ |`sxmml-lfo-set!` を呼ぶ式に展開。形が合わなければ `invalid define-lfo form` の `<sxmml-form-error>` |link:../../sxmml/environment.scm[environment.scm]
 |[[ref-environment-sxmml-envelope-get]]`(sxmml-envelope-get id)` |ID でエンベロープを検索 |登録済み `<sxmml-envelope>` を返す。未登録なら検索エラー |link:../../sxmml/environment.scm[environment.scm]
 |[[ref-environment-sxmml-envelope-set-bang]]`(sxmml-envelope-set! id type data)` |エンベロープオブジェクトを作り登録 |`envelope` 表の `id` を上書き |link:../../sxmml/environment.scm[environment.scm]
-|[[ref-environment-define-envelope]]`(define-envelope id (datum ...) ...)` / `(define-envelope id type (datum ...) ...)` |エンベロープの ID、種類、値の列を指定するマクロ |`sxmml-envelope-set!` を呼ぶ式に展開。列の構文が合わなければ展開できない |link:../../sxmml/environment.scm[environment.scm]
+|[[ref-environment-define-envelope]]`(define-envelope id [type] (value ...))` |エンベロープの ID、種類、値の列を指定するマクロ |`sxmml-envelope-set!` を呼ぶ式に展開。形が合わなければ `invalid define-envelope form` の `<sxmml-form-error>` |link:../../sxmml/environment.scm[environment.scm]
+|[[ref-environment-internal-define-lfo-envelope-expand]]`(%define-lfo/envelope-expand form rename name set-proc)` |2 つのマクロの共通の展開 |`(_ id (value ...))` と `(_ id type (value ...))`（`type` はシンボル）だけを受け、`(sxmml-form-call 位置 (lambda () (set-proc 'id 'type (list value ...))))` を返す。それ以外は `invalid <name> form: expected (<name> id [type] (value ...))` |link:../../sxmml/environment.scm[environment.scm]
 |===
 
 == トラック表と登録済みオブジェクト
