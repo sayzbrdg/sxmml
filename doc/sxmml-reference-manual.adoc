@@ -148,7 +148,7 @@
 
 === `define-lfo`、`define-envelope`
 
-書式: `(define-lfo 名前 (値 ...))`、`(define-envelope 名前 (値 ...))`。型名を明示する `(define-lfo 名前 型名 (値 ...))` と `(define-envelope 名前 型名 (値 ...))` も受け付けます。
+書式: `(define-lfo 名前 (値 ...))`、`(define-envelope 名前 (値 ...))`。LFO・エンベロープの種類（波形の種類）を明示する `(define-lfo 名前 種類 (値 ...))` と `(define-envelope 名前 種類 (値 ...))` も受け付けます。種類は `sw` のように単語をそのまま書き、省略すると `default` になります。
 
 `M` と `E` のコマンドから参照する定義を作ります。次は PMD 向けの四値の例です。PMD 向け生成では LFO に四つ、エンベロープに四つまたは六つの値を使用します。LFO の四値の許容範囲は順に 0～255、0～255、-128～127、0～255 です。エンベロープの四値形式は順に 0～255、-15～15、0～255、0～255、六値形式は順に 0～31、0～31、0～31、0～15、0～15、0～15 です。音響上の効果は生成先のドライバーに依存します。
 
@@ -157,6 +157,26 @@
 (define-lfo L1 (1 2 3 4))
 (define-envelope E1 (1 2 3 4))
 (mml G "M{L1 A} E{E1} c8")
+----
+
+括弧の中の値は式として評価されます。数値のほかに、変数や計算式も書けます。括弧の中にシンボルを書くと、変数の参照になります。値の括弧は 1 つだけ書きます。括弧そのものは書式の一部なので、括弧の代わりに変数や `(list …)` は書けません。
+
+[source,scheme]
+----
+(define depth 3)
+(define-lfo L2 (1 2 depth (* depth 2)))
+(mml G "M{L2 A} c8")
+----
+
+書式の誤り（値の括弧がない、2 つ以上ある、種類が単語でない、など）や、値の式の誤り（未定義の変数など）は、`*** SXMML-FORM-ERROR: ./song.sxl:3: invalid define-lfo form: expected (define-lfo id [type] (value ...))` のように、その定義の開始位置を示して変換の失敗になります。値の数や範囲は、生成先が検査します。
+
+プログラムから登録するときは、手続き `(sxmml-lfo-set! 名前 種類 値のリスト)` と `(sxmml-envelope-set! 名前 種類 値のリスト)` を使います。名前と種類はシンボルで指定します。`define-lfo`・`define-envelope` は、これらの手続きの呼び出しに展開されます。
+
+[source,scheme]
+----
+(sxmml-lfo-set! 'L3 'default (list 1 2 3 4))
+(sxmml-envelope-set! 'E3 'default (list 1 2 3 4))
+(mml G "M{L3 A} E{E3} c8")
 ----
 
 === `define-opn-voice`
