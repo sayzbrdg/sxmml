@@ -25,6 +25,65 @@
 (use sxmml.backend.pmd)
 (test-module 'sxmml)
 
+;; 音色の登録 (#27)
+;; sxmml-opn-voice-set! は実行時に検査して登録し、define-opn-voice はその呼び出しに展開する
+(let* ([op0 '(0 0 0 0 0 0 0 0 0)]
+       [ops (make-list 4 op0)]
+       [voice-value (^[env id] (slot-ref (hash-table-get (slot-ref env 'voice) id) 'value))])
+  (define (with-new-environment thunk)
+    (parameterize ([sxmml-environment (make <sxmml-environment>)])
+      (thunk)))
+  (test* "sxmml-opn-voice-set! registers a voice"
+         `((1 2) ,@(make-list 4 (make-list 12 0)))
+         (with-new-environment
+          (^[] (apply sxmml-opn-voice-set! 'v '(1 2) ops)
+               (voice-value (sxmml-environment) 'v))))
+  ;; 10 値は dt2 と seg、11 値は dt2 を 0 として補う
+  (let ([op10 '(1 2 3 4 5 6 7 8 9 10)]
+        [op11 '(1 2 3 4 5 6 7 8 9 11 12)]
+        [expected '((0 0) (1 2 3 4 5 6 7 8 9 0 0 10) (1 2 3 4 5 6 7 8 9 0 11 12)
+                    (0 0 0 0 0 0 0 0 0 0 0 0) (0 0 0 0 0 0 0 0 0 0 0 0))])
+    (test* "operators of 10 and 11 values are padded at dt2 and seg"
+           expected
+           (with-new-environment
+            (^[] (sxmml-opn-voice-set! 'v '(0 0) op10 op11 op0 op0)
+                 (voice-value (sxmml-environment) 'v))))
+    (test* "define-opn-voice pads operators of 10 and 11 values at dt2 and seg"
+           expected
+           (with-new-environment
+            (^[] (eval `(define-opn-voice v (0 0) ,op10 ,op11 ,op0 ,op0) (interaction-environment))
+                 (voice-value (sxmml-environment) 'v)))))
+  (dolist [case `(("a non-symbol voice id" "voice id must be a symbol: 0" (0 (0 0) ,@ops))
+                  ("an invalid al/fb" "invalid voice format: @v, al/fb, (0)" (v (0) ,@ops))
+                  ("an invalid operator" "invalid voice format: @v, operator(2), (0 0 0)"
+                   (v (0 0) ,op0 (0 0 0) ,op0 ,op0))
+                  ("a negative value" "invalid voice value: @v, operator(2), -1"
+                   (v (0 0) ,op0 (-1 0 0 0 0 0 0 0 0) ,op0 ,op0))
+                  ("an inexact value" "invalid voice value: @v, operator(2), 1.5"
+                   (v (0 0) ,op0 (1.5 0 0 0 0 0 0 0 0) ,op0 ,op0))
+                  ("a non-number value" "invalid voice value: @v, operator(2), x"
+                   (v (0 0) ,op0 (x 0 0 0 0 0 0 0 0) ,op0 ,op0))
+                  ("a negative al/fb" "invalid voice value: @v, al/fb, -1" (v (0 -1) ,@ops)))]
+    (test* #"~(car case) fails" (test-error <error> (cadr case))
+           (with-new-environment (^[] (apply sxmml-opn-voice-set! (caddr case))))))
+  ;; 同じ id の定義の判定は実行時に行う。前の環境で展開した定義も、実行した環境に登録する
+  (let ([env1 (make <sxmml-environment>)]
+        [env2 (make <sxmml-environment>)])
+    (parameterize ([sxmml-environment env1])
+      (eval `(define-opn-voice V (1 0) ,@ops) (interaction-environment))
+      (eval `(define (%test-define-voice-v) (define-opn-voice V (2 0) ,@ops)) (interaction-environment)))
+    (test* "a voice is registered when the definition runs"
+           '((1 0) (2 0))
+           (parameterize ([sxmml-environment env2])
+             ((eval '%test-define-voice-v (interaction-environment)))
+             (list (car (voice-value env1 'V)) (car (voice-value env2 'V))))))
+  (test* "the later definition of the same id in begin replaces the former"
+         '(2 0)
+         (with-new-environment
+          (^[] (eval `(begin (define-opn-voice W (1 0) ,@ops) (define-opn-voice W (2 0) ,@ops))
+                     (interaction-environment))
+               (car (voice-value (sxmml-environment) 'W))))))
+
 ;; sxlc の CLI
 (use gauche.process)
 (use file.util)

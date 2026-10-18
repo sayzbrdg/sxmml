@@ -30,7 +30,7 @@
   (use util.match)
   (use sxmml.classes)
   (use sxmml.environment)
-  (export define-opn-voice
+  (export define-opn-voice sxmml-opn-voice-set!
           sxmml-opmn-operator-zip))
 (select-module sxmml.voice)
 
@@ -68,24 +68,29 @@
     [else
      (errorf "invalid voice format: @~a, operator(~a), ~a" id openum form)]))
 
+;; 音色を検査して登録する。演算子の値は 12 値に直し、どの値も 0 以上の正確な整数とする。
+;; 同じ id の音色は置き換える。番号はバックエンドが決めるので、ここでは持たない
+(define (sxmml-opn-voice-set! id alfb op1 op2 op3 op4)
+  (unless (symbol? id)
+    (errorf "voice id must be a symbol: ~a" id))
+  (unless (and (list? alfb) (= (length alfb) 2))
+    (errorf "invalid voice format: @~a, al/fb, ~a" id alfb))
+  (let1 ops (map (cut %4op-voice-shape <> id <>) (list op1 op2 op3 op4) '(1 2 3 4))
+    (%voice-values-check alfb id "al/fb")
+    (for-each (^[op openum] (%voice-values-check op id #"operator(~openum)")) ops '(1 2 3 4))
+    (hash-table-set! (slot-ref (sxmml-environment) 'voice) id
+                     (make <sxmml-opn-voice> :id id :value (cons alfb ops)))))
+
+(define (%voice-values-check values id place)
+  (if-let1 v (find (^v (not (and (exact-integer? v) (>= v 0)))) values)
+    (errorf "invalid voice value: @~a, ~a, ~a" id place v)))
+
+;; 登録は実行時に行うので、展開時には音色表を見ない
 (define-syntax define-opn-voice
   (er-macro-transformer
     (^[form rename id=?]
       (match form
         [(_ id (al fb) op1 op2 op3 op4)
-         (let ([idsym (string->symbol (x->string id))]
-               [vdata (list (list al fb)
-                            (%4op-voice-shape op1 id 1)
-                            (%4op-voice-shape op2 id 2)
-                            (%4op-voice-shape op3 id 3)
-                            (%4op-voice-shape op4 id 4))]
-               [number (hash-table-size (slot-ref (sxmml-environment) 'voice))])
-           (if-let1 old (hash-table-get (slot-ref (sxmml-environment) 'voice) idsym #f)
-             (quasirename rename
-               `(slot-set! ,old 'value ',vdata))
-             (quasirename rename
-               `(hash-table-set! (slot-ref (sxmml-environment) 'voice)
-                                 ',idsym (make <sxmml-opn-voice>
-                                           :id ',idsym
-                                           :number ',number
-                                           :value ',vdata)))))]))))
+         (let1 idsym (string->symbol (x->string id))
+           (quasirename rename
+             `(sxmml-opn-voice-set! ',idsym '(,al ,fb) ',op1 ',op2 ',op3 ',op4)))]))))
