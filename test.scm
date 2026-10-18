@@ -67,6 +67,10 @@
   (test* "sxmml-form-wrap wraps a call with sxmml-form-call"
          '(sxmml-form-call #f (lambda () (foo 1)))
          (sxmml-form-wrap (list 'define-x 'a) (^[x] x) '(foo 1)))
+  (test* "sxmml-form-warn without a location"
+         "warning: old: 1\n"
+         (call-with-output-string
+           (^p (with-error-to-port p (^[] (sxmml-form-warn (list 'a) "old: ~a" 1))))))
   (test* "sxmml-form-error without a location"
          '(#t "bad: 1" #f #f)
          (let1 e (caught (^[] (sxmml-form-error (list 'a) "bad: ~a" 1)))
