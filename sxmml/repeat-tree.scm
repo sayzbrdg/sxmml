@@ -68,15 +68,13 @@
   (allow-final? repeat-tree-settings-allow-final?)
   (window repeat-tree-settings-window))
 
-(define (%exact-integer? x) (and (integer? x) (exact? x)))
-
 ;; ((回数 . 制御費用) ...) を検査してコピーする。回数は昇順・重複なしの 2 以上、費用は 0 以上
 (define (%copy-costs pairs)
   (let loop ([rest pairs] [previous 1] [saved ()])
     (cond [(null? rest) (reverse saved)]
           [(and (pair? rest) (pair? (car rest))
-                (%exact-integer? (caar rest)) (> (caar rest) previous)
-                (%exact-integer? (cdar rest)) (>= (cdar rest) 0))
+                (exact-integer? (caar rest)) (> (caar rest) previous)
+                (exact-integer? (cdar rest)) (>= (cdar rest) 0))
            (loop (cdr rest) (caar rest) (cons (cons (caar rest) (cdar rest)) saved))]
           [else
            (errorf "repeat-tree: cost pairs require increasing exact counts >= 2 and exact fees >= 0: ~s"
@@ -86,7 +84,7 @@
 (define (make-repeat-tree-settings repeat-costs final-costs allow-final? window)
   (unless (boolean? allow-final?)
     (errorf "repeat-tree: the final flag must be a boolean: ~s" allow-final?))
-  (unless (and (%exact-integer? window) (>= window 1))
+  (unless (and (exact-integer? window) (>= window 1))
     (errorf "repeat-tree: the window must be an exact integer >= 1: ~s" window))
   (%make-repeat-tree-settings (%copy-costs repeat-costs) (%copy-costs final-costs)
                               allow-final? window))
@@ -95,12 +93,14 @@
 ;;; 入力の検査
 ;;;
 ;; items と weights は同じ長さ n >= 1 のベクタで、重みは正の exact 整数
-(define (%check-input items weights)
+(define (%check-input items weights settings)
+  (unless (repeat-tree-settings? settings)
+    (errorf "repeat-tree: settings required: ~s" settings))
   (unless (and (vector? items) (vector? weights)
                (= (vector-length items) (vector-length weights))
                (> (vector-length items) 0))
     (error "repeat-tree: items and weights must be vectors of the same length >= 1"))
-  (vector-for-each (^w (unless (and (%exact-integer? w) (> w 0))
+  (vector-for-each (^w (unless (and (exact-integer? w) (> w 0))
                          (errorf "repeat-tree: weights must be exact integers > 0: ~s" w)))
                    weights))
 
@@ -114,15 +114,16 @@
 ;;; 独立検査
 ;;;
 ;; 木を直接たどり、LCP・DP は使わない。訪問は 2n-1 回、部分展開の長さは n までとし、
-;; 展開列は長さを確かめてから作る。通れば展開した添字のリストを返す
+;; 展開列は長さを確かめてから作る。通れば展開した添字のリストを返す。添字列は、後に続く
+;; 列を受け取って前に足す手続きで作り、全体で O(n) にする
 (define (repeat-tree-inspect items weights same? settings tree claimed-cost)
-  (%check-input items weights)
+  (%check-input items weights settings)
   (let* ([n (vector-length items)]
          [fee (^[costs r]
-                (or (and (%exact-integer? r) (>= r 2) (assv-ref costs r))
+                (or (and (exact-integer? r) (>= r 2) (assv-ref costs r))
                     (errorf "repeat-tree: disallowed repeat count: ~s" r)))])
     (define (fail message) (errorf "repeat-tree: inspection failed: ~a" message))
-    ;; 戻り値は (values 費用 長さ 添字列を作る手続き 残りの訪問数)
+    ;; 戻り値は (values 費用 長さ 添字列を tail の前に足す手続き 残りの訪問数)
     (define (finish cost len indices remaining)
       (unless (<= 1 len n) (fail "partial expansion length limit"))
       (values cost len indices remaining))
@@ -132,18 +133,20 @@
         (cond
          [(literal? node)
           (let1 index (literal-index node)
-            (unless (and (%exact-integer? index) (<= 0 index) (< index n)) (fail "source index"))
-            (finish (vector-ref weights index) 1 (^[] (list index)) left))]
+            (unless (and (exact-integer? index) (<= 0 index) (< index n)) (fail "source index"))
+            (finish (vector-ref weights index) 1 (cut cons index <>) left))]
          [(concat? node)
           (receive (ca la ia ra) (walk (concat-left node) left)
             (receive (cb lb ib rb) (walk (concat-right node) ra)
-              (finish (+ ca cb) (+ la lb) (^[] (append (ia) (ib))) rb)))]
+              (finish (+ ca cb) (+ la lb) (^[tail] (ia (ib tail))) rb)))]
          [(repeat? node)
           (let* ([r (repeat-count node)]
                  [h (fee (repeat-tree-settings-repeat-costs settings) r)])
             (receive (ca la ia ra) (walk (repeat-body node) left)
               (finish (+ h ca) (* r la)
-                      (^[] (let1 body (ia) (concatenate (make-list r body)))) ra)))]
+                      (^[tail] (let loop ([k r] [acc tail])
+                                 (if (zero? k) acc (loop (- k 1) (ia acc)))))
+                      ra)))]
          [(final? node)
           (unless (repeat-tree-settings-allow-final? settings) (fail "final disabled"))
           (let* ([r (final-count node)]
@@ -151,15 +154,15 @@
             (receive (ca la ia ra) (walk (final-prefix node) left)
               (receive (cb lb ib rb) (walk (final-suffix node) ra)
                 (finish (+ h ca cb) (+ (* (- r 1) (+ la lb)) la)
-                        (^[] (let ([a (ia)] [b (ib)])
-                               (append (concatenate (make-list (- r 1) (append a b))) a)))
+                        (^[tail] (let loop ([k (- r 1)] [acc (ia tail)])
+                                   (if (zero? k) acc (loop (- k 1) (ia (ib acc))))))
                         rb))))]
          [else (fail "tree node required")])))
     (receive (cost len indices _) (walk tree (- (* 2 n) 1))
-      (unless (and (%exact-integer? claimed-cost) (= claimed-cost cost))
+      (unless (and (exact-integer? claimed-cost) (= claimed-cost cost))
         (fail "claimed cost mismatch"))
       (unless (= len n) (fail "expansion length mismatch"))
-      (rlet1 expanded (indices)
+      (rlet1 expanded (indices ())
         (for-each (^[t index] (unless (%same? same? (vector-ref items t) (vector-ref items index))
                                 (fail "expanded value mismatch")))
                   (iota n) expanded)))))
@@ -174,9 +177,7 @@
 ;; 根の記述は割り当てを減らすため kind + 4x の整数に符号化する。kind は raw 0、
 ;; cat 1 (x=k-i)、rep 2 (x=p)、final 3 (x=p*span+a)。回数は m と p から求め直す
 (define (repeat-tree-compress items weights same? settings)
-  (%check-input items weights)
-  (unless (repeat-tree-settings? settings)
-    (errorf "repeat-tree: settings required: ~s" settings))
+  (%check-input items weights settings)
   (let* ([n (vector-length items)]
          [span (min n (repeat-tree-settings-window settings))]
          [sums (rlet1 v (make-vector (+ n 1) 0)

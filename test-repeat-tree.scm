@@ -51,6 +51,12 @@
              ("a non-tree value" #(0) ,(ones 1) ,s-repeat2 (lit 0) 1))]
   (test* #"inspect rejects ~(car c)" (test-error <error>)
          (repeat-tree-inspect (list-ref c 1) (list-ref c 2) eqv? (list-ref c 3) (list-ref c 4) (list-ref c 5))))
+;; 設定でない値は、圧縮と同じ repeat-tree: のメッセージで失敗する
+(test* "inspect rejects a non-settings value with the repeat-tree message" #t
+       (let1 message (guard (e [else (condition-message e)])
+                       (repeat-tree-inspect #(0) (ones 1) eqv? 'settings (make-literal 0) 1)
+                       'no-error)
+         (boolean (and (string? message) (#/^repeat-tree: settings required/ message)))))
 
 ;; 圧縮。仕様 §4.1 の ABABA の例
 (define (compress-sexp items weights rc fc final? :optional (window 256))
@@ -158,13 +164,12 @@
         (all-sequences 2 7)))
 (test* "window 1 keeps raw" 4
        (car (compress-sexp #(0 0 0 0) (ones 4) '((4 . 0)) '() #f 1)))
-(test* "a window not smaller than n gives the same tree" '()
-       (filter-map (^[seq] (let* ([items (list->vector seq)] [n (vector-length items)]
-                                  [s (list-ref oracle-settings 0)]
-                                  [a (apply compress-sexp items (ones n) `(,@s ,n))]
-                                  [b (apply compress-sexp items (ones n) `(,@s ,(+ n 3)))])
-                             (and (not (equal? a b)) (list seq a b))))
-                   (all-sequences 2 7)))
+;; ABABA CCCC は、k=5 の分割が最初に費用 5 に達し、Final と Repeat の連結になる。
+;; W >= n では全体の連結の始点 0 が選ばれ、厳密な区間 DP の木と同じになる
+(dolist [w '(9 12)]
+  (test* #"a window ~w not smaller than n gives the exact tree"
+         '(5 (cat (fin 3 (lit 0) (lit 1)) (rep 4 (lit 5))))
+         (compress-sexp #(a b a b a c c c c) (ones 9) '((4 . 2)) '((3 . 0)) #t w)))
 ;; 窓幅で区間表が n×W に収まることの確認。時間は測らない
 (test* "a long input runs within the window" #t
        (let* ([items (list->vector (map (cut modulo <> 5) (iota 600)))]
