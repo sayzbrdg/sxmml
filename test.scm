@@ -216,6 +216,19 @@
         ((slot-ref (sxmml-environment) 'backend))
         (find #/^A / (string-split (file->string (slot-ref (sxmml-environment) 'output))
                                    "\r\n")))))
+  ;; forms をこのプロセスで PMD 向けに変換し、成功すればトラック G の行を、
+  ;; 失敗すればエラーのメッセージを返す
+  (define (pmd-g-result name forms)
+    (let1 source (work-file #"pmd-~|name|.sxl")
+      (with-output-to-file source (^[] (for-each write forms)))
+      (parameterize ([sxmml-environment (make <sxmml-environment>)]
+                     [sxmml-source-file source])
+        (guard (e [else (condition-message e)])
+          (pmd-source)
+          (load source)
+          ((slot-ref (sxmml-environment) 'backend))
+          (find #/^G / (string-split (file->string (slot-ref (sxmml-environment) 'output))
+                                     "\r\n"))))))
   (unwind-protect
       (begin
         ;; -c の後処理へ渡す生成名
@@ -456,6 +469,68 @@
                      (status-and-message (sxlc-status "-m" "pmd" "-o" (work-file #"~|macro|-sxlc-location.mml") source)
                                          (string->regexp
                                           (regexp-quote #"*** SXMML-FORM-ERROR: ~|source|:2: invalid ~macro form")))))))
+        ;; LFO・エンベロープは、使うときに種類・値の数・値を検査し、何が悪いかを示して
+        ;; 失敗する。種類は LFO が default・triangle、エンベロープが default (#28)
+        (let ([lfo (^[def channel] `(,def (mml G ,#"M{L1 ~channel}c8")))]
+              [envelope (^[def] `(,def (mml G "E{E1}c8")))])
+          (dolist [case `(("lfo-type" ,(lfo '(define-lfo L1 sw (1 2 3 4)) "A")
+                           "unsupported lfo type: sw in L1 (supported: default, triangle)")
+                          ("envelope-type" ,(envelope '(define-envelope E1 sw (1 2 3 4)))
+                           "unsupported envelope type: sw in E1 (supported: default)")
+                          ("unused-type" ((define-lfo L2 sw (1 2 3 4)) (mml G "c8"))
+                           "G l%12o4c")
+                          ("lfo-count" ,(lfo '(define-lfo L1 (1 2 3)) "A")
+                           "invalid lfo values: L1 has 3 values (expected 4)")
+                          ("lfo-count-1" ,(lfo '(define-lfo L1 (1)) "A")
+                           "invalid lfo values: L1 has 1 value (expected 4)")
+                          ("envelope-count-3" ,(envelope '(define-envelope E1 (1 2 3)))
+                           "invalid envelope values: E1 has 3 values (expected 4, 5 or 6)")
+                          ("envelope-count-7" ,(envelope '(define-envelope E1 (1 2 3 4 5 6 7)))
+                           "invalid envelope values: E1 has 7 values (expected 4, 5 or 6)")
+                          ("envelope-5" ,(envelope '(define-envelope E1 (1 2 3 4 5)))
+                           "G l%12E1,2,3,4,5o4c")
+                          ("lfo-inexact" ,(lfo '(define-lfo L1 (1 1.5 3 4)) "A")
+                           "invalid lfo value: L1, value 2 is 1.5 (0 - 255)")
+                          ("lfo-string" ,(lfo '(define-lfo L1 (1 2 "x" 4)) "A")
+                           "invalid lfo value: L1, value 3 is \"x\" (-128 - 127)")
+                          ("lfo-list" ,(lfo '(define-lfo L1 (1 2 3 (list 1 2))) "A")
+                           "invalid lfo value: L1, value 4 is (1 2) (0 - 255)")
+                          ("lfo-range" ,(lfo '(define-lfo L1 (1 256 3 4)) "A")
+                           "invalid lfo value: L1, value 2 is 256 (0 - 255)")
+                          ("envelope-range-1" ,(envelope '(define-envelope E1 (1 16 3 4)))
+                           "invalid envelope value: E1, value 2 is 16 (-15 - 15)")
+                          ("envelope-range-2" ,(envelope '(define-envelope E1 (32 2 3 4 5)))
+                           "invalid envelope value: E1, value 1 is 32 (0 - 31)")
+                          ("lfo-bounds" ,(lfo '(define-lfo L1 (0 255 -128 127)) "A")
+                           "G l%12M0,255,-128,127o4c")
+                          ;; 各値の範囲の両端は通る
+                          ("lfo-min" ,(lfo '(define-lfo L1 (0 0 -128 0)) "A")
+                           "G l%12M0,0,-128,0o4c")
+                          ("lfo-max" ,(lfo '(define-lfo L1 (255 255 127 255)) "A")
+                           "G l%12M255,255,127,255o4c")
+                          ("envelope-4-min" ,(envelope '(define-envelope E1 (0 -15 0 0)))
+                           "G l%12E0,-15,0,0o4c")
+                          ("envelope-4-max" ,(envelope '(define-envelope E1 (255 15 255 255)))
+                           "G l%12E255,15,255,255o4c")
+                          ("envelope-5-min" ,(envelope '(define-envelope E1 (0 0 0 0 0)))
+                           "G l%12E0,0,0,0,0o4c")
+                          ("envelope-5-max" ,(envelope '(define-envelope E1 (31 31 31 15 15)))
+                           "G l%12E31,31,31,15,15o4c")
+                          ("envelope-6-min" ,(envelope '(define-envelope E1 (0 0 0 0 0 0)))
+                           "G l%12E0,0,0,0,0,0o4c")
+                          ("envelope-6-max" ,(envelope '(define-envelope E1 (31 31 31 15 15 15)))
+                           "G l%12E31,31,31,15,15,15o4c")
+                          ("lfo-channel" ,(lfo '(define-lfo L1 (1 2 3 4)) "C")
+                           "invalid lfo channel: C")
+                          ;; LFO の切り替えのチャンネルの誤りも、定義と同じメッセージにする
+                          ("lfo-switch-channel" ((mml G "Mt{C}c8"))
+                           "invalid lfo channel: C"))]
+            (test* #"PMD checks LFO and envelope definitions: ~(car case)"
+                   (caddr case)
+                   (pmd-g-result (car case) (cadr case))))
+          (test* "a triangle LFO is output the same as the default"
+                 (pmd-g-result "lfo-default" (lfo '(define-lfo L1 (1 2 3 4)) "A"))
+                 (pmd-g-result "lfo-triangle" (lfo '(define-lfo L1 triangle (1 2 3 4)) "A"))))
         ;; エンベロープは値の数で書式が決まる。5 値は 6 値の書式の 6 つ目を省いた形なので、
         ;; 5 値のまま出力すること (#84)
         (test* "a 5-value envelope is output with its 5 values"

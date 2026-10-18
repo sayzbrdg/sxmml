@@ -39,7 +39,7 @@
   (use sxmml.util)
   (export sxmml-pmd3-source-generate sxmml-pmd4-source-generate sxmml-pmd-source-generate
           pmd3-source pmd4-source pmd-source pmd3 pmd
-          sxmml-pmd-voice-numbers
+          sxmml-pmd-voice-numbers sxmml-pmd-lfo-values sxmml-pmd-envelope-values
           ))
 (select-module sxmml.backend.pmd)
 
@@ -419,25 +419,20 @@
   (let1 lfo (hash-table-get (slot-ref (sxmml-environment) 'lfo) (slot-ref obj 'value) #f)
     (unless lfo
       (error "no lfo define: " (slot-ref obj 'value)))
-    (let ([value (slot-ref lfo 'value)]
-          [channel (slot-ref obj 'channel)])
-      (when (or (not (= (length value) 4))
-                (> (car value) 255) (< (car value) 0)
-                (> (cadr value) 255) (< (cadr value) 0)
-                (> (caddr value) 127) (< (caddr value) -128)
-                (> (cadddr value) 255) (< (cadddr value) 0)
-                (and (not (eq? channel 'A)) (not (eq? channel 'B)) (not (eq? channel #f))))
-        (error "invalid lfo defition: " (slot-ref obj 'value)))
-      (display "M")
-      (when (eq? channel 'B)
-        (display "B"))
-      (format #t "~d,~d,~d,~d" (car value) (cadr value) (caddr value) (cadddr value)))))
+    (let ([channel (slot-ref obj 'channel)])
+      (unless (memq channel '(#f A B))
+        (errorf "invalid lfo channel: ~a" channel))
+      (let1 value (sxmml-pmd-lfo-values lfo)
+        (display "M")
+        (when (eq? channel 'B)
+          (display "B"))
+        (format #t "~d,~d,~d,~d" (car value) (cadr value) (caddr value) (cadddr value))))))
 
 (define (%pmd-lfo-switch-set! obj)
   (let ([channel (slot-ref obj 'channel)]
         [switch (slot-ref obj 'value)])
-    (when (and (not (eq? channel 'A)) (not (eq? channel 'B)) (not (eq? channel #f)))
-      (error "invalid lfo channel: " (slot-ref obj 'channel)))
+    (unless (memq channel '(#f A B))
+      (errorf "invalid lfo channel: ~a" channel))
     (display "*")
       (when (eq? channel 'B)
         (display "B"))
@@ -447,25 +442,51 @@
   (let1 envelope (hash-table-get (slot-ref (sxmml-environment) 'envelope) (slot-ref obj 'value) #f)
     (unless envelope
       (error "no envelope define: " (slot-ref obj 'value)))
-    (let1 value (slot-ref envelope 'value)
-      (when (cond [(= (length value) 4)
-                   (or (> (car value) 255) (< (car value) 0)
-                       (> (cadr value) 15) (< (cadr value) -15)
-                       (> (caddr value) 255) (< (caddr value) 0)
-                       (> (cadddr value) 255) (< (cadddr value) 0))]
-                  [(<= (length value) 6)
-                   (or (> (car value) 31) (< (car value) 0)
-                       (> (cadr value) 31) (< (cadr value) 0)
-                       (> (caddr value) 31) (< (caddr value) 0)
-                       (> (cadddr value) 15) (< (cadddr value) 0)
-                       (> (cadddr (cdr value)) 15) (< (cadddr (cdr value)) 0)
-                       (and (= (length value) 6) (or (> (cadddr (cddr value)) 15) (< (cadddr (cddr value)) 0)))
-                       )]
-                  [else #t])
-        (error "invalid envelope defition: " (slot-ref obj 'value)))
+    (let1 value (sxmml-pmd-envelope-values envelope)
       ;; 書式は値の数で決まるので、5 値 (6 値の書式の 6 つ目を省いた形) も値をそのまま書く
       (format #t "E~d,~d,~d,~d" (car value) (cadr value) (caddr value) (cadddr value))
       (for-each (^v (format #t ",~d" v)) (cddddr value)))))
+
+;; PMD の LFO・エンベロープの規則。種類 (波形の種類) の一覧と、値の数ごとの範囲。
+;; LFO の triangle は default と同じ意味である。-m pmd と pmd-binary が使う
+(define %pmd-lfo-types '(default triangle))
+(define %pmd-lfo-ranges
+  '((4 . ((0 255) (0 255) (-128 127) (0 255)))))
+(define %pmd-envelope-types '(default))
+(define %pmd-envelope-ranges
+  '((4 . ((0 255) (-15 15) (0 255) (0 255)))
+    (5 . ((0 31) (0 31) (0 31) (0 15) (0 15)))
+    (6 . ((0 31) (0 31) (0 31) (0 15) (0 15) (0 15)))))
+
+;; LFO の定義を検査し、値のリストを返す
+(define (sxmml-pmd-lfo-values lfo)
+  (%pmd-definition-values "lfo" lfo %pmd-lfo-types %pmd-lfo-ranges "4"))
+
+;; エンベロープの定義を検査し、値のリストを返す
+(define (sxmml-pmd-envelope-values envelope)
+  (%pmd-definition-values "envelope" envelope %pmd-envelope-types %pmd-envelope-ranges "4, 5 or 6"))
+
+;; 定義 obj の種類、値の数、各値 (正確な整数で範囲の中) を順に検査する。
+;; ranges は値の数から範囲の並びへの連想リスト、expected は値の数の説明である
+(define (%pmd-definition-values kind obj types ranges expected)
+  (let ([id (slot-ref obj 'id)]
+        [type (slot-ref obj 'type)]
+        [value (slot-ref obj 'value)])
+    (unless (memq type types)
+      (errorf "unsupported ~a type: ~a in ~a (supported: ~a)"
+              kind type id (string-join (map symbol->string types) ", ")))
+    (let1 range (assv (length value) ranges)
+      (unless range
+        (errorf "invalid ~a values: ~a has ~a value~a (expected ~a)"
+                kind id (length value) (if (= (length value) 1) "" "s") expected))
+      (for-each (^[v r i]
+                  (unless (and (exact-integer? v) (<= (car r) v (cadr r)))
+                    (errorf (if (number? v)
+                              "invalid ~a value: ~a, value ~a is ~a (~a - ~a)"
+                              "invalid ~a value: ~a, value ~a is ~s (~a - ~a)")
+                            kind id i v (car r) (cadr r))))
+                value (cdr range) (iota (length value) 1))
+      value)))
 
 (define (%pmd-pan-set! obj)
   (format #t "p~d" (slot-ref obj 'value)))
