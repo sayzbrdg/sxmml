@@ -382,3 +382,22 @@
                         (append (concatenate (make-list (- r 1) (append front back))) front)))
                     (list i)))
               items))
+
+;; 圧縮で同じとみなすか。オブジェクトはクラスが同じで、全スロットが、両方とも未束縛か、
+;; 両方とも束縛されて equal? なら同じ。ブロックは回数と : の有無が同じで、本文の要素が
+;; 順に同じなら同じ
+(define (%repeat-same? a b)
+  (define (items-same? x y)
+    (and (= (length x) (length y)) (every %repeat-same? x y)))
+  (cond [(and (%repeat-block? a) (%repeat-block? b))
+         (and (equal? (slot-ref (%repeat-block-end a) 'value) (slot-ref (%repeat-block-end b) 'value))
+              (eq? (not (%repeat-block-break a)) (not (%repeat-block-break b)))
+              (items-same? (%repeat-block-front a) (%repeat-block-front b))
+              (items-same? (or (%repeat-block-back a) ()) (or (%repeat-block-back b) ())))]
+        [(or (%repeat-block? a) (%repeat-block? b)) #f]
+        [else
+         (and (eq? (class-of a) (class-of b))
+              (every (^s (let ([ba (slot-bound? a s)] [bb (slot-bound? b s)])
+                           (and (eq? ba bb)
+                                (or (not ba) (equal? (slot-ref a s) (slot-ref b s))))))
+                     (map slot-definition-name (class-slots (class-of a)))))]))

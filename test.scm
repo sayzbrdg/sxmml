@@ -155,7 +155,36 @@
   (test* "a repeat without its end fails" (test-error <error>)
          (structure (list start1 c)))
   (test* "a repeat end without its start fails" (test-error <error>)
-         (structure (list c end1))))
+         (structure (list c end1)))
+  ;; 同値判定。オブジェクトはクラスと全スロット、ブロックは回数・: の有無・本文で比べる
+  (let ([same? (with-module sxmml.optimizer %repeat-same?)]
+        [block (^[text-items count break?]
+                 (car (structure `(,(make <sxmml-mml-repeat-start>)
+                                   ,@(if break?
+                                       (list (car text-items) (make <sxmml-mml-repeat-break>) (cadr text-items))
+                                       text-items)
+                                   ,(make <sxmml-mml-repeat-end> :value count)))))])
+    (test* "same notes are same" #t (same? (note 0) (note 0)))
+    (test* "notes with different ticks are not same" #f
+           (same? (note 0) (make <sxmml-mml-note> :value 0 :ticks 12)))
+    (test* "a note and a rest are not same" #f
+           (same? (note 0) (make <sxmml-mml-rest> :value 0 :ticks 24)))
+    (test* "lfo switches on different channels are not same" '(#f #f)
+           (list (same? (make <sxmml-mml-lfo-switch> :value 1 :channel 'A)
+                        (make <sxmml-mml-lfo-switch> :value 1 :channel 'B))
+                 (same? (make <sxmml-mml-lfo-switch> :value 1 :channel #f)
+                        (make <sxmml-mml-lfo-switch> :value 1 :channel 'A))))
+    (test* "rhythm volumes on different instruments are not same" #f
+           (same? (make <sxmml-rhythm-volume> :bass 1) (make <sxmml-rhythm-volume> :snare 1)))
+    ;; value を持たない命令はスロットが未束縛のまま比べる
+    (test* "unbound slots are compared" '(#t #f)
+           (list (same? (make <sxmml-mml-tie>) (make <sxmml-mml-tie>))
+                 (same? (make <sxmml-mml-repeat-start>) (make <sxmml-mml-tie>))))
+    (test* "blocks compare counts, breaks and bodies" '(#t #f #f #f)
+           (list (same? (block (list (note 0) (note 2)) 2 #f) (block (list (note 0) (note 2)) 2 #f))
+                 (same? (block (list (note 0) (note 2)) 2 #f) (block (list (note 0) (note 2)) 3 #f))
+                 (same? (block (list (note 0) (note 2)) 2 #t) (block (list (note 0) (note 2)) 2 #f))
+                 (same? (block (list (note 0) (note 2)) 2 #f) (note 0))))))
 
 ;; sxlc の CLI
 (use gauche.process)
