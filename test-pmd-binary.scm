@@ -374,6 +374,46 @@
                                         (regexp-quote #"note out of range: ~(caddr case) (o1c - o8b)"))
                                        (cadr result)))
                          (file-exists? output)))))
+        ;; LFO・エンベロープは -m pmd と同じ規則で検査する。PMD3 だけの検査は、チャンネル B と
+        ;; 5・6 値のエンベロープである (#28)
+        (let ([caught (^[name mode forms]
+                        (guard (e [else (condition-message e)])
+                          (generate-binary name mode forms)
+                          'generated))])
+          (dolist [case `(("lfo-type" ,pmd-binary
+                           ((define-lfo L1 sw (1 2 3 4)) (mml A "M{L1 A}c8"))
+                           "unsupported lfo type: sw in L1 (supported: default, triangle)")
+                          ("envelope-count" ,pmd-binary
+                           ((define-envelope E1 (1 2 3)) (mml G "E{E1}c8"))
+                           "invalid envelope values: E1 has 3 values (expected 4, 5 or 6)")
+                          ("lfo-inexact" ,pmd-binary
+                           ((define-lfo L1 (1 1.5 3 4)) (mml A "M{L1 A}c8"))
+                           "invalid lfo value: L1, value 2 is 1.5 (0 - 255)")
+                          ("pmd3-lfo-b" ,pmd3-binary
+                           ((define-lfo L1 (1 2 3 4)) (mml A "M{L1 B}c8"))
+                           "invalid lfo channel: B")
+                          ("pmd3-envelope-6" ,pmd3-binary
+                           ((define-envelope E6 (1 2 3 4 5 6)) (mml G "E{E6}c8"))
+                           "unsupported envelope values in PMD3: E6 has 6 values (expected 4)"))]
+            (test* #"pmd-binary の LFO・エンベロープの検査: ~(car case)"
+                   (cadddr case)
+                   (caught #"check-~(car case)" (cadr case) (caddr case))))
+          (test* "pmd-binary の LFO の triangle は default と同じバイト内容になる"
+                 (section-hex (generate-binary "lfo-default" pmd-binary
+                                               '((define-lfo L1 (1 2 -3 4)) (mml A "M{L1 A}c8")))
+                              'A)
+                 (section-hex (generate-binary "lfo-triangle" pmd-binary
+                                               '((define-lfo L1 triangle (1 2 -3 4)) (mml A "M{L1 A}c8")))
+                              'A))
+          (let* ([source (write-source (work-file "check-cli.sxl")
+                                       '((define-lfo L1 sw (1 2 3 4)) (mml A "M{L1 A}c8")))]
+                 [output (work-file "check-cli.m")]
+                 [result (run-sxlc source "-m" "pmd-binary" "-o" output)])
+            (test* "pmd-binary の LFO の種類の誤りは、終了値 1 で生成物を作らない"
+                   '(1 #t #f)
+                   (list (car result)
+                         (boolean (any #/unsupported lfo type: sw in L1/ (cadr result)))
+                         (file-exists? output)))))
         ;; PCM の音色は 0 から 255 までの整数で、それ以外は書かれた値を示して失敗する (#58)
         (dolist [case '(("@256" "256") ("@{1.5}" "1.5") ("@{x}" "x"))]
           (let* ([source (write-source (work-file #"pcm-voice-~(cadr case).sxl")

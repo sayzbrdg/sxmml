@@ -37,7 +37,7 @@
   (use sxmml.optimizer)
   (use sxmml.voice)
   (use sxmml.util)
-  (use sxmml.backend.pmd :only (sxmml-pmd-voice-numbers))
+  (use sxmml.backend.pmd :only (sxmml-pmd-voice-numbers sxmml-pmd-lfo-values sxmml-pmd-envelope-values))
   (export <sxmml-pmd-binary-environment>
           sxmml-pmd3-binary-generate sxmml-pmd4-binary-generate sxmml-pmd-binary-generate
           pmd3-binary pmd4-binary pmd-binary
@@ -508,22 +508,17 @@
   (let1 lfo (hash-table-get (slot-ref (sxmml-environment) 'lfo) (slot-ref obj 'value) #f)
     (unless lfo
       (error "no lfo define: " (slot-ref obj 'value)))
-    (let ([value (slot-ref lfo 'value)]
-          [channel (slot-ref obj 'channel)])
-      (when (or (not (= (length value) 4))
-                (> (car value) 255) (< (car value) 0)
-                (> (cadr value) 255) (< (cadr value) 0)
-                (> (caddr value) 127) (< (caddr value) -128)
-                (> (cadddr value) 255) (< (cadddr value) 0)
-                (and (not (eq? channel 'A)) (not (eq? channel 'B)) (not (eq? channel #f)))
+    (let ([channel (slot-ref obj 'channel)])
+      (when (or (not (memq channel '(#f A B)))
                 (and (eq? (slot-ref (sxmml-pmd-binary-environment) 'mode) 'fc88) (eq? channel 'B)))
-        (error "invalid lfo defition: " (slot-ref obj 'value)))
-      (u8vector-set! u8vec offset (if (or (eq? channel #f) (eq? channel 'A)) #xf2 #xbf))
-      (u8vector-set! u8vec (+ offset 1) (car value))
-      (u8vector-set! u8vec (+ offset 2) (cadr value))
-      (u8vector-set! u8vec (+ offset 3) (logand (caddr value) #xff))
-      (u8vector-set! u8vec (+ offset 4) (cadddr value))
-      (+ offset 5))))
+        (errorf "invalid lfo channel: ~a" channel))
+      (let1 value (sxmml-pmd-lfo-values lfo)
+        (u8vector-set! u8vec offset (if (or (eq? channel #f) (eq? channel 'A)) #xf2 #xbf))
+        (u8vector-set! u8vec (+ offset 1) (car value))
+        (u8vector-set! u8vec (+ offset 2) (cadr value))
+        (u8vector-set! u8vec (+ offset 3) (logand (caddr value) #xff))
+        (u8vector-set! u8vec (+ offset 4) (cadddr value))
+        (+ offset 5)))))
 
 (define (%pmd-lfo-switch-set! u8vec offset obj)
   (let ([channel (slot-ref obj 'channel)]
@@ -539,22 +534,11 @@
   (let1 envelope (hash-table-get (slot-ref (sxmml-environment) 'envelope) (slot-ref obj 'value) #f)
     (unless envelope
       (error "no envelope define: " (slot-ref obj 'value)))
-    (let1 value (slot-ref envelope 'value)
-      (when (cond [(= (length value) 4)
-                   (or (> (car value) 255) (< (car value) 0)
-                       (> (cadr value) 15) (< (cadr value) -15)
-                       (> (caddr value) 255) (< (caddr value) 0)
-                       (> (cadddr value) 255) (< (cadddr value) 0))]
-                  [(<= (length value) 6)
-                   (or (> (car value) 31) (< (car value) 0)
-                       (> (cadr value) 31) (< (cadr value) 0)
-                       (> (caddr value) 31) (< (caddr value) 0)
-                       (> (cadddr value) 15) (< (cadddr value) 0)
-                       (> (cadddr (cdr value)) 15) (< (cadddr (cdr value)) 0)
-                       (and (= (length value) 6) (or (> (cadddr (cddr value)) 15) (< (cadddr (cddr value)) 0)))
-                       (eq? (slot-ref (sxmml-pmd-binary-environment) 'mode) 'fc88))]
-                  [else #t])
-        (error "invalid envelope defition: " (slot-ref obj 'value)))
+    (let1 value (sxmml-pmd-envelope-values envelope)
+      ;; PMD3 は 4 値の書式だけを書ける
+      (when (and (eq? (slot-ref (sxmml-pmd-binary-environment) 'mode) 'fc88) (> (length value) 4))
+        (errorf "unsupported envelope values in PMD3: ~a has ~a values (expected 4)"
+                (slot-ref envelope 'id) (length value)))
       (if (= (length value) 4)
         (begin (u8vector-set! u8vec offset #xf0)
                (u8vector-set! u8vec (+ offset 1) (car value))
