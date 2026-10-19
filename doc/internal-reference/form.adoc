@@ -1,7 +1,7 @@
 = `sxmml.form` の定義の誤りの位置
 :toc: left
 
-`sxmml.form` には五つの定義があり、定義のマクロの誤りを、ソースの位置付きで知らせる四つの手続きを公開します。`sxmml` はこのモジュールを `extend` しません。`sxmml.voice` の `define-opn-voice` と、`sxmml.environment` の `define-lfo`・`define-envelope` が使います。エラーの種類は xref:classes.adoc#ref-classes-class-sxmml-form-error[`<sxmml-form-error>`] を参照してください。`debug-source-info` と condition は Gauche 0.9.15 の動作に従います。
+`sxmml.form` には六つの定義があり、定義のマクロの誤りと警告を、ソースの位置付きで知らせる五つの手続きを公開します。`sxmml` はこのモジュールを `extend` しません。`sxmml.voice` の `define-opn-voice` と、`sxmml.environment` の `define-lfo`・`define-envelope`・`define-metadata` が使います。エラーの種類は xref:classes.adoc#ref-classes-class-sxmml-form-error[`<sxmml-form-error>`] を参照してください。`debug-source-info` と condition は Gauche 0.9.15 の動作に従います。
 
 位置は `"ファイル:行"` の文字列で、フォームの開始行を示します。Gauche の `While loading … at line N` は、フォームを読み終えた行や、`begin` の行・終わりを示すので、`begin` の中や手続きの本体の定義の位置を示せません。メッセージは、位置があれば `ファイル:行: 本文`、なければ本文だけです。
 
@@ -10,14 +10,15 @@
 |名前・書式 |引数と役割 |戻り値・副作用・失敗条件 |ソース
 |[[ref-form-sxmml-form-location]]`(sxmml-form-location form)` |マクロが受け取ったフォームの位置を作る |`(debug-source-info form)` が `(ファイル 行 …)` なら `"ファイル:行"`、それ以外（組み立てたフォームの `eval` など）は `#f` |link:../../sxmml/form.scm[form.scm]
 |[[ref-form-sxmml-form-error]]`(sxmml-form-error form fmt arg ...)` |展開時の形の誤りを投げる |`format` で本文を作り、`location` を `form` の位置、`cause` を `#f` とした `<sxmml-form-error>` を投げる。戻らない |link:../../sxmml/form.scm[form.scm]
+|[[ref-form-sxmml-form-warn]]`(sxmml-form-warn form fmt arg ...)` |展開時に、定義の警告を出す |`format` で本文を作り、`warning: 位置: 本文`（位置がなければ `warning: 本文`）を標準エラー出力に 1 行で書く。`define-metadata` の旧書式の警告に使う |link:../../sxmml/form.scm[form.scm]
 |[[ref-form-sxmml-form-call]]`(sxmml-form-call location thunk)` |実行時のエラーに位置を付ける |`thunk` の値を返す。中で起きたエラー（`error?`）は、`location`、元のエラーを `cause` とした `<sxmml-form-error>` として投げ直す。中で起きたのがすでに `<sxmml-form-error>` なら、いちばん内側の位置を残すためにそのまま通す。エラーでない値や condition（`raise-continuable` されたお知らせなど）もそのまま通し、続けられる性質を保つ。`location` が `#f` なら、何もせずに `thunk` を呼ぶ |link:../../sxmml/form.scm[form.scm]
 |[[ref-form-sxmml-form-wrap]]`(sxmml-form-wrap form rename call)` |定義のマクロの展開で、登録の呼び出しを包む |`(sxmml-form-call 位置 (lambda () call))` の展開を返す。位置は `sxmml-form-location form` で取り、`sxmml-form-call` と `lambda` は `rename` で付け替える |link:../../sxmml/form.scm[form.scm]
-|[[ref-form-internal-located-message]]`(%located-message location message)` |メッセージに位置を付ける |`location` があれば `"位置: 本文"`、`#f` なら `message` をそのまま返す。`sxmml-form-error` と `sxmml-form-call` が使う |link:../../sxmml/form.scm[form.scm]
+|[[ref-form-internal-located-message]]`(%located-message location message)` |メッセージに位置を付ける |`location` があれば `"位置: 本文"`、`#f` なら `message` をそのまま返す。`sxmml-form-error`・`sxmml-form-warn`・`sxmml-form-call` が使う |link:../../sxmml/form.scm[form.scm]
 |===
 
 == 使用例
 
-定義のマクロ（`define-opn-voice`・`define-lfo`・`define-envelope`）は、`sxmml-form-wrap` で、登録の呼び出しを、展開時に取った位置付きの `sxmml-form-call` で包みます。
+定義のマクロ（`define-opn-voice`・`define-lfo`・`define-envelope`・`define-metadata`）は、`sxmml-form-wrap` で、登録の呼び出しを、展開時に取った位置付きの `sxmml-form-call` で包みます。
 
 [source,console]
 ----

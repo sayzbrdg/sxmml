@@ -26,11 +26,11 @@
 ;;; NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 ;;; SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-;; 定義のマクロの誤りを、ソースの位置付きで知らせる
+;; 定義のマクロの誤りと警告を、ソースの位置付きで知らせる
 (define-module sxmml.form
   (use util.match)
   (use sxmml.classes)
-  (export sxmml-form-location sxmml-form-error sxmml-form-call sxmml-form-wrap))
+  (export sxmml-form-location sxmml-form-error sxmml-form-warn sxmml-form-call sxmml-form-wrap))
 (select-module sxmml.form)
 
 ;; フォームの開始位置を "ファイル:行" で返す。わからなければ #f
@@ -47,6 +47,11 @@
                        (message (%located-message location message))
                        (location location)
                        (cause #f))))))
+
+;; 定義のマクロの警告を、フォームの位置を付けて標準エラー出力に書く
+(define (sxmml-form-warn form fmt . args)
+  (format (current-error-port) "warning: ~a\n"
+          (%located-message (sxmml-form-location form) (apply format #f fmt args))))
 
 ;; thunk の中で起きたエラーを、定義の位置 location を付けて投げ直す。内側の定義の
 ;; 誤りはその位置を残し、エラーでない値や condition はそのまま通す

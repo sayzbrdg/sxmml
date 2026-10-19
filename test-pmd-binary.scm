@@ -312,7 +312,7 @@
                           (29 14 15 1 2 16 3 2 3) (28 3 4 5 6 17 0 4 2))
                         (define-metadata title "テスト")
                         (define-metadata composer "sxmml")
-                        (define-metadata memo ("m1" "m2"))
+                        (define-metadata memo (list "m1" "m2"))
                         (mml A "@0o4c8Ld8"))]
                ;; 音色番号と、レジスタごとに OP1・OP3・OP2・OP4 の順の 24 バイト、FB/AL
                [voice (string-append "00 76 32 1d 24 05 10 0c 11 5f dd 9e 1c"
@@ -469,11 +469,11 @@
                            ((rhythm L ,(repeat-mml 33000 "!b")))
                            "PMD data exceeds the size limit (65535 bytes) in track L")
                           ("メタ情報が上限を超える" "pmd-binary" "metadata"
-                           ((define-metadata memo (,(make-string 70000 #\a))) (mml A "c8"))
+                           ((define-metadata memo (list ,(make-string 70000 #\a))) (mml A "c8"))
                            "PMD data exceeds the size limit (65535 bytes) in metadata")
                           ;; memo の文字列は約 64000 バイトで上限に収まり、位置の表で超える
                           ("メタ情報の位置の表が上限を超える" "pmd-binary" "metadata-table"
-                           ((define-metadata memo ,(make-list 1000 (make-string 63 #\a))) (mml A "c8"))
+                           ((define-metadata memo ,(cons 'list (make-list 1000 (make-string 63 #\a)))) (mml A "c8"))
                            "PMD data exceeds the size limit (65535 bytes) in metadata")
                           ;; 音色表がなければ 65523 バイトに収まる
                           ("音色表が上限を超える" "pmd3-binary" "voice-table"
