@@ -40,6 +40,7 @@
   (export sxmml-pmd3-source-generate sxmml-pmd4-source-generate sxmml-pmd-source-generate
           pmd3-source pmd4-source pmd-source pmd3 pmd
           sxmml-pmd-voice-numbers sxmml-pmd-lfo-values sxmml-pmd-envelope-values
+          sxmml-pmd-metadata-value
           ))
 (select-module sxmml.backend.pmd)
 
@@ -287,20 +288,32 @@
           (sys-basename (sxmml-source-file)) (if pmd3? "PMDver3.3" "PMDver4.8")))
 
 (define (%pmd-source-meta-generate :optional (pmd3? #f))
-  (for-each (^[k] (let1 value (hash-table-get (slot-ref (sxmml-environment) 'metadata) k #f)
+  (for-each (^[k] (let1 value (sxmml-pmd-metadata-value k)
                     (when value
                       (when pmd3?
                         (display "; "))
                       (format #t "#~10a  ~a\r\n" k value))))
             '(title composer arranger pcmfile ppzfile ppsfile))
-  ;; memo は文字列 1 つか、文字列のリストである。for-each は文字列も 1 文字ずつ回すので、
-  ;; 文字列はリストにしてから回す
   (for-each (^[m] (when pmd3?
                     (display "; "))
               (format #t "#~10a  ~a\r\n" "memo" m))
-            (let1 memo (hash-table-get (slot-ref (sxmml-environment) 'metadata) 'memo ())
-              (if (string? memo) (list memo) memo)))
+            (sxmml-pmd-metadata-value 'memo))
   (display "\r\n"))
+
+;; PMD が使うメタデータの値を検査して返す。title などは文字列か、定義がなければ #f を
+;; 返す。memo は文字列 1 つか文字列のリストで、文字列のリスト (定義がなければ ()) を返す。
+;; -m pmd と pmd-binary が使う
+(define (sxmml-pmd-metadata-value key)
+  (let1 value (sxmml-metadata-get key)
+    (if (eq? key 'memo)
+      (cond [(not value) ()]
+            [(string? value) (list value)]
+            [(and (list? value) (every string? value)) value]
+            [else (errorf "invalid metadata value: memo is ~s (expected a string or a list of strings)" value)])
+      (begin
+        (unless (or (not value) (string? value))
+          (errorf "invalid metadata value: ~a is ~s (expected a string)" key value))
+        value))))
 
 ;; PMD は音色を 0 から 255 の番号で指定するので、定義した全ての音色に、id の
 ;; 辞書順で 0 から番号を振る。id から番号への表を返す
