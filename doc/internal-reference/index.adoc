@@ -3,7 +3,7 @@
 
 この索引は、sxmml を保守・改修する際に内部定義を名前から探すためのものです。動作環境は Gauche 0.9.15 です。内部の名前は MML 記述者向け API を示しません。公開機能の使い方は xref:../sxmml-reference-manual.adoc[MML 記述者向けリファレンス]、MML 文字列の記法は xref:../sxmml-mml-manual.adoc[MML コマンドマニュアル]を参照してください。
 
-モジュール直下の手続き 256 件、クラス 52 件、マクロ 12 件、合計 320 件を掲載します。実験的な `sxmml.backend.pmd-binary` は公開名 7 件だけを掲載し、内部定義は xref:pmd-binary.adoc[本文]に概要だけを記します。`sxmml.scm` は各モジュールを継承し、独自の直下定義はありません。`sxmml.backend.pmd-binary` の `initialize` を除き、各モジュールには `define-method` による定義はありません。局所関数と `sxlc.in` の直下定義は範囲外です。呼び出せない表（ハッシュ表やリスト）は対象外です。
+モジュール直下の手続き 257 件、クラス 52 件、マクロ 12 件、合計 321 件を掲載します。実験的な `sxmml.backend.pmd-binary` は公開名 7 件だけを掲載し、内部定義は xref:pmd-binary.adoc[本文]に概要だけを記します。`sxmml.scm` は各モジュールを継承し、独自の直下定義はありません。`sxmml.backend.pmd-binary` の `initialize` を除き、各モジュールには `define-method` による定義はありません。局所関数と `sxlc.in` の直下定義は範囲外です。呼び出せない表（ハッシュ表やリスト）は対象外です。
 
 == モジュール別目次
 
@@ -19,7 +19,7 @@
 |xref:repeat-tree.adoc[`sxmml.repeat-tree`] |局所反復木による列の圧縮 |33
 |xref:voice.adoc[`sxmml.voice`] |音色定義 |8
 |xref:util.adoc[`sxmml.util`] |BPM の補助計算 |1
-|xref:form.adoc[`sxmml.form`] |定義の誤りの位置 |6
+|xref:form.adoc[`sxmml.form`] |定義の誤りの位置 |7
 |xref:pmd.adoc[`sxmml.backend.pmd`] |PMD 向け生成 |69
 |xref:pmd-binary.adoc[`sxmml.backend.pmd-binary`] |PMD バイナリ生成（実験的・公開名のみ） |7
 |===
@@ -321,6 +321,7 @@
 |`sxmml-form-error?` |`sxmml.classes` |手続き・公開 |xref:classes.adoc#ref-classes-sxmml-form-error-p[項目へ]
 |`sxmml-form-location` |`sxmml.form` |手続き・公開 |xref:form.adoc#ref-form-sxmml-form-location[項目へ]
 |`sxmml-form-warn` |`sxmml.form` |手続き・公開 |xref:form.adoc#ref-form-sxmml-form-warn[項目へ]
+|`sxmml-form-warn-at` |`sxmml.form` |手続き・公開 |xref:form.adoc#ref-form-sxmml-form-warn-at[項目へ]
 |`sxmml-form-wrap` |`sxmml.form` |手続き・公開 |xref:form.adoc#ref-form-sxmml-form-wrap[項目へ]
 |`sxmml-lfo-get` |`sxmml.environment` |手続き・公開 |xref:environment.adoc#ref-environment-sxmml-lfo-get[項目へ]
 |`sxmml-lfo-set!` |`sxmml.environment` |手続き・公開 |xref:environment.adoc#ref-environment-sxmml-lfo-set-bang[項目へ]

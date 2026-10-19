@@ -11,7 +11,9 @@
 
 書式: `(sxmml-mode モード名)`
 
-ソース内で生成モードを選びます。PMD4 向けには `pmd`、PMD3 向けには `pmd3` を指定します。実験的な機能として、PMD のバイナリを直接生成する `pmd-binary`・`pmd4-binary`（PMD4 向け）と `pmd3-binary`（PMD3 向け）も指定できます。生成物が MC.EXE の出力と同じであることは保証しません。`sxlc -m` を使用すればソース内の指定は不要です。両方を指定した場合は `sxlc -m` の指定が有効になり、ソース内の指定は警告を表示して無視されます。
+ソース内で生成モードを選びます。PMD4 向けには `pmd`、PMD3 向けには `pmd3` を指定します。実験的な機能として、PMD のバイナリを直接生成する `pmd-binary`・`pmd4-binary`（PMD4 向け）と `pmd3-binary`（PMD3 向け）も指定できます。生成物が MC.EXE の出力と同じであることは保証しません。`sxlc -m` を使用すればソース内の指定は不要です。両方を指定した場合は `sxlc -m` の指定が有効になり、ソース内の指定は `warning: ./song.sxl:1: sxmml-mode in source is ignored; mode is already set to PMD` のように位置を示す警告を表示して無視されます。このとき、ソース内のモード名は使われないので、`sxlc` で使えないモード名が書かれていても変換できます。
+
+モード名を書かない `(sxmml-mode)` は、`*** SXMML-FORM-ERROR: ./song.sxl:1: invalid sxmml-mode form: expected (sxmml-mode mode arg ...)` のように、その `sxmml-mode` の開始位置を示して変換の失敗になります。`sxlc -m` を使わない場合、未定義のモード名も、開始位置を示して変換の失敗になります。
 
 [source,scheme]
 ----

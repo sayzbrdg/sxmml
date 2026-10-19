@@ -58,19 +58,25 @@
 
 (define sxmml-resolution sxmml-resolution-set!)
 
+;; モードの呼び出し (proc args ...) を thunk にして %sxmml-mode-select に渡す。引数は
+;; 式として評価する。モードが決まっているときは、モードも引数も評価しない。形は展開時に
+;; 検査する。形の誤り、無視するときの警告、モードの呼び出しの誤りには、このフォームの
+;; 位置を付ける
 (define-syntax sxmml-mode
   (er-macro-transformer
     (^[form rename id=?]
       (match form
         [(_ proc args ...)
          (quasirename rename
-           `(%sxmml-mode-select ,proc ',args))]))))
+           `(%sxmml-mode-select ,(sxmml-form-location form)
+                                (lambda () ,(sxmml-form-wrap form rename `(,proc ,@args)))))]
+        [_ (sxmml-form-error form "invalid sxmml-mode form: expected (sxmml-mode mode arg ...)")]))))
 
-(define (%sxmml-mode-select proc args)
+(define (%sxmml-mode-select location thunk)
   (if (sxmml-mode-fixed?)
-    (format (current-error-port) "warning: sxmml-mode in source is ignored; mode is already set to ~a\n"
-            (slot-ref (sxmml-environment) 'mode))
-    (apply proc args)))
+    (sxmml-form-warn-at location "sxmml-mode in source is ignored; mode is already set to ~a"
+                        (slot-ref (sxmml-environment) 'mode))
+    (thunk)))
 
 ;;
 ;;  metadata information
