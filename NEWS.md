@@ -10,6 +10,7 @@
 - `define-opn-voice` の誤りは、`*** SXMML-FORM-ERROR:` で始まり、定義の開始位置（ファイルと行）を示す表示になる。括弧の数を誤った形は、これまでの `no matching clause` ではなく、書式を示すエラーになる（#28）。
 - `define-lfo`・`define-envelope` の括弧の中の値は、式として評価する。括弧の中に書いたシンボルは、変数の参照になる。数値だけを書いたソースの動作は変わらない（#28）。
 - `define-metadata` の値は、式として評価する。文字列を入れた変数や、`(list "a" "b")` を書ける。括弧の中に文字列だけを並べる `(define-metadata memo ("a" "b"))` は非推奨とし、文字列のリストとして受け付けたうえで、位置を示す警告を表示する。値がないなどの書式の誤りは、定義の開始位置を示す `*** SXMML-FORM-ERROR:` のエラーになる。値が文字列かどうかの検査は、展開時にはしなくなった（PMD 向けの生成物で検査する）（#13）。
+- PMD 向けの生成物（`-m pmd`・`-m pmd3` と `pmd-binary`）は、PMD が使うメタデータの値を書くときに検査する。`memo` は文字列 1 つか文字列のリスト、それ以外のキーは文字列に限り、それ以外の値は `invalid metadata value: title is 1 (expected a string)` のように失敗する。これまでは、`#title 1` のようにそのまま書いたり、内部のエラーになったりしていた（#13）。
 - PMD 向けの生成物（`-m pmd` と `pmd-binary`）は、LFO・エンベロープの定義を使うときに、種類と値を検査する。種類は LFO が `default`・`triangle`（同じ意味）、エンベロープが `default` に限り、それ以外は `unsupported lfo type: sw in L1 (supported: default, triangle)` のように失敗する。これまで種類は使われず、どの名前でも同じ出力になっていた。整数でない値や数でない値も失敗する。これまでは、そのまま出力されたり、内部のエラーになったりしていた。誤りのメッセージは、これまでの `invalid lfo defition` などから、どの定義の何が誤っているかを示すものに変わる（#28）。
 - `define-lfo`・`define-envelope` の値の括弧は 1 つだけとし、括弧を複数書く形を廃止した。書式の誤りは、これまで黙って受け付けたり `no matching clause` になったりしていたが、定義の開始位置を示す `*** SXMML-FORM-ERROR:` のエラーになる（#28）。
 - `define-opn-voice` の AL・FB と演算子の値は、0 以上の整数に限る。これまでの `-m pmd` は、負の数や整数でない数などをそのまま MML に出力し、変換は成功していた。今後は、値と場所を示す `invalid voice value` で変換の失敗とする（#27）。

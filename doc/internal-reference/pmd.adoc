@@ -1,7 +1,7 @@
 = `sxmml.backend.pmd` の生成処理
 :toc: left
 
-`sxmml.backend.pmd` には、PMD 向け MML の生成に使う 68 の定義と、LFO・エンベロープの規則の 4 つの表（`%pmd-lfo-types`・`%pmd-lfo-ranges`・`%pmd-envelope-types`・`%pmd-envelope-ranges`）があります。公開名はモード選択と生成の手続きで、`%` で始まる手続き、トラック状態のクラスとパラメータは内部で使います。パラメータ、オブジェクト、文字コード変換、一時ファイル、ファイル名操作は Gauche 0.9.15 の動作に従います。
+`sxmml.backend.pmd` には、PMD 向け MML の生成に使う 69 の定義と、LFO・エンベロープの規則の 4 つの表（`%pmd-lfo-types`・`%pmd-lfo-ranges`・`%pmd-envelope-types`・`%pmd-envelope-ranges`）があります。公開名はモード選択と生成の手続きで、`%` で始まる手続き、トラック状態のクラスとパラメータは内部で使います。パラメータ、オブジェクト、文字コード変換、一時ファイル、ファイル名操作は Gauche 0.9.15 の動作に従います。
 
 生成系の `%pmd-...set!` 手続きは、特記しない限り `obj` を受けて現在の出力ポートへ PMD MML の文字列を書きます。名前の `set!` は文字列出力を含む内部の慣用名で、環境オブジェクトの slot を必ず変更するという意味ではありません。戻り値は生成側で使いません。必要なオブジェクト型と slot は xref:classes.adoc[クラス一覧]を参照してください。
 
@@ -31,7 +31,8 @@ PMD4 向けに利用するときは `pmd`、PMD3 向けには `pmd3` を指定�
 |[[ref-pmd-sxmml-pmd-voice-numbers]]`(sxmml-pmd-voice-numbers)` |定義した全ての音色に、PMD の音色番号を振る |`voice` 表の id を `symbol\->string` の `string<?` の順に並べ、0 から振った id から番号への `eq` のハッシュ表を返す。音色が 256 を超えると `too many voices: 257 (max 256)` のエラー。`sxmml.backend.pmd-binary` も使う |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-internal-pmd-source-output]]`(%pmd-source-output :optional (pmd3? #f))` |ヘッダー、メタデータ、音色、各トラックを出力 |`filename` メタデータを確認した後、`%output-file-get` の出力先と同じディレクトリに一時ファイルを CP932 で書き、出力先へ改名する。途中で失敗した場合は一時ファイルを削除し、出力先の既存ファイルは変更しない。生成先のパスを返す。PMD3 では終端 `0x1a` を付加。出力先が使えない場合や変換できない文字は失敗し得る |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-internal-pmd-source-head-generate]]`(%pmd-source-head-generate :optional (pmd3? #f))` |生成元名と PMD バージョンの行を書く |`sxmml-source-file` が必要。PMD3 は `PMDver3.3`、それ以外は `PMDver4.8` |link:../../sxmml/backend/pmd.scm[pmd.scm]
-|[[ref-pmd-internal-pmd-source-meta-generate]]`(%pmd-source-meta-generate :optional (pmd3? #f))` |`title` 等と複数の `memo` を書く |PMD3 はメタデータ行の先頭に `; ` を付ける。値がないキーは書かない |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-internal-pmd-source-meta-generate]]`(%pmd-source-meta-generate :optional (pmd3? #f))` |`title` 等と複数の `memo` を書く |値は `sxmml-pmd-metadata-value` で検査して受け取る。PMD3 はメタデータ行の先頭に `; ` を付ける。値がないキーは書かない |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-sxmml-pmd-metadata-value]]`(sxmml-pmd-metadata-value key)` |PMD が使うメタデータの値を検査して返す |`memo` は文字列 1 つか文字列のリストに限り、文字列のリスト（定義がなければ `()`）を返す。それ以外のキーは文字列に限り、その文字列（定義がなければ `#f`）を返す。誤りは `invalid metadata value: ~a is ~s (expected …)`。`sxmml.backend.pmd-binary` も使う |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-internal-pmd-source-voice-generate]]`(%pmd-source-voice-generate)` |登録された全ての音色を番号順に書く |各演算子で `ar dr sr rr sl tl ks ml dt ams` を出力し、`dt2`・`seg` は出力しない |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-internal-output-file-get]]`(%output-file-get)` |出力先を決める |環境の `output` slot が設定されていればその値を返す。`#f` の場合は入力名の拡張子を `output-extension` の値に替えたもの、入力名がなければ `./a.mml` を slot に設定して返す。`sxlc` から使う場合は `sxlc` が出力先を設定するため、この既定値は `sxlc` を通さずに使う場合にだけ使われる。ファイルへの書き込みはしない |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-internal-check-obsolete-metadata]]`(%check-obsolete-metadata)` |廃止したメタデータの確認 |`filename` メタデータが設定されていれば、生成先には使わない旨の警告を標準エラー出力に表示する |link:../../sxmml/backend/pmd.scm[pmd.scm]
