@@ -32,6 +32,7 @@
   (use sxmml.classes)
   (use sxmml.environment)
   (use sxmml.compiler)
+  (use sxmml.form)
   (export mml-repeat mml-echo mml-delay
           ))
 (select-module sxmml.processor)
@@ -40,67 +41,59 @@
 ;;;  syntax
 ;;;
 
+;; トラック名一つか、トラック名のリストを、トラック名のリストにする
+(define (%track-list track)
+  (if (list? track) track (list track)))
+
+;; 本文は begin に並べ、その間に反復の開始・脱出・終了の登録を挟む。回数は式として
+;; 評価し、実行時に検査する。形は展開時に検査し、誤りには、展開時でも実行時でも、
+;; このフォームの位置を付ける
 (define-syntax mml-repeat
   (er-macro-transformer
     (^[form rename id=?]
-      (define pi? (every-pred integer? positive?))
-      (define (build-regist track obj)
-        (quasirename rename
-          `(sxmml-sio-regist!
-            (sxmml-compile-mml/cc ',track ,(write-to-string obj write-tree)) ',track)))
+      ;; MML の文字列 (または文字列を返す式) cmd を、tracks の各トラックに登録する
+      (define (regist tracks cmd)
+        (map (^[t] (sxmml-form-wrap form rename
+                     (quasirename rename
+                       `(sxmml-sio-regist! (sxmml-compile-mml/cc ',t ,cmd) ',t))))
+             tracks))
+      ;; 脱出位置は breaks のトラックに置く。breaks が空なら置かない
+      (define (expand tracks times body1 breaks body2 body3)
+        `(,(rename 'begin)
+          ,@(regist tracks "[")
+          ,@body1
+          ,@(regist breaks ":")
+          ,@body2
+          ,@(regist tracks (quasirename rename `(%mml-repeat-end ,times)))
+          ,@body3))
       (match form
         ;; 1st format
-        [(_ (track ..1) (? pi? times) (body ...))
-         `(,(rename 'begin)
-           ,@(fold (^[t r] (cons (build-regist t "[") r)) () track)
-           ,@body
-           ,@(fold (^[t r] (cons (build-regist t `("]" ,times)) r)) () track))]
-        [(_ track (? pi? times) (body ...))
-         `(,(rename 'begin)
-           ,(build-regist track "[")
-           ,@body
-           ,(build-regist track `("]" ,times)))]
+        [(_ track times (body ...))
+         (expand (%track-list track) times body () () ())]
         ;; 2nd format
-        [(_ (track ..1) (? pi? times) (body1 ...) (body2 ...))
-         `(,(rename 'begin)
-           ,@(fold (^[t r] (cons (build-regist t "[") r)) () track)
-           ,@body1
-           ,@(fold (^[t r] (cons (build-regist t ":") r)) () track)
-           ,@body2
-           ,@(fold (^[t r] (cons (build-regist t `("]" ,times)) r)) () track))]
-        [(_ track (? pi? times) (body1 ...) (body2 ...))
-         `(,(rename 'begin)
-           ,(build-regist track "[")
-           ,@body1
-           ,(build-regist track ":")
-           ,@body2
-           ,(build-regist track `("]" ,times)))]
+        [(_ track times (body1 ...) (body2 ...))
+         (expand (%track-list track) times body1 (%track-list track) body2 ())]
         ;; 3rd format
-        [(_ (track ..1) (? pi? times) (body1 ...) (body2 ...) ((break ...) body3 ...))
-         `(,(rename 'begin)
-           ,@(fold (^[t r] (cons (build-regist t "[") r)) () track)
-           ,@body1
-           ,@(fold (^[t r] (cons (build-regist t ":") r)) () break)
-           ,@body2
-           ,@(fold (^[t r] (cons (build-regist t `("]" ,times)) r)) () track)
-           ,@body3)]
-        [(_ (track ..1) (? pi? times) (body1 ...) (body2 ...) (break body3 ...))
-         `(,(rename 'begin)
-           ,@(fold (^[t r] (cons (build-regist t "[") r)) () track)
-           ,@body1
-           ,(build-regist break ":")
-           ,@body2
-           ,@(fold (^[t r] (cons (build-regist t `("]" ,times)) r)) () track)
-           ,@body3)]
-        [(_ track (? pi? times) (body1 ...) (body2 ...) (body3 ...))
-         `(,(rename 'begin)
-           ,(build-regist track "[")
-           ,@body1
-           ,(build-regist track ":")
-           ,@body2
-           ,(build-regist track `("]" ,times))
-           ,@body3)]
-        ))))
+        [(_ (track ..1) times (body1 ...) (body2 ...) ((break ...) body3 ...))
+         (expand track times body1 break body2 body3)]
+        [(_ (track ..1) times (body1 ...) (body2 ...) (break body3 ...))
+         (expand track times body1 (list break) body2 body3)]
+        [(_ track times (body1 ...) (body2 ...) (body3 ...))
+         (expand (list track) times body1 (list track) body2 body3)]
+        [_ (sxmml-form-error form "invalid mml-repeat form: expected (mml-repeat track count (body1 ...) [(body2 ...) [(body3 ...)]])")]))))
+
+;; 反復の終了の MML を、回数を検査して作る
+(define (%mml-repeat-end count)
+  (%processor-value-check "mml-repeat" "count" count %positive-integer? "a positive integer")
+  #"]~count")
+
+;; 加工マクロ macro の値 name を検査する。誤りは、マクロと値の名前を示すエラーとする
+(define (%processor-value-check macro name value ok? expected)
+  (unless (ok? value)
+    (errorf "invalid ~a value: ~a is ~s (expected ~a)" macro name value expected)))
+
+(define (%positive-integer? x)
+  (and (exact-integer? x) (positive? x)))
 
 
 ;;;  delay
@@ -130,6 +123,8 @@
              (slot-ref (car rest) 'value)]
             [else
              (loop (cdr rest))])))
+  (%processor-value-check "mml-echo" "voldown" vol exact-integer? "an integer")
+  (%processor-value-check "mml-echo" "restdown" rep exact-integer? "an integer")
   (let loop ([rest sio]
              [prev (make-prev)]
              [vol? #f]                  ; restore volume?
@@ -167,11 +162,13 @@
     (^[form rename id=?]
       (match form
         [(_ track (firstnote voldown restdown) body ...)
-         (quasirename rename
-           `(sxmml-sio-regist!
-             (sxmml-sio-self-echo (sxmml-compile-mml/cc ',track (write-to-string (list ,@body) write-tree))
-                                  ,firstnote ,voldown ,restdown)
-             ',track))]))))
+         (sxmml-form-wrap form rename
+           (quasirename rename
+             `(sxmml-sio-regist!
+               (sxmml-sio-self-echo (sxmml-compile-mml/cc ',track (write-to-string (list ,@body) write-tree))
+                                    ,firstnote ,voldown ,restdown)
+               ',track)))]
+        [_ (sxmml-form-error form "invalid mml-echo form: expected (mml-echo track (firstnote voldown restdown) body ...)")]))))
 
 
 (define (sxmml-sio-self-delay sio tick vol rep)
@@ -191,6 +188,9 @@
             (if (> t 0)
               (loop (- t tick) (+ cnt rep) (cons* (build-vol rep) (build-prev prev (if (> t tick) tick t)) res))
               (reverse! (cons (build-vol (* -1 cnt)) res))))))))
+  (%processor-value-check "mml-delay" "ticks" tick %positive-integer? "a positive integer")
+  (%processor-value-check "mml-delay" "voldown" vol exact-integer? "an integer")
+  (%processor-value-check "mml-delay" "restdown" rep exact-integer? "an integer")
   (let loop ([rest sio]
              [prev #f]
              [res ()])
@@ -206,18 +206,15 @@
 (define-syntax mml-delay
   (er-macro-transformer
     (^[form rename id=?]
-      (define pi? (every-pred integer? positive?))
-      (define (build-regist track body ticks voldown restdown)
-        (quasirename rename
-           `(sxmml-sio-regist!
-             (sxmml-sio-self-delay (sxmml-compile-mml/cc ',track (write-to-string (list ,@body) write-tree))
-                                   ,ticks ,voldown ,restdown)
-             ',track)))
+      (define (regist track ticks voldown restdown body)
+        (sxmml-form-wrap form rename
+          (quasirename rename
+            `(sxmml-sio-regist!
+              (sxmml-sio-self-delay (sxmml-compile-mml/cc ',track (write-to-string (list ,@body) write-tree))
+                                    ,ticks ,voldown ,restdown)
+              ',track))))
       (match form
-        [(_ (track ..1) ((? pi? ticks) (? integer? voldown) (? integer? restdown)) body ...)
-         (quasirename rename
-           `(begin
-              ,@(fold (^[t r] (cons (build-regist t body ticks voldown restdown) r)) () track)))]
-        [(_ track ((? pi? ticks) (? integer? voldown) (? integer? restdown)) body ...)
-         (build-regist track body ticks voldown restdown)]
-        ))))
+        [(_ track (ticks voldown restdown) body ...)
+         `(,(rename 'begin)
+           ,@(map (cut regist <> ticks voldown restdown body) (%track-list track)))]
+        [_ (sxmml-form-error form "invalid mml-delay form: expected (mml-delay track (ticks voldown restdown) body ...)")]))))
