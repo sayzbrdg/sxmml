@@ -414,21 +414,23 @@
                            (hash-table-put! %repeat-slot-names (class-of a) names)))))]))
 
 ;; 圧縮の上限と既定値。回数の上限 255 と入れ子の上限 32 は PMD の局所ループの範囲と
-;; ネストの上限 (PMDMML.MAN §10-1)
+;; ネストの上限 (PMDMML.MAN §10-1)。展開すると周期が延びるので、展開するときは
+;; 窓幅を広げる
 (define %repeat-count-max 255)
 (define %repeat-depth-max 32)
 (define %repeat-window 256)
+(define %repeat-expand-window 1024)
 (define %repeat-expand-limit 256)
 
 ;; 第 2 段階の後の列を、反復で圧縮する。既存のリピートはひとまとめ（原子）にし、
 ;; その本文も同じように圧縮する。expand? なら、展開後の長さが %repeat-expand-limit
-;; 以下の既存のリピートを先に展開する
+;; 以下の既存のリピートを先に展開し、窓幅 %repeat-expand-window で圧縮する
 (define (%sxmml-optimize-repeat lis expand?)
   (let* ([input (let1 items (%repeat-structure lis)
                   (if expand? (%repeat-expand-small items %repeat-expand-limit) items))]
          [counts (iota (- %repeat-count-max 1) 2)]
          [settings (make-repeat-tree-settings (map (cut cons <> 2) counts) (map (cut cons <> 3) counts)
-                                              #t %repeat-window)]
+                                              #t (if expand? %repeat-expand-window %repeat-window))]
          [output (%repeat-compress input 0 settings)])
     (%repeat-check output input)
     output))

@@ -985,6 +985,11 @@
             (test* #"\"~(car case)\" with optimize :repeat-expand"
                    #"A l%24~(cadr case)"
                    (optimized-line "repeat" :repeat-expand `((mml A ,(car case))))))
+          ;; 展開した [cd]64 を含む周期は 128 を超え、2 周期が窓幅 256 に収まらない。
+          ;; :repeat-expand は窓幅を広げ、:repeat と同じく外側の反復を見つける
+          (test* "a period longer than 128 is found with optimize :repeat-expand"
+                 (optimized-line "repeat" :repeat '((mml A "c4d8e16f4g8a16b4[cd]64c4d8e16f4g8a16b4[cd]64")))
+                 (optimized-line "repeat" :repeat-expand '((mml A "c4d8e16f4g8a16b4[cd]64c4d8e16f4g8a16b4[cd]64"))))
           (test* "a block of count 1 is kept with optimize :repeat"
                  "A l%24[[o4cd]3]1"
                  (optimized-line "repeat" :repeat '((mml A "[cdcdcd]1"))))
