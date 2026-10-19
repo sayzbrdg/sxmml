@@ -30,7 +30,7 @@
 (define-module sxmml.form
   (use util.match)
   (use sxmml.classes)
-  (export sxmml-form-location sxmml-form-error sxmml-form-warn sxmml-form-call sxmml-form-wrap))
+  (export sxmml-form-location sxmml-form-error sxmml-form-warn sxmml-form-warn-at sxmml-form-call sxmml-form-wrap))
 (select-module sxmml.form)
 
 ;; フォームの開始位置を "ファイル:行" で返す。わからなければ #f
@@ -50,8 +50,12 @@
 
 ;; 定義のマクロの警告を、フォームの位置を付けて標準エラー出力に書く
 (define (sxmml-form-warn form fmt . args)
+  (apply sxmml-form-warn-at (sxmml-form-location form) fmt args))
+
+;; 実行時の警告を、展開時に取った位置 location を付けて標準エラー出力に書く
+(define (sxmml-form-warn-at location fmt . args)
   (format (current-error-port) "warning: ~a\n"
-          (%located-message (sxmml-form-location form) (apply format #f fmt args))))
+          (%located-message location (apply format #f fmt args))))
 
 ;; thunk の中で起きたエラーを、定義の位置 location を付けて投げ直す。内側の定義の
 ;; 誤りはその位置を残し、エラーでない値や condition はそのまま通す
