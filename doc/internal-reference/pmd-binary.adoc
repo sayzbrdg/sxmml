@@ -46,6 +46,6 @@
 . K トラックは、L が空なら `0x80` だけです。L にループがあれば `0x00 0xf6 0x01 0x80`、なければ `0x00 0x80` になります。
 . R トラックは、パターンの位置（ループがあればループ位置も）に続いてリズムの命令列を置き、`0xff` で終わります。PMD4 向けでは、続く 12 バイトに、2 バイトずつ、最大の合計 tick、`0`、最大の loop tick、`0`、メタ情報の位置の表へのポインタ、固定値 `0x48 0xfe` を置きます。
 . 音色表は、使用した FM 音色ごとに、音色番号 1 バイトと音色データ 25 バイトを並べます。PMD4 向けでは `0x00 0xff` で終わり、PMD3 向けでは終端を置きません。
-. PMD4 向けでは、最後にメタ情報を置きます。`ppzfile`・`ppsfile`・`pcmfile`・`title`・`composer`・`arranger`・`memo`（複数可）の順に、CP932 の NUL 終端文字列を並べ、それぞれへの位置の表を `0x00 0x00` で終えます。値のない項目は空文字列になります。
+. PMD4 向けでは、最後にメタ情報を置きます。`ppzfile`・`ppsfile`・`pcmfile`・`title`・`composer`・`arranger`・`memo`（複数可）の順に、CP932 の NUL 終端文字列を並べ、それぞれへの位置の表を `0x00 0x00` で終えます。値は `sxmml.backend.pmd` の `sxmml-pmd-metadata-value` で、`-m pmd` と同じ規則で検査します。定義のない項目と、空のリストの `memo` は、空文字列 1 件になります。
 
 PMD3 向け（`fc88`）では、メタ情報と R トラックの 12 バイトを置かず、LFO のチャンネル `B`（`invalid lfo channel`）と 5 値・6 値のエンベロープ（`unsupported envelope values in PMD3`）を失敗とします。LFO・エンベロープの種類と値は、`sxmml.backend.pmd` の `sxmml-pmd-lfo-values`・`sxmml-pmd-envelope-values` で、`-m pmd` と同じ規則で検査します。

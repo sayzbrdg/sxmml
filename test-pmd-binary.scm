@@ -374,6 +374,30 @@
                                         (regexp-quote #"note out of range: ~(caddr case) (o1c - o8b)"))
                                        (cadr result)))
                          (file-exists? output)))))
+        ;; メタデータの値は -m pmd と同じ規則で検査する。PMD3 はメタデータを書かないので
+        ;; 検査しない (#13)
+        (let1 source (write-source (work-file "meta-title-number.sxl")
+                                   '((define-metadata title 1) (mml A "c8")))
+          (dolist [case '(("pmd-binary" (1 #t #f)) ("pmd3-binary" (0 #f #t)))]
+            (let* ([output (work-file #"meta-title-number-~(car case).m")]
+                   [result (run-sxlc source "-m" (car case) "-o" output)])
+              (test* #"~(car case) はメタデータの title の値が文字列でなければ、書くときに失敗する"
+                     (cadr case)
+                     (list (car result)
+                           (boolean (any #/invalid metadata value: title is 1 \(expected a string\)/
+                                         (cadr result)))
+                           (file-exists? output))))))
+        ;; メタデータがなければ、音色表の終端に続けて、7 項目の空文字列、その位置の表、
+        ;; 終端の 00 00 を書く。空のリストの memo も、memo がない場合と同じく空の memo を 1 件書く
+        (dolist [case '(("meta-none" ((mml A "c8")))
+                        ("meta-memo-empty" ((define-metadata memo '()) (mml A "c8"))))]
+          (test* #"pmd-binary の空のメタ情報: ~(car case)"
+                 "00 ff 00 00 00 00 00 00 00 38 00 39 00 3a 00 3b 00 3c 00 3d 00 3e 00 00 00"
+                 (section-hex (generate-binary (car case) pmd-binary (cadr case)) 'voice)))
+        (test* "pmd-binary はメタデータの memo の要素が文字列でなければ失敗する"
+               (test-error <error> "invalid metadata value: memo is (\"a\" 1) (expected a string or a list of strings)")
+               (generate-binary "meta-memo-element" pmd-binary
+                                '((define-metadata memo (list "a" 1)) (mml A "c8"))))
         ;; LFO・エンベロープは -m pmd と同じ規則で検査する。PMD3 だけの検査は、チャンネル B と
         ;; 5・6 値のエンベロープである (#28)
         (let ([caught (^[name mode forms]

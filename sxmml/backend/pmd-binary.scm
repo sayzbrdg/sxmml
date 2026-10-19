@@ -37,7 +37,8 @@
   (use sxmml.optimizer)
   (use sxmml.voice)
   (use sxmml.util)
-  (use sxmml.backend.pmd :only (sxmml-pmd-voice-numbers sxmml-pmd-lfo-values sxmml-pmd-envelope-values))
+  (use sxmml.backend.pmd :only (sxmml-pmd-voice-numbers sxmml-pmd-lfo-values sxmml-pmd-envelope-values
+                                sxmml-pmd-metadata-value))
   (export <sxmml-pmd-binary-environment>
           sxmml-pmd3-binary-generate sxmml-pmd4-binary-generate sxmml-pmd-binary-generate
           pmd3-binary pmd4-binary pmd-binary
@@ -362,23 +363,20 @@
                        (u8vector-set! t13u8vec (+ toffset 1) hb)
                        (recur (cdr stack) (+ toffset 2)))))]
                 [(eq? (car rest) 'memo)
-                 (let1 data (hash-table-get (slot-ref (sxmml-environment) 'metadata) (car rest) #f)
-                   (cond [(pair? data)
-                          (let recur ([stack data]
-                                      [moffset meta-offset]
-                                      [ostack offset-stack])
-                            (if (null? stack)
-                              (loop (cdr rest) moffset ostack)
-                              (let1 doffset (%shift_jis-u8vector-copy! t13u8vec (car stack) moffset track-start-pos)
-                                (recur (cdr stack) doffset (cons moffset ostack)))))]
-                         [data
-                          (let1 doffset (%shift_jis-u8vector-copy! t13u8vec data meta-offset track-start-pos)
-                            (loop (cdr rest) doffset (cons meta-offset offset-stack)))]
-                         [else
-                          (u8vector-set! t13u8vec meta-offset #x00)
-                          (loop (cdr rest) (+ meta-offset 1) (cons meta-offset offset-stack))]))]
+                 ;; memo は文字列のリストとして受け取る。空なら、空の memo を 1 件書く
+                 (let1 data (sxmml-pmd-metadata-value 'memo)
+                   (if (pair? data)
+                     (let recur ([stack data]
+                                 [moffset meta-offset]
+                                 [ostack offset-stack])
+                       (if (null? stack)
+                         (loop (cdr rest) moffset ostack)
+                         (let1 doffset (%shift_jis-u8vector-copy! t13u8vec (car stack) moffset track-start-pos)
+                           (recur (cdr stack) doffset (cons moffset ostack)))))
+                     (begin (u8vector-set! t13u8vec meta-offset #x00)
+                            (loop (cdr rest) (+ meta-offset 1) (cons meta-offset offset-stack)))))]
                 [else
-                 (if-let1 data (hash-table-get (slot-ref (sxmml-environment) 'metadata) (car rest) #f)
+                 (if-let1 data (sxmml-pmd-metadata-value (car rest))
                    (let1 doffset (%shift_jis-u8vector-copy! t13u8vec data meta-offset track-start-pos)
                      (loop (cdr rest) doffset (cons meta-offset offset-stack)))
                    (begin (u8vector-set! t13u8vec meta-offset #x00)

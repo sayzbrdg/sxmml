@@ -301,6 +301,21 @@
         (pmd-source)
         (load source)
         (sxmml-optimize-tree track :optimize level))))
+  ;; forms をこのプロセスでモード mode の PMD 向けに変換し、成功すればメタデータの行
+  ;; (PMD3 ではコメントの行) を、失敗すればエラーのメッセージを返す
+  (define (pmd-meta-result name mode forms)
+    (let1 source (work-file #"pmd-meta-~|name|.sxl")
+      (with-output-to-file source (^[] (for-each write forms)))
+      (parameterize ([sxmml-environment (make <sxmml-environment>)]
+                     [sxmml-source-file source])
+        (guard (e [else (condition-message e)])
+          (mode)
+          (load source)
+          ((slot-ref (sxmml-environment) 'backend))
+          (filter #/^(; )?#[a-z]/
+                  (string-split (file->string (slot-ref (sxmml-environment) 'output)
+                                              :encoding "shift_jis")
+                                "\r\n"))))))
   ;; forms をこのプロセスで PMD 向けに変換し、成功すればトラック G の行を、
   ;; 失敗すればエラーのメッセージを返す
   (define (pmd-g-result name forms)
@@ -699,6 +714,24 @@
           (test* "a triangle LFO is output the same as the default"
                  (pmd-g-result "lfo-default" (lfo '(define-lfo L1 (1 2 3 4)) "A"))
                  (pmd-g-result "lfo-triangle" (lfo '(define-lfo L1 triangle (1 2 3 4)) "A"))))
+        ;; PMD が使うメタデータは、title などが文字列、memo が文字列か文字列のリストで、
+        ;; それ以外は書くときにキーと値を示して失敗する (#13)
+        (dolist [case `(("title-number" ,pmd-source ((define-metadata title 1))
+                         "invalid metadata value: title is 1 (expected a string)")
+                        ("title-list" ,pmd-source ((define-metadata title (list "t1" "t2")))
+                         "invalid metadata value: title is (\"t1\" \"t2\") (expected a string)")
+                        ("memo-element" ,pmd-source ((define-metadata memo (list "a" 1)))
+                         "invalid metadata value: memo is (\"a\" 1) (expected a string or a list of strings)")
+                        ("memo-number" ,pmd-source ((define-metadata memo 1))
+                         "invalid metadata value: memo is 1 (expected a string or a list of strings)")
+                        ("memo-empty" ,pmd-source ((define-metadata memo '())) ())
+                        ("strings" ,pmd-source ((define-metadata title "t") (define-metadata composer "c"))
+                         ("#title       t" "#composer    c"))
+                        ("pmd3-title-number" ,pmd3-source ((define-metadata title 1))
+                         "invalid metadata value: title is 1 (expected a string)"))]
+          (test* #"PMD checks metadata values: ~(car case)"
+                 (cadddr case)
+                 (pmd-meta-result (car case) (cadr case) `(,@(caddr case) (mml G "c8")))))
         ;; memo は文字列 1 つなら 1 行、リストなら要素ごとに 1 行で出力すること (#87)
         (dolist [case '(("memo-string" "abc" ("#memo        abc"))
                         ("memo-list" (list "m1" "m2") ("#memo        m1" "#memo        m2")))]
