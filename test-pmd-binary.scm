@@ -374,6 +374,23 @@
                                         (regexp-quote #"note out of range: ~(caddr case) (o1c - o8b)"))
                                        (cadr result)))
                          (file-exists? output)))))
+        ;; メタデータの値は -m pmd と同じ規則で検査する。PMD3 はメタデータを書かないので
+        ;; 検査しない (#13)
+        (let1 source (write-source (work-file "meta-title-number.sxl")
+                                   '((define-metadata title 1) (mml A "c8")))
+          (dolist [case '(("pmd-binary" (1 #t #f)) ("pmd3-binary" (0 #f #t)))]
+            (let* ([output (work-file #"meta-title-number-~(car case).m")]
+                   [result (run-sxlc source "-m" (car case) "-o" output)])
+              (test* #"~(car case) はメタデータの title の値が文字列でなければ、書くときに失敗する"
+                     (cadr case)
+                     (list (car result)
+                           (boolean (any #/invalid metadata value: title is 1 \(expected a string\)/
+                                         (cadr result)))
+                           (file-exists? output))))))
+        (test* "pmd-binary はメタデータの memo の要素が文字列でなければ失敗する"
+               (test-error <error> "invalid metadata value: memo is (\"a\" 1) (expected a string or a list of strings)")
+               (generate-binary "meta-memo-element" pmd-binary
+                                '((define-metadata memo (list "a" 1)) (mml A "c8"))))
         ;; LFO・エンベロープは -m pmd と同じ規則で検査する。PMD3 だけの検査は、チャンネル B と
         ;; 5・6 値のエンベロープである (#28)
         (let ([caught (^[name mode forms]
