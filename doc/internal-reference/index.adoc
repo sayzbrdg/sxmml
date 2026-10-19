@@ -3,7 +3,7 @@
 
 この索引は、sxmml を保守・改修する際に内部定義を名前から探すためのものです。動作環境は Gauche 0.9.15 です。内部の名前は MML 記述者向け API を示しません。公開機能の使い方は xref:../sxmml-reference-manual.adoc[MML 記述者向けリファレンス]、MML 文字列の記法は xref:../sxmml-mml-manual.adoc[MML コマンドマニュアル]を参照してください。
 
-モジュール直下の手続き 251 件、クラス 52 件、マクロ 12 件、合計 315 件を掲載します。実験的な `sxmml.backend.pmd-binary` は公開名 7 件だけを掲載し、内部定義は xref:pmd-binary.adoc[本文]に概要だけを記します。`sxmml.scm` は各モジュールを継承し、独自の直下定義はありません。`sxmml.backend.pmd-binary` の `initialize` を除き、各モジュールには `define-method` による定義はありません。局所関数と `sxlc.in` の直下定義は範囲外です。呼び出せない表（ハッシュ表やリスト）は対象外です。
+モジュール直下の手続き 255 件、クラス 52 件、マクロ 12 件、合計 319 件を掲載します。実験的な `sxmml.backend.pmd-binary` は公開名 7 件だけを掲載し、内部定義は xref:pmd-binary.adoc[本文]に概要だけを記します。`sxmml.scm` は各モジュールを継承し、独自の直下定義はありません。`sxmml.backend.pmd-binary` の `initialize` を除き、各モジュールには `define-method` による定義はありません。局所関数と `sxlc.in` の直下定義は範囲外です。呼び出せない表（ハッシュ表やリスト）は対象外です。
 
 == モジュール別目次
 
@@ -14,7 +14,7 @@
 |xref:mml.adoc[`sxmml.mml`] |通常・リズム MML の PEG パーサー |74
 |xref:environment.adoc[`sxmml.environment`] |環境と登録表 |26
 |xref:compiler.adoc[`sxmml.compiler`] |文字列の解析と登録マクロ |7
-|xref:processor.adoc[`sxmml.processor`] |反復・エコー・ディレイ |5
+|xref:processor.adoc[`sxmml.processor`] |反復・エコー・ディレイ |9
 |xref:optimizer.adoc[`sxmml.optimizer`] |オブジェクト列の最適化 |31
 |xref:repeat-tree.adoc[`sxmml.repeat-tree`] |局所反復木による列の圧縮 |33
 |xref:voice.adoc[`sxmml.voice`] |音色定義 |8
@@ -105,6 +105,7 @@
 |`%located-message` |`sxmml.form` |手続き・非公開 |xref:form.adoc#ref-form-internal-located-message[項目へ]
 |`%make-repeat-block` |`sxmml.optimizer` |手続き・非公開 |xref:optimizer.adoc#ref-optimizer-internal-make-repeat-block[項目へ]
 |`%make-repeat-tree-settings` |`sxmml.repeat-tree` |手続き・非公開 |xref:repeat-tree.adoc#ref-repeat-tree-internal-make-repeat-tree-settings[項目へ]
+|`%mml-repeat-end` |`sxmml.processor` |手続き・非公開 |xref:processor.adoc#ref-processor-internal-mml-repeat-end[項目へ]
 |`%note-number\->pmd-note` |`sxmml.backend.pmd` |手続き・非公開 |xref:pmd.adoc#ref-pmd-internal-note-number-to-pmd-note[項目へ]
 |`%object-key` |`sxmml.optimizer` |手続き・非公開 |xref:optimizer.adoc#ref-optimizer-internal-object-key[項目へ]
 |`%output-file-get` |`sxmml.backend.pmd` |手続き・非公開 |xref:pmd.adoc#ref-pmd-internal-output-file-get[項目へ]
@@ -155,7 +156,9 @@
 |`%pmd-transpose-set!` |`sxmml.backend.pmd` |手続き・非公開 |xref:pmd.adoc#ref-pmd-internal-pmd-transpose-set-bang[項目へ]
 |`%pmd-voice-number` |`sxmml.backend.pmd` |手続き・非公開 |xref:pmd.adoc#ref-pmd-internal-pmd-voice-number[項目へ]
 |`%pmd-voice-numbers` |`sxmml.backend.pmd` |手続き・非公開 |xref:pmd.adoc#ref-pmd-internal-pmd-voice-numbers[項目へ]
+|`%positive-integer?` |`sxmml.processor` |手続き・非公開 |xref:processor.adoc#ref-processor-internal-positive-integer-p[項目へ]
 |`%proc-note-number` |`sxmml.mml` |手続き・非公開 |xref:mml.adoc#ref-mml-internal-proc-note-number[項目へ]
+|`%processor-value-check` |`sxmml.processor` |手続き・非公開 |xref:processor.adoc#ref-processor-internal-processor-value-check[項目へ]
 |`%repeat-block` |`sxmml.optimizer` |クラス・非公開 |xref:optimizer.adoc#ref-optimizer-internal-repeat-block[項目へ]
 |`%repeat-block-back` |`sxmml.optimizer` |手続き・非公開 |xref:optimizer.adoc#ref-optimizer-internal-repeat-block-back[項目へ]
 |`%repeat-block-break` |`sxmml.optimizer` |手続き・非公開 |xref:optimizer.adoc#ref-optimizer-internal-repeat-block-break[項目へ]
@@ -184,6 +187,7 @@
 |`%sxmml-optimize-tree` |`sxmml.optimizer` |手続き・非公開 |xref:optimizer.adoc#ref-optimizer-internal-sxmml-optimize-tree[項目へ]
 |`%sxmml-pmdx-source-generate` |`sxmml.backend.pmd` |手続き・非公開 |xref:pmd.adoc#ref-pmd-internal-sxmml-pmdx-source-generate[項目へ]
 |`%track-generate` |`sxmml.backend.pmd` |手続き・非公開 |xref:pmd.adoc#ref-pmd-internal-track-generate[項目へ]
+|`%track-list` |`sxmml.processor` |手続き・非公開 |xref:processor.adoc#ref-processor-internal-track-list[項目へ]
 |`%voice-alfb-form?` |`sxmml.voice` |手続き・非公開 |xref:voice.adoc#ref-voice-internal-voice-alfb-form-p[項目へ]
 |`%voice-operator-form?` |`sxmml.voice` |手続き・非公開 |xref:voice.adoc#ref-voice-internal-voice-operator-form-p[項目へ]
 |`%voice-values-check` |`sxmml.voice` |手続き・非公開 |xref:voice.adoc#ref-voice-internal-voice-values-check[項目へ]
