@@ -642,7 +642,9 @@
                           ("delay-inexact-ticks" "(mml-delay (A B) (6.0 2 1) \"c8r8\")" "mml-delay value: ticks is 6.0 (expected a positive integer)")
                           ("delay-voldown" "(mml-delay G (6 1.5 1) \"c8r8\")" "mml-delay value: voldown is 1.5 (expected an integer)")
                           ("delay-restdown" "(mml-delay G (6 2 \"a\") \"c8r8\")" "mml-delay value: restdown is \"a\" (expected an integer)")
+                          ("delay-inexact-voldown" "(mml-delay G (6 2.0 1) \"c8r8\")" "mml-delay value: voldown is 2.0 (expected an integer)")
                           ("echo-voldown" "(mml-echo G (\"g\" 1.5 1) \"c8\")" "mml-echo value: voldown is 1.5 (expected an integer)")
+                          ("echo-inexact-restdown" "(mml-echo G (\"g\" 2 1.0) \"c8\")" "mml-echo value: restdown is 1.0 (expected an integer)")
                           ("echo-restdown" "(mml-echo G (\"g\" 2 \"a\") \"c8\")" "mml-echo value: restdown is \"a\" (expected an integer)"))]
             (let1 r (load-error #"processor-~(car case)" (in-begin (cadr case)))
               (test* #"a wrong value fails with its location: ~(car case)"
@@ -652,6 +654,10 @@
           (dolist [case '(("repeat-no-body" "(mml-repeat G 2)" "mml-repeat" "(mml-repeat track count (body1 ...) [(body2 ...) [(body3 ...)]])")
                           ("repeat-not-body" "(mml-repeat G 2 1)" "mml-repeat" "(mml-repeat track count (body1 ...) [(body2 ...) [(body3 ...)]])")
                           ("repeat-too-many" "(mml-repeat G 2 () () () ())" "mml-repeat" "(mml-repeat track count (body1 ...) [(body2 ...) [(body3 ...)]])")
+                          ("repeat-no-tracks" "(mml-repeat () 2 ((mml G \"c\")))" "mml-repeat" "(mml-repeat track count (body1 ...) [(body2 ...) [(body3 ...)]])")
+                          ("repeat-2-no-tracks" "(mml-repeat () 2 ((mml G \"c\")) ((mml G \"d\")))" "mml-repeat" "(mml-repeat track count (body1 ...) [(body2 ...) [(body3 ...)]])")
+                          ("repeat-3-no-tracks" "(mml-repeat () 2 ((mml G \"c\")) ((mml G \"d\")) ())" "mml-repeat" "(mml-repeat track count (body1 ...) [(body2 ...) [(body3 ...)]])")
+                          ("delay-no-tracks" "(mml-delay () (6 2 1) \"c8r8\")" "mml-delay" "(mml-delay track (ticks voldown restdown) body ...)")
                           ("delay-two-values" "(mml-delay G (6 2) \"c8r8\")" "mml-delay" "(mml-delay track (ticks voldown restdown) body ...)")
                           ("delay-not-list" "(mml-delay G 6 \"c8r8\")" "mml-delay" "(mml-delay track (ticks voldown restdown) body ...)")
                           ("delay-no-values" "(mml-delay G)" "mml-delay" "(mml-delay track (ticks voldown restdown) body ...)")

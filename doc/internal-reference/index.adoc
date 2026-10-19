@@ -3,7 +3,7 @@
 
 この索引は、sxmml を保守・改修する際に内部定義を名前から探すためのものです。動作環境は Gauche 0.9.15 です。内部の名前は MML 記述者向け API を示しません。公開機能の使い方は xref:../sxmml-reference-manual.adoc[MML 記述者向けリファレンス]、MML 文字列の記法は xref:../sxmml-mml-manual.adoc[MML コマンドマニュアル]を参照してください。
 
-モジュール直下の手続き 255 件、クラス 52 件、マクロ 12 件、合計 319 件を掲載します。実験的な `sxmml.backend.pmd-binary` は公開名 7 件だけを掲載し、内部定義は xref:pmd-binary.adoc[本文]に概要だけを記します。`sxmml.scm` は各モジュールを継承し、独自の直下定義はありません。`sxmml.backend.pmd-binary` の `initialize` を除き、各モジュールには `define-method` による定義はありません。局所関数と `sxlc.in` の直下定義は範囲外です。呼び出せない表（ハッシュ表やリスト）は対象外です。
+モジュール直下の手続き 256 件、クラス 52 件、マクロ 12 件、合計 320 件を掲載します。実験的な `sxmml.backend.pmd-binary` は公開名 7 件だけを掲載し、内部定義は xref:pmd-binary.adoc[本文]に概要だけを記します。`sxmml.scm` は各モジュールを継承し、独自の直下定義はありません。`sxmml.backend.pmd-binary` の `initialize` を除き、各モジュールには `define-method` による定義はありません。局所関数と `sxlc.in` の直下定義は範囲外です。呼び出せない表（ハッシュ表やリスト）は対象外です。
 
 == モジュール別目次
 
@@ -14,7 +14,7 @@
 |xref:mml.adoc[`sxmml.mml`] |通常・リズム MML の PEG パーサー |74
 |xref:environment.adoc[`sxmml.environment`] |環境と登録表 |26
 |xref:compiler.adoc[`sxmml.compiler`] |文字列の解析と登録マクロ |7
-|xref:processor.adoc[`sxmml.processor`] |反復・エコー・ディレイ |9
+|xref:processor.adoc[`sxmml.processor`] |反復・エコー・ディレイ |10
 |xref:optimizer.adoc[`sxmml.optimizer`] |オブジェクト列の最適化 |31
 |xref:repeat-tree.adoc[`sxmml.repeat-tree`] |局所反復木による列の圧縮 |33
 |xref:voice.adoc[`sxmml.voice`] |音色定義 |8
@@ -188,6 +188,7 @@
 |`%sxmml-pmdx-source-generate` |`sxmml.backend.pmd` |手続き・非公開 |xref:pmd.adoc#ref-pmd-internal-sxmml-pmdx-source-generate[項目へ]
 |`%track-generate` |`sxmml.backend.pmd` |手続き・非公開 |xref:pmd.adoc#ref-pmd-internal-track-generate[項目へ]
 |`%track-list` |`sxmml.processor` |手続き・非公開 |xref:processor.adoc#ref-processor-internal-track-list[項目へ]
+|`%track-spec?` |`sxmml.processor` |手続き・非公開 |xref:processor.adoc#ref-processor-internal-track-spec-p[項目へ]
 |`%voice-alfb-form?` |`sxmml.voice` |手続き・非公開 |xref:voice.adoc#ref-voice-internal-voice-alfb-form-p[項目へ]
 |`%voice-operator-form?` |`sxmml.voice` |手続き・非公開 |xref:voice.adoc#ref-voice-internal-voice-operator-form-p[項目へ]
 |`%voice-values-check` |`sxmml.voice` |手続き・非公開 |xref:voice.adoc#ref-voice-internal-voice-values-check[項目へ]

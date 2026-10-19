@@ -104,7 +104,7 @@
 
 指定した MML の各音符の長さを前半と後半に分け、後半に一つ前の音を再発音する記述へ加工します。続く休符にも前の音の再発音と音量変更を加えます。「最初の音」は最初の音符の後半に使う `"c"` のような音符文字列です。音量減少量は音符の後半に前の音を鳴らす際、休符時の減少量は休符で前の音を鳴らす際に使います。例えば `("g" 2 1)` と `"c8d8r8"` を指定すると、最初の `c8` の後半には `g`、次の `d8` の後半には `c`、休符の一部には `d` を配置します。トラック名は単一の登録済みトラック名を指定します。複数トラックを加工するには、トラックごとに `mml-echo` を呼びます。詳細は https://github.com/sayzbrdg/sxmml/issues/6[既知の課題 #6]を参照してください。
 
-括弧の中の値には、変数や式も書けます。二つの減少量は整数です。整数でない減少量は、`*** SXMML-FORM-ERROR: ./song.sxl:3: invalid mml-echo value: voldown is 1.5 (expected an integer)` のように、その `mml-echo` の開始位置を示して変換の失敗になります。括弧の中の値が 3 つでないなどの書式の誤りも、`invalid mml-echo form: ...` で、同じく開始位置を示して失敗します。
+括弧の中の値には、変数や式も書けます。二つの減少量は整数です。整数でない減少量（`1.5`、`2.0` など）は、`*** SXMML-FORM-ERROR: ./song.sxl:3: invalid mml-echo value: voldown is 1.5 (expected an integer)` のように、その `mml-echo` の開始位置を示して変換の失敗になります。括弧の中の値が 3 つでないなどの書式の誤りも、`invalid mml-echo form: ...` で、同じく開始位置を示して失敗します。
 
 [source,scheme]
 ----
@@ -122,7 +122,7 @@
 (mml-delay G (6 2 1) "c8r8")
 ----
 
-正の整数でない間隔や整数でない減少量は、`*** SXMML-FORM-ERROR: ./song.sxl:3: invalid mml-delay value: ticks is 0 (expected a positive integer)` のように、その `mml-delay` の開始位置を示して変換の失敗になります。括弧の中の値が 3 つでないなどの書式の誤りも、`invalid mml-delay form: ...` で、同じく開始位置を示して失敗します。
+正の整数でない間隔や整数でない減少量（`0`、`1.5`、`2.0` など）は、`*** SXMML-FORM-ERROR: ./song.sxl:3: invalid mml-delay value: ticks is 0 (expected a positive integer)` のように、その `mml-delay` の開始位置を示して変換の失敗になります。括弧の中の値が 3 つでないなどの書式の誤りも、`invalid mml-delay form: ...` で、同じく開始位置を示して失敗します。
 
 == 曲の設定と定義
 

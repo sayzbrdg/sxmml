@@ -41,6 +41,10 @@
 ;;;  syntax
 ;;;
 
+;; トラック名の指定として受け付けるか。空のリストは受け付けない
+(define (%track-spec? x)
+  (not (null? x)))
+
 ;; トラック名一つか、トラック名のリストを、トラック名のリストにする
 (define (%track-list track)
   (if (list? track) track (list track)))
@@ -68,17 +72,17 @@
           ,@body3))
       (match form
         ;; 1st format
-        [(_ track times (body ...))
+        [(_ (? %track-spec? track) times (body ...))
          (expand (%track-list track) times body () () ())]
         ;; 2nd format
-        [(_ track times (body1 ...) (body2 ...))
+        [(_ (? %track-spec? track) times (body1 ...) (body2 ...))
          (expand (%track-list track) times body1 (%track-list track) body2 ())]
         ;; 3rd format
         [(_ (track ..1) times (body1 ...) (body2 ...) ((break ...) body3 ...))
          (expand track times body1 break body2 body3)]
         [(_ (track ..1) times (body1 ...) (body2 ...) (break body3 ...))
          (expand track times body1 (list break) body2 body3)]
-        [(_ track times (body1 ...) (body2 ...) (body3 ...))
+        [(_ (? %track-spec? track) times (body1 ...) (body2 ...) (body3 ...))
          (expand (list track) times body1 (list track) body2 body3)]
         [_ (sxmml-form-error form "invalid mml-repeat form: expected (mml-repeat track count (body1 ...) [(body2 ...) [(body3 ...)]])")]))))
 
@@ -214,7 +218,7 @@
                                     ,ticks ,voldown ,restdown)
               ',track))))
       (match form
-        [(_ track (ticks voldown restdown) body ...)
+        [(_ (? %track-spec? track) (ticks voldown restdown) body ...)
          `(,(rename 'begin)
            ,@(map (cut regist <> ticks voldown restdown body) (%track-list track)))]
         [_ (sxmml-form-error form "invalid mml-delay form: expected (mml-delay track (ticks voldown restdown) body ...)")]))))
