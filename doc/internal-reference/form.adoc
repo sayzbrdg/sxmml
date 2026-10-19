@@ -1,7 +1,7 @@
 = `sxmml.form` の定義の誤りの位置
 :toc: left
 
-`sxmml.form` には六つの定義があり、定義のマクロの誤りと警告を、ソースの位置付きで知らせる五つの手続きを公開します。`sxmml` はこのモジュールを `extend` しません。`sxmml.voice` の `define-opn-voice` と、`sxmml.environment` の `define-lfo`・`define-envelope`・`define-metadata` が使います。エラーの種類は xref:classes.adoc#ref-classes-class-sxmml-form-error[`<sxmml-form-error>`] を参照してください。`debug-source-info` と condition は Gauche 0.9.15 の動作に従います。
+`sxmml.form` には六つの定義があり、定義のマクロと加工マクロの誤りと警告を、ソースの位置付きで知らせる五つの手続きを公開します。`sxmml` はこのモジュールを `extend` しません。`sxmml.voice` の `define-opn-voice`、`sxmml.environment` の `define-lfo`・`define-envelope`・`define-metadata`、`sxmml.processor` の `mml-repeat`・`mml-echo`・`mml-delay` が使います。エラーの種類は xref:classes.adoc#ref-classes-class-sxmml-form-error[`<sxmml-form-error>`] を参照してください。`debug-source-info` と condition は Gauche 0.9.15 の動作に従います。
 
 位置は `"ファイル:行"` の文字列で、フォームの開始行を示します。Gauche の `While loading … at line N` は、フォームを読み終えた行や、`begin` の行・終わりを示すので、`begin` の中や手続きの本体の定義の位置を示せません。メッセージは、位置があれば `ファイル:行: 本文`、なければ本文だけです。
 
@@ -18,7 +18,7 @@
 
 == 使用例
 
-定義のマクロ（`define-opn-voice`・`define-lfo`・`define-envelope`・`define-metadata`）は、`sxmml-form-wrap` で、登録の呼び出しを、展開時に取った位置付きの `sxmml-form-call` で包みます。
+定義のマクロ（`define-opn-voice`・`define-lfo`・`define-envelope`・`define-metadata`）と加工マクロ（`mml-repeat`・`mml-echo`・`mml-delay`）は、`sxmml-form-wrap` で、登録の呼び出しを、展開時に取った位置付きの `sxmml-form-call` で包みます。
 
 [source,console]
 ----
