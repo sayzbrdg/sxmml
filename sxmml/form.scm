@@ -26,7 +26,7 @@
 ;;; NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 ;;; SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-;; 定義のマクロの誤りを、ソースの位置付きで知らせる
+;; 定義のマクロの誤りと警告を、ソースの位置付きで知らせる
 (define-module sxmml.form
   (use util.match)
   (use sxmml.classes)

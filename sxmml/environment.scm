@@ -88,11 +88,11 @@
       (define (keysym key) (string->symbol (string-downcase (x->string key))))
       (define (old-form? x) (and (pair? x) (list? x) (every string? x)))
       (match form
-        [(_ key (? old-form? values))
+        [(_ key (? old-form? strings))
          (sxmml-form-warn form "(define-metadata ~a (\"...\" ...)) is deprecated; use (list \"...\" ...) or '(\"...\" ...)"
                           (keysym key))
          (sxmml-form-wrap form rename
-           (quasirename rename `(sxmml-metadata-set! ',(keysym key) (list ,@values))))]
+           (quasirename rename `(sxmml-metadata-set! ',(keysym key) (list ,@strings))))]
         [(_ key value)
          (sxmml-form-wrap form rename
            (quasirename rename `(sxmml-metadata-set! ',(keysym key) ,value)))]
