@@ -8,7 +8,7 @@
 
 以下の手順には、リポジトリの Git チェックアウトが必要である。取得方法は[README](../README.md#最初の変換)を参照する。
 
-`./configure` は `Makefile`、`sxmml.gpd`、`VERSION` を生成する。`make` は `sxlc.in` に shebang を付けた `sxlc` を作る。`make check` は `test.scm`、`test-repeat-tree.scm`、`test-pmd-binary.scm` を順に実行し、`test.log` に結果を残す。設定と生成の規則は [`configure`](../configure)、[`Makefile.in`](../Makefile.in)、[`package.scm`](../package.scm)を参照する。
+`./configure` は `Makefile`、`sxmml.gpd`、`VERSION` を生成する。`make` は `sxlc.in` に shebang を付けた `sxlc` を作る。`make check` は `test.scm`、`test-repeat-tree.scm`、`test-pmd-binary.scm` を順に実行し、`tools/` があれば `tools/test-measure-optimize.scm` も実行して、`test.log` に結果を残す。設定と生成の規則は [`configure`](../configure)、[`Makefile.in`](../Makefile.in)、[`package.scm`](../package.scm)を参照する。
 
 ## 隔離したコピーでの確認
 
@@ -63,9 +63,30 @@ docker run --rm -v "$PWD:/work:ro" -v "$render_dir:/out" -w /work \
 | --- | --- | --- |
 | MML 構文・音長 | `sxmml/mml.scm`、`sxmml/classes.scm` | 通常・リズム双方の解析結果、tick、生成行、失敗条件 |
 | マクロ・オブジェクト加工 | `sxmml/compiler.scm`、`sxmml/processor.scm`、`sxmml/environment.scm` | 反復・echo・delay の登録列と文脈、PMD 出力 |
-| 最適化 | `sxmml/optimizer.scm`、`sxmml/backend/pmd.scm` | 水準別のオブジェクト数と列、生成物、[Q-01 の検証方法](verification.md#q-01-音楽的な意味の保持)で比較できる範囲 |
+| 最適化 | `sxmml/optimizer.scm`、`sxmml/backend/pmd.scm` | 水準別のオブジェクト数と列、生成物、[Q-01 の検証方法](verification.md#q-01-音楽的な意味の保持)で比較できる範囲。サイズ・オブジェクト数・時間は[最適化の水準の比較](#最適化の水準の比較)で測る |
 | CLI・出力先 | `sxlc.in`、`sxmml/environment.scm`、`sxmml/backend/pmd.scm` | 実際の生成先、表示、`-c` に渡す名前、モード優先関係 |
 | 配布 | `configure`、`package.scm`、`Makefile.in`、`tools/distcheck.sh` | 生成物、テストログ、ステージングの配置、man ページの有無。`tools/distcheck.sh` で[配布前の確認](release-guide.md#配布前の確認)を行う |
+
+## 最適化の水準の比較
+
+`tools/measure-optimize.scm` は、一つのソースを最適化の水準ごとに変換し、生成物のバイト数、全トラックのオブジェクト数の合計、時間を表にする。`-O 3`・`-O 4` の圧縮の設定（展開の上限 E と窓幅 W）を変えたときの効果と時間を比べるのに使う。リポジトリのルートで次のように実行する。
+
+```console
+gosh -I. tools/measure-optimize.scm [-m モード] ソース.sxl [設定 ...]
+```
+
+モードの既定は `pmd` で、`pmd-binary` なども指定できる。設定は `O2`・`O3`・`O4` のいずれかで、`:E=数`・`:W=数` を付けると圧縮の設定を変えられる（例：`O4:E=128:W=256`）。既定は `sxlc` の `-O 3`・`-O 4` と同じで、E が 256、W が `O3` で 256、`O4` で 1024 である。設定を省略すると `O2`・`O3`・`O4` を測る。
+
+```console
+$ printf '%s\n' '(mml A "[aaaaaaaa]2 cdecdecd")' > repeat.sxl
+$ gosh -I. tools/measure-optimize.scm repeat.sxl
+config           bytes      vs O2    objects  generate   total
+O2                      105 100.0%         18       0.02       0.62
+O3                      100 95.2%          11       0.03       0.61
+O4                       98 93.3%           9       0.03       0.61
+```
+
+列は、設定、生成物のバイト数、`O2` との比（`O2` を先に測ったときだけ）、オブジェクト数の合計、生成の時間（秒）、プロセス全体の時間（秒）である。設定ごとに別のプロセスで変換し、生成物は一時ディレクトリに置いて、測り終えたら消す。変換に失敗した設定は `failed (exit status N)` と表示する。圧縮の設定は `sxmml.optimizer` の内部の変数を書き換えて変えるので、その名前を変えたときは、この道具も合わせて直す。`make check` の `tools/test-measure-optimize.scm` が、合成した入力でこの道具の動作を確かめる。
 
 ## 障害調査の入口
 
@@ -75,4 +96,4 @@ docker run --rm -v "$PWD:/work:ro" -v "$render_dir:/out" -w /work \
 
 ## 関連資料
 
-ビルド規則は[`Makefile.in`](../Makefile.in)と[`configure`](../configure)、パッケージ情報は[`package.scm`](../package.scm)、テストは[`test.scm`](../test.scm)、[`test-repeat-tree.scm`](../test-repeat-tree.scm)、[`test-pmd-binary.scm`](../test-pmd-binary.scm)を参照する。Gauche の生成・テスト機能は [Gauche 0.9.15 Users’ Reference, 9.8 gauche.configure、9.34 gauche.test](https://practical-scheme.net/vault/Gauche-0.9.15-refe.pdf)を参照する。
+ビルド規則は[`Makefile.in`](../Makefile.in)と[`configure`](../configure)、パッケージ情報は[`package.scm`](../package.scm)、テストは[`test.scm`](../test.scm)、[`test-repeat-tree.scm`](../test-repeat-tree.scm)、[`test-pmd-binary.scm`](../test-pmd-binary.scm)、[`tools/test-measure-optimize.scm`](../tools/test-measure-optimize.scm)を参照する。Gauche の生成・テスト機能は [Gauche 0.9.15 Users’ Reference, 9.8 gauche.configure、9.34 gauche.test](https://practical-scheme.net/vault/Gauche-0.9.15-refe.pdf)を参照する。

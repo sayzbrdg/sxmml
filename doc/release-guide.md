@@ -113,7 +113,7 @@ tools/distcheck.sh [-r REV] [-m MAKE] [-w DIR] [-k] [-h]
 | 除外するもの | 理由 |
 | --- | --- |
 | `AGENTS.md` | AI エージェント向けのリポジトリでの作業規則であり、配布物の利用者には意味を持たない |
-| `tools/` | `tools/distcheck.sh` は Git リポジトリを前提とし、アーカイブ内では動作しない |
+| `tools/` | `tools/distcheck.sh` は Git リポジトリを前提とし、アーカイブ内では動作しない。`tools/measure-optimize.scm` は開発で最適化の水準を比べる道具である。`make check` は、`tools/` があるときだけその検査を行う |
 
 開発専用のファイルを追加する場合は、同じ基準で `DIST_EXCLUDE` に加える。
 
