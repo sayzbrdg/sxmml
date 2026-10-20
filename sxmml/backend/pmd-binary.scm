@@ -672,6 +672,11 @@
     (u8vector-set! u8vec offset cmd)
     (u8vector-set! u8vec (+ offset 1) value)
     (+ offset 2))
+  ;; 楽器別の音量は楽器 * 32 + 音量の 1 バイトなので、符号化の前に 0～31 を検査する
+  (define (instrument-value inst value)
+    (unless (<= 0 value 31)
+      (errorf "rhythm volume out of range: ~a (0 - 31)" value))
+    (logior (ash inst 5) value))
   (let ([v (cons 0 (slot-ref obj 'value))]
         [b (cons 1 (slot-ref obj 'bass))]
         [s (cons 2 (slot-ref obj 'snare))]
@@ -686,7 +691,7 @@
             [(and (= (caar rest) 0) (cdar rest))
              (recur (cdr rest) (data-set! cur #xe8 (cdar rest) 63))]
             [(cdar rest)
-             (recur (cdr rest) (data-set! cur #xea (logior (ash (caar rest) 5) (cdar rest)) 31))]
+             (recur (cdr rest) (data-set! cur #xea (instrument-value (caar rest) (cdar rest)) 31))]
             [else
              (recur (cdr rest) cur)]))))
 
@@ -714,11 +719,12 @@
              (recur (cdr rest) cur)]))))
 
 (define (%pmd-rhythm-pan-set! u8vec offset obj)
-  (define (data-set! offset value)
-    (when (> (logand value #x1f) 3)
-      (error "invalid rhythm pan parameter: " value))
+  ;; パンは楽器 * 32 + 値の 1 バイト。値は 1（右）・2（左）・3（中央）で、符号化の前に検査する
+  (define (data-set! offset inst value)
+    (unless (<= 1 value 3)
+      (errorf "rhythm pan out of range: ~a (1 - 3)" value))
     (u8vector-set! u8vec offset #xe9)
-    (u8vector-set! u8vec (+ offset 1) value)
+    (u8vector-set! u8vec (+ offset 1) (logior (ash inst 5) value))
     (+ offset 2))
   (let ([b (cons 1 (slot-ref obj 'bass))]
         [s (cons 2 (slot-ref obj 'snare))]
@@ -731,7 +737,7 @@
       (cond [(null? rest)
              cur]
             [(cdar rest)
-             (recur (cdr rest) (data-set! cur (logior (ash (caar rest) 5) (cdar rest))))]
+             (recur (cdr rest) (data-set! cur (caar rest) (cdar rest)))]
             [else
              (recur (cdr rest) cur)]))))
 

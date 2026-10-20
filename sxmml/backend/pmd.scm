@@ -616,12 +616,14 @@
     (format #t "~a~a~a~a~a~a" b s t c h i)))
 
 (define (%pmd-rhythm-pan-set! obj)
+  ;; PMD のリズムのパンは右・左・中央だけで、1・2・3 に当たる
   (define (n->c num)
     (case num
       [(1) #\r]
       [(2) #\l]
       [(3) #\m]
-      [(#f) #f]))
+      [(#f) #f]
+      [else (errorf "rhythm pan out of range: ~a (1 - 3)" num)]))
   (let ([b (if-let1 a (n->c (slot-ref obj 'bass)) (format "\\~ab" a) "")]
         [s (if-let1 a (n->c (slot-ref obj 'snare)) (format "\\~as" a) "")]
         [t (if-let1 a (n->c (slot-ref obj 'tom)) (format "\\~at" a) "")]
