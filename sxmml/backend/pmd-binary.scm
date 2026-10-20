@@ -366,18 +366,14 @@
                        (u8vector-set! t13u8vec (+ toffset 1) hb)
                        (recur (cdr stack) (+ toffset 2)))))]
                 [(eq? (car rest) 'memo)
-                 ;; memo は文字列のリストとして受け取る。空なら、空の memo を 1 件書く
-                 (let1 data (sxmml-pmd-metadata-value 'memo)
-                   (if (pair? data)
-                     (let recur ([stack data]
-                                 [moffset meta-offset]
-                                 [ostack offset-stack])
-                       (if (null? stack)
-                         (loop (cdr rest) moffset ostack)
-                         (let1 doffset (%shift_jis-u8vector-copy! t13u8vec (car stack) moffset track-start-pos)
-                           (recur (cdr stack) doffset (cons moffset ostack)))))
-                     (begin (u8vector-set! t13u8vec meta-offset #x00)
-                            (loop (cdr rest) (+ meta-offset 1) (cons meta-offset offset-stack)))))]
+                 ;; memo は文字列のリストとして受け取り、要素の数だけ書く。空なら書かない
+                 (let recur ([stack (sxmml-pmd-metadata-value 'memo)]
+                             [moffset meta-offset]
+                             [ostack offset-stack])
+                   (if (null? stack)
+                     (loop (cdr rest) moffset ostack)
+                     (let1 doffset (%shift_jis-u8vector-copy! t13u8vec (car stack) moffset track-start-pos)
+                       (recur (cdr stack) doffset (cons moffset ostack)))))]
                 [else
                  (if-let1 data (sxmml-pmd-metadata-value (car rest))
                    (let1 doffset (%shift_jis-u8vector-copy! t13u8vec data meta-offset track-start-pos)

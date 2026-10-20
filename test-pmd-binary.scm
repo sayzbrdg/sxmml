@@ -305,35 +305,35 @@
                    ("リズムの R トラック" "rhythm-r" ((rhythm L "V40vb10pb2)b1@b8(b1!sr8")) R
                     ;; R は位置 38 から始まり、先頭の 2 バイトがパターンの位置 40。
                     ;; V40、vb10、pb2、)b1、@b8 と 12 tick、(b1、!s、休符。合計 tick 24、L がないので loop tick 0
-                    "28 00 e8 28 ea 2a e9 22 e5 01 01 eb 01 0f 0c e5 01 ff eb 82 0f 0c ff 18 00 00 00 00 00 00 00 52 00 48 fe")
+                    "28 00 e8 28 ea 2a e9 22 e5 01 01 eb 01 0f 0c e5 01 ff eb 82 0f 0c ff 18 00 00 00 00 00 00 00 51 00 48 fe")
                    ;; 楽器別の音量の両端 0・31。バスは 1、スネアは 2 で、楽器 * 32 + 音量の 1 バイト (#102)
                    ;; パンの両端 1・3。バスの右は 21、スネアの中央は 43 (#102)
                    ("リズムのパンの両端" "rhythm-pan-range" ((rhythm L "pb1ps3@bs8")) R
-                    "28 00 e9 21 e9 43 eb 03 0f 0c ff 0c 00 00 00 00 00 00 00 46 00 48 fe")
+                    "28 00 e9 21 e9 43 eb 03 0f 0c ff 0c 00 00 00 00 00 00 00 45 00 48 fe")
                    ("リズムの楽器別の音量の両端" "rhythm-volume-range" ((rhythm L "vb0vs31@bs8")) R
-                    "28 00 ea 20 ea 5f eb 03 0f 0c ff 0c 00 00 00 00 00 00 00 46 00 48 fe")
+                    "28 00 ea 20 ea 5f eb 03 0f 0c ff 0c 00 00 00 00 00 00 00 45 00 48 fe")
                    ("ループを含むリズムの K トラック" "rhythm-loop-k" ((rhythm L "@b8L[@s8]2")) K
                     "00 f6 01 80")
                    ("ループと反復を含むリズムの R トラック" "rhythm-loop-r" ((rhythm L "@b8L[@s8]2")) R
                     ;; R は位置 40 から始まり、パターンの位置 44 とループの位置 49 を持つ。
                     ;; 合計 tick 36、loop tick 24
-                    "2c 00 31 00 eb 01 0f 0c ff f9 39 00 eb 02 0f 0c f8 02 02 32 00 ff 24 00 00 00 18 00 00 00 53 00 48 fe")
+                    "2c 00 31 00 eb 01 0f 0c ff f9 39 00 eb 02 0f 0c f8 02 02 32 00 ff 24 00 00 00 18 00 00 00 52 00 48 fe")
                    ("リズムより短い他のトラック" "rhythm-longest" ((mml A "o4c8") (rhythm L "@b1")) R
                     ;; A は 12 tick、L は 96 tick。合計 tick は L の 96、L がないので loop tick 0
-                    "2a 00 eb 01 0f 60 ff 60 00 00 00 00 00 00 00 44 00 48 fe")
+                    "2a 00 eb 01 0f 60 ff 60 00 00 00 00 00 00 00 43 00 48 fe")
                    ("リズムだけ" "rhythm-only" ((rhythm L "@b1")) R
                     ;; L は 96 tick。合計 tick は L の 96（これまでは 0 を書いていた）、L がないので loop tick 0
-                    "28 00 eb 01 0f 60 ff 60 00 00 00 00 00 00 00 42 00 48 fe")
-                   ;; L のあるトラックがなければ loop tick は 0。同じ内容を MC.EXE でコンパイルした生成物と、
-                   ;; メタ情報の位置の表（#109）を除いて照合した。パンの 2・3・1 は左・中央・右 (#65)
+                    "28 00 eb 01 0f 60 ff 60 00 00 00 00 00 00 00 41 00 48 fe")
+                   ;; L のあるトラックがなければ loop tick は 0。同じ内容を MC.EXE でコンパイルした生成物と
+                   ;; 照合した。パンの 2・3・1 は左・中央・右 (#65、#109)
                    ("L のないリズム" "rhythm-no-loop" ((rhythm L "pb2@b8pb3@b8pb1@b8")) R
-                    "28 00 e9 22 eb 01 0f 0c e9 23 eb 01 0f 0c e9 21 eb 01 0f 0c ff 24 00 00 00 00 00 00 00 50 00 48 fe")
+                    "28 00 e9 22 eb 01 0f 0c e9 23 eb 01 0f 0c e9 21 eb 01 0f 0c ff 24 00 00 00 00 00 00 00 4f 00 48 fe")
                    ;; 合計 tick と loop tick は、トラックごとに別々に最大を取る。A は 108 tick・loop 12 tick、
                    ;; B と L は 36 tick・loop 24 tick なので、合計 tick は A の 108、loop tick は B と L の 24。
-                   ;; tick の欄は、同じ内容を MC.EXE でコンパイルした生成物と照合した (#65)
+                   ;; 同じ内容を MC.EXE でコンパイルした生成物と照合した (#65、#109)
                    ("合計 tick と loop tick の最大を別々のトラックから取る" "separate-max"
                     ((mml A "c1Lc8") (mml B "g8Lg4") (rhythm L "@b8L@b4")) R
-                    "36 00 3b 00 eb 01 0f 0c ff eb 01 0f 18 ff 6c 00 00 00 18 00 00 00 55 00 48 fe"))]
+                    "36 00 3b 00 eb 01 0f 0c ff eb 01 0f 18 ff 6c 00 00 00 18 00 00 00 54 00 48 fe"))]
           (test* #"pmd-binary の命令列: ~(car case)"
                  (list-ref case 4)
                  (section-hex (generate-binary (cadr case) pmd-binary (caddr case)) (cadddr case))))
@@ -365,6 +365,15 @@
                         "57 00 58 00 59 00 5a 00 61 00 67 00 68 00 6b 00 00 00")
                   " ")
                  (hex-bytes (generate-binary "whole-pmd4" pmd-binary forms)))
+          ;; 次の 2 件は、同じ内容の MML を MC.EXE でコンパイルした生成物とバイトまで同じ (#65、#109)
+          (test* "pmd-binary の生成物全体: ループのあるトラックとリズム"
+                 "00 1a 00 20 00 26 00 27 00 28 00 29 00 2a 00 2b 00 2c 00 2d 00 2e 00 32 00 4c 00 30 60 f6 30 0c 80 37 0c f6 37 18 80 80 80 80 80 80 80 80 80 00 f6 01 80 36 00 3b 00 eb 01 0f 0c ff eb 01 0f 18 ff 6c 00 00 00 18 00 00 00 54 00 48 fe 00 ff 00 00 00 00 00 00 4e 00 4f 00 50 00 51 00 52 00 53 00 00 00"
+                 (hex-bytes (generate-binary "whole-loop-rhythm" pmd-binary
+                                             '((mml A "c1Lc8") (mml B "g8Lg4") (rhythm L "@b8L@b4")))))
+          (test* "pmd-binary の生成物全体: ループのないリズム"
+                 "00 1a 00 1b 00 1c 00 1d 00 1e 00 1f 00 20 00 21 00 22 00 23 00 24 00 26 00 47 00 80 80 80 80 80 80 80 80 80 80 00 80 28 00 e9 22 eb 01 0f 0c e9 23 eb 01 0f 0c e9 21 eb 01 0f 0c ff 24 00 00 00 00 00 00 00 4f 00 48 fe 00 ff 00 00 00 00 00 00 49 00 4a 00 4b 00 4c 00 4d 00 4e 00 00 00"
+                 (hex-bytes (generate-binary "whole-rhythm-no-loop" pmd-binary
+                                             '((rhythm L "pb2@b8pb3@b8pb1@b8")))))
           (test* "pmd3-binary の生成物全体: メタ情報・R トラックの末尾・音色表の終端を持たない"
                  (string-join
                   (list "00 1a 00 22 00 23 00 24 00 25 00 26 00 27 00 28 00 29 00 2a 00 2b 00 2c 00 2f 00"
@@ -464,12 +473,13 @@
                            (boolean (any #/invalid metadata value: title is 1 \(expected a string\)/
                                          (cadr result)))
                            (file-exists? output))))))
-        ;; メタデータがなければ、音色表の終端に続けて、7 項目の空文字列、その位置の表、
-        ;; 終端の 00 00 を書く。空のリストの memo も、memo がない場合と同じく空の memo を 1 件書く
+        ;; メタデータがなければ、音色表の終端に続けて、memo 以外の 6 項目の空文字列、その位置の表、
+        ;; 終端の 00 00 を書く。memo は書かない。空のリストの memo も、memo がない場合と同じ。
+        ;; メタデータのない MML を MC.EXE でコンパイルした生成物のメタ情報と同じ形 (#109)
         (dolist [case '(("meta-none" ((mml A "c8")))
                         ("meta-memo-empty" ((define-metadata memo '()) (mml A "c8"))))]
           (test* #"pmd-binary の空のメタ情報: ~(car case)"
-                 "00 ff 00 00 00 00 00 00 00 38 00 39 00 3a 00 3b 00 3c 00 3d 00 3e 00 00 00"
+                 "00 ff 00 00 00 00 00 00 38 00 39 00 3a 00 3b 00 3c 00 3d 00 00 00"
                  (section-hex (generate-binary (car case) pmd-binary (cadr case)) 'voice)))
         (test* "pmd-binary はメタデータの memo の要素が文字列でなければ失敗する"
                (test-error <error> "invalid metadata value: memo is (\"a\" 1) (expected a string or a list of strings)")
