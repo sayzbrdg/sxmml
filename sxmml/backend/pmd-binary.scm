@@ -270,7 +270,7 @@
              [track-offset table-size])
     (%size-check! (+ (overall-offset) track-offset))
     (cond [(null? rest)
-           ;; パターンの終わりの ff の次から、PMD4 の末尾の 12 バイトを書く
+           ;; パターンの終わりの ff の次（パターンがなければ先頭）から、PMD4 の末尾の 12 バイトを書く
            (let ([metasize (if (eq? (slot-ref (sxmml-pmd-binary-environment) 'mode) 'fc88) 0 12)]
                  [end (if (null? lis)
                         0
