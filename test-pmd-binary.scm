@@ -562,6 +562,10 @@
                           ("合計 67200 tick は失敗する" "pmd-binary" "ticks-67200"
                            ((mml A "c%67200"))
                            "total ticks exceed the limit: 67200 (max 65535)")
+                          ;; L トラックの長さも合計 tick に入る (#65)
+                          ("リズムの合計 65536 tick は失敗する" "pmd-binary" "ticks-rhythm-over"
+                           ((rhythm L "@b%65536"))
+                           "total ticks exceed the limit: 65536 (max 65535)")
                           ("PMD3 は合計 tick を書かないので 67200 tick も成功する" "pmd3-binary" "ticks-pmd3"
                            ((mml A "c%67200"))
                            #t))]
