@@ -307,6 +307,9 @@
                     ;; V40、vb10、pb2、)b1、@b8 と 12 tick、(b1、!s、休符。合計 tick 24、L がないので loop tick 0
                     "28 00 e8 28 ea 2a e9 22 e5 01 01 eb 01 0f 0c e5 01 ff eb 82 0f 0c ff 18 00 00 00 00 00 00 00 52 00 48 fe")
                    ;; 楽器別の音量の両端 0・31。バスは 1、スネアは 2 で、楽器 * 32 + 音量の 1 バイト (#102)
+                   ;; パンの両端 1・3。バスの右は 21、スネアの中央は 43 (#102)
+                   ("リズムのパンの両端" "rhythm-pan-range" ((rhythm L "pb1ps3@bs8")) R
+                    "28 00 e9 21 e9 43 eb 03 0f 0c ff 0c 00 00 00 00 00 00 00 46 00 48 fe")
                    ("リズムの楽器別の音量の両端" "rhythm-volume-range" ((rhythm L "vb0vs31@bs8")) R
                     "28 00 ea 20 ea 5f eb 03 0f 0c ff 0c 00 00 00 00 00 00 00 46 00 48 fe")
                    ("ループを含むリズムの K トラック" "rhythm-loop-k" ((rhythm L "@b8L[@s8]2")) K

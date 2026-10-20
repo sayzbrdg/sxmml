@@ -24,11 +24,11 @@
 
 ### 不具合の修正
 
-- リズムの楽器別のパン（`p楽器 数値`）は、1（右）・2（左）・3（中央）以外の値で、`-m pmd` は `\#<undef>b` のような壊れた MML を書いて成功し、`pmd-binary`・`pmd4-binary`・`pmd3-binary` は 0 を受け付けていた。どちらも `rhythm pan out of range: 4 (1 - 3)` のように、値と範囲を示して失敗するようにした。PMD バイナリでの範囲外のパンの表示は、これまで符号化した後の値（`pb4` で 36）だった（#102）。
+- リズムの楽器別のパン（`p楽器 数値`）は、1（右）・2（左）・3（中央）以外の値で、`-m pmd`・`-m pmd3` は `\#<undef>b` のような壊れた MML を書いて成功し、`pmd-binary`・`pmd4-binary`・`pmd3-binary` は 0 を受け付けていた。どちらも `rhythm pan out of range: 4 (1 - 3)` のように、値と範囲を示して失敗するようにした。PMD バイナリでの範囲外のパンの表示は、これまで符号化した後の値（`pb4` で 36）だった（#102）。
 - `pmd-binary`・`pmd4-binary`・`pmd3-binary` で、リズムの楽器別の音量（`v楽器 数値`）の 32 以上の値が、楽器のビットにはみ出して、黙って誤った生成物になっていた（`vb32` はバスの音量 0 になるなど）。0 から 31 に限り、範囲外は `rhythm volume out of range: 32 (0 - 31)` で失敗するようにした（#102）。
 - `pmd-binary`・`pmd4-binary` で、生成物に書く合計 tick と loop tick に、L トラック（リズム）の長さが入っていなかった。L トラックを含む全トラックの最大値を書くようにした。また、`L` のないトラックの合計 tick を loop tick として数えていたので、`L` のあるトラックだけの最大値（`L` のあるトラックがなければ 0）を書くようにした。L トラックが最も長い場合、合計 tick の上限（65535）の検査にも L トラックの長さが使われる（#65）。
 - `pmd-binary`・`pmd4-binary`・`pmd3-binary` で、`[c:d]0` のような、脱出（`:`）を含む無限反復は、内部のエラー `argument out of range: -1` で失敗していた。`-m pmd` と同じく変換できるようにした（#62）。
-- `pmd-binary`・`pmd4-binary`・`pmd3-binary` で、音長が 255 tick を超えるポルタメントは、内部のエラー `argument out of range` で失敗していた。`portamento ticks out of range: 300 (1 - 255)` のように、音長と許される範囲を示して失敗するようにした。リズムの音量・パンの誤りのメッセージの綴り（`paramater`）も `parameter` に直した（#57）。
+- `pmd-binary`・`pmd4-binary`・`pmd3-binary` で、音長が 255 tick を超えるポルタメントは、内部のエラー `argument out of range` で失敗していた。`portamento ticks out of range: 300 (1 - 255)` のように、音長と許される範囲を示して失敗するようにした。リズムの音量の誤りのメッセージの綴り（`paramater`）も `parameter` に直した（#57）。
 - 一つの反復に `:` を 2 個以上書いても、変換が失敗しなかった。2 個目以降の `:` は `break command can be used only once in a repeat` で変換の失敗とする。入れ子のそれぞれに一つずつ書いた `:` はこれまでどおり使える（#92）。
 - `-m pmd` で、`memo` を文字列 1 つで定義すると（`(define-metadata memo "abc")`）、1 文字ずつ別の `#memo` の行に出力していた。1 行で出力するようにした（#87）。
 - `-m pmd` で、5 値のエンベロープの 5 つ目を捨てて、4 値の `E` を出力していた。PMD は値の数で `E` の書式を決めるので、意味の違うエンベロープになっていた。5 値のまま出力するようにした（#84）。
