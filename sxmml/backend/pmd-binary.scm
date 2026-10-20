@@ -127,10 +127,13 @@
       (parameterize ([%pmd-section "track J"])
         (%pcm-track-u8vector-set! 9 20 (sxmml-optimize-tree pcm-track :optimize (slot-ref (sxmml-environment) 'optimize))))
       (%ticks-update! pcm-track))
-    (let1 rhythm-track (sxmml-track-find 'L)
+    ;; R トラックの末尾に全トラックの最大の tick を書くので、L トラックの tick は書く前に集計する。
+    ;; トラックの tick は sxmml-optimize-tree が設定する
+    (let* ([rhythm-track (sxmml-track-find 'L)]
+           [lis (sxmml-optimize-tree rhythm-track :optimize (slot-ref (sxmml-environment) 'optimize))])
+      (%ticks-update! rhythm-track)
       (parameterize ([%pmd-section "track L"])
-        (%pmd-rhythm-track-u8vector-set! (sxmml-optimize-tree rhythm-track :optimize (slot-ref (sxmml-environment) 'optimize))))
-      (%ticks-update! rhythm-track))
+        (%pmd-rhythm-track-u8vector-set! lis)))
     (%pmd-meta-track-u8vector-set!)
     ;; 書き込みの途中の検査は作業用のバッファを守るもので、最後に全体の大きさを検査する
     (%size-check! (slot-ref (sxmml-pmd-binary-environment) 'offset))
@@ -834,7 +837,9 @@
            (slot-ref (sxmml-pmd-binary-environment) 'max-total-ticks))
     (slot-set! (sxmml-pmd-binary-environment) 'max-total-ticks
                (slot-ref (sxmml-track-get track) 'total-ticks)))
-  (when (> (slot-ref (sxmml-track-get track) 'loop-ticks)
-           (slot-ref (sxmml-pmd-binary-environment) 'max-loop-ticks))
+  ;; L のないトラックの loop-ticks は合計 tick と同じ値なので、loop tick の最大には数えない
+  (when (and (slot-ref (sxmml-track-get track) 'loop-exists?)
+             (> (slot-ref (sxmml-track-get track) 'loop-ticks)
+                (slot-ref (sxmml-pmd-binary-environment) 'max-loop-ticks)))
     (slot-set! (sxmml-pmd-binary-environment) 'max-loop-ticks
                (slot-ref (sxmml-track-get track) 'loop-ticks))))
