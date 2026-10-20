@@ -10,7 +10,7 @@
 
 (test-start "test.cli-support")
 
-;; 環境変数や作業ディレクトリは、検査が失敗しても元に戻す。
+;; 環境変数は、検査が失敗しても元に戻す。
 (define (with-environment name value thunk)
   (let1 previous (sys-getenv name)
     (unwind-protect
@@ -22,15 +22,11 @@
 (define (with-sxlc value thunk)
   (with-environment "SXMML_SXLC" value thunk))
 
-(define (with-directory directory thunk)
-  (let1 previous (sys-getcwd)
-    (unwind-protect
-        (begin (sys-chdir directory) (thunk))
-      (sys-chdir previous))))
-
 (let* ([srcdir (sys-normalize-pathname (build-path (sys-dirname (current-load-path)) "..")
                                      :absolute #t)]
-       [workdir (sys-mkdtemp (build-path (temporary-directory) "sxmml-cli-support"))]
+       ;; 親の作業場所を保ったまま、fixture を相対パスで指定する。
+       [workdir (sys-mkdtemp (build-path (sys-getcwd) ".sxmml-cli-support"))]
+       [relative-workdir (sys-basename workdir)]
        [cli (build-path workdir "CLI ; 空白.scm")]
        [preferred (build-path workdir "優先 ; module")]
        [shadow (build-path workdir "後順位 module")]
@@ -72,12 +68,12 @@
         ;; 相対パス、読み込み順序、引数の境界、Gauche の選択を実行結果で確かめる。
         (let1 previous-load-path *load-path*
           (unwind-protect
-              (with-directory
-               workdir
-               (^[]
-                 (set! *load-path* (append '("優先 ; module" "後順位 module")
+              (begin
+                 (set! *load-path* (append (map (cut build-path relative-workdir <>)
+                                               '("優先 ; module" "後順位 module"))
                                           previous-load-path))
-                 (let1 command (with-sxlc "CLI ; 空白.scm" make-test-sxlc-command)
+                 (let1 command (with-sxlc (build-path relative-workdir "CLI ; 空白.scm")
+                                         make-test-sxlc-command)
                    (with-environment
                     "PATH" fakebin
                     (^[]
@@ -90,7 +86,7 @@
                                '(指定したモジュール ("空白 付き" ";"))
                                (car (file->sexp-list output)))
                         (test* "子プロセスの起動時にエラーがない"
-                               "" (file->string errors))))))))
+                               "" (file->string errors)))))))
             (set! *load-path* previous-load-path)))
 
         ;; 各テスト本体が指定を無視して別の CLI を起動する変更を検出する。
