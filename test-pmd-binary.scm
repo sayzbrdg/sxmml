@@ -316,7 +316,13 @@
                     "2a 00 eb 01 0f 60 ff 60 00 00 00 60 00 00 00 44 00 48 fe")
                    ("リズムだけ" "rhythm-only" ((rhythm L "@b1")) R
                     ;; L は 96 tick。合計 tick と loop tick は L の 96（これまでは 0 を書いていた）
-                    "28 00 eb 01 0f 60 ff 60 00 00 00 60 00 00 00 42 00 48 fe"))]
+                    "28 00 eb 01 0f 60 ff 60 00 00 00 60 00 00 00 42 00 48 fe")
+                   ;; 合計 tick と loop tick は、トラックごとに別々に最大を取る。A は 108 tick・loop 12 tick、
+                   ;; B と L は 36 tick・loop 24 tick なので、合計 tick は A の 108、loop tick は B と L の 24。
+                   ;; tick の欄は、同じ内容を MC.EXE でコンパイルした生成物と照合した (#65)
+                   ("合計 tick と loop tick の最大を別々のトラックから取る" "separate-max"
+                    ((mml A "c1Lc8") (mml B "g8Lg4") (rhythm L "@b8L@b4")) R
+                    "36 00 3b 00 eb 01 0f 0c ff eb 01 0f 18 ff 6c 00 00 00 18 00 00 00 55 00 48 fe"))]
           (test* #"pmd-binary の命令列: ~(car case)"
                  (list-ref case 4)
                  (section-hex (generate-binary (cadr case) pmd-binary (caddr case)) (cadddr case))))
