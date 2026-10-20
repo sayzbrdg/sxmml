@@ -300,11 +300,12 @@
                    ("リズムの K トラック" "rhythm-k" ((rhythm L "@b8")) K
                     "00 80")
                    ;; R トラックの末尾 12 バイトは、合計 tick、0、loop tick、0、メタ情報の位置の表、48 fe。
-                   ;; tick は、L トラックを含めた全トラックの最大値 (#65)
+                   ;; 合計 tick は L トラックを含めた全トラックの最大値、loop tick は L のあるトラックの
+                   ;; 最大値で、L のあるトラックがなければ 0 (#65)
                    ("リズムの R トラック" "rhythm-r" ((rhythm L "V40vb10pb2)b1@b8(b1!sr8")) R
                     ;; R は位置 38 から始まり、先頭の 2 バイトがパターンの位置 40。
-                    ;; V40、vb10、pb2、)b1、@b8 と 12 tick、(b1、!s、休符。合計 tick 24、loop tick 24
-                    "28 00 e8 28 ea 2a e9 22 e5 01 01 eb 01 0f 0c e5 01 ff eb 82 0f 0c ff 18 00 00 00 18 00 00 00 52 00 48 fe")
+                    ;; V40、vb10、pb2、)b1、@b8 と 12 tick、(b1、!s、休符。合計 tick 24、L がないので loop tick 0
+                    "28 00 e8 28 ea 2a e9 22 e5 01 01 eb 01 0f 0c e5 01 ff eb 82 0f 0c ff 18 00 00 00 00 00 00 00 52 00 48 fe")
                    ("ループを含むリズムの K トラック" "rhythm-loop-k" ((rhythm L "@b8L[@s8]2")) K
                     "00 f6 01 80")
                    ("ループと反復を含むリズムの R トラック" "rhythm-loop-r" ((rhythm L "@b8L[@s8]2")) R
@@ -312,11 +313,15 @@
                     ;; 合計 tick 36、loop tick 24
                     "2c 00 31 00 eb 01 0f 0c ff f9 39 00 eb 02 0f 0c f8 02 02 32 00 ff 24 00 00 00 18 00 00 00 53 00 48 fe")
                    ("リズムより短い他のトラック" "rhythm-longest" ((mml A "o4c8") (rhythm L "@b1")) R
-                    ;; A は 12 tick、L は 96 tick。合計 tick と loop tick は L の 96
-                    "2a 00 eb 01 0f 60 ff 60 00 00 00 60 00 00 00 44 00 48 fe")
+                    ;; A は 12 tick、L は 96 tick。合計 tick は L の 96、L がないので loop tick 0
+                    "2a 00 eb 01 0f 60 ff 60 00 00 00 00 00 00 00 44 00 48 fe")
                    ("リズムだけ" "rhythm-only" ((rhythm L "@b1")) R
-                    ;; L は 96 tick。合計 tick と loop tick は L の 96（これまでは 0 を書いていた）
-                    "28 00 eb 01 0f 60 ff 60 00 00 00 60 00 00 00 42 00 48 fe")
+                    ;; L は 96 tick。合計 tick は L の 96（これまでは 0 を書いていた）、L がないので loop tick 0
+                    "28 00 eb 01 0f 60 ff 60 00 00 00 00 00 00 00 42 00 48 fe")
+                   ;; L のあるトラックがなければ loop tick は 0。同じ内容を MC.EXE でコンパイルした生成物と、
+                   ;; メタ情報の位置の表（#109）を除いて照合した。パンの 2・3・1 は左・中央・右 (#65)
+                   ("L のないリズム" "rhythm-no-loop" ((rhythm L "pb2@b8pb3@b8pb1@b8")) R
+                    "28 00 e9 22 eb 01 0f 0c e9 23 eb 01 0f 0c e9 21 eb 01 0f 0c ff 24 00 00 00 00 00 00 00 50 00 48 fe")
                    ;; 合計 tick と loop tick は、トラックごとに別々に最大を取る。A は 108 tick・loop 12 tick、
                    ;; B と L は 36 tick・loop 24 tick なので、合計 tick は A の 108、loop tick は B と L の 24。
                    ;; tick の欄は、同じ内容を MC.EXE でコンパイルした生成物と照合した (#65)

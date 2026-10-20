@@ -837,7 +837,9 @@
            (slot-ref (sxmml-pmd-binary-environment) 'max-total-ticks))
     (slot-set! (sxmml-pmd-binary-environment) 'max-total-ticks
                (slot-ref (sxmml-track-get track) 'total-ticks)))
-  (when (> (slot-ref (sxmml-track-get track) 'loop-ticks)
-           (slot-ref (sxmml-pmd-binary-environment) 'max-loop-ticks))
+  ;; L のないトラックの loop-ticks は合計 tick と同じ値なので、loop tick の最大には数えない
+  (when (and (slot-ref (sxmml-track-get track) 'loop-exists?)
+             (> (slot-ref (sxmml-track-get track) 'loop-ticks)
+                (slot-ref (sxmml-pmd-binary-environment) 'max-loop-ticks)))
     (slot-set! (sxmml-pmd-binary-environment) 'max-loop-ticks
                (slot-ref (sxmml-track-get track) 'loop-ticks))))

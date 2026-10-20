@@ -24,7 +24,7 @@
 
 ### 不具合の修正
 
-- `pmd-binary`・`pmd4-binary` で、生成物に書く合計 tick と loop tick に、L トラック（リズム）の長さが入っていなかった。L トラックを含む全トラックの最大値を書くようにした。L トラックが最も長い場合、合計 tick の上限（65535）の検査にも L トラックの長さが使われる（#65）。
+- `pmd-binary`・`pmd4-binary` で、生成物に書く合計 tick と loop tick に、L トラック（リズム）の長さが入っていなかった。L トラックを含む全トラックの最大値を書くようにした。また、`L` のないトラックの合計 tick を loop tick として数えていたので、`L` のあるトラックだけの最大値（`L` のあるトラックがなければ 0）を書くようにした。L トラックが最も長い場合、合計 tick の上限（65535）の検査にも L トラックの長さが使われる（#65）。
 - `pmd-binary`・`pmd4-binary`・`pmd3-binary` で、`[c:d]0` のような、脱出（`:`）を含む無限反復は、内部のエラー `argument out of range: -1` で失敗していた。`-m pmd` と同じく変換できるようにした（#62）。
 - `pmd-binary`・`pmd4-binary`・`pmd3-binary` で、音長が 255 tick を超えるポルタメントは、内部のエラー `argument out of range` で失敗していた。`portamento ticks out of range: 300 (1 - 255)` のように、音長と許される範囲を示して失敗するようにした。リズムの音量・パンの誤りのメッセージの綴り（`paramater`）も `parameter` に直した（#57）。
 - 一つの反復に `:` を 2 個以上書いても、変換が失敗しなかった。2 個目以降の `:` は `break command can be used only once in a repeat` で変換の失敗とする。入れ子のそれぞれに一つずつ書いた `:` はこれまでどおり使える（#92）。
