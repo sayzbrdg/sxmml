@@ -213,6 +213,25 @@
          (test-error <error> "break command cannot be used outside of repeats")
          (compile ":c")))
 
+;; L は反復の外にだけ書ける。反復は同じ位置を何度も通るので、戻り先を一つに決められない (#94)
+(let-syntax ([compiled (syntax-rules ()
+                         [(_ form ...)
+                          (parameterize ([sxmml-environment (make <sxmml-environment>)])
+                            (define-track G)
+                            (define-track L)
+                            form ...
+                            'compiled)])])
+  (let1 loop-error (test-error <error> "loop command cannot be used inside repeats")
+    (test* "a loop in a repeat fails" loop-error (compiled (mml G "c[dLe]2")))
+    (test* "a loop in a nested repeat fails" loop-error (compiled (mml G "[c[dLe]2f]2")))
+    (test* "a loop after a break fails" loop-error (compiled (mml G "[c:dL]2")))
+    (test* "a loop in a repeat over calls fails" loop-error (compiled (mml G "[c") (mml G "Ld]2")))
+    (test* "a loop in the body of mml-repeat fails" loop-error (compiled (mml-repeat G 2 ((mml G "cLd")))))
+    (test* "a loop in a rhythm repeat fails" loop-error (compiled (rhythm L "@b8[@s8L@b8]2"))))
+  (test* "loops outside of repeats are accepted" '(compiled compiled)
+         (list (compiled (mml G "[cd]2Le[fg]2"))
+               (compiled (rhythm L "[@b8]2L[@s8]2")))))
+
 ;; sxlc の CLI
 (use gauche.process)
 (use file.util)
@@ -1025,7 +1044,6 @@
                           ("[[aaaa]4[aaaa]4]2" "[[[[o4a]4]4]2]2")
                           ("[ab]2ab" "[o4ab]2ab")
                           ("cdcdcdLcdcdcd" "[o4cd]3L[cd]3")
-                          ("[cdcdcdLcdcdcd]2" "[[o4cd]3L[cd]3]2")
                           ("[cdcdcd]0" "[[o4cd]3]0")
                           ("c4c4c4c4c8" "[o4c]4c%12")))
             (test* #"\"~(car case)\" with optimize :repeat"
@@ -1043,12 +1061,41 @@
                  (optimized-line "repeat" :repeat '((mml A "c&c&c&c&c"))))
           (test* "a tie stays right after its note with optimize :repeat-expand" "A l%24[o4c&]4c"
                  (optimized-line "repeat" :repeat-expand '((mml A "[c&]4c"))))
-          ;; L を含むブロックは区切りとし、生成するループに入れない。展開もしない
-          (dolist (case '(("cdefgab[dLe]2cdefgab" :repeat)
-                          ("[cdLcd]2" :repeat-expand) ("[c:Ld]1" :repeat-expand)))
-            (test* #"\"~(car case)\" with optimize ~(cadr case) keeps L out of generated loops"
-                   (optimized-line "repeat-hand" :full `((mml A ,(car case))))
-                   (optimized-line "repeat" (cadr case) `((mml A ,(car case))))))
+          ;; L を含むブロックは区切りとし、生成するループに入れない。展開もせず、本文だけを
+          ;; 圧縮する。MML の解析は反復の中の L を失敗にする (#94) ので、オブジェクトの列を直接渡す
+          (let ([objects (^[text]
+                           (let loop ([cs (string->list text)] [res '()])
+                             (if (null? cs)
+                               (reverse res)
+                               (case (car cs)
+                                 [(#\[) (loop (cdr cs) (cons (make <sxmml-mml-repeat-start>) res))]
+                                 [(#\]) (loop (cddr cs) (cons (make <sxmml-mml-repeat-end>
+                                                                 :value (digit->integer (cadr cs)))
+                                                               res))]
+                                 [(#\:) (loop (cdr cs) (cons (make <sxmml-mml-repeat-break>) res))]
+                                 [(#\L) (loop (cdr cs) (cons (make <sxmml-mml-loop>) res))]
+                                 [else (loop (cdr cs) (cons (make <sxmml-mml-note> :ticks 24
+                                                              :value (assv-ref '((#\c . 0) (#\d . 2) (#\e . 4)
+                                                                                 (#\f . 5) (#\g . 7) (#\a . 9)
+                                                                                 (#\b . 11))
+                                                                               (car cs)))
+                                                            res))]))))]
+                [text (^[lis]
+                        (apply string-append
+                         (map (^o (cond [(is-a? o <sxmml-mml-repeat-start>) "["]
+                                        [(is-a? o <sxmml-mml-repeat-end>) #"]~(slot-ref o 'value)"]
+                                        [(is-a? o <sxmml-mml-repeat-break>) ":"]
+                                        [(is-a? o <sxmml-mml-loop>) "L"]
+                                        [else (string (string-ref "c d ef g a b" (slot-ref o 'value)))]))
+                              lis)))]
+                [optimize-repeat (with-module sxmml.optimizer %sxmml-optimize-repeat)])
+            (dolist (case '(("cdefgab[dLe]2cdefgab" #f "cdefgab[dLe]2cdefgab")
+                            ("[cdcdcdLcdcdcd]2" #f "[[cd]3L[cd]3]2")
+                            ("[cdLcd]2" #t "[cdLcd]2")
+                            ("[c:Ld]1" #t "[c:Ld]1")))
+              (test* #"\"~(car case)\" keeps L out of generated loops (expand? ~(cadr case))"
+                     (caddr case)
+                     (text (optimize-repeat (objects (car case)) (cadr case))))))
           ;; ブロックの 2 個目以降の : も区切りとし、そのブロックは展開しない。MML の解析は
           ;; 2 個目以降の : を失敗にする (#92) ので、オブジェクトの列を直接渡す
           (let* ([d (^[] (make <sxmml-mml-note> :value 2 :ticks 24))]
@@ -1102,7 +1149,7 @@
                         [items ((with-module sxmml.optimizer %repeat-expand-small) (structure lis) 4)])
                    (list ((with-module sxmml.optimizer %repeat-block?) (car items)) (length items))))
           ;; 別の読み込みで作った :full と :repeat の列は、展開すると同値なオブジェクトが同じ順に並ぶ
-          (dolist (text '("[aaaaaaaa]2" "[ab]2ab" "cdecdecd" "cdcdcdLcdcdcd" "[cdcdcdLcdcdcd]2"
+          (dolist (text '("[aaaaaaaa]2" "[ab]2ab" "cdecdecd" "cdcdcdLcdcdcd"
                           "[cdcdcd]0" "c4c4c4c4c8" "[c:]2" "v10cdv12cdv10cdv12cd" "[c&c&]4"))
             (dolist (level '(:repeat :repeat-expand))
               (test* #"\"~|text|\" keeps its expansion with optimize ~level" #t
