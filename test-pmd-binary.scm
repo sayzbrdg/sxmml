@@ -350,21 +350,36 @@
                [voice (string-append "00 76 32 1d 24 05 10 0c 11 5f dd 9e 1c"
                                      " 01 0e 08 03 02 0f 09 04 43 21 ba 65 2a")]
                ;; A～F、G～I、J、K、R の各トラック
-               [tracks (string-append "ff 00 30 0c f6 32 0c 80 80 80 80 80 80 80 80 80 80 80"
-                                      " 2e 00 ff")])
+               [tracks "ff 00 30 0c f6 32 0c 80 80 80 80 80 80 80 80 80 80 80"])
           (test* "pmd-binary の生成物全体: PMD4 はメタ情報と R トラックの末尾 12 バイトを持つ"
                  (string-join
-                  (list "00 1a 00 22 00 23 00 24 00 25 00 26 00 27 00 28 00 29 00 2a 00 2b 00 2c 00 3b 00"
+                  (list "00 1a 00 22 00 23 00 24 00 25 00 26 00 27 00 28 00 29 00 2a 00 2b 00 2c 00 38 00"
                         tracks
-                        ;; 合計 tick 24、0、loop tick 12、0、メタ情報の位置の表 110、48 fe
-                        "18 00 00 00 0c 00 00 00 6e 00 48 fe"
+                        ;; リズムがないので、R トラックはこの 12 バイトだけ (#112)。
+                        ;; 合計 tick 24、0、loop tick 12、0、メタ情報の位置の表 107、48 fe
+                        "18 00 00 00 0c 00 00 00 6b 00 48 fe"
                         voice "00 ff"
                         ;; ppzfile・ppsfile・pcmfile は空、title は CP932、composer、arranger は空、memo 2 件
                         "00 00 00 83 65 83 58 83 67 00 73 78 6d 6d 6c 00 00 6d 31 00 6d 32 00"
                         ;; 各文字列の位置と 00 00
-                        "57 00 58 00 59 00 5a 00 61 00 67 00 68 00 6b 00 00 00")
+                        "54 00 55 00 56 00 57 00 5e 00 64 00 65 00 68 00 00 00")
                   " ")
                  (hex-bytes (generate-binary "whole-pmd4" pmd-binary forms)))
+          ;; リズムがなければ、R トラックにリズムのパターンを書かない。PMD4 の R トラックは末尾の
+          ;; 12 バイトだけ、PMD3 は 0 バイトになる。次の 4 件は、memo を 0～3 件書いた同じ内容の MML を
+          ;; MC.EXE でコンパイルした生成物とバイトまで同じ (#109、#112)
+          (let1 forms-no-rhythm '((mml A "[c:d]0") (mml B "[c:d]1") (mml C "[cd]0") (mml D "[cd]1"))
+            (dolist [case `((0 () "00 1a 00 2a 00 3a 00 47 00 54 00 55 00 56 00 57 00 58 00 59 00 5a 00 5b 00 67 00 f9 25 00 30 18 f7 25 00 32 18 f8 00 00 1b 00 80 f9 35 00 30 18 f7 35 00 32 18 f8 01 00 2b 00 80 f9 42 00 30 18 32 18 f8 00 00 3b 00 80 f9 4f 00 30 18 32 18 f8 01 01 48 00 80 80 80 80 80 80 80 80 30 00 00 00 00 00 00 00 6f 00 48 fe 00 ff 00 00 00 00 00 00 69 00 6a 00 6b 00 6c 00 6d 00 6e 00 00 00")
+                            (1 ((define-metadata memo "memo1")) "00 1a 00 2a 00 3a 00 47 00 54 00 55 00 56 00 57 00 58 00 59 00 5a 00 5b 00 67 00 f9 25 00 30 18 f7 25 00 32 18 f8 00 00 1b 00 80 f9 35 00 30 18 f7 35 00 32 18 f8 01 00 2b 00 80 f9 42 00 30 18 32 18 f8 00 00 3b 00 80 f9 4f 00 30 18 32 18 f8 01 01 48 00 80 80 80 80 80 80 80 80 30 00 00 00 00 00 00 00 75 00 48 fe 00 ff 00 00 00 00 00 00 6d 65 6d 6f 31 00 69 00 6a 00 6b 00 6c 00 6d 00 6e 00 6f 00 00 00")
+                            (2 ((define-metadata memo (list "memo1" "memo2"))) "00 1a 00 2a 00 3a 00 47 00 54 00 55 00 56 00 57 00 58 00 59 00 5a 00 5b 00 67 00 f9 25 00 30 18 f7 25 00 32 18 f8 00 00 1b 00 80 f9 35 00 30 18 f7 35 00 32 18 f8 01 00 2b 00 80 f9 42 00 30 18 32 18 f8 00 00 3b 00 80 f9 4f 00 30 18 32 18 f8 01 01 48 00 80 80 80 80 80 80 80 80 30 00 00 00 00 00 00 00 7b 00 48 fe 00 ff 00 00 00 00 00 00 6d 65 6d 6f 31 00 6d 65 6d 6f 32 00 69 00 6a 00 6b 00 6c 00 6d 00 6e 00 6f 00 75 00 00 00")
+                            (3 ((define-metadata memo (list "memo1" "memo2" "memo3"))) "00 1a 00 2a 00 3a 00 47 00 54 00 55 00 56 00 57 00 58 00 59 00 5a 00 5b 00 67 00 f9 25 00 30 18 f7 25 00 32 18 f8 00 00 1b 00 80 f9 35 00 30 18 f7 35 00 32 18 f8 01 00 2b 00 80 f9 42 00 30 18 32 18 f8 00 00 3b 00 80 f9 4f 00 30 18 32 18 f8 01 01 48 00 80 80 80 80 80 80 80 80 30 00 00 00 00 00 00 00 81 00 48 fe 00 ff 00 00 00 00 00 00 6d 65 6d 6f 31 00 6d 65 6d 6f 32 00 6d 65 6d 6f 33 00 69 00 6a 00 6b 00 6c 00 6d 00 6e 00 6f 00 75 00 7b 00 00 00"))]
+              (test* #"pmd-binary の生成物全体: リズムがなく、memo が ~(car case) 件"
+                     (caddr case)
+                     (hex-bytes (generate-binary #"whole-memo-~(car case)" pmd-binary
+                                                 (append (cadr case) forms-no-rhythm))))))
+          (test* "pmd3-binary はリズムがなければ R トラックに何も書かない"
+                 ""
+                 (section-hex (generate-binary "pmd3-no-rhythm" pmd3-binary '((mml A "c8"))) 'R))
           ;; 次の 2 件は、同じ内容の MML を MC.EXE でコンパイルした生成物とバイトまで同じ (#65、#109)
           (test* "pmd-binary の生成物全体: ループのあるトラックとリズム"
                  "00 1a 00 20 00 26 00 27 00 28 00 29 00 2a 00 2b 00 2c 00 2d 00 2e 00 32 00 4c 00 30 60 f6 30 0c 80 37 0c f6 37 18 80 80 80 80 80 80 80 80 80 00 f6 01 80 36 00 3b 00 eb 01 0f 0c ff eb 01 0f 18 ff 6c 00 00 00 18 00 00 00 54 00 48 fe 00 ff 00 00 00 00 00 00 4e 00 4f 00 50 00 51 00 52 00 53 00 00 00"
@@ -376,7 +391,7 @@
                                              '((rhythm L "pb2@b8pb3@b8pb1@b8")))))
           (test* "pmd3-binary の生成物全体: メタ情報・R トラックの末尾・音色表の終端を持たない"
                  (string-join
-                  (list "00 1a 00 22 00 23 00 24 00 25 00 26 00 27 00 28 00 29 00 2a 00 2b 00 2c 00 2f 00"
+                  (list "00 1a 00 22 00 23 00 24 00 25 00 26 00 27 00 28 00 29 00 2a 00 2b 00 2c 00 2c 00"
                         tracks voice)
                   " ")
                  (hex-bytes (generate-binary "whole-pmd3" pmd3-binary forms))))
@@ -479,14 +494,14 @@
         (dolist [case '(("meta-none" ((mml A "c8")))
                         ("meta-memo-empty" ((define-metadata memo '()) (mml A "c8"))))]
           (test* #"pmd-binary の空のメタ情報: ~(car case)"
-                 "00 ff 00 00 00 00 00 00 38 00 39 00 3a 00 3b 00 3c 00 3d 00 00 00"
+                 "00 ff 00 00 00 00 00 00 35 00 36 00 37 00 38 00 39 00 3a 00 00 00"
                  (section-hex (generate-binary (car case) pmd-binary (cadr case)) 'voice)))
         ;; memo が 1 件なら、6 項目の空文字列に続けて memo を 1 件書き、位置の表は 7 件。
         ;; 文字列 1 つの memo は、要素 1 つのリストと同じ (#109)
         (dolist [case '(("meta-memo-string" ((define-metadata memo "m") (mml A "c8")))
                         ("meta-memo-list" ((define-metadata memo (list "m")) (mml A "c8"))))]
           (test* #"pmd-binary の 1 件の memo: ~(car case)"
-                 "00 ff 00 00 00 00 00 00 6d 00 38 00 39 00 3a 00 3b 00 3c 00 3d 00 3e 00 00 00"
+                 "00 ff 00 00 00 00 00 00 6d 00 35 00 36 00 37 00 38 00 39 00 3a 00 3b 00 00 00"
                  (section-hex (generate-binary (car case) pmd-binary (cadr case)) 'voice)))
         (test* "pmd-binary はメタデータの memo の要素が文字列でなければ失敗する"
                (test-error <error> "invalid metadata value: memo is (\"a\" 1) (expected a string or a list of strings)")
@@ -566,7 +581,7 @@
                                        (cadr result)))
                          (file-exists? output)))))
         ;; 生成物は 65535 バイトまで、PMD4 の合計 tick は 65535 までとし、超えたら失敗する。
-        ;; PMD3 の生成物は 2 * 音符の数 + 41 バイトなので、32747 個で上限になる。
+        ;; PMD3 の生成物は 2 * 音符の数 + 38 バイトなので、1 バイトの ) と 32748 個で上限になる。
         (let1 repeat-mml (^[n unit] (apply string-append (make-list n unit)))
           (dolist [case `(("2 トラックの合計が上限を超える" "pmd-binary" "sum"
                            ((mml A ,(repeat-mml 9000 "c8d8")) (mml B ,(repeat-mml 9000 "c8d8")))
@@ -593,15 +608,15 @@
                           ("メタ情報の位置の表が上限を超える" "pmd-binary" "metadata-table"
                            ((define-metadata memo ,(cons 'list (make-list 1000 (make-string 63 #\a)))) (mml A "c8"))
                            "PMD data exceeds the size limit (65535 bytes) in metadata")
-                          ;; 音色表がなければ 65523 バイトに収まる
+                          ;; 音色表がなければ 65520 バイトに収まる
                           ("音色表が上限を超える" "pmd3-binary" "voice-table"
                            (,zero-voice (mml A ,(string-append "@0" (repeat-mml 32740 "c8"))))
                            "PMD data exceeds the size limit (65535 bytes) in voice table")
                           ("65535 バイトの生成物は成功する" "pmd3-binary" "size-max"
-                           ((mml A ,(repeat-mml 32747 "c8")))
+                           ((mml A ,(string-append ")" (repeat-mml 32748 "c8"))))
                            65535)
                           ("65536 バイトの生成物は失敗する" "pmd3-binary" "size-over"
-                           ((mml A ,(string-append ")" (repeat-mml 32747 "c8"))))
+                           ((mml A ,(repeat-mml 32749 "c8")))
                            "PMD data exceeds the size limit (65535 bytes)")
                           ("合計 65535 tick は成功する" "pmd-binary" "ticks-max"
                            ((mml A "c%65535"))
