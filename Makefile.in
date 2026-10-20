@@ -39,16 +39,16 @@ GAUCHE_PKGARCHDIR = @GAUCHE_PKGARCHDIR@
 
 all : $(TARGET)
 
-# test-pmd-binary.scm には SXMML_SXLC で、PATH 上の別のインストールではなく
-# ビルドした ./sxlc を検査させる。tools は配布物に含めないので、その検査は
-# tools があるときだけ行う
+# SXMML_SXLC でビルドした ./sxlc を検査対象に指定する。
+# tools は配布物に含めないので、その検査は tools があるときだけ行う。
 check : all
 	@rm -f test.log
-	$(GOSH) -I. -I$(srcdir) $(srcdir)/test.scm > test.log
-	$(GOSH) -I. -I$(srcdir) $(srcdir)/test-repeat-tree.scm >> test.log
-	SXMML_SXLC=./sxlc $(GOSH) -I. -I$(srcdir) $(srcdir)/test-pmd-binary.scm >> test.log
-	if test -f $(srcdir)/tools/test-measure-optimize.scm; then \
-	  $(GOSH) -I. -I$(srcdir) $(srcdir)/tools/test-measure-optimize.scm >> test.log; \
+	SXMML_SXLC=./sxlc $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/test/test-cli-support.scm" > test.log
+	SXMML_SXLC=./sxlc $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/test/test-sxmml.scm" >> test.log
+	SXMML_SXLC=./sxlc $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/test/test-repeat-tree.scm" >> test.log
+	SXMML_SXLC=./sxlc $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/test/test-pmd-binary.scm" >> test.log
+	if test -f "$(srcdir)/tools/test-measure-optimize.scm"; then \
+	  $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/tools/test-measure-optimize.scm" >> test.log; \
 	fi
 
 # man ページは生成と配置を別の行にする。GNU make は MAKE 変数を含む行を
