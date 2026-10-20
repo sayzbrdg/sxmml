@@ -315,6 +315,7 @@
                     ;; A は 12 tick、L は 96 tick。合計 tick と loop tick は L の 96
                     "2a 00 eb 01 0f 60 ff 60 00 00 00 60 00 00 00 44 00 48 fe")
                    ("リズムだけ" "rhythm-only" ((rhythm L "@b1")) R
+                    ;; L は 96 tick。合計 tick と loop tick は L の 96（これまでは 0 を書いていた）
                     "28 00 eb 01 0f 60 ff 60 00 00 00 60 00 00 00 42 00 48 fe"))]
           (test* #"pmd-binary の命令列: ~(car case)"
                  (list-ref case 4)
