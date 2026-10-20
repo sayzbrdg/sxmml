@@ -106,6 +106,7 @@ PMD 向けの生成では、`-o` で指定した出力先、指定がなけれ�
 | `(rhythm L "@b0")` | 0 での除算エラー、終了値 1 |
 | `(mml G "c8?")` | 未登録の `?` コマンドに関するエラー、終了値 1 |
 | `(rhythm L "@x8")` | `sxmml syntax error, near "x8" on L track`、終了値 1 |
+| `(mml G "c8[d8 L e8]2")` や `(rhythm L "@b8[@s8 L @b8]2")` のように反復の中に `L` を書く | `loop command cannot be used inside repeats`、終了値 1。入れ子の内側、`:` の後ろ、`mml-repeat` の本文、複数の `mml` にまたがる反復の中も同じ |
 | `(mml A "@0c8")` で未定義の FM 音色 `@0` を使う | 生成中に `no instrument define`、終了値 1 |
 | 通常トラック G で `(mml G "c%0")` | `ticks must be a positive integer:  0`、終了値 1。新規出力なし |
 | `(rhythm L "@b%0")` | `ticks must be a positive integer:  0`、終了値 1。新規出力なし |
