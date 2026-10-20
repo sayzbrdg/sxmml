@@ -485,7 +485,8 @@
       (errorf "value exceeds the max: ~a (>255): ~a" repcnt obj))
     (u8vector-set! u8vec offset #xf8)
     (u8vector-set! u8vec (+ offset 1) repcnt)
-    (u8vector-set! u8vec (+ offset 2) (if (zero? (cdr addr))
+    ;; 3 バイト目は、脱出のある反復では回数 - 1 とする。ただし無限反復（回数 0）は 0 とする
+    (u8vector-set! u8vec (+ offset 2) (if (or (zero? (cdr addr)) (zero? repcnt))
                                         repcnt
                                         (- repcnt 1)))
     (receive (lb hb) (%short->le-bytes (+ overall (car addr)))
