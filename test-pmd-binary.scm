@@ -379,12 +379,14 @@
                          (file-exists? output)))))
         ;; ポルタメントの音長は 1 バイトなので、255 tick を超えると、音長と許される範囲を示して
         ;; 失敗する。これまでは内部のエラーになっていた (#57)
-        (dolist [ticks '("256" "300")]
-          (let* ([source (write-source (work-file #"portamento-~|ticks|.sxl")
+        (dolist [case '(("pmd-binary" "256") ("pmd-binary" "300") ("pmd3-binary" "300"))]
+          (let* ([mode (car case)]
+                 [ticks (cadr case)]
+                 [source (write-source (work-file #"portamento-~|mode|-~|ticks|.sxl")
                                        `((mml G ,#"o4/{c g}%~ticks")))]
-                 [output (work-file #"portamento-~|ticks|.m")]
-                 [result (run-sxlc source "-m" "pmd-binary" "-o" output)])
-            (test* #"ポルタメントの音長が 255 tick を超えると失敗する: %~ticks"
+                 [output (work-file #"portamento-~|mode|-~|ticks|.m")]
+                 [result (run-sxlc source "-m" mode "-o" output)])
+            (test* #"ポルタメントの音長が 255 tick を超えると失敗する: ~mode %~ticks"
                    '(1 #t #f)
                    (list (car result)
                          (boolean (any (string->regexp
