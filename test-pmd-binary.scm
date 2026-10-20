@@ -481,6 +481,13 @@
           (test* #"pmd-binary の空のメタ情報: ~(car case)"
                  "00 ff 00 00 00 00 00 00 38 00 39 00 3a 00 3b 00 3c 00 3d 00 00 00"
                  (section-hex (generate-binary (car case) pmd-binary (cadr case)) 'voice)))
+        ;; memo が 1 件なら、6 項目の空文字列に続けて memo を 1 件書き、位置の表は 7 件。
+        ;; 文字列 1 つの memo は、要素 1 つのリストと同じ (#109)
+        (dolist [case '(("meta-memo-string" ((define-metadata memo "m") (mml A "c8")))
+                        ("meta-memo-list" ((define-metadata memo (list "m")) (mml A "c8"))))]
+          (test* #"pmd-binary の 1 件の memo: ~(car case)"
+                 "00 ff 00 00 00 00 00 00 6d 00 38 00 39 00 3a 00 3b 00 3c 00 3d 00 3e 00 00 00"
+                 (section-hex (generate-binary (car case) pmd-binary (cadr case)) 'voice)))
         (test* "pmd-binary はメタデータの memo の要素が文字列でなければ失敗する"
                (test-error <error> "invalid metadata value: memo is (\"a\" 1) (expected a string or a list of strings)")
                (generate-binary "meta-memo-element" pmd-binary
