@@ -338,6 +338,20 @@
           ((slot-ref (sxmml-environment) 'backend))
           (find #/^G / (string-split (file->string (slot-ref (sxmml-environment) 'output))
                                      "\r\n"))))))
+  ;; forms をこのプロセスで PMD 向けに変換し、成功すればリズムのパターン R0 の行を、
+  ;; 失敗すればエラーのメッセージを返す
+  (define (pmd-r0-result name forms)
+    (let1 source (work-file #"pmd-~|name|.sxl")
+      (with-output-to-file source (^[] (for-each write forms)))
+      (parameterize ([sxmml-environment (make <sxmml-environment>)]
+                     [sxmml-source-file source])
+        (guard (e [else (condition-message e)])
+          (pmd-source)
+          (load source)
+          ((slot-ref (sxmml-environment) 'backend))
+          (find #/^R0 / (string-split (file->string (slot-ref (sxmml-environment) 'output)
+                                                    :encoding "shift_jis")
+                                      "\r\n"))))))
   (unwind-protect
       (begin
         ;; -c の後処理へ渡す生成名
@@ -946,6 +960,19 @@
                "A l%24o1co-1b"
                (find #/^A / (string-split (generated-text "negative-note" '((mml A "o1c<<b")))
                                           "\r\n")))
+        ;; リズムのパンは 1（右）・2（左）・3（中央）で、範囲外は値と範囲を示して失敗する。
+        ;; これまでは \#<undef>b のような壊れた MML を書いていた (#102)
+        (test* "rhythm pans 1, 2 and 3 are output as right, left and center"
+               "R0 \\rb\\br%12\\lb\\br%12\\mb\\br%12"
+               (pmd-r0-result "rhythm-pan" '((rhythm L "pb1@b8pb2@b8pb3@b8"))))
+        (dolist [value '(0 4)]
+          (test* #"a rhythm pan out of range fails: ~value"
+                 #"rhythm pan out of range: ~value (1 - 3)"
+                 (pmd-r0-result #"rhythm-pan-~value" `((rhythm L ,#"pb~|value|@b8")))))
+        ;; 楽器別の音量は、他の命令と同じく値をそのまま書く。検査の範囲は #110 で決める
+        (test* "a rhythm instrument volume is output as it is"
+               "R0 \\vb32\\br%12"
+               (pmd-r0-result "rhythm-volume" '((rhythm L "vb32@b8"))))
         ;; 最適化は、チャンネルの違う LFO の命令を互いに上書きしない (#64)。
         ;; 同じチャンネルの冗長な命令は落とす。チャンネルの省略と A は別に扱う
         (let1 lfo-defs '((define-lfo L1 (1 2 -3 4)) (define-lfo L2 (5 6 7 8)))

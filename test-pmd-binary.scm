@@ -306,6 +306,12 @@
                     ;; R は位置 38 から始まり、先頭の 2 バイトがパターンの位置 40。
                     ;; V40、vb10、pb2、)b1、@b8 と 12 tick、(b1、!s、休符。合計 tick 24、L がないので loop tick 0
                     "28 00 e8 28 ea 2a e9 22 e5 01 01 eb 01 0f 0c e5 01 ff eb 82 0f 0c ff 18 00 00 00 00 00 00 00 52 00 48 fe")
+                   ;; 楽器別の音量の両端 0・31。バスは 1、スネアは 2 で、楽器 * 32 + 音量の 1 バイト (#102)
+                   ;; パンの両端 1・3。バスの右は 21、スネアの中央は 43 (#102)
+                   ("リズムのパンの両端" "rhythm-pan-range" ((rhythm L "pb1ps3@bs8")) R
+                    "28 00 e9 21 e9 43 eb 03 0f 0c ff 0c 00 00 00 00 00 00 00 46 00 48 fe")
+                   ("リズムの楽器別の音量の両端" "rhythm-volume-range" ((rhythm L "vb0vs31@bs8")) R
+                    "28 00 ea 20 ea 5f eb 03 0f 0c ff 0c 00 00 00 00 00 00 00 46 00 48 fe")
                    ("ループを含むリズムの K トラック" "rhythm-loop-k" ((rhythm L "@b8L[@s8]2")) K
                     "00 f6 01 80")
                    ("ループと反復を含むリズムの R トラック" "rhythm-loop-r" ((rhythm L "@b8L[@s8]2")) R
@@ -417,8 +423,7 @@
                                        (cadr result)))
                          (file-exists? output)))))
         ;; リズムの音量・パンの誤りは、綴りの正しいメッセージで失敗する (#57)
-        (dolist [case '(("volume" "V64 @b8" "rhythm volume") ("volume-change" ")b32 @b8" "rhythm volume")
-                        ("pan" "pb4 @b8" "rhythm pan"))]
+        (dolist [case '(("volume" "V64 @b8" "rhythm volume") ("volume-change" ")b32 @b8" "rhythm volume"))]
           (let* ([source (write-source (work-file #"rhythm-param-~(car case).sxl")
                                        `((rhythm L ,(cadr case))))]
                  [output (work-file #"rhythm-param-~(car case).m")]
@@ -429,6 +434,22 @@
                          (boolean (any (string->regexp
                                         (regexp-quote #"invalid ~(caddr case) parameter: "))
                                        (cadr result)))
+                         (file-exists? output)))))
+        ;; リズムの楽器別の音量は 0 から 31、パンは 1（右）・2（左）・3（中央）で、範囲外は書いた値と
+        ;; 範囲を示して失敗する。これまで音量は楽器のビットにはみ出して黙って誤った生成物になり、
+        ;; パンは符号化した値を表示していた (#102)
+        (dolist [case '(("volume-32" "vb32 @b8" "rhythm volume out of range: 32 (0 - 31)")
+                        ("volume-40" "v{s}40 @s8" "rhythm volume out of range: 40 (0 - 31)")
+                        ("pan-0" "pb0 @b8" "rhythm pan out of range: 0 (1 - 3)")
+                        ("pan-4" "pb4 @b8" "rhythm pan out of range: 4 (1 - 3)"))]
+          (let* ([source (write-source (work-file #"rhythm-range-~(car case).sxl")
+                                       `((rhythm L ,(cadr case))))]
+                 [output (work-file #"rhythm-range-~(car case).m")]
+                 [result (run-sxlc source "-m" "pmd-binary" "-o" output)])
+            (test* #"リズムの範囲外の値は失敗する: ~(cadr case)"
+                   '(1 #t #f)
+                   (list (car result)
+                         (boolean (any (string->regexp (regexp-quote (caddr case))) (cadr result)))
                          (file-exists? output)))))
         ;; メタデータの値は -m pmd と同じ規則で検査する。PMD3 はメタデータを書かないので
         ;; 検査しない (#13)
