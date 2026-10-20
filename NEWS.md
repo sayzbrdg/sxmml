@@ -1,6 +1,8 @@
 # sxmml の変更履歴
 
-## 未リリース
+## v0.4.0
+
+定義と加工のマクロ（`define-opn-voice`・`define-lfo`・`define-envelope`・`define-metadata`・`mml-repeat`・`mml-echo`・`mml-delay`・`sxmml-mode`）の値を式として評価するように見直し、誤りにソースの位置を付けた版である。`-O 3`・`-O 4` の命令列の圧縮と、PMD のバイナリを直接生成する実験的なモードの不具合の修正を含む。互換性のない変更を含む。
 
 ### 互換性のない変更
 
@@ -42,6 +44,13 @@
 - 音色を登録する手続き `sxmml-opn-voice-set!` を追加した。`define-opn-voice` はこの手続きの呼び出しに展開する（#27）。
 - sxmml のエラーの基底 `<sxmml-error>` と、定義のフォームの誤りを表す `<sxmml-form-error>`（位置と元のエラーを持つ）を追加した（#28）。
 - 実行時に位置付きの警告を出す手続き `sxmml-form-warn-at` を `sxmml.form` に追加した（#51）。
+
+### 既知の問題
+
+- 回数 0 の反復（無限反復）に `:` を書くと、`sxlc` が表示するそのトラックの合計 tick が、`:` より後ろの長さの分だけ少なくなる。そのトラックが最も長い場合は、PMD4 向けのバイナリに書く合計 tick も少なくなる。無限反復には最終回がないので、`[c:d]0` は `[cd]0` と書けば回避できる（#106）。
+- 利用者が `syntax-rules` で定義したマクロのテンプレートに、`define-opn-voice`・`define-lfo`・`define-envelope` の名前や種類を直接書くと、名前が壊れたり、書式の誤りになったりする。名前や種類をマクロの引数として渡せば回避できる（#82）。
+- 実験的なモード `pmd-binary` の既知の欠陥は、ラベル `pmd-binary` の付いた[開いている不具合の issue](https://github.com/sayzbrdg/sxmml/issues?q=is%3Aissue%20is%3Aopen%20label%3Apmd-binary%20label%3Abug)を参照する。
+- その他の既知の問題は [GitHub の issue](https://github.com/sayzbrdg/sxmml/issues) を参照する。
 
 ## v0.3.1
 
