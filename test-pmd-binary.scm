@@ -229,7 +229,7 @@
                              (file-exists? output)))))))
 
         ;; 命令列のバイト内容を固定する。期待値は MC.EXE との一致を主張せず、現在の出力を固定する。
-        ;; 既知の欠陥（#57、#62、#65）に当たる入力は使わない。
+        ;; 既知の欠陥（#62、#65）に当たる入力は使わない。
         ;; 音高は (オクターブ - 1) * 16 + 音名、tick は解像度 24 の値。A トラックは位置 26 から始まる。
         (dolist [case
                  `(("音符・休符" "note" ((mml A "o3a8>c+4r8")) A
@@ -255,6 +255,9 @@
                     ((mml G "@1v10o4c8)c8P1w8c8/{c g}8")) G
                     ;; @1 は f0 の 4 値、) は 1、P1 は 07、w8、/{c g}8
                     "f0 02 ff 00 01 fd 0a 30 0c f4 30 0c ed 07 ee 08 30 0c da 30 37 0c 80")
+                   ;; ポルタメントの音長は 1 バイトで、255 tick まで書ける (#57)
+                   ("ポルタメントの音長の上限" "portamento-max" ((mml G "o4/{c g}%255")) G
+                    "da 30 37 ff 80")
                    ("PCM の音色・音量・音量変化" "pcm" ((mml J "@1v100o4c8)c8(c8")) J
                     ;; ) は 16、( は -16
                     "ff 01 fd 64 30 0c f4 30 0c f3 30 0c 80")
@@ -372,6 +375,34 @@
                    (list (car result)
                          (boolean (any (string->regexp
                                         (regexp-quote #"note out of range: ~(caddr case) (o1c - o8b)"))
+                                       (cadr result)))
+                         (file-exists? output)))))
+        ;; ポルタメントの音長は 1 バイトなので、255 tick を超えると、音長と許される範囲を示して
+        ;; 失敗する。これまでは内部のエラーになっていた (#57)
+        (dolist [ticks '("256" "300")]
+          (let* ([source (write-source (work-file #"portamento-~|ticks|.sxl")
+                                       `((mml G ,#"o4/{c g}%~ticks")))]
+                 [output (work-file #"portamento-~|ticks|.m")]
+                 [result (run-sxlc source "-m" "pmd-binary" "-o" output)])
+            (test* #"ポルタメントの音長が 255 tick を超えると失敗する: %~ticks"
+                   '(1 #t #f)
+                   (list (car result)
+                         (boolean (any (string->regexp
+                                        (regexp-quote #"portamento ticks out of range: ~ticks (1 - 255)"))
+                                       (cadr result)))
+                         (file-exists? output)))))
+        ;; リズムの音量・パンの誤りは、綴りの正しいメッセージで失敗する (#57)
+        (dolist [case '(("volume" "V64 @b8" "rhythm volume") ("volume-change" ")b32 @b8" "rhythm volume")
+                        ("pan" "pb4 @b8" "rhythm pan"))]
+          (let* ([source (write-source (work-file #"rhythm-param-~(car case).sxl")
+                                       `((rhythm L ,(cadr case))))]
+                 [output (work-file #"rhythm-param-~(car case).m")]
+                 [result (run-sxlc source "-m" "pmd-binary" "-o" output)])
+            (test* #"リズムの値の誤りのメッセージ: ~(cadr case)"
+                   '(1 #t #f)
+                   (list (car result)
+                         (boolean (any (string->regexp
+                                        (regexp-quote #"invalid ~(caddr case) parameter: "))
                                        (cadr result)))
                          (file-exists? output)))))
         ;; メタデータの値は -m pmd と同じ規則で検査する。PMD3 はメタデータを書かないので

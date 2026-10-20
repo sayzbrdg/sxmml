@@ -591,10 +591,13 @@
           [else
            (%pmd-1byte-set! u8vec offset #xe2 (* (slot-ref obj 'value) -1) 255 0)])))
 
+;; ポルタメントの音長は 1 バイトなので、音符のように分割できない。255 tick までとする
 (define (%pmd-portament-set! u8vec offset obj)
   (let ([start (%note-number->pmd-note (car (slot-ref obj 'value)))]
         [end (%note-number->pmd-note (cdr (slot-ref obj 'value)))]
         [ticks (slot-ref obj 'ticks)])
+    (unless (<= 1 ticks 255)
+      (errorf "portamento ticks out of range: ~a (1 - 255)" ticks))
     (u8vector-set! u8vec offset #xda)
     (u8vector-set! u8vec (+ offset 1) start)
     (u8vector-set! u8vec (+ offset 2) end)
@@ -661,7 +664,7 @@
   (define (data-set! offset cmd value max)
     (when (or (and (= cmd #xe8) (> value max))
               (< value 0))
-      (error "invalid rhythm volume paramater: " value))
+      (error "invalid rhythm volume parameter: " value))
     (u8vector-set! u8vec offset cmd)
     (u8vector-set! u8vec (+ offset 1) value)
     (+ offset 2))
@@ -686,7 +689,7 @@
 (define (%pmd-rhythm-volume-change-set! u8vec offset obj)
   (define (data-set! offset inst value)
     (when (or (> value 31) (< value -31))
-      (error "invalid rhythm volume paramater: " value))
+      (error "invalid rhythm volume parameter: " value))
     (u8vector-set! u8vec offset #xe5)
     (u8vector-set! u8vec (+ offset 1) inst)
     (u8vector-set! u8vec (+ offset 2) (logand value #xff))
@@ -709,7 +712,7 @@
 (define (%pmd-rhythm-pan-set! u8vec offset obj)
   (define (data-set! offset value)
     (when (> (logand value #x1f) 3)
-      (error "invalid rhythm pan paramater: " value))
+      (error "invalid rhythm pan parameter: " value))
     (u8vector-set! u8vec offset #xe9)
     (u8vector-set! u8vec (+ offset 1) value)
     (+ offset 2))
