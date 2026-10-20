@@ -8,7 +8,7 @@
 
 以下の手順には、リポジトリの Git チェックアウトが必要である。取得方法は[README](../README.md#最初の変換)を参照する。
 
-`./configure` は `Makefile`、`sxmml.gpd`、`VERSION` を生成する。`make` は `sxlc.in` に shebang を付けた `sxlc` を作る。`make check` は `test.scm`、`test-repeat-tree.scm`、`test-pmd-binary.scm` を順に実行し、`tools/` があれば `tools/test-measure-optimize.scm` も実行して、`test.log` に結果を残す。設定と生成の規則は [`configure`](../configure)、[`Makefile.in`](../Makefile.in)、[`package.scm`](../package.scm)を参照する。
+`./configure` は `Makefile`、`sxmml.gpd`、`VERSION` を生成する。`make` は `sxlc.in` に shebang を付けた `sxlc` を作る。`make check` は `test/` 配下のテストを実行し、`tools/` があれば `tools/test-measure-optimize.scm` も実行して、`test.log` に結果を残す。設定と生成の規則は [`configure`](../configure)、[`Makefile.in`](../Makefile.in)、[`package.scm`](../package.scm)を参照する。
 
 ## 隔離したコピーでの確認
 
@@ -29,7 +29,7 @@ export PATH="$install_dir/bin:$PATH"
 export GAUCHE_LOAD_PATH="$install_dir/share/sxmml${GAUCHE_LOAD_PATH:+:$GAUCHE_LOAD_PATH}"
 ```
 
-`make check` の成功時は、`test.log` に `sxmml.classes` から `sxmml` まで 9 モジュールの binding 検査と、`sxlc` の CLI の検査が全て `ok` と表示され、末尾が `passed.` となる。`test.scm` は `test-module` による binding 検査と、`sxlc.in` を `gosh` で起動する CLI の検査を行う。CLI の検査は、`-c` の後処理へ生成名を一引数で渡すこと、CLI とソースのモード指定の優先順位、出力先の決定、失敗時に既存の生成物を変更しないこと、同じ入力からの生成物の一致、失敗の種類ごとの終了値と後処理の失敗の通知、出力先が入力ファイルと同じ場合にソースを変更しないこと、後処理の出力の文字コードの扱い、入力ファイル名より後ろの引数を使用法の誤りとすることを対象とする。続く `test-repeat-tree.scm` は、局所反復木の圧縮器（`sxmml.repeat-tree`）の binding 検査と、設定と独立検査の受付・拒否、仕様の例の費用と木、小さな全列での独立した最小費用（展開の一致を直接確かめる全木列挙）との費用の一致、窓幅つきの最小費用との一致を検査する。最後の `test-pmd-binary.scm` は、実験的な PMD バイナリのバックエンド（`sxmml.backend.pmd-binary`）の binding 検査と、ビルドした `sxlc`（`make check` が `SXMML_SXLC=./sxlc` で渡す）を起動する検査を行う。対象は、3 つの PMD バイナリモードでの既定の出力先・`-o`・後処理へ渡す名前、入力と既定の出力先が同じ場合に上書きしないこと（`-m` とソース中のモード指定の双方）、`filename` メタデータの警告、ソース中の `output` の変更より CLI の出力先の決定を優先すること、ソースのモードからバイナリモードへの切り替え、ライブラリからの直接生成、`-m` の優先、使用した音色だけを番号順（同じ番号では ID 順）に出力すること、同じ入力からの生成物のバイト一致、読み込み・生成・出力先の失敗で既存のファイルを変更しないこと、後処理の失敗の終了値 3 である。命令列のバイト内容は、命令の群ごとの小さな入力と PMD4・PMD3 の生成物全体について、`sxlc` を起動せずに検査のプロセスの中で生成して比べる。期待値は現在の出力を固定するもので、MC.EXE の出力との一致は確認しない。それ以外の MML 変換、CLI 出力、最適化の検証は[検証方針](verification.md)の手順に従って別に行う。
+`make check` の成功時は、`test.log` に各モジュールの binding 検査と、`sxlc` の CLI の検査が全て `ok` と表示され、末尾が `passed.` となる。`test/test-sxmml.scm` は `test-module` による binding 検査と、ビルドした `sxlc` をテスト本体と同じ Gauche とモジュールの読み込みパスで起動する CLI の検査を行う。CLI の検査は、`-c` の後処理へ生成名を一引数で渡すこと、CLI とソースのモード指定の優先順位、出力先の決定、失敗時に既存の生成物を変更しないこと、同じ入力からの生成物の一致、失敗の種類ごとの終了値と後処理の失敗の通知、出力先が入力ファイルと同じ場合にソースを変更しないこと、後処理の出力の文字コードの扱い、入力ファイル名より後ろの引数を使用法の誤りとすることを対象とする。続く `test/test-repeat-tree.scm` は、局所反復木の圧縮器（`sxmml.repeat-tree`）の binding 検査と、設定と独立検査の受付・拒否、仕様の例の費用と木、小さな全列での独立した最小費用（展開の一致を直接確かめる全木列挙）との費用の一致、窓幅つきの最小費用との一致を検査する。最後の `test/test-pmd-binary.scm` は、実験的な PMD バイナリのバックエンド（`sxmml.backend.pmd-binary`）の binding 検査と、同じ方法でビルドした `sxlc` を起動する検査を行う。対象は、3 つの PMD バイナリモードでの既定の出力先・`-o`・後処理へ渡す名前、入力と既定の出力先が同じ場合に上書きしないこと（`-m` とソース中のモード指定の双方）、`filename` メタデータの警告、ソース中の `output` の変更より CLI の出力先の決定を優先すること、ソースのモードからバイナリモードへの切り替え、ライブラリからの直接生成、`-m` の優先、使用した音色だけを番号順（同じ番号では ID 順）に出力すること、同じ入力からの生成物のバイト一致、読み込み・生成・出力先の失敗で既存のファイルを変更しないこと、後処理の失敗の終了値 3 である。命令列のバイト内容は、命令の群ごとの小さな入力と PMD4・PMD3 の生成物全体について、`sxlc` を起動せずに検査のプロセスの中で生成して比べる。期待値は現在の出力を固定するもので、MC.EXE の出力との一致は確認しない。それ以外の MML 変換、CLI 出力、最適化の検証は[検証方針](verification.md)の手順に従って別に行う。
 
 同じコピー内で PMD 生成を確認するには、次を続けて実行する。出力ファイルは `melody-and-rest.sxl` と同じディレクトリにできる。
 
@@ -40,6 +40,18 @@ cat melody-and-rest.mml
 ```
 
 この例では `Processing Mode: PMD`、`Optimize level: 0`、`Track G: total: 24` と表示し、生成物に `G l%12o4cr` を含む。日本語メタデータの符号化を確かめる手順は[配布・互換性](release-guide.md#符号化と生成物の確認)に示す。エラー・境界値の再現コマンドは[外部動作仕様](behavior-spec.md#失敗条件と境界値)を参照する。
+
+## テストの単独実行
+
+`test/` 配下のテストを単独で実行する際は、環境変数 `SXMML_SXLC` にテストで使用する `sxlc` を設定してください。以下は、`./configure` と `make` でビルドした後に、リポジトリのルートで実行する例です。
+
+```sh
+SXMML_SXLC=./sxlc gosh -I. test/test-sxmml.scm
+```
+
+CLI の起動には [`test/cli-support.scm`](../test/cli-support.scm) の共通処理を使う。`SXMML_SXLC` が未指定・空、または指定先を読み込めない場合は、原因と指定方法を示して失敗する。CLI とモジュールの読み込みパスは絶対パスにして渡すため、子プロセスの作業ディレクトリを変えても同じ検査対象を使う。
+
+VPATH ビルドでは、ビルドディレクトリから実行し、`SXMML_SXLC` にはビルド側の `./sxlc` を指定する。Gauche の `-I` にはビルドディレクトリとソースディレクトリを渡し、テストファイルはソースディレクトリ内のパスで指定する。
 
 ## 文書生成の現状
 
@@ -96,4 +108,4 @@ O4                       98 93.3%           9       0.03       0.61
 
 ## 関連資料
 
-ビルド規則は[`Makefile.in`](../Makefile.in)と[`configure`](../configure)、パッケージ情報は[`package.scm`](../package.scm)、テストは[`test.scm`](../test.scm)、[`test-repeat-tree.scm`](../test-repeat-tree.scm)、[`test-pmd-binary.scm`](../test-pmd-binary.scm)、[`tools/test-measure-optimize.scm`](../tools/test-measure-optimize.scm)を参照する。Gauche の生成・テスト機能は [Gauche 0.9.15 Users’ Reference, 9.8 gauche.configure、9.34 gauche.test](https://practical-scheme.net/vault/Gauche-0.9.15-refe.pdf)を参照する。
+ビルド規則は[`Makefile.in`](../Makefile.in)と[`configure`](../configure)、パッケージ情報は[`package.scm`](../package.scm)、テストは[`test/test-sxmml.scm`](../test/test-sxmml.scm)、[`test/test-repeat-tree.scm`](../test/test-repeat-tree.scm)、[`test/test-pmd-binary.scm`](../test/test-pmd-binary.scm)、[`tools/test-measure-optimize.scm`](../tools/test-measure-optimize.scm)を参照する。Gauche の生成・テスト機能は [Gauche 0.9.15 Users’ Reference, 9.8 gauche.configure、9.34 gauche.test](https://practical-scheme.net/vault/Gauche-0.9.15-refe.pdf)を参照する。

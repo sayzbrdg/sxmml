@@ -1,5 +1,11 @@
 # sxmml の変更履歴
 
+## 未リリース
+
+### 開発・検証
+
+- テストを `test/` 配下に移し、本体と pmd-binary の CLI 起動方法を共通化した。単独実行時は、環境変数 `SXMML_SXLC` に検査する `sxlc` を指定する。`make check` はビルドした `sxlc` を自動で指定する（#60）。
+
 ## v0.4.0
 
 定義と加工のマクロ（`define-opn-voice`・`define-lfo`・`define-envelope`・`define-metadata`・`mml-repeat`・`mml-echo`・`mml-delay`・`sxmml-mode`）の値を式として評価するように見直し、誤りにソースの位置を付けた版である。`-O 3`・`-O 4` の命令列の圧縮と、PMD のバイナリを直接生成する実験的なモードの不具合の修正を含む。互換性のない変更を含む。
