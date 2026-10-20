@@ -49,3 +49,22 @@
 . PMD4 向けでは、最後にメタ情報を置きます。`ppzfile`・`ppsfile`・`pcmfile`・`title`・`composer`・`arranger`・`memo`（0 件以上）の順に、CP932 の NUL 終端文字列を並べ、それぞれへの位置の表を `0x00 0x00` で終えます。値は `sxmml.backend.pmd` の `sxmml-pmd-metadata-value` で、`-m pmd` と同じ規則で検査します。`memo` 以外の定義のない項目は、空文字列になります。`memo` は要素の数だけ書き、定義がないときと空のリストのときは書きません（位置の表にも項目を置きません）。
 
 PMD3 向け（`fc88`）では、メタ情報と R トラックの 12 バイトを置かず、LFO のチャンネル `B`（`invalid lfo channel`）と 5 値・6 値のエンベロープ（`unsupported envelope values in PMD3`）を失敗とします。LFO・エンベロープの種類と値は、`sxmml.backend.pmd` の `sxmml-pmd-lfo-values`・`sxmml-pmd-envelope-values` で、`-m pmd` と同じ規則で検査します。
+
+== PMD4 と PMD3 の違い（MC.EXE の生成物から）
+
+MC.EXE 4.8s で、同じ MML を PMD4 向けと PMD3 向けにコンパイルした生成物を比べて分かった違いです。pmd-binary は MC.EXE と同じ生成物を作ることを保証しないので、ここに記す違いは不具合として扱いません。
+
+反復の終了の命令（`0xf8`）の 3 バイト目は、脱出のない 1 回の反復で違います。pmd-binary は、PMD3 向けでも PMD4 向けと同じ値を書きます。
+
+[cols="1,1,1,1",options="header"]
+|===
+|MML |PMD4 向けの MC.EXE |PMD3 向けの MC.EXE |pmd-binary
+|`[c:d]0` |0 |0 |0
+|`[c:d]1` |0 |0 |0
+|`[cd]0` |0 |0 |0
+|`[cd]1` |1 |0 |1
+|===
+
+PMD3 向けで、2 回以上の反復の値は確かめていません。
+
+PMD3 向けの MC.EXE の生成物は、`#memo` を 0～3 件書いた MML でも同じでした。PMD3 向けの pmd-binary がメタ情報を置かないことと合っています。
