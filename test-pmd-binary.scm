@@ -229,7 +229,6 @@
                              (file-exists? output)))))))
 
         ;; 命令列のバイト内容を固定する。期待値は MC.EXE との一致を主張せず、現在の出力を固定する。
-        ;; 既知の欠陥（#65）に当たる入力は使わない。
         ;; 音高は (オクターブ - 1) * 16 + 音名、tick は解像度 24 の値。A トラックは位置 26 から始まる。
         (dolist [case
                  `(("音符・休符" "note" ((mml A "o3a8>c+4r8")) A
@@ -300,25 +299,26 @@
                     "f0 01 fe 03 04 30 0c cd 01 02 03 54 06 30 0c 80")
                    ("リズムの K トラック" "rhythm-k" ((rhythm L "@b8")) K
                     "00 80")
-                   ("リズムの R トラック" "rhythm-r" ((rhythm L "V40vb10pb2)b1@b8(b1!sr8")) R-body
+                   ;; R トラックの末尾 12 バイトは、合計 tick、0、loop tick、0、メタ情報の位置の表、48 fe。
+                   ;; tick は、L トラックを含めた全トラックの最大値 (#65)
+                   ("リズムの R トラック" "rhythm-r" ((rhythm L "V40vb10pb2)b1@b8(b1!sr8")) R
                     ;; R は位置 38 から始まり、先頭の 2 バイトがパターンの位置 40。
-                    ;; V40、vb10、pb2、)b1、@b8 と 12 tick、(b1、!s、休符
-                    "28 00 e8 28 ea 2a e9 22 e5 01 01 eb 01 0f 0c e5 01 ff eb 82 0f 0c ff")
+                    ;; V40、vb10、pb2、)b1、@b8 と 12 tick、(b1、!s、休符。合計 tick 24、loop tick 24
+                    "28 00 e8 28 ea 2a e9 22 e5 01 01 eb 01 0f 0c e5 01 ff eb 82 0f 0c ff 18 00 00 00 18 00 00 00 52 00 48 fe")
                    ("ループを含むリズムの K トラック" "rhythm-loop-k" ((rhythm L "@b8L[@s8]2")) K
                     "00 f6 01 80")
-                   ("ループと反復を含むリズムの R トラック" "rhythm-loop-r" ((rhythm L "@b8L[@s8]2")) R-body
-                    ;; R は位置 40 から始まり、パターンの位置 44 とループの位置 49 を持つ
-                    "2c 00 31 00 eb 01 0f 0c ff f9 39 00 eb 02 0f 0c f8 02 02 32 00 ff"))]
-          ;; R-body は R トラックの末尾 12 バイトを除く。末尾の tick には L トラックの長さが入らない
-          ;; 欠陥（#65）があるため、末尾はリズムを含まないファイル全体の検査で固定する。
-          (let1 section (cadddr case)
-            (test* #"pmd-binary の命令列: ~(car case)"
-                   (list-ref case 4)
-                   (let1 hex (section-hex (generate-binary (cadr case) pmd-binary (caddr case))
-                                          (if (eq? section 'R-body) 'R section))
-                     (if (eq? section 'R-body)
-                       (substring hex 0 (- (string-length hex) (* 12 3)))
-                       hex)))))
+                   ("ループと反復を含むリズムの R トラック" "rhythm-loop-r" ((rhythm L "@b8L[@s8]2")) R
+                    ;; R は位置 40 から始まり、パターンの位置 44 とループの位置 49 を持つ。
+                    ;; 合計 tick 36、loop tick 24
+                    "2c 00 31 00 eb 01 0f 0c ff f9 39 00 eb 02 0f 0c f8 02 02 32 00 ff 24 00 00 00 18 00 00 00 53 00 48 fe")
+                   ("リズムより短い他のトラック" "rhythm-longest" ((mml A "o4c8") (rhythm L "@b1")) R
+                    ;; A は 12 tick、L は 96 tick。合計 tick と loop tick は L の 96
+                    "2a 00 eb 01 0f 60 ff 60 00 00 00 60 00 00 00 44 00 48 fe")
+                   ("リズムだけ" "rhythm-only" ((rhythm L "@b1")) R
+                    "28 00 eb 01 0f 60 ff 60 00 00 00 60 00 00 00 42 00 48 fe"))]
+          (test* #"pmd-binary の命令列: ~(car case)"
+                 (list-ref case 4)
+                 (section-hex (generate-binary (cadr case) pmd-binary (caddr case)) (cadddr case))))
 
         ;; ヘッダ、空のトラック、R トラックの末尾、音色表、メタ情報の配置を、ファイル全体で固定する。
         (let* ([forms '((define-opn-voice 0 (2 5)
