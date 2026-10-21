@@ -374,16 +374,14 @@
                     (list i)))
               items))
 
-;; 要素のリストを展開したオブジェクトのリスト。回数 r >= 1 のブロックは
-;; (front back)^(r-1) front、回数 0（無限）は front back を 1 回とする
+;; 要素のリストを展開したオブジェクトのリスト。反復回数 r は正の正確な整数で、
+;; ブロックは (front back)^(r-1) front とする
 (define (%repeat-expansion items)
   (append-map (^i (if (%repeat-block? i)
                     (let ([r (slot-ref (%repeat-block-end i) 'value)]
                           [front (%repeat-expansion (%repeat-block-front i))]
                           [back (%repeat-expansion (or (%repeat-block-back i) ()))])
-                      (if (zero? r)
-                        (append front back)
-                        (append (concatenate (make-list (- r 1) (append front back))) front)))
+                      (append (concatenate (make-list (- r 1) (append front back))) front))
                     (list i)))
               items))
 
@@ -464,7 +462,7 @@
                (let ([r (slot-ref (%repeat-block-end i) 'value)]
                      [front (%repeat-expanded-length (%repeat-block-front i))]
                      [back (%repeat-expanded-length (or (%repeat-block-back i) ()))])
-                 (if (zero? r) (+ front back) (+ (* (- r 1) (+ front back)) front)))
+                 (+ (* (- r 1) (+ front back)) front))
                1)))
         0 items))
 

@@ -37,6 +37,8 @@ PMD4 向けには `pmd`、PMD3 向けには `pmd3` を指定する。実験的�
 
 MML オブジェクトを加工する公開マクロとして `mml-repeat`、`mml-echo`、`mml-delay` がある。`mml-echo` が受けるトラックは単一名である。`mml-delay` は音符の後の休符を利用して直前の音を再発音する。`mml-repeat` の三本文形式では第三節の本文を反復後に置く。複数トラック形では第三節の先頭で脱出対象トラックを指定する。`mml-repeat` の回数と、`mml-echo`・`mml-delay` の括弧の中の値は式として評価し、変換時に検査する。オブジェクトの slot の直接変更では関連する文脈値が更新されない場合がある。直接編集する場合は、関連する文脈値も利用者が更新する必要がある。
 
+通常・リズム MML の反復回数は正の正確な整数とし、十進の数字列で書く。波括弧で囲んだ数字列や、ゼロ埋めした正の回数も受理する。`[ab]1` は `ab`、`[a:b]1` は `a` と同じ意味であり、`-O 0` では反復を保持する。回数0は、脱出（`:`）の有無や出力モードによらず、構文解釈時に変換の失敗とする。反復の後の既定音長・オクターブ・`K$` の移調値は、脱出のある反復では `:` の位置、脱出のない反復では本文末尾の設定を引き継ぐ。
+
 ## PMD 向け生成物
 
 PMD 向けの生成では、`-o` で指定した出力先、指定がなければ入力ファイル名の拡張子を `.mml` に替えた名前を生成先に使う。`filename` メタデータは生成先の指定に使わず、指定されていれば標準エラー出力に `warning: metadata 'filename' is ignored; use the -o option of sxlc to set the output file` を表示して無視する。生成物は CP932 で書かれ、行末は CRLF。先頭に元の入力ファイル名と `PMDver4.8` または `PMDver3.3` のモード行を含む。設定されたメタデータ、音色定義、データのあるトラックの行が続く。音色定義は PMD の音色番号の順に並ぶ。音色番号は、定義した全ての FM 音色に、音色の名前の辞書順（文字コードの順）で 0 から振る。音色が 256 を超える場合は、`too many voices: 257 (max 256)` のように音色の数と上限を表示して、変換の失敗とする。PMD が使うメタデータ（`title`・`composer`・`arranger`・`pcmfile`・`ppzfile`・`ppsfile`・`memo`）の値は、書くときに検査する。`memo` は文字列 1 つか文字列のリスト、それ以外は文字列に限り、それ以外の値は `invalid metadata value: title is 1 (expected a string)` のようにキーと値を表示して変換の失敗とする。PMD3 の MML（`-m pmd3`）は値をコメントとして書くので、同じく検査する。LFO・エンベロープの定義は、`M`・`E` で使うときに検査する。種類は LFO が `default`・`triangle`（同じ意味）、エンベロープが `default` に限る。値の数は LFO が 4、エンベロープが 4・5・6 で、各値は範囲の中の整数に限る。誤りは `unsupported lfo type: sw in L1 (supported: default, triangle)`、`invalid envelope values: E1 has 3 values (expected 4, 5 or 6)`、`invalid lfo value: L1, value 2 is 300 (0 - 255)` のように、定義と誤りを表示して変換の失敗とする。使わない定義と、最適化で取り除かれた命令の定義は検査しない。同じ条件で変換した生成物はバイト単位で一致する（要求仕様の Q-03）。PMD3 形式は末尾に `0x1A` を付ける。日本語のタイトルも CP932 で出力する。リズムの楽器別のパン（`p楽器 数値`）の値は、1 が右、2 が左、3 が中央で、それ以外は `rhythm pan out of range: 4 (1 - 3)` のように値と範囲を表示して変換の失敗とする。PMD バイナリ生成物でも同じである。
@@ -106,6 +108,8 @@ PMD 向けの生成では、`-o` で指定した出力先、指定がなけれ�
 | `(rhythm L "@b0")` | 0 での除算エラー、終了値 1 |
 | `(mml G "c8?")` | 未登録の `?` コマンドに関するエラー、終了値 1 |
 | `(rhythm L "@x8")` | `sxmml syntax error, near "x8" on L track`、終了値 1 |
+| `(mml G "[ab]0")`・`(mml G "[a:b]0")`・`(rhythm L "[@b8:@s8]0")` のように反復回数0を書く | `repeat count must be a positive exact integer:` と指定値、終了値 1。波括弧付き・ゼロ埋めの0も同じ |
+| `(mml G "]1")` のように開始命令のない反復終端を書く | `repeat end appeared before repeat start`、終了値 1 |
 | `(mml G "c8[d8 L e8]2")` や `(rhythm L "@b8[@s8 L @b8]2")` のように反復の中に `L` を書く | `loop command cannot be used inside repeats`、終了値 1。入れ子の内側、`:` の後ろ、`mml-repeat` の本文、複数の `mml` にまたがる反復の中も同じ |
 | `(mml A "@0c8")` で未定義の FM 音色 `@0` を使う | 生成中に `no instrument define`、終了値 1 |
 | 通常トラック G で `(mml G "c%0")` | `ticks must be a positive integer:  0`、終了値 1。新規出力なし |

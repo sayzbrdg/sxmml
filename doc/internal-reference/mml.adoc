@@ -14,7 +14,7 @@
 |名前・呼び出し形 |役割・引数 |結果と状態・前提 |ソース
 |[[ref-mml-sxmml-mml-context]]`(sxmml-mml-context)` / `(sxmml-mml-context ctx)` |現在の `<sxmml-mml-context>` を得る／設定するパラメータ |初期値は新規コンテキスト。設定形は旧値を返す。パーサーの状態を動的に切り替える |link:../../sxmml/mml.scm[mml.scm]
 |[[ref-mml-rope-to-number]]`(rope\->number rope)` |PEG の rope を数値化 |文字列に変換して `string\->number` を返す。数値でない rope は `#f` になり得る |link:../../sxmml/mml.scm[mml.scm]
-|[[ref-mml-rope-to-positive-number]]`(rope\->positive-number rope)` |PEG の rope を数値化し、正であることを検査 |正の数を返し、0 以下は `ticks must be a positive integer:` のエラー。tick 解析では `$NUMBER` の十進数字列を渡すため整数となる。先頭の 0 は数値に影響しない |link:../../sxmml/mml.scm[mml.scm]
+|[[ref-mml-rope-to-positive-number]]`(rope\->positive-number rope :optional (message "ticks must be a positive integer: "))` |PEG の rope を数値化し、正の正確な整数であることを検査 |条件を満たす整数を返し、それ以外は `message` と値を示して失敗。tick 解析は既定の文言、反復回数は回数向けの文言を使う。先頭の 0 は数値に影響しない |link:../../sxmml/mml.scm[mml.scm]
 |[[ref-mml-rope-to-symbol]]`(rope\->symbol rope)` |PEG の rope を識別子に変換 |文字列経由で symbol を返す |link:../../sxmml/mml.scm[mml.scm]
 |[[ref-mml-change-sign]]`(change-sign number)` |数値の符号を反転 |`-number` を返す。状態は変えない |link:../../sxmml/mml.scm[mml.scm]
 |[[ref-mml-parser-internal-return]]`($%return 式 ...)` |PEG の成功値を作る内部マクロ |展開結果は入力を消費せず、式の値を返すパーサー。式はパーサー実行時に評価される |link:../../sxmml/mml.scm[mml.scm]
@@ -85,7 +85,7 @@
 |[[ref-mml-parser-loop]]`$LOOP` |`<sxmml-mml-loop>` を作る |`loop-exists?` とループまでの tick を更新。反復 stack が空でなければ `loop command cannot be used inside repeats` エラー |link:../../sxmml/mml.scm[mml.scm]
 |[[ref-mml-parser-repeat-start]]`$REPEAT-START` |`<sxmml-mml-repeat-start>` を作る |反復 stack と tick stack に開始状態を積む |link:../../sxmml/mml.scm[mml.scm]
 |[[ref-mml-parser-repeat-break]]`$REPEAT-BREAK` |`<sxmml-mml-repeat-break>` を作る |反復 stack の終了時復元値を記録。反復の外なら `break command cannot be used outside of repeats`、同じ反復の 2 個目以降なら `break command can be used only once in a repeat` エラー |link:../../sxmml/mml.scm[mml.scm]
-|[[ref-mml-parser-repeat-end]]`$REPEAT-END` |回数を値にした `<sxmml-mml-repeat-end>` を作る |stack から開始位置を取り累計 tick を更新。開始前ならエラー |link:../../sxmml/mml.scm[mml.scm]
+|[[ref-mml-parser-repeat-end]]`$REPEAT-END` |正の正確な整数の回数を値にした `<sxmml-mml-repeat-end>` を作る |開始前なら `repeat end appeared before repeat start`、回数0なら `repeat count must be a positive exact integer:` と値を示して失敗。検査の後に stack を取り出し累計 tick を更新。脱出のある反復では、既定音長・オクターブ・移調値を脱出位置の設定へ戻す |link:../../sxmml/mml.scm[mml.scm]
 |[[ref-mml-parser-voice]]`$VOICE` |`<sxmml-mml-voice>` を作る |値を symbol 化 |link:../../sxmml/mml.scm[mml.scm]
 |[[ref-mml-parser-envelope]]`$ENVELOPE` |`<sxmml-mml-envelope>` を作る |値を symbol 化 |link:../../sxmml/mml.scm[mml.scm]
 |[[ref-mml-parser-lfo-set]]`$LFO-SET` |`<sxmml-mml-lfo>` を作る |識別子と任意の channel を symbol 化 |link:../../sxmml/mml.scm[mml.scm]
