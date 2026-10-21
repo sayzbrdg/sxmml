@@ -8,7 +8,6 @@ datadir     = @datadir@
 datarootdir = @datarootdir@
 mandir      = @mandir@
 srcdir      = @srcdir@
-VPATH       = $(srcdir)
 
 # These may be overridden by make invocators
 DESTDIR        =
@@ -79,7 +78,7 @@ distclean : clean
 maintainer-clean : clean
 	rm -rf $(CONFIG_GENERATED)  VERSION
 
-sxlc : sxlc.in
+sxlc : $(srcdir)/sxlc.in
 	@rm -f sxlc
 	echo "#!$(GOSH)" > sxlc && \
 	cat $(srcdir)/sxlc.in >> sxlc
@@ -87,7 +86,7 @@ sxlc : sxlc.in
 
 man : $(MANPAGE)
 
-$(MANPAGE) : doc/sxlc.1.md
+$(MANPAGE) : $(srcdir)/doc/sxlc.1.md
 	@if test -z "$(PANDOC)"; then \
 	  echo "pandoc is not found; cannot generate $(MANPAGE)" >&2; exit 1; \
 	fi
