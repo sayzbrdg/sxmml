@@ -28,7 +28,7 @@
 [cols="2,5",options="header"]
 |===
 |群 |概要
-|トラック変換 |`%fm-track-u8vector-set!`・`%ssg-track-u8vector-set!`・`%pcm-track-u8vector-set!` は、音色・音量・音量変化の書き込み手続きを音源の種類ごとに選び、`%pmd-track-u8vector-set!` に渡します。`%pmd-track-u8vector-set!` はオブジェクト型ごとに書き込み手続きを呼び、終端の `0x80` を書いてヘッダの次のトラックの位置を更新します。反復の開始・脱出の位置は、手続き内のスタックで解決します。反復の終了の命令（`0xf8`）の 2 バイト目には回数を、3 バイト目には、脱出のある反復では回数 - 1、無限反復（回数 0）と脱出のない反復では回数を書きます
+|トラック変換 |`%fm-track-u8vector-set!`・`%ssg-track-u8vector-set!`・`%pcm-track-u8vector-set!` は、音色・音量・音量変化の書き込み手続きを音源の種類ごとに選び、`%pmd-track-u8vector-set!` に渡します。`%pmd-track-u8vector-set!` はオブジェクト型ごとに書き込み手続きを呼び、終端の `0x80` を書いてヘッダの次のトラックの位置を更新します。反復の開始・脱出の位置は、手続き内のスタックで解決します。反復回数はコンパイラが保証する正の正確な整数を前提とします。反復の終了の命令（`0xf8`）の 2 バイト目には回数を、3 バイト目には、脱出のある反復では回数 - 1、脱出のない反復では回数を書きます
 |命令の書き込み |`%pmd-...-set!` は `u8vec` の `offset` から 1 命令を書き、次の書き込み位置を返します。値の範囲は、`%pmd-1byte-set!`・`%pmd-2bytes-set!` で検査します。255 tick を超える音符はタイ（`0xfb`）で、休符は休符の連続で分割します。ポルタメント（`0xda`）は音長を 1 バイトで持ち、分割できないので、`%pmd-portament-set!` が 1〜255 tick に限り、超えると `portamento ticks out of range: 300 (1 - 255)` で失敗します
 |リズム |`%pmd-rhythm-track-u8vector-set!` は、K トラック（`%pmd-rhythm-deploy-track-u8vector-set!`）と R トラック（`%pmd-rhythm-definition-track-u8vector-set!`）に L の内容を分けて書きます。`%pmd-rhythm-emit-set!` などがリズム音源の命令を書きます。楽器別の音量とパンは、楽器 * 32 + 値の 1 バイトに符号化するので、`%pmd-rhythm-volume-set!`・`%pmd-rhythm-pan-set!` が符号化の前に値（音量は 0～31、パンは 1～3）を検査し、範囲外は書いた値と範囲を示して失敗します
 |メタ情報・音色表 |`%pmd-meta-track-u8vector-set!` は、使用した FM 音色を音色番号（`voice-numbers` の値）の順に並べた音色表と、PMD4 向けのメタ情報を書きます。`%opn-voice-data-get` は音色定義を OPN のレジスタ値の並びに変換します
@@ -59,9 +59,7 @@ MC.EXE 4.8s で、同じ MML を PMD4 向けと PMD3 向けにコンパイルし
 [cols="1,1,1,1",options="header"]
 |===
 |MML |PMD4 向けの MC.EXE |PMD3 向けの MC.EXE |pmd-binary
-|`[c:d]0` |0 |0 |0
 |`[c:d]1` |0 |0 |0
-|`[cd]0` |0 |0 |0
 |`[cd]1` |1 |0 |1
 |===
 

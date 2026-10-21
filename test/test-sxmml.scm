@@ -161,10 +161,6 @@
          (same-objects? lis (flatten (structure lis))))
   (test* "repeat expansion" #t
          (same-objects? (list c d d e c d d e c d d) (expansion (structure lis))))
-  (test* "infinite repeat expands once" #t
-         (let ([s (make <sxmml-mml-repeat-start>)] [b (make <sxmml-mml-repeat-break>)]
-               [z (make <sxmml-mml-repeat-end> :value 0)])
-           (same-objects? (list c d) (expansion (structure (list s c b d z))))))
   (test* "a repeat without its end fails" (test-error <error>)
          (structure (list start1 c)))
   (test* "a repeat end without its start fails" (test-error <error>)
@@ -198,6 +194,58 @@
                  (same? (block (list (note 0) (note 2)) 2 #f) (block (list (note 0) (note 2)) 3 #f))
                  (same? (block (list (note 0) (note 2)) 2 #t) (block (list (note 0) (note 2)) 2 #f))
                  (same? (block (list (note 0) (note 2)) 2 #f) (note 0))))))
+
+;; 反復回数は正の正確な整数。1回の反復の意味と、脱出位置の状態も確認する (#106)
+(let ()
+  (define (compile rhythm? text)
+    (parameterize ([sxmml-environment (make <sxmml-environment>)])
+      (define-track G)
+      (define-track L)
+      (if rhythm? (rhythm L text) (mml G text))
+      (let* ([track (if rhythm? 'L 'G)]
+             [objects (sxmml-optimize-tree track :optimize #f)]
+             [env (sxmml-track-get track)])
+        (list objects (map (cut slot-ref env <>)
+                           '(total-ticks default-length current-octave current-transpose))))))
+  (dolist [case '((#f "[ab]0") (#f "[a:b]0") (#f "[ab]{0}") (#f "[a:b]000")
+                  (#t "[@b8@s8]0") (#t "[@b8:@s8]0")
+                  (#t "[@b8@s8]{0}") (#t "[@b8:@s8]000"))]
+    (test* #"反復回数0を回数の誤りとして拒否する: ~(cadr case)"
+           (test-error <error> #/^repeat count must be a positive exact integer: +0$/)
+           (begin (compile (car case) (cadr case)) 'accepted)))
+  (dolist [rhythm? '(#f #t)]
+    (test* #"開始命令のない反復終端を拒否する: リズム ~rhythm?"
+           (test-error <error> "repeat end appeared before repeat start")
+           (compile rhythm? "]1")))
+  (test* "tickの誤りは従来の文言で通知する"
+         (test-error <error> "ticks must be a positive integer:  0")
+         (compile #f "c%0"))
+  ;; 音符の値は octave * 12 + 音名 + 移調。a=57、b=59、o5K$2 の a=71・c=62。
+  ;; 通常の4分音符は24 tick、l8では12 tick。脱出ありの2回は a b a の72 tick。
+  (dolist [case '((#f "[ab]1" (48 4 4 0) (1) ((57 24) (59 24)))
+                  (#f "[a:b]1" (24 4 4 0) (1) ((57 24)))
+                  (#f "[ab]001" (48 4 4 0) (1) ((57 24) (59 24)))
+                  (#f "[a:b]{1}" (24 4 4 0) (1) ((57 24)))
+                  (#f "[l8o5K$2a:l16o3K$0b]1c" (24 8 5 2) (1) ((71 12) (62 12)))
+                  (#f "[a:[b:c]1d]1e" (48 4 4 0) (1 1) ((57 24) (52 24)))
+                  (#f "[a:b]2" (72 4 4 0) (2) ((57 24) (59 24) (57 24)))
+                  (#t "[@b8@s8]1" (24 4 4 0) (1) (((bass) 12) ((snare) 12)))
+                  (#t "[@b8:@s8]1" (12 4 4 0) (1) (((bass) 12)))
+                  (#t "[l8@b:l16@s]1@h" (24 8 4 0) (1) (((bass) 12) ((hihat) 12))))]
+    (let* ([rhythm? (car case)]
+           [result (compile rhythm? (cadr case))]
+           [objects (car result)]
+           [expanded ((with-module sxmml.optimizer %repeat-expansion)
+                      ((with-module sxmml.optimizer %repeat-structure) objects))])
+      (test* #"正の回数の意味・集計・状態を保ち、反復を保持する: ~(cadr case)"
+             (cddr case)
+             (list (cadr result)
+                   (filter-map (^o (and (is-a? o <sxmml-mml-repeat-end>) (slot-ref o 'value))) objects)
+                   (map (^o (list (if rhythm?
+                                    (filter (^s (slot-ref o s)) '(bass snare tom cymbal hihat rimshot))
+                                    (slot-ref o 'value))
+                                  (slot-ref o 'ticks)))
+                        (filter (cut is-a? <> <sxmml-mml-note>) expanded)))))))
 
 ;; 反復の : は一つの反復に一つだけ (#92)
 (let1 compile (^[text] (parameterize ([sxmml-environment (make <sxmml-environment>)])
@@ -1045,7 +1093,6 @@
                           ("[[aaaa]4[aaaa]4]2" "[[[[o4a]4]4]2]2")
                           ("[ab]2ab" "[o4ab]2ab")
                           ("cdcdcdLcdcdcd" "[o4cd]3L[cd]3")
-                          ("[cdcdcd]0" "[[o4cd]3]0")
                           ("c4c4c4c4c8" "[o4c]4c%12")))
             (test* #"\"~(car case)\" with optimize :repeat"
                    #"A l%24~(cadr case)"
@@ -1129,7 +1176,6 @@
           (dolist (case '(("[aaaaaaaa]2" "[o4a]16")
                           ("[[aaaa]4[aaaa]4]2" "[o4a]64")
                           ("[ab]2ab" "[o4ab]3")
-                          ("[cdcdcd]0" "[[o4cd]3]0")
                           ("[cdcdcd]1" "[o4cd]3")))
             (test* #"\"~(car case)\" with optimize :repeat-expand"
                    #"A l%24~(cadr case)"
@@ -1151,7 +1197,7 @@
                    (list ((with-module sxmml.optimizer %repeat-block?) (car items)) (length items))))
           ;; 別の読み込みで作った :full と :repeat の列は、展開すると同値なオブジェクトが同じ順に並ぶ
           (dolist (text '("[aaaaaaaa]2" "[ab]2ab" "cdecdecd" "cdcdcdLcdcdcd"
-                          "[cdcdcd]0" "c4c4c4c4c8" "[c:]2" "v10cdv12cdv10cdv12cd" "[c&c&]4"))
+                          "[cdcdcd]1" "c4c4c4c4c8" "[c:]2" "v10cdv12cdv10cdv12cd" "[c&c&]4"))
             (dolist (level '(:repeat :repeat-expand))
               (test* #"\"~|text|\" keeps its expansion with optimize ~level" #t
                      (let ([a (expansion (structure (optimized-objects 'A :full `((mml A ,text)))))]
@@ -1178,6 +1224,16 @@
                  '(1 #t)
                  (status-and-message (sxlc-status "-O" "1" "-m" "pmd" "-o" (work-file "lfo-invalid.mml") source)
                                      #/invalid lfo channel/)))
+        ;; どちらのバックエンドでも、0回は構文解釈時に拒否し、既存の生成物を保つ (#106)
+        (dolist [mode '("pmd" "pmd-binary")]
+          (let* ([source (write-source #"repeat-zero-~mode" "(mml A \"[a:b]0\")")]
+                 [output (work-file #"repeat-zero-~|mode|.out")])
+            (with-output-to-file output (^[] (display "既存の生成物")))
+            (test* #"~mode は0回を回数の誤りとして終了値1で拒否し、既存の生成物を保つ"
+                   '(1 #t "既存の生成物")
+                   (append (status-and-message (sxlc-status "-m" mode "-o" output source)
+                                               #/repeat count must be a positive exact integer: +0/)
+                           (list (file->string output))))))
         ;; 終了値の体系 (#37)
         ;; 0 成功、1 変換の失敗、2 使用法の誤り、3 後処理の失敗
         (let1 ok (write-source "status-ok" "(mml G \"c8\")")
