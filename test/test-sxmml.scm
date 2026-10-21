@@ -235,14 +235,15 @@
 ;; sxlc の CLI
 (use gauche.process)
 (use file.util)
-(let* ([srcdir (sys-normalize-pathname (sys-dirname (current-load-path)) :absolute #t)]
+(use test.helpers)
+(let* ([sxlc-command (make-test-sxlc-command)]
        [workdir (sys-mkdtemp (build-path (temporary-directory) "sxmml-test"))])
   ;; name.sxl に forms を書き出し、options を付けて sxlc を実行して出力行を返す
   (define (run-sxlc name forms . options)
     (let1 source (build-path workdir #"~|name|.sxl")
       (with-output-to-file source (^[] (for-each write forms)))
       (process-output->string-list
-       `("gosh" ,#"-I~srcdir" ,(build-path srcdir "sxlc.in") ,@options ,source)
+       `(,@sxlc-command ,@options ,source)
        :error :merge)))
   (define (generated-mode-line name)
     (find #/^;; mode:/ (file->string-list (build-path workdir #"~|name|.mml")
@@ -273,7 +274,7 @@
       (with-output-to-file source (^[] (display text)))
       (with-output-to-file (build-path dir "out.mml") (^[] (display "existing output\n")))
       (let* ([before (snapshot)]
-             [p (run-process `("gosh" ,#"-I~srcdir" ,(build-path srcdir "sxlc.in")
+             [p (run-process `(,@sxlc-command
                                "-m" "pmd" "-o" ,output ,source)
                              :directory dir :output :null :error :null :wait #t)])
         (list (not (zero? (process-exit-status p)))
@@ -292,7 +293,7 @@
   ;; args を付けて sxlc を実行し、終了値と標準エラー出力の行のリストを返す
   (define (sxlc-status . args)
     (let* ([err (work-file "status.err")]
-           [p (run-process `("gosh" ,#"-I~srcdir" ,(build-path srcdir "sxlc.in") ,@args)
+           [p (run-process `(,@sxlc-command ,@args)
                            :output :null :error err :wait #t)])
       (list (sys-wait-exit-status (process-exit-status p)) (file->string-list err))))
   ;; prefix のコマンドを前に付けて args で sxlc を実行し、終了値と、標準出力と
@@ -300,7 +301,7 @@
   (define (sxlc-run prefix . args)
     (let* ([status 0]
            [lines (process-output->string-list
-                   `(,@prefix "gosh" ,#"-I~srcdir" ,(build-path srcdir "sxlc.in") ,@args)
+                   `(,@prefix ,@sxlc-command ,@args)
                    :error :merge
                    :on-abnormal-exit (^p (set! status (process-exit-status p))))])
       (list (sys-wait-exit-status status) lines)))
@@ -406,7 +407,7 @@
                (let1 source (work-file "rel-out.sxl")
                  (with-output-to-file source (^[] (write '(mml G "c8"))))
                  (let1 lines (process-output->string-list
-                              `("gosh" ,#"-I~srcdir" ,(build-path srcdir "sxlc.in")
+                              `(,@sxlc-command
                                 "-m" "pmd" "-o" "rel-custom.mml" ,source)
                               :directory workdir :error :merge)
                    (list (car (output-report lines))

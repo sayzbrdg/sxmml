@@ -11,14 +11,9 @@
 (use gauche.process)
 (use gauche.uvector)
 (use file.util)
+(use test.helpers)
 
-(let* ([sxlc (or (sys-getenv "SXMML_SXLC")
-                 (find-file-in-paths "sxlc" :paths (string-split (sys-getenv "PATH") #\:))
-                 (error "sxlc が見つかりません。SXMML_SXLC にテスト対象の CLI を指定してください。"))]
-       [gosh (car (os-command-line))]
-       ;; 子プロセスでも、テスト本体と同じ sxmml と当バックエンドを使う。
-       [load-options (map (^p (string-append "-I" (sys-normalize-pathname p :absolute #t)))
-                          (reverse *load-path*))]
+(let* ([sxlc-command (make-test-sxlc-command)]
        [workdir (sys-mkdtemp (build-path (temporary-directory) "sxmml-pmd-binary-test"))])
   (define (work-file name) (build-path workdir name))
   (define (write-source path forms)
@@ -27,7 +22,7 @@
   (define (run-sxlc source . options)
     (let* ([status 0]
            [lines (process-output->string-list
-                   `(,gosh ,@load-options ,sxlc ,@options ,source)
+                   `(,@sxlc-command ,@options ,source)
                    :error :merge
                    :on-abnormal-exit (^p (set! status (process-exit-status p))))])
       (list (sys-wait-exit-status status) lines)))
@@ -86,8 +81,6 @@
     `(define-opn-voice 0 (0 0) ,@(make-list 4 '(0 0 0 0 0 0 0 0 0))))
   (unwind-protect
       (begin
-        (unless (file-is-readable? sxlc)
-          (error "テスト対象の CLI を読み込めません。SXMML_SXLC を確認してください。" sxlc))
         (dolist [mode '(pmd-binary pmd3-binary pmd4-binary)]
           (let* ([name (symbol->string mode)]
                  [source (write-source (work-file #"~|name|.sxl") '((mml G "c8")))]
