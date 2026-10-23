@@ -1,20 +1,22 @@
 ;;;
-;;; Test sxmml_pmd_binary
+;;; sxmml.backend.pmd-binaryの検査
 ;;;
 
 (use gauche.test)
 
-(test-start "sxmml_pmd_binary")
+(test-start "sxmml.backend.pmd-binary")
 (use sxmml.backend.pmd-binary)
 (test-module 'sxmml.backend.pmd-binary)
 (use sxmml)
-(use gauche.process)
+(use sxmml.form)
+(use sxmml.backend.pmd)
 (use gauche.uvector)
+(use gauche.process)
 (use file.util)
 (use test.helpers)
 
 (let* ([sxlc-command (make-test-sxlc-command)]
-       [workdir (sys-mkdtemp (build-path (temporary-directory) "sxmml-pmd-binary-test"))])
+       [workdir (sys-mkdtemp (build-path (temporary-directory) "sxmml-test"))])
   (define (work-file name) (build-path workdir name))
   (define (write-source path forms)
     (with-output-to-file path (^[] (for-each write forms)))
@@ -26,11 +28,6 @@
                    :error :merge
                    :on-abnormal-exit (^p (set! status (process-exit-status p))))])
       (list (sys-wait-exit-status status) lines)))
-  (define (output-report result)
-    (list (car result)
-          (and-let1 m (any #/^Translate: .* => (.*)$/ (cadr result)) (m 1))
-          (and-let1 m (any #/^<(.*)>$/ (cadr result)) (m 1))))
-  (define post-command "printf '<%s>\\n'")
   ;; AL と FB の合成値で、出力された音色を識別する。
   (define (voice-form id marker)
     `(define-opn-voice ,id (,(modulo marker 8) ,(quotient marker 8))
@@ -49,13 +46,6 @@
           (loop (+ offset 26)
                 (cons (list (u8vector-ref data offset) (u8vector-ref data (+ offset 25)))
                       records))))))
-  ;; ファイル名と内容を比較して、既存ファイルの変更や一時ファイルの残留を検出する。
-  (define (snapshot dir)
-    (map (^[name] (let1 path (build-path dir name)
-                  (cons name (if (file-is-directory? path)
-                               (snapshot path)
-                               (file->bytevector path)))))
-         (sort (directory-list dir :children? #t) string<?)))
   ;; ヘッダの 13 個の位置が指す区間の順。PMD4 の音色表の区間は、続くメタ情報を含む。
   (define binary-sections '(A B C D E F G H I J K R voice))
   ;; モードを選んでソースを読み込み、このプロセスで生成した .m の内容を返す。
@@ -81,63 +71,6 @@
     `(define-opn-voice 0 (0 0) ,@(make-list 4 '(0 0 0 0 0 0 0 0 0))))
   (unwind-protect
       (begin
-        (dolist [mode '(pmd-binary pmd3-binary pmd4-binary)]
-          (let* ([name (symbol->string mode)]
-                 [source (write-source (work-file #"~|name|.sxl") '((mml G "c8")))]
-                 [output (work-file #"~|name|.m")])
-            (test* #"~mode は既定の .m を生成して同じ名前を表示・後処理へ渡す"
-                   (list 0 output output #t)
-                   (append (output-report (run-sxlc source "-m" name "-c" post-command))
-                           (list (file-exists? output))))
-            (let1 explicit (work-file #"~|name| ; output.bin")
-              (test* #"~mode は -o の名前を一引数で後処理へ渡す"
-                     (list 0 explicit explicit #t)
-                     (append (output-report (run-sxlc source "-m" name "-o" explicit
-                                                     "-c" post-command))
-                             (list (file-exists? explicit)))))
-            ;; -m とソース中のモード指定の両方で、既定出力の衝突を検査する。
-            (dolist [cli? '(#t #f)]
-              (let* ([dir (work-file #"~|name|-same-~cli?")]
-                     [input (build-path dir "input.m")])
-                (make-directory* dir)
-                (write-source input `((sxmml-mode ,mode) (mml G "c8")))
-                (let* ([before (snapshot dir)]
-                       [result (apply run-sxlc input (if cli? (list "-m" name) '()))])
-                  (test* #"~mode は入力と既定出力が同じ場合に上書きしない（-m: ~cli?）"
-                         '(2 #t #t)
-                         (list (car result)
-                               (boolean (any #/^output file is the same as the source file:/
-                                             (cadr result)))
-                               (equal? before (snapshot dir)))))))))
-
-        (let* ([source (write-source (work-file "metadata.sxl")
-                                    `((define-metadata filename ,(work-file "obsolete.m"))
-                                      (mml G "c8")))]
-               [output (work-file "metadata.m")]
-               [result (run-sxlc source "-m" "pmd-binary" "-c" post-command)])
-          (test* "filename は警告して無視し、既定の出力先を使う"
-                 (list 0 output output #t #t #f)
-                 (append (output-report result)
-                         (list (boolean (any #/^warning: metadata 'filename' is ignored/
-                                             (cadr result)))
-                               (file-exists? output)
-                               (file-exists? (work-file "obsolete.m"))))))
-        (let* ([source (write-source (work-file "slot.sxl")
-                                    `((slot-set! (sxmml-environment) 'output ,(work-file "source-slot.m"))
-                                      (mml G "c8")))]
-               [output (work-file "slot.m")])
-          (test* "ソース中の output の変更より CLI の出力先決定を優先する"
-                 (list 0 output output #t #f)
-                 (append (output-report (run-sxlc source "-m" "pmd-binary" "-c" post-command))
-                         (list (file-exists? output) (file-exists? (work-file "source-slot.m"))))))
-        (let* ([source (write-source (work-file "switch.sxl")
-                                    '((sxmml-mode pmd) (sxmml-mode pmd-binary) (mml G "c8")))]
-               [output (work-file "switch.m")])
-          (test* "ソースモードからバイナリモードへ切り替えても .m を生成する"
-                 (list 0 output output #t #f)
-                 (append (output-report (run-sxlc source "-c" post-command))
-                         (list (file-exists? output) (file-exists? (work-file "switch.mml"))))))
-
         (test* "入力名なしのライブラリ利用では ./a.m を既定値として記録する"
                '("./a.m" "./a.m")
                (parameterize ([sxmml-environment (make <sxmml-environment>)]
@@ -155,7 +88,6 @@
                    (sxmml-pmd-binary-generate)
                    (list (slot-ref (sxmml-environment) 'output)
                          (file-exists? (work-file "library.m"))))))
-
         ;; 公開生成関数は、モード手続きを呼ばずにトラックを登録しても使える。
         (dolist [case (list (list "pmd-binary" sxmml-pmd-binary-generate)
                            (list "pmd3-binary" sxmml-pmd3-binary-generate)
@@ -171,19 +103,6 @@
                      (load source)
                      ((cadr case))
                      (list (slot-ref (sxmml-environment) 'output) (file-exists? output))))))
-
-        (let* ([source (write-source (work-file "priority.sxl")
-                                    '((sxmml-mode pmd4-binary) (mml G "c8")))]
-               [output (work-file "priority.m")]
-               [result (run-sxlc source "-m" "pmd3-binary")])
-          (test* "-m のバイナリモードはソース中の指定より優先される"
-                 '(0 #t #t)
-                 (list (car result)
-                       (boolean (member "Processing Mode: pmd3-binary" (cadr result)))
-                       (let1 other (work-file "pmd3-binary.m")
-                         (and (file-exists? output) (file-exists? other)
-                              (equal? (file->bytevector output) (file->bytevector other)))))))
-
         (dolist [mode '("pmd-binary" "pmd3-binary" "pmd4-binary")]
           (let* ([source (write-source (work-file #"voices-~|mode|.sxl")
                                       `(,(voice-form 'z 3) ,(voice-form 'a 1)
@@ -220,7 +139,6 @@
                        (list (car result)
                              (boolean (any #/too many voices: 257 \(max 256\)/ (cadr result)))
                              (file-exists? output)))))))
-
         ;; 命令列のバイト内容を固定する。期待値は MC.EXE との一致を主張せず、現在の出力を固定する。
         ;; 音高は (オクターブ - 1) * 16 + 音名、tick は解像度 24 の値。A トラックは位置 26 から始まる。
         (dolist [case
@@ -326,7 +244,6 @@
           (test* #"pmd-binary の命令列: ~(car case)"
                  (list-ref case 4)
                  (section-hex (generate-binary (cadr case) pmd-binary (caddr case)) (cadddr case))))
-
         ;; ヘッダ、空のトラック、R トラックの末尾、音色表、メタ情報の配置を、ファイル全体で固定する。
         (let* ([forms '((define-opn-voice 0 (2 5)
                           (31 1 2 3 4 5 1 6 7) (30 8 9 10 11 12 2 13 1)
@@ -385,24 +302,6 @@
                         tracks voice)
                   " ")
                  (hex-bytes (generate-binary "whole-pmd3" pmd3-binary forms))))
-
-        (dolist [case '(("read" "(mml G \"c8\"" "out.m" "読み込み")
-                       ("generate" "(mml A \"@{undefined}c8\")" "out.m" "生成")
-                       ("missing-dir" "(mml G \"c8\")" "missing/out.m" "出力先の不存在")
-                       ("directory" "(mml G \"c8\")" "adir" "出力先への rename")
-                       ("note-range" "(mml A \"o8c>c\")" "out.m" "音高の範囲外")
-                       ("size-limit" "(mml A \"c%20000000\")" "out.m" "大きさの上限"))]
-          (let* ([dir (work-file (car case))]
-                 [source (build-path dir "input.sxl")])
-            (make-directory* (build-path dir "adir"))
-            (with-output-to-file source (^[] (display (cadr case))))
-            (with-output-to-file (build-path dir "out.m") (^[] (display "既存の生成物")))
-            (let* ([before (snapshot dir)]
-                   [result (run-sxlc source "-m" "pmd-binary"
-                                     "-o" (build-path dir (caddr case)))])
-              (test* #"~(cadddr case)の失敗は既存ファイルとディレクトリの内容を変えない"
-                     '(1 #t)
-                     (list (car result) (equal? before (snapshot dir)))))))
         ;; PMD の音高の 1 バイトで表せない音高は、範囲外の音高と許される範囲を示して失敗する。
         (dolist [case '(("上側" "o8c>c" "o9c")
                        ("上側" "o8b>e-" "o9e-")
@@ -524,10 +423,7 @@
             (test* #"pmd-binary の LFO・エンベロープの検査: ~(car case)"
                    (cadddr case)
                    (caught #"check-~(car case)" (cadr case) (caddr case))))
-          ;; 圧縮で生成した : を含むループは、同じ形を手で書いた MML と同じバイト内容になる (#69)
-          (test* "pmd-binary の生成したループ"
-                 (section-hex (generate-binary "rep-hand" pmd-binary '((mml A "[cd:e]3"))) 'A)
-                 (section-hex (generate-binary "rep-gen" pmd-binary '((mml A "cdecdecd")) :repeat) 'A))
+
           (test* "pmd-binary の LFO の triangle は default と同じバイト内容になる"
                  (section-hex (generate-binary "lfo-default" pmd-binary
                                                '((define-lfo L1 (1 2 -3 4)) (mml A "M{L1 A}c8")))
@@ -637,13 +533,7 @@
                        (list (car result)
                              (and (file-exists? output)
                                   (if (integer? expected) (file-size output) #t))))))))
-        (let* ([source (write-source (work-file "post-failure.sxl") '((mml G "c8")))]
-               [result (run-sxlc source "-m" "pmd-binary" "-c" "false")])
-          (test* "後処理の失敗は終了値 3 となり生成物は残る"
-                 '(3 #t)
-                 (list (car result) (file-exists? (work-file "post-failure.m"))))))
+      )
     (remove-directory* workdir)))
 
-;; If you don't want `gosh' to exit with nonzero status even if
-;; the test fails, pass #f to :exit-on-failure.
 (test-end :exit-on-failure #t)
