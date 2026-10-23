@@ -44,6 +44,18 @@ all : $(TARGET)
 check : all
 	@rm -f test.log
 	SXMML_SXLC=./sxlc $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/test/test-helpers.scm" > test.log
+	SXMML_SXLC=./sxlc $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/test/test-classes.scm" >> test.log
+	SXMML_SXLC=./sxlc $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/test/test-compiler.scm" >> test.log
+	SXMML_SXLC=./sxlc $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/test/test-environment.scm" >> test.log
+	SXMML_SXLC=./sxlc $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/test/test-form.scm" >> test.log
+	SXMML_SXLC=./sxlc $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/test/test-mml.scm" >> test.log
+	SXMML_SXLC=./sxlc $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/test/test-optimizer.scm" >> test.log
+	SXMML_SXLC=./sxlc $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/test/test-pmd.scm" >> test.log
+	SXMML_SXLC=./sxlc $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/test/test-processor.scm" >> test.log
+	SXMML_SXLC=./sxlc $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/test/test-util.scm" >> test.log
+	SXMML_SXLC=./sxlc $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/test/test-voice.scm" >> test.log
+	SXMML_SXLC=./sxlc $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/test/test-sxlc.scm" >> test.log
+	SXMML_SXLC=./sxlc $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/test/test-integration.scm" >> test.log
 	SXMML_SXLC=./sxlc $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/test/test-sxmml.scm" >> test.log
 	SXMML_SXLC=./sxlc $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/test/test-repeat-tree.scm" >> test.log
 	SXMML_SXLC=./sxlc $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/test/test-pmd-binary.scm" >> test.log

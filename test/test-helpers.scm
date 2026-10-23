@@ -32,9 +32,9 @@
           (sys-unsetenv "SXMML_SXLC"))
         (remove-directory* workdir))))
 
-  (test* "本体のテストは指定した CLI を使い、その失敗を検出する"
+  (test* "sxlc のテストは指定した CLI を使い、その失敗を検出する"
          '(#t #t)
-         (check-test-cli-use "test/test-sxmml.scm"))
+         (check-test-cli-use "test/test-sxlc.scm"))
   (test* "pmd-binary のテストは指定した CLI を使い、その失敗を検出する"
          '(#t #t)
          (check-test-cli-use "test/test-pmd-binary.scm")))
