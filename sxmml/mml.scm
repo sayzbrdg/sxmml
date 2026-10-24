@@ -343,7 +343,9 @@
   ($seq $space ($or $note
                   ($let ([cmd ($any)]
                          [$space])
-                        (hash-table-get *note-command* cmd)))))
+                        (guard (e [(is-a? e <error>)
+                                   ($raise (format #f "unknown MML command \"~a\"" cmd))])
+                          (hash-table-get *note-command* cmd))))))
 
 ;; rhythm command
 (define (%make-rhythm-command-parser param class proc)
@@ -423,4 +425,6 @@
 (define-inline $rhythm-commands
   ($seq $space ($let ([cmd ($any)]
                     [$space])
-                   (hash-table-get *rhythm-command* cmd))))
+                   (guard (e [(is-a? e <error>)
+                              ($raise (format #f "unknown MML command \"~a\"" cmd))])
+                     (hash-table-get *rhythm-command* cmd)))))

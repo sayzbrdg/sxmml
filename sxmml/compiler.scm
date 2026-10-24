@@ -53,9 +53,12 @@
   (unless (string? str)
     (error "string is expected, but something else is given: " (slot-ref ctx 'track) str))
   (guard (e [(is-a? e <parse-error>)
-             (let ([rest (tree->string (slot-ref e 'rest))]
-                   [ch (slot-ref ctx 'track)])
-               (errorf "sxmml syntax error, near \"~a\" on ~a track" rest ch))])
+             (let1 ch (slot-ref ctx 'track)
+               (match (list (slot-ref e 'type) (slot-ref e 'objects))
+                 [('fail-error (_ ('fail-message . (? string? message))))
+                  (errorf "sxmml syntax error: ~a on ~a track" message ch)]
+                 [_ (let1 rest (tree->string (slot-ref e 'rest))
+                      (errorf "sxmml syntax error, near \"~a\" on ~a track" rest ch))]))])
     (values
      ;(generator->lseq (peg-parser->generator parser (generator->lseq (string->generator str))))
      (generator->list (peg-parser->generator parser (generator->lseq (string->generator str))))
