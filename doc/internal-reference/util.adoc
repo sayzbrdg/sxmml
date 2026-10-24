@@ -11,6 +11,6 @@
 
 [source,console]
 ----
-$ gosh -I. -e '(use sxmml.util) (print (sxmml-bpm\->timer-b 120))'
+$ gosh -I. -e '(use sxmml.util) (print (sxmml-bpm->timer-b 120))'
 183
 ----
