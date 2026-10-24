@@ -160,6 +160,7 @@
                             %pmd-pcm-volume-change-set!))
 
 (define (%pmd-track-u8vector-set! index hoffset lis voiceproc volproc volcproc)
+  (define loop-seen? #f)
   (define u8vec (vector-ref (slot-ref (sxmml-pmd-binary-environment) 'track) index))
   (define overall-offset (slot-ref (sxmml-pmd-binary-environment) 'offset))
   (define repeat-stack ())
@@ -203,6 +204,9 @@
            (set! (cdar repeat-stack) (+ track-offset 1))
            (loop (cdr rest) (%pmd-repeat-break-set! u8vec track-offset (car rest)))]
           [(is-a? (car rest) <sxmml-mml-loop>)
+           (when loop-seen?
+             (error "loop command can be used only once in a track"))
+           (set! loop-seen? #t)
            (loop (cdr rest) (%pmd-loop-set! u8vec track-offset (car rest)))]
           [(is-a? (car rest) <sxmml-mml-transpose>)
            (loop (cdr rest) (%pmd-transpose-set! u8vec track-offset (car rest)))]
@@ -256,6 +260,7 @@
          (slot-set! (sxmml-pmd-binary-environment) 'offset (+ (overall-offset) 2))]))
 
 (define (%pmd-rhythm-definition-track-u8vector-set! has-loop? lis)
+  (define loop-seen? #f)
   (define (overall-offset) (slot-ref (sxmml-pmd-binary-environment) 'offset))
   (define u8vec (vector-ref (slot-ref (sxmml-pmd-binary-environment) 'track) 11))
   (define repeat-stack ())
@@ -296,6 +301,9 @@
                (u8vector-set! u8vec (- (+ end metasize) 1) #xfe)))
            (sxmml-pmd-binary-environment)]
           [(is-a? (car rest) <sxmml-mml-loop>)
+           (when loop-seen?
+             (error "loop command can be used only once in a track"))
+           (set! loop-seen? #t)
            (u8vector-set! u8vec track-offset #xff)
            (receive (lb hb) (%short->le-bytes (+ (overall-offset) track-offset 1))
              (u8vector-set! u8vec 2 lb)

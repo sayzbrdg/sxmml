@@ -84,7 +84,7 @@
 |[[ref-mml-parser-tempo]]`$tempo` |`<sxmml-mml-tempo>` を作る |符号なし値 |link:../../sxmml/mml.scm[mml.scm]
 |[[ref-mml-parser-tempo-absolute]]`$tempo-absolute` |`<sxmml-mml-tempo-absolute>` を作る |符号なし値 |link:../../sxmml/mml.scm[mml.scm]
 |[[ref-mml-parser-detune]]`$detune` |`<sxmml-mml-detune>` を作る |符号付き値 |link:../../sxmml/mml.scm[mml.scm]
-|[[ref-mml-parser-loop]]`$loop` |`<sxmml-mml-loop>` を作る |`loop-exists` とループまでの tick を更新。反復 stack が空でなければ `loop command cannot be used inside repeats` エラー |link:../../sxmml/mml.scm[mml.scm]
+|[[ref-mml-parser-loop]]`$loop` |`<sxmml-mml-loop>` を作る |反復 stack が空でなければ `loop command cannot be used inside repeats`、`loop-exists` が真なら `loop command can be used only once in a track` エラー。検査後に `loop-exists` とループまでの tick を更新する。通常・リズム共通でトラックごとに状態を保持し、登録をまたぐ2個目も拒否する |link:../../sxmml/mml.scm[mml.scm]
 |[[ref-mml-parser-repeat-start]]`$repeat-start` |`<sxmml-mml-repeat-start>` を作る |反復 stack と tick stack に開始状態を積む |link:../../sxmml/mml.scm[mml.scm]
 |[[ref-mml-parser-repeat-break]]`$repeat-break` |`<sxmml-mml-repeat-break>` を作る |反復 stack の終了時復元値を記録。反復の外なら `break command cannot be used outside of repeats`、同じ反復の 2 個目以降なら `break command can be used only once in a repeat` エラー |link:../../sxmml/mml.scm[mml.scm]
 |[[ref-mml-parser-repeat-end]]`$repeat-end` |正の正確な整数の回数を値にした `<sxmml-mml-repeat-end>` を作る |開始前なら `repeat end appeared before repeat start`、回数0なら `repeat count must be a positive exact integer:` と値を示して失敗。検査の後に stack を取り出し累計 tick を更新。脱出のある反復では、既定音長・オクターブ・移調値を脱出位置の設定へ戻す |link:../../sxmml/mml.scm[mml.scm]

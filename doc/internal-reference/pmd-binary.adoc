@@ -25,6 +25,8 @@
 
 == 内部手続きの群
 
+通常トラックの `%pmd-track-u8vector-set!` と、リズム定義の `%pmd-rhythm-definition-track-u8vector-set!` は、既存のIR出力走査中にループ開始を処理済みかを保持します。2個目は区切りやポインタをバッファへ書く前に `loop command can be used only once in a track` エラーとします。状態はトラックごとに独立し、解析コンテキストの `loop-exists` に依存せず、直接渡されたIRも検査します。
+
 [cols="2,5",options="header"]
 |===
 |群 |概要

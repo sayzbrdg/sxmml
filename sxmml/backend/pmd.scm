@@ -124,6 +124,7 @@
   (%track-output track part %pmd-pcm-voice-output %pmd-pcm-volume-output %pmd-pcm-volume-change-output))
 
 (define (%pmd-track-output lis voiceproc volproc volcproc)
+  (define loop-seen? #f)
   (let loop ([rest lis])
     (cond [(null? rest)
            ()]
@@ -167,6 +168,9 @@
            (%pmd-repeat-break-output (car rest))
            (loop (cdr rest))]
           [(is-a? (car rest) <sxmml-mml-loop>)
+           (when loop-seen?
+             (error "loop command can be used only once in a track"))
+           (set! loop-seen? #t)
            (%pmd-loop-output (car rest))
            (loop (cdr rest))]
           [(is-a? (car rest) <sxmml-mml-transpose>)
@@ -209,11 +213,15 @@
     (%pmd-rhythm-deploy-track-output has-loop? lis)))
 
 (define (%pmd-rhythm-definition-track-output has-loop? lis)
+  (define loop-seen? #f)
   (define (loop rest)
     (cond [(null? rest)
            (display "\r\n")
            ()]
           [(is-a? (car rest) <sxmml-mml-loop>)
+           (when loop-seen?
+             (error "loop command can be used only once in a track"))
+           (set! loop-seen? #t)
            (display "\r\n")
            (cdr rest)]
           [(is-a? (car rest) <sxmml-mml-rest>)
