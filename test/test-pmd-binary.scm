@@ -69,8 +69,29 @@
                  (if (< index 12) (position (+ index 1)) (u8vector-length data)))))
   (define zero-voice
     `(define-opn-voice 0 (0 0) ,@(make-list 4 '(0 0 0 0 0 0 0 0 0))))
+  ;; パーサーを通さず、ループ開始が2個のIRをバックエンドへ渡す。
+  (define (multiple-loop-output track)
+    (define (event instrument)
+      (if (eq? track 'L)
+        (make <sxmml-rhythm-emit> :value #t :ticks 12 instrument #t)
+        (make <sxmml-mml-rest> :ticks 12)))
+    (parameterize ([sxmml-environment (make <sxmml-environment>)]
+                   [sxmml-source-file (work-file "direct-loop.sxl")])
+      (pmd-binary)
+      (slot-set! (sxmml-environment) 'output (work-file #"direct-loop-~|track|.m"))
+      (slot-set! (sxmml-environment) 'optimize #f)
+      (sxmml-ir-register! (list (event :bass) (make <sxmml-mml-loop>)
+                                (event :snare) (make <sxmml-mml-loop>)
+                                (event :hihat)) track)
+      (sxmml-pmd-binary-output)))
   (unwind-protect
       (begin
+        (test* "通常トラックの直接IR入力で2個目のLを拒否する"
+               (test-error <error> "loop command can be used only once in a track")
+               (multiple-loop-output 'G))
+        (test* "リズムの直接IR入力で2個目のLを拒否する"
+               (test-error <error> "loop command can be used only once in a track")
+               (multiple-loop-output 'L))
         (test* "入力名なしのライブラリ利用では ./a.m を既定値として記録する"
                '("./a.m" "./a.m")
                (parameterize ([sxmml-environment (make <sxmml-environment>)]

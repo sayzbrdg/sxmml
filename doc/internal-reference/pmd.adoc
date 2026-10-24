@@ -9,6 +9,10 @@ PMD4 向けに利用するときは `pmd`、PMD3 向けには `pmd3` を指定�
 
 == モード、状態、出力ファイル
 
+通常トラックの `%pmd-track-output` と、リズム定義の `%pmd-rhythm-definition-track-output` は、既存のIR出力走査中にループ開始を処理済みかを保持し、2個目で `loop command can be used only once in a track` エラーとします。リズムではR0からR1へ状態を引き継ぎます。解析コンテキストの `loop-exists` に依存せず、直接渡されたIRも検査します。
+
+`%pmd-source-output` は出力先と同じディレクトリの一時ファイルへ書き、成功後に出力先へ改名します。R1の出力途中で重複を検出して失敗した場合も既存出力を保持し、`call-with-temporary-file` の後始末で一時ファイルを破棄します。
+
 [cols="2,4,4,1",options="header"]
 |===
 |名前・書式 |役割・引数 |結果・状態・失敗条件 |ソース

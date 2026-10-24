@@ -84,8 +84,44 @@
           (find #/^R0 / (string-split (file->string (slot-ref (sxmml-environment) 'output)
                                                     :encoding "shift_jis")
                                       "\r\n"))))))
+  ;; パーサーを通さず、ループ開始が2個のIRをバックエンドへ渡す。
+  (define (multiple-loop-output track output)
+    (define (event instrument)
+      (if (eq? track 'L)
+        (make <sxmml-rhythm-emit> :value #t :ticks 12 instrument #t)
+        (make <sxmml-mml-rest> :ticks 12)))
+    (parameterize ([sxmml-environment (make <sxmml-environment>)]
+                   [sxmml-source-file (work-file "direct-loop.sxl")])
+      (pmd-source)
+      (slot-set! (sxmml-environment) 'output output)
+      (slot-set! (sxmml-environment) 'optimize #f)
+      (sxmml-ir-register! (list (event :bass) (make <sxmml-mml-loop>)
+                                (event :snare) (make <sxmml-mml-loop>)
+                                (event :hihat)) track)
+      (sxmml-pmd-source-output)))
   (unwind-protect
       (begin
+        (test* "通常トラックの直接IR入力で2個目のLを拒否する"
+               (test-error <error> "loop command can be used only once in a track")
+               (multiple-loop-output 'G (work-file "direct-loop-G.mml")))
+        (let* ([dir (work-file "direct-loop-L")]
+               [output (build-path dir "out.mml")]
+               [snapshot (^[] (map (^[name] (cons name (file->bytevector (build-path dir name))))
+                                   (sort (directory-list dir :children? #t) string<?)))])
+          (make-directory* dir)
+          (with-output-to-file output (^[] (display "既存の生成物")))
+          (let* ([before (snapshot)]
+                 [message (guard (e [(is-a? e <error>) (condition-message e)])
+                            (multiple-loop-output 'L output)
+                            'accepted)])
+            (test* "リズムの直接IR入力の重複で失敗し、既存出力を保ち一時ファイルを残さない"
+                   '("loop command can be used only once in a track" #t)
+                   (list message (equal? before (snapshot))))))
+        (test* "Lが1個のリズムのR0・R1・Kを維持する"
+               '("R0 \\br%12" "R1 \\sr%12" "K l%12 R0 L R1")
+               (filter #/^(R[01]|K) /
+                       (string-split (generated-text "single-rhythm-loop"
+                                                     '((rhythm L "@b8L@s8"))) "\r\n")))
         ;; 生成物の再現性 (#16)
         ;; 音色定義は番号順に出力し、同じ入力からはバイト単位で同じ生成物が得られること
         (test* "voice definitions are output in number order"
