@@ -333,7 +333,7 @@
         (fold (^[value offset]
                 (%size-check (+ track-start-pos offset 26))
                 (u8vector-set! t13u8vec offset (%pmd-fm-voice-number value))
-                (u8vector-copy! t13u8vec (+ offset 1) (list->u8vector (%opn-voice-data-get (slot-ref value 'value))))
+                (u8vector-copy! t13u8vec (+ offset 1) (list->u8vector (%opn-voice-form->register-data (slot-ref value 'value))))
                 (+ offset 26))
               0
               (sort (filter (cut hash-table-exists? (slot-ref (sxmml-pmd-binary-environment) 'used-fm-voices) <>)
@@ -802,7 +802,7 @@
                              [(10) "b-"]
                              [(11) "b"]))))
 
-(define (%opn-voice-data-get form)
+(define (%opn-voice-form->register-data form)
   (define (operator->register opform)
     (match opform
       [(ar dr sr rr sl tl ks ml dt dt2 seg ams)

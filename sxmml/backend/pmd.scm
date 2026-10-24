@@ -101,7 +101,7 @@
 
 (define (%track-output track part voice-proc! vol-set-proc! vol-change-proc!)
   (let ([lis (sxmml-optimize-tree track :optimize (slot-ref (sxmml-environment) 'optimize))]
-        [mode (%find-mode-ticks track)])
+        [mode (%most-frequent-ticks-find track)])
     (unless (null? lis)
       (parameterize ([sxmml-pmd-track-environment (make <sxmml-pmd-track-environment>)])
         (format #t "~a " part)
@@ -253,7 +253,7 @@
 (define (%pmd-rhythm-deploy-track-output has-loop? lis)
   (unless (null? lis)
     (display "K ")
-    (and-let1 mode (%find-mode-ticks 'L)
+    (and-let1 mode (%most-frequent-ticks-find 'L)
               (slot-set! (sxmml-pmd-track-environment) 'mode mode)
               (format #t "l%~d " mode))
     (display "R0")
@@ -544,7 +544,7 @@
            (format #t "(%~d" (* (slot-ref obj 'value) -1))])))
 
 (define (%pmd-portamento-output obj)
-  (define (display-octave noteoct)
+  (define (octave-output noteoct)
     (let1 octave (slot-ref (sxmml-pmd-track-environment) 'octave)
       (cond [(or (> (- noteoct octave) 1) (< (- noteoct octave) -1))
              (slot-set! (sxmml-pmd-track-environment) 'octave noteoct)
@@ -558,9 +558,9 @@
   (let ([start (%note-number->pmd-note (car (slot-ref obj 'value)))]
         [end (%note-number->pmd-note (cdr (slot-ref obj 'value)))]
         [ticks (slot-ref obj 'ticks)])
-    (display-octave (car start))
+    (octave-output (car start))
     (format #t "{~a" (cdr start))
-    (display-octave (car end))
+    (octave-output (car end))
     (format #t "~a}%~d" (cdr end) ticks)))
 
 (define (%pmd-ssg-voice-output obj)
@@ -668,7 +668,7 @@
     (format (current-error-port)
             "warning: metadata 'filename' is ignored; use the -o option of sxlc to set the output file\n")))
 
-(define (%find-mode-ticks track)
+(define (%most-frequent-ticks-find track)
   (and-let1 mode-pair
             (find-max (slot-ref (hash-table-get (slot-ref (sxmml-environment) 'track) track) 'ticks-statistics)
                       :key (^p (cdr p)))

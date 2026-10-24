@@ -117,7 +117,7 @@
           [len (ash (slot-ref obj 'ticks) -1)])
       (slot-set! obj 'ticks (- t len))
       (list (build-vol rep) (build-prev prev len) obj (build-vol (* -1 (+ vol rep))))))
-  (define (make-prev)
+  (define (first-note-number-find)
     (let loop ([rest (sxmml-compile-mml! fir (make <sxmml-mml-context>))])
       (cond [(null? rest)
              (error "no note data: " fir)]
@@ -130,7 +130,7 @@
   (%processor-value-check "mml-echo" "voldown" vol exact-integer? "an integer")
   (%processor-value-check "mml-echo" "restdown" rep exact-integer? "an integer")
   (let loop ([rest ir]
-             [prev (make-prev)]
+             [prev (first-note-number-find)]
              [vol? #f]                  ; restore volume?
              [rstack ()]                ; repeat stack
              [res ()])

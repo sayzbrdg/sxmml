@@ -55,7 +55,7 @@ PMD4 向けに利用するときは `pmd`、PMD3 向けには `pmd3` を指定�
 |[[ref-pmd-internal-pmd-rhythm-track-output]]`(%pmd-rhythm-track-output track)` |L の最適化済み列を R と K に分ける |ループの有無を調べ、トラック状態を設定。未登録なら最適化で失敗 |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-internal-pmd-rhythm-definition-track-output]]`(%pmd-rhythm-definition-track-output has-loop? lis)` |リズムの発音、休符、音量、パン、反復を R0/R1 行に書く |ループがある場合は分割位置の後を R1 として続ける |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-internal-pmd-rhythm-deploy-track-output]]`(%pmd-rhythm-deploy-track-output has-loop? lis)` |R0 と任意の R1 を使う K 行を書く |L トラックの最頻 tick 数を既定音長にできる |link:../../sxmml/backend/pmd.scm[pmd.scm]
-|[[ref-pmd-internal-find-mode-ticks]]`(%find-mode-ticks track)` |`ticks-statistics` から最頻 tick 数を探す |記録が空なら `#f`。未登録 track なら検索で失敗 |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-internal-most-frequent-ticks-find]]`(%most-frequent-ticks-find track)` |`ticks-statistics` から最頻 tick 数を探す |記録が空なら `#f`。未登録 track なら検索で失敗 |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |===
 
 == 通常 MML オブジェクトの出力
