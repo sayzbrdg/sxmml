@@ -42,9 +42,9 @@
          [cmd "c|command=s" #f]
          [output "o|output=s" #f]
          [wsl "w|wsl" #f]
-         [#f "l|list" => %backend-list]
+         [#f "l|list" => %backend-list-output]
          [#f "h|help" => (^[] (%usage 0))]
-         [#f "v|version" => %version]
+         [#f "v|version" => %version-output]
          . args)
       (when (null? args)
         (%usage-error "no source file specified"))
@@ -65,7 +65,7 @@
                           (guard (e [else (%usage-error (%error-message e))])
                             (shell-tokenize-string cmd)))
         (parameterize ([sxmml-source-file (sys-normalize-pathname (car args) :absolute #t)]
-                       [sxmml-mode-fixed? (boolean mode)])
+                       [sxmml-mode-fixed (boolean mode)])
           (when mode
             (%mode-select mode))
           (%convert (^[]
@@ -83,7 +83,7 @@
           (format #t "Translate: ~a => ~a\n" (sxmml-source-file) (slot-ref (sxmml-environment) 'output))
           (format #t "Processing Mode: ~a\n" (slot-ref (sxmml-environment) 'mode))
           (format #t "Optimize level: ~d\n\n" optimize)
-          (%print-ticks-information)
+          (%ticks-information-output)
           (if cmd-args
             (%post-process cmd cmd-args wsl)
             0))))))
@@ -181,23 +181,23 @@
   (newline)
   (exit code))
 
-(define (%version)
+(define (%version-output)
   (format #t "sxmml translator version ~a\n\n"
           (slot-ref (find-gauche-package-description "sxmml") 'version))
   (exit 0))
 
-(define (%backend-list)
+(define (%backend-list-output)
   (format #t "sxmml available modules:\n\n")
   (library-for-each 'sxmml.backend.* (^[m p] (format #t "  ~a:\n    \"~a\"\n" m p)))
   (newline)
   (exit 0))
 
-(define (%print-ticks-information)
+(define (%ticks-information-output)
   (let1 track-ht (slot-ref (sxmml-environment) 'track)
     (for-each (^c (let1 track (hash-table-get track-ht c)
                     (when (> (slot-ref track 'total-ticks) 0)
                       (format #t "Track ~a: total: ~a" c (slot-ref track 'total-ticks))
-                      (when (slot-ref track 'loop-exists?)
+                      (when (slot-ref track 'loop-exists)
                         (format #t " / loop: ~a" (slot-ref track 'loop-ticks)))
                       (newline))))
               (sort (hash-table-keys (slot-ref (sxmml-environment) 'track))

@@ -14,7 +14,7 @@
        [workdir (sys-mkdtemp (build-path (temporary-directory) "sxmml-measure-test"))]
        [tmpdir (rlet1 dir (build-path workdir "tmp") (make-directory* dir))])
   ;; name.sxl に text を書いて返す
-  (define (write-source name text)
+  (define (source-output name text)
     (rlet1 source (build-path workdir #"~|name|.sxl")
       (with-output-to-file source (^[] (display text)))))
   ;; args で計測の道具を実行し、終了値と標準出力の行のリストを返す。一時ディレクトリは
@@ -33,7 +33,7 @@
   ;; 列のリストからオブジェクト数を取り出す
   (define (objects row) (string->number (list-ref row 3 "")))
 
-  (let* ([source (write-source "repeat" "(mml A \"[aaaaaaaa]2 cdecdecd\")")]
+  (let* ([source (source-output "repeat" "(mml A \"[aaaaaaaa]2 cdecdecd\")")]
          [result (measure "-m" "pmd" source)]
          [table (rows result)])
     (test* "the default configs are O2, O3 and O4" '(0 ("O2" "O3" "O4"))
@@ -49,21 +49,21 @@
     (test* "E changes the -O 4 settings" '(11) (map objects (rows (measure source "O4:E=8"))))
     (test* "no temporary directory is left" '() (directory-list tmpdir :children? #t)))
 
-  (let1 source (write-source "window" "(mml A \"c4d8e16f4g8a16b4[cd]64c4d8e16f4g8a16b4[cd]64\")")
+  (let1 source (source-output "window" "(mml A \"c4d8e16f4g8a16b4[cd]64c4d8e16f4g8a16b4[cd]64\")")
     ;; 窓幅 256 では外側の反復を取り逃がし、: と [cd]64 の 5 個が既定の 1024 より多い
     (test* "W changes the -O 4 settings" '(5)
            (let1 counts (map objects (rows (measure source "O4" "O4:W=256")))
              (and (= (length counts) 2) (every number? counts)
                   (list (- (cadr counts) (car counts)))))))
 
-  (let1 source (write-source "bad" "(mml A \"c0\")")
+  (let1 source (source-output "bad" "(mml A \"c0\")")
     (test* "a failed conversion is reported in the row" #t
            (boolean (any #/^O2 +failed \(exit status [1-9][0-9]*\)$/ (cadr (measure source "O2")))))
     (test* "no temporary directory is left after a failure" '()
            (directory-list tmpdir :children? #t)))
 
   (test* "an invalid config is a usage error" 2
-         (car (measure (write-source "plain" "(mml A \"c\")") "O5")))
+         (car (measure (source-output "plain" "(mml A \"c\")") "O5")))
   (test* "a missing source is a usage error" 2 (car (measure)))
   (remove-directory* workdir))
 

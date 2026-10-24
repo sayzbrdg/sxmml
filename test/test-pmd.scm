@@ -30,7 +30,7 @@
     (run-sxlc name forms "-m" "pmd")
     (file->string (work-file #"~|name|.mml")))
   ;; name.sxl に text を書いて返す
-  (define (write-source name text)
+  (define (source-output name text)
     (rlet1 source (work-file #"~|name|.sxl")
       (with-output-to-file source (^[] (display text)))))
   ;; args を付けて sxlc を実行し、終了値と標準エラー出力の行のリストを返す
@@ -128,7 +128,7 @@
           (dolist [case '((256 0 #t) (257 1 #f))]
             (let* ([n (car case)]
                    [output (work-file #"voices-~|n|.mml")]
-                   [source (write-source #"voices-~n"
+                   [source (source-output #"voices-~n"
                                          (with-output-to-string
                                            (^[] (for-each write (append (many-voices n)
                                                                         '((mml A "@{v000}c8")))))))]
@@ -260,9 +260,9 @@
         (test* "a PCM voice 0 is accepted"
                0
                (car (sxlc-status "-m" "pmd" "-o" (work-file "voice-pcm-0.mml")
-                                 (write-source "voice-pcm-0" "(mml J \"@0c8\")"))))
+                                 (source-output "voice-pcm-0" "(mml J \"@0c8\")"))))
         (dolist (case '(("J" "256") ("J" "1.5") ("J" "x") ("G" "10") ("G" "1.5") ("G" "x")))
-          (let1 source (write-source #"voice-~(car case)-~(cadr case)"
+          (let1 source (source-output #"voice-~(car case)-~(cadr case)"
                                      #"(mml ~(car case) \"@{~(cadr case)}c8\")")
             (test* #"a voice ~(cadr case) on track ~(car case) fails"
                    '(1 #t)

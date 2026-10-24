@@ -34,7 +34,7 @@
   (use sxmml.classes)
   (use sxmml.environment)
   (use sxmml.mml)
-  (export sxmml-compile-mml sxmml-compile-rhythm sxmml-compile-string sxmml-compile-mml/cc sxmml-compile-rhythm/cc
+  (export sxmml-compile-mml! sxmml-compile-rhythm! sxmml-compile-string! sxmml-compile-track-mml sxmml-compile-track-rhythm
           mml rhythm
           ))
 (select-module sxmml.compiler)
@@ -43,13 +43,13 @@
 ;;; compiler
 ;;;
 
-(define (sxmml-compile-mml str ctx)
-  (sxmml-compile-string (make-mml-parser ctx) str ctx))
+(define (sxmml-compile-mml! str ctx)
+  (sxmml-compile-string! (make-sxmml-mml-parser ctx) str ctx))
 
-(define (sxmml-compile-rhythm str ctx)
-  (sxmml-compile-string (make-rhythm-parser ctx) str ctx))
+(define (sxmml-compile-rhythm! str ctx)
+  (sxmml-compile-string! (make-sxmml-rhythm-parser ctx) str ctx))
 
-(define (sxmml-compile-string parser str ctx)
+(define (sxmml-compile-string! parser str ctx)
   (unless (string? str)
     (error "string is expected, but something else is given: " (slot-ref ctx 'track) str))
   (guard (e [(is-a? e <parse-error>)
@@ -61,17 +61,17 @@
      (generator->list (peg-parser->generator parser (generator->lseq (string->generator str))))
      ctx)))
 
-(define (sxmml-compile-mml/cc track str)
+(define (sxmml-compile-track-mml track str)
   (let1 ctx (sxmml-track-get track)
     (unless ctx
       (error "no defined track: " track))
-    (sxmml-compile-mml str ctx)))
+    (sxmml-compile-mml! str ctx)))
 
-(define (sxmml-compile-rhythm/cc track str)
+(define (sxmml-compile-track-rhythm track str)
   (let1 ctx (sxmml-track-get track)
     (unless ctx
       (error "no defined track: " track))
-    (sxmml-compile-rhythm str ctx)))
+    (sxmml-compile-rhythm! str ctx)))
 
 ;;
 ;;  syntax
@@ -80,31 +80,31 @@
 (define-syntax mml
   (er-macro-transformer
     (^[form rename id=?]
-      (define (build-regist track body)
+      (define (build-registration track body)
         (quasirename rename
-          `(sxmml-sio-regist!
-            (sxmml-compile-mml/cc ',track (write-to-string (list ,@body) write-tree)) ',track)))
+          `(sxmml-ir-register!
+            (sxmml-compile-track-mml ',track (write-to-string (list ,@body) write-tree)) ',track)))
       (match form
         [(_ (track ..1) body ...)
          (quasirename rename
            `(begin
-              ,@(fold (^[t r] (cons (build-regist t body) r)) () track)))]
+              ,@(fold (^[t r] (cons (build-registration t body) r)) () track)))]
         [(_ track body ...)
-         (build-regist track body)]
+         (build-registration track body)]
         ))))
 
 (define-syntax rhythm
   (er-macro-transformer
     (^[form rename id=?]
-      (define (build-regist track body)
+      (define (build-registration track body)
         (quasirename rename
-          `(sxmml-sio-regist!
-            (sxmml-compile-rhythm/cc ',track (write-to-string (list ,@body) write-tree)) ',track)))
+          `(sxmml-ir-register!
+            (sxmml-compile-track-rhythm ',track (write-to-string (list ,@body) write-tree)) ',track)))
       (match form
         [(_ (track ..1) body ...)
          (quasirename rename
            `(begin
-              ,@(fold (^[t r] (cons (build-regist t body) r)) () track)))]
+              ,@(fold (^[t r] (cons (build-registration t body) r)) () track)))]
         [(_ track body ...)
-         (build-regist track body)]
+         (build-registration track body)]
         ))))

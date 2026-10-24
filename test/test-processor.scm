@@ -17,7 +17,7 @@
 (let* ([workdir (sys-mkdtemp (build-path (temporary-directory) "sxmml-test"))])
   (define (work-file name) (build-path workdir name))
   ;; name.sxl に text を書いて返す
-  (define (write-source name text)
+  (define (source-output name text)
     (rlet1 source (work-file #"~|name|.sxl")
       (with-output-to-file source (^[] (display text)))))
   (unwind-protect
@@ -35,7 +35,7 @@
                                   (filter #/^[A-L] / (string-split (file->string (slot-ref (sxmml-environment) 'output))
                                                                    "\r\n")))))]
                [load-error (^[name text]
-                             (let1 source (write-source name text)
+                             (let1 source (source-output name text)
                                (parameterize ([sxmml-environment (make <sxmml-environment>)]
                                               [sxmml-source-file source])
                                  (pmd-source)

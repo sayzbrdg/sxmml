@@ -32,7 +32,7 @@
   (use text.tree)
   (use sxmml.classes)
   (use sxmml.environment)
-  (export make-mml-parser make-rhythm-parser ;$NOTE-COMMANDS
+  (export make-sxmml-mml-parser make-sxmml-rhythm-parser ;$note-commands
           ))
 (select-module sxmml.mml)
 
@@ -56,55 +56,55 @@
 (define-inline (change-sign number)
   (* number -1))
 
-(define-syntax $%return
+(define-syntax %$return
   (er-macro-transformer
     (^[form rename id=?]
       (quasirename rename
         `(lambda [seq] (values #f ,@(cdr form) seq))))))
 
-(define (mml-command->$ param class proc)
+(define (%make-mml-value-parser param class proc)
   ($let ([data param]
-         [$SPC])
+         [$space])
         ($return (make class :value (proc data)))))
-(define (mml-command0->$ class)
-  ($%return
+(define (%make-mml-command-parser class)
+  (%$return
    (make class)))
-(define (mml-command*->$ param class proc slots)
+(define (%make-mml-slots-parser param class proc slots)
   ($let ([data param]
-         [$SPC])
+         [$space])
         (let ([vals (fold (^[s d r]
                             (cons* s (proc d) r))
                           ()
                           slots
                           data)])
           ($return (apply make class vals)))))
-(define (mml-env-command->$ param slot proc)
+(define (%make-mml-context-value-parser param slot proc)
   ($let ([data param]
-         [$SPC])
+         [$space])
         (slot-set! (sxmml-mml-context) slot (proc data))
         ($return (make <sxmml-mml-nop>))))
-(define (mml-env-command0->$ slot proc)
-  ($%return
+(define (%make-mml-context-command-parser slot proc)
+  (%$return
    (begin (slot-set! (sxmml-mml-context) slot (proc))
           (make <sxmml-mml-nop>))))
 
-(define (make-mml-parser env)
-  ($parameterize ([sxmml-mml-context env]) $NOTE-COMMANDS))
+(define (make-sxmml-mml-parser env)
+  ($parameterize ([sxmml-mml-context env]) $note-commands))
 
-(define (make-rhythm-parser env)
-  ($parameterize ([sxmml-mml-context env]) $RHYTHM-COMMANDS))
+(define (make-sxmml-rhythm-parser env)
+  ($parameterize ([sxmml-mml-context env]) $rhythm-commands))
 
 ;; general value
-(define-inline $SPC ($many_ ($. #[\s])))
-(define-inline $NUMBER ($many1 ($. #[0-9])))
-(define-inline $INTEGER ($list* ($optional ($. #[-+])) ($many1 ($. #[0-9]))))
-(define-inline $PARAMETER ($or $NUMBER
-                               ($between ($seq ($. #\{) $SPC) ($many1 ($. #[^\s{}])) ($seq $SPC ($. #\})))))
-(define-inline $NUMPARAM ($or $NUMBER
-                              ($between ($seq ($. #\{) $SPC) $NUMBER ($seq $SPC ($. #\})))))
-(define-inline $INTPARAM ($or $INTEGER
-                              ($between ($seq ($. #\{) $SPC) $INTEGER ($seq $SPC ($. #\})))))
-(define-inline $MULTIPARAM ($between ($seq ($. #\{)) ($many1 ($seq $SPC ($many1 ($. #[^\s{}])))) ($seq $SPC ($. #\}))))
+(define-inline $space ($many_ ($. #[\s])))
+(define-inline $number ($many1 ($. #[0-9])))
+(define-inline $integer ($list* ($optional ($. #[-+])) ($many1 ($. #[0-9]))))
+(define-inline $parameter ($or $number
+                               ($between ($seq ($. #\{) $space) ($many1 ($. #[^\s{}])) ($seq $space ($. #\})))))
+(define-inline $number-parameter ($or $number
+                              ($between ($seq ($. #\{) $space) $number ($seq $space ($. #\})))))
+(define-inline $integer-parameter ($or $integer
+                              ($between ($seq ($. #\{) $space) $integer ($seq $space ($. #\})))))
+(define-inline $multiple-parameters ($between ($seq ($. #\{)) ($many1 ($seq $space ($many1 ($. #[^\s{}])))) ($seq $space ($. #\}))))
 
 
 ;; note & rest
@@ -125,17 +125,17 @@
                 ([#\b] 11))])
     (+ (* octave 12) note different transpose)))
 
-(define $notename
+(define $note-name
   ($let ([name ($. #[a-gr])]
          [accidentals ($many ($. #[-+]))]
-         [$SPC])
+         [$space])
         ($return (if (char=? name #\r)
                    (make <sxmml-mml-rest> :value #f)
                    (make <sxmml-mml-note> :value (%proc-note-number name accidentals))))))
 
-(define (length->$ $number $dots)
+(define (%make-note-length-parser $number $dots)
   ($let ([number $number]
-         [$SPC]
+         [$space]
          [dots $dots])
         ($return (length->ticks (rope->number number) (length dots)))))
 (define (length->ticks len dots)
@@ -152,17 +152,17 @@
         [clen (or len (slot-ref (sxmml-mml-context) 'default-length))])
     (dots-calculate (/ (ash res 2) clen) dots)))
 
-(define-inline $notelength ($or (length->$ $NUMBER ($many ($. #\.)))
-                                (length->$ ($return #f) ($many1 ($. #\.)))))
-(define-inline $notelength0 (length->$ ($optional $NUMBER) ($many ($. #\.))))
-(define $tickslength ($let ([($. #\%)] [$SPC] [num $NUMBER] [$SPC]) ($return (rope->positive-number num))))
-(define $duration ($let ([f ($or $tickslength $notelength0)]
-                         [l ($many ($try ($seq ($. #\&) $SPC ($or $tickslength $notelength))))])
+(define-inline $note-length ($or (%make-note-length-parser $number ($many ($. #\.)))
+                                (%make-note-length-parser ($return #f) ($many1 ($. #\.)))))
+(define-inline $optional-note-length (%make-note-length-parser ($optional $number) ($many ($. #\.))))
+(define $tick-length ($let ([($. #\%)] [$space] [num $number] [$space]) ($return (rope->positive-number num))))
+(define $duration ($let ([f ($or $tick-length $optional-note-length)]
+                         [l ($many ($try ($seq ($. #\&) $space ($or $tick-length $note-length))))])
                         ($return (apply + f l))))
-(define $NOTE
-  ($let ([o $notename]
+(define $note
+  ($let ([o $note-name]
          [t $duration]
-         [$SPC])
+         [$space])
         (let1 ct (car (slot-ref (sxmml-mml-context) 'current-ticks))
           (set! (car ct) (+ t (car ct)))
           (slot-set! o 'ticks t)
@@ -170,75 +170,75 @@
           ($return o))))
 
 ;; general command
-(define-inline $LENGTH (mml-env-command->$ $NUMPARAM 'default-length rope->number))
-(hash-table-set! *note-command* #\l $LENGTH)
-(define-inline $OCTAVE (mml-env-command->$  $NUMPARAM 'current-octave rope->number))
-(hash-table-set! *note-command* #\o $OCTAVE)
-(define-inline $OCTAVE-UP
-  (mml-env-command0->$ 'current-octave
+(define-inline $length (%make-mml-context-value-parser $number-parameter 'default-length rope->number))
+(hash-table-set! *note-command* #\l $length)
+(define-inline $octave (%make-mml-context-value-parser  $number-parameter 'current-octave rope->number))
+(hash-table-set! *note-command* #\o $octave)
+(define-inline $octave-up
+  (%make-mml-context-command-parser 'current-octave
                        (^[] (+ (slot-ref (sxmml-mml-context) 'current-octave) 1))))
-(hash-table-set! *note-command* #\> $OCTAVE-UP)
-(define-inline $OCTAVE-DOWN
-  (mml-env-command0->$ 'current-octave
+(hash-table-set! *note-command* #\> $octave-up)
+(define-inline $octave-down
+  (%make-mml-context-command-parser 'current-octave
                        (^[] (- (slot-ref (sxmml-mml-context) 'current-octave) 1))))
-(hash-table-set! *note-command* #\< $OCTAVE-DOWN)
-(define-inline $VOLUME (mml-command->$ $NUMPARAM <sxmml-mml-volume> rope->number))
-(define-inline $VOLUME-CHANGE (mml-command->$ $INTPARAM <sxmml-mml-volume-change> rope->number))
-(define-inline $VOLUME-COMMAND ($or $VOLUME
-                                    ($seq ($. #\*) $VOLUME-CHANGE)))
-(hash-table-set! *note-command* #\v $VOLUME-COMMAND)
-(define $VOLUME-UP
-  ($%return
+(hash-table-set! *note-command* #\< $octave-down)
+(define-inline $volume (%make-mml-value-parser $number-parameter <sxmml-mml-volume> rope->number))
+(define-inline $volume-change (%make-mml-value-parser $integer-parameter <sxmml-mml-volume-change> rope->number))
+(define-inline $volume-command ($or $volume
+                                    ($seq ($. #\*) $volume-change)))
+(hash-table-set! *note-command* #\v $volume-command)
+(define $volume-up
+  (%$return
    (make <sxmml-mml-volume-change>
      :value (slot-ref (sxmml-mml-context) 'volume-delta))))
-(hash-table-set! *note-command* #\) $VOLUME-UP)
-(define $VOLUME-DOWN
-  ($%return
+(hash-table-set! *note-command* #\) $volume-up)
+(define $volume-down
+  (%$return
    (make <sxmml-mml-volume-change>
      :value (change-sign (slot-ref (sxmml-mml-context) 'volume-delta)))))
-(hash-table-set! *note-command* #\( $VOLUME-DOWN)
-(define-inline $PAN (mml-command->$  $NUMPARAM <sxmml-mml-pan> rope->number))
-(hash-table-set! *note-command* #\p $PAN)
-(define-inline $GATETIME (mml-command->$ $NUMPARAM <sxmml-mml-gatetime> rope->number))
-(hash-table-set! *note-command* #\q $GATETIME)
-(define-inline $TIE (mml-command0->$ <sxmml-mml-tie>))
-(hash-table-set! *note-command* #\& $TIE)
-(define-inline $TRANSPOSE (mml-command->$ $INTPARAM <sxmml-mml-transpose> rope->number))
-(define-inline $TRANSPOSE-ENV (mml-env-command->$ $INTPARAM 'current-transpose rope->number))
-(define-inline $TRANSPOSE-CHANGE (mml-command->$ $INTPARAM <sxmml-mml-transpose-change> rope->number))
-(define-inline $TRANSPOSE-COMMAND ($or $TRANSPOSE
-                                       ($seq ($. #\$) $TRANSPOSE-ENV)
-                                       ($seq ($. #\*) $TRANSPOSE-CHANGE)))
-(hash-table-set! *note-command* #\K $TRANSPOSE-COMMAND)
-(define-inline $TEMPO (mml-command->$ $NUMPARAM <sxmml-mml-tempo> rope->number))
-(hash-table-set! *note-command* #\t $TEMPO)
-(define-inline $TEMPO-ABSOLUTE (mml-command->$ $NUMPARAM <sxmml-mml-tempo-absolute> rope->number))
-(hash-table-set! *note-command* #\T $TEMPO-ABSOLUTE)
-(define-inline $DETUNE (mml-command->$ $INTPARAM <sxmml-mml-detune> rope->number))
-(hash-table-set! *note-command* #\D $DETUNE)
-(define $LOOP
-  ($%return
+(hash-table-set! *note-command* #\( $volume-down)
+(define-inline $pan (%make-mml-value-parser  $number-parameter <sxmml-mml-pan> rope->number))
+(hash-table-set! *note-command* #\p $pan)
+(define-inline $gate-time (%make-mml-value-parser $number-parameter <sxmml-mml-gate-time> rope->number))
+(hash-table-set! *note-command* #\q $gate-time)
+(define-inline $tie (%make-mml-command-parser <sxmml-mml-tie>))
+(hash-table-set! *note-command* #\& $tie)
+(define-inline $transpose (%make-mml-value-parser $integer-parameter <sxmml-mml-transpose> rope->number))
+(define-inline $transpose-env (%make-mml-context-value-parser $integer-parameter 'current-transpose rope->number))
+(define-inline $transpose-change (%make-mml-value-parser $integer-parameter <sxmml-mml-transpose-change> rope->number))
+(define-inline $transpose-command ($or $transpose
+                                       ($seq ($. #\$) $transpose-env)
+                                       ($seq ($. #\*) $transpose-change)))
+(hash-table-set! *note-command* #\K $transpose-command)
+(define-inline $tempo (%make-mml-value-parser $number-parameter <sxmml-mml-tempo> rope->number))
+(hash-table-set! *note-command* #\t $tempo)
+(define-inline $tempo-absolute (%make-mml-value-parser $number-parameter <sxmml-mml-tempo-absolute> rope->number))
+(hash-table-set! *note-command* #\T $tempo-absolute)
+(define-inline $detune (%make-mml-value-parser $integer-parameter <sxmml-mml-detune> rope->number))
+(hash-table-set! *note-command* #\D $detune)
+(define $loop
+  (%$return
    ;; 反復は同じ位置を何度も通り、戻り先を一つに決められないので、L は反復の外にだけ書ける
    (begin (unless (null? (slot-ref (sxmml-mml-context) 'repeat-stack))
             (error "loop command cannot be used inside repeats"))
-          (slot-set! (sxmml-mml-context) 'loop-exists? #t)
+          (slot-set! (sxmml-mml-context) 'loop-exists #t)
           (let loop ([rest (slot-ref (sxmml-mml-context) 'current-ticks)]
                      [buf 0])
             (if (null? (cdr rest))
               (set! (cdar rest) (+ (caar rest) buf))
               (loop (cdr rest) (+ (caar rest) buf))))
           (make <sxmml-mml-loop>))))
-(hash-table-set! *note-command* #\L $LOOP)
+(hash-table-set! *note-command* #\L $loop)
 
-(define $REPEAT-START
-  ($%return
+(define $repeat-start
+  (%$return
    (begin (slot-push! (sxmml-mml-context) 'repeat-stack #f)
           (slot-set! (sxmml-mml-context) 'current-ticks
                      (acons 0 0 (slot-ref (sxmml-mml-context) 'current-ticks)))
           (make <sxmml-mml-repeat-start>))))
-(hash-table-set! *note-command* #\[ $REPEAT-START)
-(define $REPEAT-BREAK
-  ($%return
+(hash-table-set! *note-command* #\[ $repeat-start)
+(define $repeat-break
+  (%$return
    ;; 反復の記録は [ で #f を積み、: でその位置の設定に置き換える。: は一つの反復に一つだけ
    (let1 stack (slot-ref (sxmml-mml-context) 'repeat-stack)
      (cond [(null? stack) (error "break command cannot be used outside of repeats")]
@@ -251,10 +251,10 @@
                        (slot-ref (sxmml-mml-context) 'current-octave)
                        (slot-ref (sxmml-mml-context) 'current-transpose)))
      (make <sxmml-mml-repeat-break>))))
-(hash-table-set! *note-command* #\: $REPEAT-BREAK)
-(define $REPEAT-END
-  ($let ([data $NUMPARAM]
-         [$SPC])
+(hash-table-set! *note-command* #\: $repeat-break)
+(define $repeat-end
+  ($let ([data $number-parameter]
+         [$space])
         ($return (begin
                    (when (null? (slot-ref (sxmml-mml-context) 'repeat-stack))
                      (error "repeat end appeared before repeat start"))
@@ -271,90 +271,90 @@
                        (slot-set! (sxmml-mml-context) 'current-octave (cadr ctx-values))
                        (slot-set! (sxmml-mml-context) 'current-transpose (caddr ctx-values)))
                      (make <sxmml-mml-repeat-end> :value rc))))))
-(hash-table-set! *note-command* #\] $REPEAT-END)
+(hash-table-set! *note-command* #\] $repeat-end)
 
 ;; with parameter(ex. voice etc...)
-(define-inline $VOICE (mml-command->$ $PARAMETER <sxmml-mml-voice> rope->symbol))
-(hash-table-set! *note-command* #\@ $VOICE)
-(define-inline $ENVELOPE (mml-command->$ $PARAMETER <sxmml-mml-envelope> rope->symbol))
-(hash-table-set! *note-command* #\E $ENVELOPE)
-(define $LFO-SET
-  ($let ([data ($or ($list ($seq $SPC ($. #\{) $SPC) ($many1 ($. #[^\s{}])) $SPC ($many1 ($. #[^\s{}])) ($seq $SPC ($. #\}) $SPC))
-                    ($list $SPC $NUMBER ($return #t) ($return #f) $SPC))])
+(define-inline $voice (%make-mml-value-parser $parameter <sxmml-mml-voice> rope->symbol))
+(hash-table-set! *note-command* #\@ $voice)
+(define-inline $envelope (%make-mml-value-parser $parameter <sxmml-mml-envelope> rope->symbol))
+(hash-table-set! *note-command* #\E $envelope)
+(define $lfo-set
+  ($let ([data ($or ($list ($seq $space ($. #\{) $space) ($many1 ($. #[^\s{}])) $space ($many1 ($. #[^\s{}])) ($seq $space ($. #\}) $space))
+                    ($list $space $number ($return #t) ($return #f) $space))])
         (match data
           [(_ id _ ch _)
            ($return (make <sxmml-mml-lfo> :value (rope->symbol id) :channel (and ch (rope->symbol ch))))])))
-(define $LFO-ON
-  ($let ([data ($optional $PARAMETER)]
-         [$SPC])
+(define $lfo-on
+  ($let ([data ($optional $parameter)]
+         [$space])
         ($return (make <sxmml-mml-lfo-switch> :value #t :channel (and data (rope->symbol data))))))
-(define $LFO-OFF
-  ($let ([data ($optional $PARAMETER)]
-         [$SPC])
+(define $lfo-off
+  ($let ([data ($optional $parameter)]
+         [$space])
         ($return (make <sxmml-mml-lfo-switch> :value #f :channel (and data (rope->symbol data))))))
-(define-inline $LFO-COMMAND
-  ($or $LFO-SET
-       ($seq ($. #\t) $LFO-ON)
-       ($seq ($. #\f) $LFO-OFF)))
-(hash-table-set! *note-command* #\M $LFO-COMMAND)
+(define-inline $lfo-command
+  ($or $lfo-set
+       ($seq ($. #\t) $lfo-on)
+       ($seq ($. #\f) $lfo-off)))
+(hash-table-set! *note-command* #\M $lfo-command)
 
-;; (define $PORTAMENT
-;;   ($let ([n1 ($seq ($. #\{) $SPC ($many ($or ($seq ($. #\o) $OCTAVE)
-;;                                              ($seq ($. #\>) $OCTAVE-UP)
-;;                                              ($seq ($. #\<) $OCTAVE-DOWN))) ($. #[a-g]))]
+;; (define $portamento
+;;   ($let ([n1 ($seq ($. #\{) $space ($many ($or ($seq ($. #\o) $octave)
+;;                                              ($seq ($. #\>) $octave-up)
+;;                                              ($seq ($. #\<) $octave-down))) ($. #[a-g]))]
 ;;          [a1 ($many ($. #[-+]))]
-;;          [$SPC]
-;;          [n2 ($seq ($many ($or ($seq ($. #\o) $OCTAVE)
-;;                                              ($seq ($. #\>) $OCTAVE-UP)
-;;                                              ($seq ($. #\<) $OCTAVE-DOWN))) ($. #[a-g]))]
+;;          [$space]
+;;          [n2 ($seq ($many ($or ($seq ($. #\o) $octave)
+;;                                              ($seq ($. #\>) $octave-up)
+;;                                              ($seq ($. #\<) $octave-down))) ($. #[a-g]))]
 ;;          [a2 ($many ($. #[-+]))]
-;;          [($seq $SPC ($. #\}) $SPC)]
+;;          [($seq $space ($. #\}) $space)]
 ;;          [t $duration])
 ;;         (let ([nn1 (%proc-note-number #?=n1 a1)]
 ;;               [nn2 (%proc-note-number #?=n2 a2)])
-;;           ($return (make <sxmml-mml-portament> :value (cons nn1 nn2) :ticks t)))))
-(define $PORTAMENT
-  ($let ([n1 ($seq ($. #\{) $SPC ($many ($or ($seq ($. #\o) $OCTAVE)
-                                             ($seq ($. #\>) $OCTAVE-UP)
-                                             ($seq ($. #\<) $OCTAVE-DOWN))) ($. #[a-g]))]
+;;           ($return (make <sxmml-mml-portamento> :value (cons nn1 nn2) :ticks t)))))
+(define $portamento
+  ($let ([n1 ($seq ($. #\{) $space ($many ($or ($seq ($. #\o) $octave)
+                                             ($seq ($. #\>) $octave-up)
+                                             ($seq ($. #\<) $octave-down))) ($. #[a-g]))]
          [a1 ($many ($. #[-+]))]
-         [$SPC])
+         [$space])
         (let ([nn1 (%proc-note-number n1 a1)])
           ($let
-           ([n2 ($seq ($many ($or ($seq ($. #\o) $OCTAVE)
-                                             ($seq ($. #\>) $OCTAVE-UP)
-                                             ($seq ($. #\<) $OCTAVE-DOWN))) ($. #[a-g]))]
+           ([n2 ($seq ($many ($or ($seq ($. #\o) $octave)
+                                             ($seq ($. #\>) $octave-up)
+                                             ($seq ($. #\<) $octave-down))) ($. #[a-g]))]
             [a2 ($many ($. #[-+]))]
-            [($seq $SPC ($. #\}) $SPC)]
+            [($seq $space ($. #\}) $space)]
             [t $duration])
            (hash-table-update! (slot-ref (sxmml-mml-context) 'ticks-statistics) t (cut + 1 <>) 0)
            (let ([nn2 (%proc-note-number n2 a2)]
                  [ct (car (slot-ref (sxmml-mml-context) 'current-ticks))])
              (set! (car ct) (+ t (car ct)))
-             ($return (make <sxmml-mml-portament> :value (cons nn1 nn2) :ticks t)))))))
-(hash-table-set! *note-command* #\/ $PORTAMENT)
+             ($return (make <sxmml-mml-portamento> :value (cons nn1 nn2) :ticks t)))))))
+(hash-table-set! *note-command* #\/ $portamento)
 
-(define-inline $NOISEFREQ (mml-command->$ $NUMPARAM <sxmml-mml-noise-frequency> rope->number))
-(hash-table-set! *note-command* #\w $NOISEFREQ)
-(define-inline $OUTPUTSW (mml-command->$ $NUMPARAM <sxmml-mml-output-switch> rope->number))
-(hash-table-set! *note-command* #\P $OUTPUTSW)
+(define-inline $noise-frequency (%make-mml-value-parser $number-parameter <sxmml-mml-noise-frequency> rope->number))
+(hash-table-set! *note-command* #\w $noise-frequency)
+(define-inline $output-switch (%make-mml-value-parser $number-parameter <sxmml-mml-output-switch> rope->number))
+(hash-table-set! *note-command* #\P $output-switch)
 
-(define-inline $NOTE-COMMANDS
-  ($seq $SPC ($or $NOTE
+(define-inline $note-commands
+  ($seq $space ($or $note
                   ($let ([cmd ($any)]
-                         [$SPC])
+                         [$space])
                         (hash-table-get *note-command* cmd)))))
 
 ;; rhythm command
-(define (rhythm-command->$ param class proc)
-  ($let ([types $RHYTHM-TYPE]
-         [$SPC]
+(define (%make-rhythm-command-parser param class proc)
+  ($let ([types $rhythm-type]
+         [$space]
          [data param]
-         [$SPC])
-        (let ([args (%rhythm-command-init-value-make types (proc data))])
+         [$space])
+        (let ([args (%rhythm-types->initargs types (proc data))])
           ($return (apply make class args)))))
 
-(define-inline (%rhythm-command-init-value-make types val)
+(define-inline (%rhythm-types->initargs types val)
   (fold (^[t r]
           (cons* (case t
                    ([#\b] :bass)
@@ -368,59 +368,59 @@
         ()
         types))
 
-(define-inline $RHYTHM-TYPE ($or ($between ($seq ($. #\{) $SPC) ($many1 ($. #[bstchi])) ($seq $SPC ($. #\})))
+(define-inline $rhythm-type ($or ($between ($seq ($. #\{) $space) ($many1 ($. #[bstchi])) ($seq $space ($. #\})))
                                  ($many1 ($. #[bstchi]))))
-(define $RHYTHM-ON
-  ($let ([types $RHYTHM-TYPE]
-         [$SPC]
+(define $rhythm-on
+  ($let ([types $rhythm-type]
+         [$space]
          [t $duration])
-        (let ([args (%rhythm-command-init-value-make types #t)]
+        (let ([args (%rhythm-types->initargs types #t)]
               [ct (car (slot-ref (sxmml-mml-context) 'current-ticks))])
           (set! (car ct) (+ t (car ct)))
           (hash-table-update! (slot-ref (sxmml-mml-context) 'ticks-statistics) t (cut + 1 <>) 0)
           ($return (apply make <sxmml-rhythm-emit> :value #t :ticks t args)))))
-(hash-table-set! *rhythm-command* #\@ $RHYTHM-ON)
-(define $RHYTHM-OFF
-  ($let ([types $RHYTHM-TYPE]
-         [$SPC])
-        (let ([args (%rhythm-command-init-value-make types #t)])
+(hash-table-set! *rhythm-command* #\@ $rhythm-on)
+(define $rhythm-off
+  ($let ([types $rhythm-type]
+         [$space])
+        (let ([args (%rhythm-types->initargs types #t)])
           ($return (apply make <sxmml-rhythm-emit> :value #f args)))))
-(hash-table-set! *rhythm-command* #\! $RHYTHM-OFF)
-(define $RHYTHM-REST
+(hash-table-set! *rhythm-command* #\! $rhythm-off)
+(define $rhythm-rest
   ($let ([t ($seq $duration)])
         (let1 ct (car (slot-ref (sxmml-mml-context) 'current-ticks))
           (set! (car ct) (+ t (car ct)))
           (hash-table-update! (slot-ref (sxmml-mml-context) 'ticks-statistics) t (cut + 1 <>) 0)
           ($return (make <sxmml-mml-rest> :ticks t)))))
-(hash-table-set! *rhythm-command* #\r $RHYTHM-REST)
-(define $RHYTHM-VOLUME
-  ($let ([param $NUMBER]
-         [$SPC])
+(hash-table-set! *rhythm-command* #\r $rhythm-rest)
+(define $rhythm-volume
+  ($let ([param $number]
+         [$space])
         ($return (make <sxmml-rhythm-volume> :value (rope->number param)))))
-(hash-table-set! *rhythm-command* #\V $RHYTHM-VOLUME)
-(define-inline $RHYTHM-INST-VOLUME (rhythm-command->$ $NUMBER <sxmml-rhythm-volume> rope->number))
-(hash-table-set! *rhythm-command* #\v $RHYTHM-INST-VOLUME)
+(hash-table-set! *rhythm-command* #\V $rhythm-volume)
+(define-inline $rhythm-instrument-volume (%make-rhythm-command-parser $number <sxmml-rhythm-volume> rope->number))
+(hash-table-set! *rhythm-command* #\v $rhythm-instrument-volume)
 ;; (define-inline $RHYTHM-INST-VOLUME-CHANGE
-;;   ($or (rhythm-command->$ ($. #\)) $INTEGER <sxmml-rhythm-volume-change> rope->number)
-;;        (rhythm-command->$ ($. #\() $INTEGER <sxmml-rhythm-volume-change> ($ change-sign $ rope->number $))
-;;        (rhythm-command->$ ($. "v*") $INTEGER <sxmml-rhythm-volume-change> rope->number)))
-(define-inline $RHYTHM-INST-VOLUME-UP
-  (rhythm-command->$ $INTEGER <sxmml-rhythm-volume-change> rope->number))
-(hash-table-set! *rhythm-command* #\) $RHYTHM-INST-VOLUME-UP)
-(define-inline $RHYTHM-INST-VOLUME-DOWN
-  (rhythm-command->$ $INTEGER <sxmml-rhythm-volume-change> ($ change-sign $ rope->number $)))
-(hash-table-set! *rhythm-command* #\( $RHYTHM-INST-VOLUME-DOWN)
+;;   ($or (%make-rhythm-command-parser ($. #\)) $integer <sxmml-rhythm-volume-change> rope->number)
+;;        (%make-rhythm-command-parser ($. #\() $integer <sxmml-rhythm-volume-change> ($ change-sign $ rope->number $))
+;;        (%make-rhythm-command-parser ($. "v*") $integer <sxmml-rhythm-volume-change> rope->number)))
+(define-inline $rhythm-instrument-volume-up
+  (%make-rhythm-command-parser $integer <sxmml-rhythm-volume-change> rope->number))
+(hash-table-set! *rhythm-command* #\) $rhythm-instrument-volume-up)
+(define-inline $rhythm-instrument-volume-down
+  (%make-rhythm-command-parser $integer <sxmml-rhythm-volume-change> ($ change-sign $ rope->number $)))
+(hash-table-set! *rhythm-command* #\( $rhythm-instrument-volume-down)
 
-(define-inline $RHYTHM-PAN (rhythm-command->$ $NUMBER <sxmml-rhythm-pan> rope->number))
-(hash-table-set! *rhythm-command* #\p $RHYTHM-PAN)
+(define-inline $rhythm-pan (%make-rhythm-command-parser $number <sxmml-rhythm-pan> rope->number))
+(hash-table-set! *rhythm-command* #\p $rhythm-pan)
 
-(hash-table-set! *rhythm-command* #\L $LOOP)
-(hash-table-set! *rhythm-command* #\[ $REPEAT-START)
-(hash-table-set! *rhythm-command* #\: $REPEAT-BREAK)
-(hash-table-set! *rhythm-command* #\] $REPEAT-END)
-(hash-table-set! *rhythm-command* #\l $LENGTH)
+(hash-table-set! *rhythm-command* #\L $loop)
+(hash-table-set! *rhythm-command* #\[ $repeat-start)
+(hash-table-set! *rhythm-command* #\: $repeat-break)
+(hash-table-set! *rhythm-command* #\] $repeat-end)
+(hash-table-set! *rhythm-command* #\l $length)
 
-(define-inline $RHYTHM-COMMANDS
-  ($seq $SPC ($let ([cmd ($any)]
-                    [$SPC])
+(define-inline $rhythm-commands
+  ($seq $space ($let ([cmd ($any)]
+                    [$space])
                    (hash-table-get *rhythm-command* cmd))))

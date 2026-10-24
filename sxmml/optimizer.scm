@@ -46,12 +46,12 @@
     (slot-set! env 'total-ticks (car ct))
     (slot-set! env 'loop-ticks (- (car ct) (cdr ct)))
     (cond [(memq optimize '(:repeat :repeat-expand))
-           (%sxmml-optimize-repeat (%sxmml-optimize-2path (%sxmml-optimize-tree env))
+           (%sxmml-optimize-repeat (%sxmml-optimize-2nd-pass! (%sxmml-optimize-tree! env))
                                    (eq? optimize :repeat-expand))]
           [(eq? optimize :full)
-           (%sxmml-optimize-2path (%sxmml-optimize-tree env))]
+           (%sxmml-optimize-2nd-pass! (%sxmml-optimize-tree! env))]
           [optimize
-           (%sxmml-optimize-tree env)]
+           (%sxmml-optimize-tree! env)]
           [else
            (reverse!
             (let recur ([rest (slot-ref env 'compiled-data)]
@@ -66,7 +66,7 @@
                      (recur (cdr rest) (cons (car rest) objs))])))]
           )))
 
-(define (%sxmml-optimize-tree mmlenv)
+(define (%sxmml-optimize-tree! mmlenv)
   (reverse!
    (let* ([env (make <sxmml-optimize-environment>)]
           [optobjs (let recur ([rest (slot-ref mmlenv 'compiled-data)]
@@ -80,7 +80,7 @@
                             (recur (cdr rest) objs)]
                            [(any ($ is-a? (car rest) $) (list <sxmml-mml-note> <sxmml-mml-loop> <sxmml-mml-repeat-start>
                                                               <sxmml-mml-repeat-end> <sxmml-mml-repeat-break>))
-                            (recur (cdr rest) (append (object-store env (car rest)) objs))]
+                            (recur (cdr rest) (append (object-flush! env (car rest)) objs))]
                            [(is-a? (car rest) <sxmml-mml-nop>)
                             (recur (cdr rest) objs)]
                            [(any ($ is-a? (car rest) $) (list <sxmml-rhythm-volume> <sxmml-rhythm-pan>)) ; rhythm update
@@ -93,7 +93,7 @@
                             (object-set! env (car rest))
                             (recur (cdr rest) objs)]
                            ))])
-     (append (object-store env (eof-object)) optobjs))))
+     (append (object-flush! env (eof-object)) optobjs))))
 
 (define (object-sum-update! env obj)
   (let ([class (class-of obj)]
@@ -105,7 +105,7 @@
         (hash-table-set! ht class obj)
         (tree-map-put! tm (tree-map-num-entries tm) class)))))
 
-(define (object-store env obj)
+(define (object-flush! env obj)
   (let ([class (class-of obj)]
         [ht (slot-ref env 'inter-objects)]
         [tm (slot-ref env 'objects-order)])
@@ -171,8 +171,8 @@
         (tree-map-put! tm (tree-map-num-entries tm) class)))))
 
 ;;
-;; 2path
-(define (%sxmml-optimize-2path lis)
+;; 第2パス
+(define (%sxmml-optimize-2nd-pass! lis)
   (define (skip?! ctx rctx obj slot pslot)
     (cond [(and (null? rctx)  (equal? (slot-ref obj 'value) (slot-ref ctx slot)))
            #t]                          ; outer repeat
@@ -206,18 +206,18 @@
              #f])))
   (define (placed-init! ctx)
     (for-each (^s (slot-set! ctx s #f))
-              '(voice-placed? volume-placed? gatetime-placed? pan-placed? detune-placed?
-                              envelope-placed?))
+              '(voice-placed volume-placed gate-time-placed pan-placed detune-placed
+                              envelope-placed))
     (for-each (^s (slot-set! ctx s ()))
-              '(lfo-placed? lfo-switch-placed?))
+              '(lfo-placed-channels lfo-switch-placed-channels))
     ctx)
   (define (ctx-copy ctx)
-    (let1 new (make <sxmml-optimize-2path-context>)
+    (let1 new (make <sxmml-optimize-2nd-pass-context>)
       (for-each (^s (slot-set! new s (slot-ref ctx s)))
-                (map slot-definition-name (class-slots <sxmml-optimize-2path-context>)))
+                (map slot-definition-name (class-slots <sxmml-optimize-2nd-pass-context>)))
       new))
   (let loop ([rest lis]
-             [ctx (make <sxmml-optimize-2path-context>)]
+             [ctx (make <sxmml-optimize-2nd-pass-context>)]
              [rctx ()]
              [sctx ()]
              [result ()])
@@ -230,40 +230,40 @@
              (loop (cdr rest) (car sctx) (cdr rctx) (cdr sctx) (cons (car rest) result))
              (loop (cdr rest) ctx (cdr rctx) (cdr sctx) (cons (car rest) result)))]
           [(is-a? (car rest) <sxmml-mml-repeat-start>)
-           (loop (cdr rest) (placed-init! ctx) (cons (%repeat-end-ctx (cdr rest)) rctx) (cons #f sctx) (cons (car rest) result))]
+           (loop (cdr rest) (placed-init! ctx) (cons (%make-repeat-end-context (cdr rest)) rctx) (cons #f sctx) (cons (car rest) result))]
           [(is-a? (car rest) <sxmml-mml-voice>)
-           (if (skip?! ctx rctx (car rest) 'voice 'voice-placed?)
+           (if (skip?! ctx rctx (car rest) 'voice 'voice-placed)
              (loop (cdr rest) ctx rctx sctx result)
              (loop (cdr rest) ctx rctx sctx (cons (car rest) result)))]
           [(is-a? (car rest) <sxmml-mml-volume>)
-           (if (skip?! ctx rctx (car rest) 'volume 'volume-placed?)
+           (if (skip?! ctx rctx (car rest) 'volume 'volume-placed)
              (loop (cdr rest) ctx rctx sctx result)
              (loop (cdr rest) ctx rctx sctx (cons (car rest) result)))]
           [(is-a? (car rest) <sxmml-mml-volume-change>)
            (slot-set! ctx 'volume (+ (slot-ref ctx 'volume) (slot-ref (car rest) 'value)))
            (loop (cdr rest) ctx rctx sctx (cons (car rest) result))]
-          [(is-a? (car rest) <sxmml-mml-gatetime>)
-           (if (skip?! ctx rctx (car rest) 'gatetime 'gatetime-placed?)
+          [(is-a? (car rest) <sxmml-mml-gate-time>)
+           (if (skip?! ctx rctx (car rest) 'gate-time 'gate-time-placed)
              (loop (cdr rest) ctx rctx sctx result)
              (loop (cdr rest) ctx rctx sctx (cons (car rest) result)))]
           [(is-a? (car rest) <sxmml-mml-pan>)
-           (if (skip?! ctx rctx (car rest) 'pan 'pan-placed?)
+           (if (skip?! ctx rctx (car rest) 'pan 'pan-placed)
              (loop (cdr rest) ctx rctx sctx result)
              (loop (cdr rest) ctx rctx sctx (cons (car rest) result)))]
           [(is-a? (car rest) <sxmml-mml-detune>)
-           (if (skip?! ctx rctx (car rest) 'detune 'detune-placed?)
+           (if (skip?! ctx rctx (car rest) 'detune 'detune-placed)
              (loop (cdr rest) ctx rctx sctx result)
              (loop (cdr rest) ctx rctx sctx (cons (car rest) result)))]
           [(is-a? (car rest) <sxmml-mml-envelope>)
-           (if (skip?! ctx rctx (car rest) 'envelope 'envelope-placed?)
+           (if (skip?! ctx rctx (car rest) 'envelope 'envelope-placed)
              (loop (cdr rest) ctx rctx sctx result)
              (loop (cdr rest) ctx rctx sctx (cons (car rest) result)))]
           [(is-a? (car rest) <sxmml-mml-lfo-switch>)
-           (if (lfo-skip?! ctx rctx (car rest) 'lfo-switch 'lfo-switch-placed? 'init)
+           (if (lfo-skip?! ctx rctx (car rest) 'lfo-switch 'lfo-switch-placed-channels 'init)
              (loop (cdr rest) ctx rctx sctx result)
              (loop (cdr rest) ctx rctx sctx (cons (car rest) result)))]
           [(is-a? (car rest) <sxmml-mml-lfo>)
-           (if (lfo-skip?! ctx rctx (car rest) 'lfo 'lfo-placed? #f)
+           (if (lfo-skip?! ctx rctx (car rest) 'lfo 'lfo-placed-channels #f)
              (loop (cdr rest) ctx rctx sctx result)
              (loop (cdr rest) ctx rctx sctx (cons (car rest) result)))]
           [(and (is-a? (car rest) <sxmml-mml-rest>)
@@ -281,9 +281,9 @@
     (cdr p)
     default))
 
-(define (%repeat-end-ctx lis)
+(define (%make-repeat-end-context lis)
   (let loop ([rest lis]
-             [ctx (make <sxmml-optimize-2path-context>)])
+             [ctx (make <sxmml-optimize-2nd-pass-context>)])
     (cond [(null? rest)
            (error "MML terminated before repeat end")]
           [(and (is-a? (car rest) <sxmml-mml-repeat-end>)
@@ -301,8 +301,8 @@
           [(is-a? (car rest) <sxmml-mml-volume>)
            (slot-set! ctx 'volume (slot-ref (car rest) 'value))
            (loop (cdr rest) ctx)]
-          [(is-a? (car rest) <sxmml-mml-gatetime>)
-           (slot-set! ctx 'gatetime (slot-ref (car rest) 'value))
+          [(is-a? (car rest) <sxmml-mml-gate-time>)
+           (slot-set! ctx 'gate-time (slot-ref (car rest) 'value))
            (loop (cdr rest) ctx)]
           [(is-a? (car rest) <sxmml-mml-pan>)
            (slot-set! ctx 'pan (slot-ref (car rest) 'value))
@@ -329,7 +329,7 @@
 ;; repeat
 ;; 既存のリピートのブロック。front は : の前、back は : の後の要素のリストで、
 ;; : がなければ break と back は #f。要素はオブジェクトかブロック
-(define-record-type %repeat-block
+(define-record-type <repeat-block>
   (%make-repeat-block start front break back end) %repeat-block?
   (start %repeat-block-start)
   (front %repeat-block-front)
@@ -489,7 +489,7 @@
              [raw (append-map cdr atoms)])
         (receive (cost tree)
             (repeat-tree-compress elements (vector-map length outputs) %repeat-same? settings)
-          (let1 compressed (%repeat-emit tree outputs)
+          (let1 compressed (%repeat-tree->ir tree outputs)
             ;; 入れ子が上限を超え、圧縮前より深くなる区間は圧縮しない
             (if (and (> (+ depth (%repeat-depth compressed)) %repeat-depth-max)
                      (> (%repeat-depth compressed) (%repeat-depth raw)))
@@ -525,16 +525,16 @@
 
 ;; 圧縮した木を平坦なオブジェクトのリストにする。葉は outputs の出力に置き換え、
 ;; 反復には新しい [、:、] のオブジェクトを作る
-(define (%repeat-emit tree outputs)
+(define (%repeat-tree->ir tree outputs)
   (cond [(literal? tree) (vector-ref outputs (literal-index tree))]
-        [(concat? tree) (append (%repeat-emit (concat-left tree) outputs)
-                                (%repeat-emit (concat-right tree) outputs))]
+        [(concat? tree) (append (%repeat-tree->ir (concat-left tree) outputs)
+                                (%repeat-tree->ir (concat-right tree) outputs))]
         [(repeat? tree)
-         `(,(make <sxmml-mml-repeat-start>) ,@(%repeat-emit (repeat-body tree) outputs)
+         `(,(make <sxmml-mml-repeat-start>) ,@(%repeat-tree->ir (repeat-body tree) outputs)
            ,(make <sxmml-mml-repeat-end> :value (repeat-count tree)))]
         [(final? tree)
-         `(,(make <sxmml-mml-repeat-start>) ,@(%repeat-emit (final-prefix tree) outputs)
-           ,(make <sxmml-mml-repeat-break>) ,@(%repeat-emit (final-suffix tree) outputs)
+         `(,(make <sxmml-mml-repeat-start>) ,@(%repeat-tree->ir (final-prefix tree) outputs)
+           ,(make <sxmml-mml-repeat-break>) ,@(%repeat-tree->ir (final-suffix tree) outputs)
            ,(make <sxmml-mml-repeat-end> :value (final-count tree)))]))
 
 ;; 平坦なオブジェクトのリストの、リピートの入れ子の最大の深さ

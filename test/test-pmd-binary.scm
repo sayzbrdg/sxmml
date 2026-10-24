@@ -18,7 +18,7 @@
 (let* ([sxlc-command (make-test-sxlc-command)]
        [workdir (sys-mkdtemp (build-path (temporary-directory) "sxmml-test"))])
   (define (work-file name) (build-path workdir name))
-  (define (write-source path forms)
+  (define (source-output path forms)
     (with-output-to-file path (^[] (for-each write forms)))
     path)
   (define (run-sxlc source . options)
@@ -50,8 +50,8 @@
   (define binary-sections '(A B C D E F G H I J K R voice))
   ;; モードを選んでソースを読み込み、このプロセスで生成した .m の内容を返す。
   ;; level は最適化の水準。省略時は sxlc の既定の -O 1 と同じ最適化を使う。
-  (define (generate-binary name mode forms :optional (level #t))
-    (let1 source (write-source (work-file #"bytes-~|name|.sxl") forms)
+  (define (make-binary-data name mode forms :optional (level #t))
+    (let1 source (source-output (work-file #"bytes-~|name|.sxl") forms)
       (parameterize ([sxmml-environment (make <sxmml-environment>)]
                      [sxmml-source-file source])
         (mode)
@@ -78,22 +78,22 @@
                  (pmd-binary)
                  (list ((with-module sxmml.backend.pmd-binary %output-file-get))
                        (slot-ref (sxmml-environment) 'output))))
-        (let1 source (write-source (work-file "library.sxl") '((mml G "c8")))
+        (let1 source (source-output (work-file "library.sxl") '((mml G "c8")))
           (test* "ライブラリから直接生成しても入力名に対応する .m を使う"
                  (list (work-file "library.m") #t)
                  (parameterize ([sxmml-environment (make <sxmml-environment>)]
                                 [sxmml-source-file source])
                    (pmd-binary)
                    (load source)
-                   (sxmml-pmd-binary-generate)
+                   (sxmml-pmd-binary-output)
                    (list (slot-ref (sxmml-environment) 'output)
                          (file-exists? (work-file "library.m"))))))
         ;; 公開生成関数は、モード手続きを呼ばずにトラックを登録しても使える。
-        (dolist [case (list (list "pmd-binary" sxmml-pmd-binary-generate)
-                           (list "pmd3-binary" sxmml-pmd3-binary-generate)
-                           (list "pmd4-binary" sxmml-pmd4-binary-generate))]
+        (dolist [case (list (list "pmd-binary" sxmml-pmd-binary-output)
+                           (list "pmd3-binary" sxmml-pmd3-binary-output)
+                           (list "pmd4-binary" sxmml-pmd4-binary-output))]
           (let* ([name (car case)]
-                 [source (write-source (work-file #"direct-~|name|.sxl") '((mml G "c8")))]
+                 [source (source-output (work-file #"direct-~|name|.sxl") '((mml G "c8")))]
                  [output (work-file #"direct-~|name|.m")])
             (test* #"~name はモード手続きなしの直接生成でも .m を使う"
                    (list output #t)
@@ -104,7 +104,7 @@
                      ((cadr case))
                      (list (slot-ref (sxmml-environment) 'output) (file-exists? output))))))
         (dolist [mode '("pmd-binary" "pmd3-binary" "pmd4-binary")]
-          (let* ([source (write-source (work-file #"voices-~|mode|.sxl")
+          (let* ([source (source-output (work-file #"voices-~|mode|.sxl")
                                       `(,(voice-form 'z 3) ,(voice-form 'a 1)
                                         ,(voice-form 'm 2) ,(voice-form 'unused 7)
                                         (mml A "@{m}c8@{z}c8@{a}c8")))]
@@ -115,7 +115,7 @@
                    (list (car (run-sxlc source "-m" mode "-o" output))
                          (and (file-exists? output)
                               (voice-records output (string=? mode "pmd3-binary")))))
-            (write-source source `((begin ,(voice-form 'z 3) ,(voice-form 'a 0)
+            (source-output source `((begin ,(voice-form 'z 3) ,(voice-form 'a 0)
                                           ,(voice-form 'y 2) ,(voice-form 'b 1))
                                    (mml A "@{z}c8@{y}c8@{b}c8@{a}c8")))
             (test* #"~mode は begin 内の音色にも別の番号を振る"
@@ -128,7 +128,7 @@
                      (list (car (run-sxlc source "-m" mode "-o" output))
                            (equal? before (file->bytevector output)))))
             ;; 定義した音色が 256 を超えたら、使った音色が 1 つでも失敗する (#27)
-            (let ([source (write-source (work-file #"voices-257-~|mode|.sxl")
+            (let ([source (source-output (work-file #"voices-257-~|mode|.sxl")
                                         `(,@(map (^i (voice-form (string->symbol (format "v~3,'0d" i)) 0))
                                                  (iota 257))
                                           (mml A "@{v000}c8")))]
@@ -243,7 +243,7 @@
                     "36 00 3b 00 eb 01 0f 0c ff eb 01 0f 18 ff 6c 00 00 00 18 00 00 00 54 00 48 fe"))]
           (test* #"pmd-binary の命令列: ~(car case)"
                  (list-ref case 4)
-                 (section-hex (generate-binary (cadr case) pmd-binary (caddr case)) (cadddr case))))
+                 (section-hex (make-binary-data (cadr case) pmd-binary (caddr case)) (cadddr case))))
         ;; ヘッダ、空のトラック、R トラックの末尾、音色表、メタ情報の配置を、ファイル全体で固定する。
         (let* ([forms '((define-opn-voice 0 (2 5)
                           (31 1 2 3 4 5 1 6 7) (30 8 9 10 11 12 2 13 1)
@@ -270,7 +270,7 @@
                         ;; 各文字列の位置と 00 00
                         "54 00 55 00 56 00 57 00 5e 00 64 00 65 00 68 00 00 00")
                   " ")
-                 (hex-bytes (generate-binary "whole-pmd4" pmd-binary forms)))
+                 (hex-bytes (make-binary-data "whole-pmd4" pmd-binary forms)))
           ;; リズムがなければ、R トラックにリズムのパターンを書かない。PMD4 の R トラックは末尾の
           ;; 12 バイトだけ、PMD3 は 0 バイトになる。次の4件は、従来 MC.EXE と照合した配置の期待値を
           ;; 基に、A・Cも1回にした。Aの f8 は1・0、Cは1・1で、位置と合計 tick 48は変わらない。
@@ -282,33 +282,33 @@
                             (3 ((define-metadata memo (list "memo1" "memo2" "memo3"))) "00 1a 00 2a 00 3a 00 47 00 54 00 55 00 56 00 57 00 58 00 59 00 5a 00 5b 00 67 00 f9 25 00 30 18 f7 25 00 32 18 f8 01 00 1b 00 80 f9 35 00 30 18 f7 35 00 32 18 f8 01 00 2b 00 80 f9 42 00 30 18 32 18 f8 01 01 3b 00 80 f9 4f 00 30 18 32 18 f8 01 01 48 00 80 80 80 80 80 80 80 80 30 00 00 00 00 00 00 00 81 00 48 fe 00 ff 00 00 00 00 00 00 6d 65 6d 6f 31 00 6d 65 6d 6f 32 00 6d 65 6d 6f 33 00 69 00 6a 00 6b 00 6c 00 6d 00 6e 00 6f 00 75 00 7b 00 00 00"))]
               (test* #"pmd-binary の生成物全体: リズムがなく、memo が ~(car case) 件"
                      (caddr case)
-                     (hex-bytes (generate-binary #"whole-memo-~(car case)" pmd-binary
+                     (hex-bytes (make-binary-data #"whole-memo-~(car case)" pmd-binary
                                                  (append (cadr case) forms-no-rhythm))))))
           (test* "pmd3-binary はリズムがなければ R トラックに何も書かない"
                  ""
-                 (section-hex (generate-binary "pmd3-no-rhythm" pmd3-binary '((mml A "c8"))) 'R))
+                 (section-hex (make-binary-data "pmd3-no-rhythm" pmd3-binary '((mml A "c8"))) 'R))
           ;; 次の 2 件は、同じ内容の MML を MC.EXE でコンパイルした生成物とバイトまで同じ (#65、#109)
           (test* "pmd-binary の生成物全体: ループのあるトラックとリズム"
                  "00 1a 00 20 00 26 00 27 00 28 00 29 00 2a 00 2b 00 2c 00 2d 00 2e 00 32 00 4c 00 30 60 f6 30 0c 80 37 0c f6 37 18 80 80 80 80 80 80 80 80 80 00 f6 01 80 36 00 3b 00 eb 01 0f 0c ff eb 01 0f 18 ff 6c 00 00 00 18 00 00 00 54 00 48 fe 00 ff 00 00 00 00 00 00 4e 00 4f 00 50 00 51 00 52 00 53 00 00 00"
-                 (hex-bytes (generate-binary "whole-loop-rhythm" pmd-binary
+                 (hex-bytes (make-binary-data "whole-loop-rhythm" pmd-binary
                                              '((mml A "c1Lc8") (mml B "g8Lg4") (rhythm L "@b8L@b4")))))
           (test* "pmd-binary の生成物全体: ループのないリズム"
                  "00 1a 00 1b 00 1c 00 1d 00 1e 00 1f 00 20 00 21 00 22 00 23 00 24 00 26 00 47 00 80 80 80 80 80 80 80 80 80 80 00 80 28 00 e9 22 eb 01 0f 0c e9 23 eb 01 0f 0c e9 21 eb 01 0f 0c ff 24 00 00 00 00 00 00 00 4f 00 48 fe 00 ff 00 00 00 00 00 00 49 00 4a 00 4b 00 4c 00 4d 00 4e 00 00 00"
-                 (hex-bytes (generate-binary "whole-rhythm-no-loop" pmd-binary
+                 (hex-bytes (make-binary-data "whole-rhythm-no-loop" pmd-binary
                                              '((rhythm L "pb2@b8pb3@b8pb1@b8")))))
           (test* "pmd3-binary の生成物全体: メタ情報・R トラックの末尾・音色表の終端を持たない"
                  (string-join
                   (list "00 1a 00 22 00 23 00 24 00 25 00 26 00 27 00 28 00 29 00 2a 00 2b 00 2c 00 2c 00"
                         tracks voice)
                   " ")
-                 (hex-bytes (generate-binary "whole-pmd3" pmd3-binary forms))))
+                 (hex-bytes (make-binary-data "whole-pmd3" pmd3-binary forms))))
         ;; PMD の音高の 1 バイトで表せない音高は、範囲外の音高と許される範囲を示して失敗する。
         (dolist [case '(("上側" "o8c>c" "o9c")
                        ("上側" "o8b>e-" "o9e-")
                        ("下側" "o1c<c" "o0c")
                        ("下側" "o1c<<b" "o-1b")
                        ("ポルタメントの終了音" "o8/{b >c}8" "o9c"))]
-          (let* ([source (write-source (work-file #"note-range-~(caddr case).sxl")
+          (let* ([source (source-output (work-file #"note-range-~(caddr case).sxl")
                                        `((mml A ,(cadr case))))]
                  [output (work-file #"note-range-~(caddr case).m")]
                  [result (run-sxlc source "-m" "pmd-binary" "-o" output)])
@@ -324,7 +324,7 @@
         (dolist [case '(("pmd-binary" "256") ("pmd-binary" "300") ("pmd3-binary" "300"))]
           (let* ([mode (car case)]
                  [ticks (cadr case)]
-                 [source (write-source (work-file #"portamento-~|mode|-~|ticks|.sxl")
+                 [source (source-output (work-file #"portamento-~|mode|-~|ticks|.sxl")
                                        `((mml G ,#"o4/{c g}%~ticks")))]
                  [output (work-file #"portamento-~|mode|-~|ticks|.m")]
                  [result (run-sxlc source "-m" mode "-o" output)])
@@ -337,7 +337,7 @@
                          (file-exists? output)))))
         ;; リズムの音量・パンの誤りは、綴りの正しいメッセージで失敗する (#57)
         (dolist [case '(("volume" "V64 @b8" "rhythm volume") ("volume-change" ")b32 @b8" "rhythm volume"))]
-          (let* ([source (write-source (work-file #"rhythm-param-~(car case).sxl")
+          (let* ([source (source-output (work-file #"rhythm-param-~(car case).sxl")
                                        `((rhythm L ,(cadr case))))]
                  [output (work-file #"rhythm-param-~(car case).m")]
                  [result (run-sxlc source "-m" "pmd-binary" "-o" output)])
@@ -355,7 +355,7 @@
                         ("volume-40" "v{s}40 @s8" "rhythm volume out of range: 40 (0 - 31)")
                         ("pan-0" "pb0 @b8" "rhythm pan out of range: 0 (1 - 3)")
                         ("pan-4" "pb4 @b8" "rhythm pan out of range: 4 (1 - 3)"))]
-          (let* ([source (write-source (work-file #"rhythm-range-~(car case).sxl")
+          (let* ([source (source-output (work-file #"rhythm-range-~(car case).sxl")
                                        `((rhythm L ,(cadr case))))]
                  [output (work-file #"rhythm-range-~(car case).m")]
                  [result (run-sxlc source "-m" "pmd-binary" "-o" output)])
@@ -366,7 +366,7 @@
                          (file-exists? output)))))
         ;; メタデータの値は -m pmd と同じ規則で検査する。PMD3 はメタデータを書かないので
         ;; 検査しない (#13)
-        (let1 source (write-source (work-file "meta-title-number.sxl")
+        (let1 source (source-output (work-file "meta-title-number.sxl")
                                    '((define-metadata title 1) (mml A "c8")))
           (dolist [case '(("pmd-binary" (1 #t #f)) ("pmd3-binary" (0 #f #t)))]
             (let* ([output (work-file #"meta-title-number-~(car case).m")]
@@ -384,23 +384,23 @@
                         ("meta-memo-empty" ((define-metadata memo '()) (mml A "c8"))))]
           (test* #"pmd-binary の空のメタ情報: ~(car case)"
                  "00 ff 00 00 00 00 00 00 35 00 36 00 37 00 38 00 39 00 3a 00 00 00"
-                 (section-hex (generate-binary (car case) pmd-binary (cadr case)) 'voice)))
+                 (section-hex (make-binary-data (car case) pmd-binary (cadr case)) 'voice)))
         ;; memo が 1 件なら、6 項目の空文字列に続けて memo を 1 件書き、位置の表は 7 件。
         ;; 文字列 1 つの memo は、要素 1 つのリストと同じ (#109)
         (dolist [case '(("meta-memo-string" ((define-metadata memo "m") (mml A "c8")))
                         ("meta-memo-list" ((define-metadata memo (list "m")) (mml A "c8"))))]
           (test* #"pmd-binary の 1 件の memo: ~(car case)"
                  "00 ff 00 00 00 00 00 00 6d 00 35 00 36 00 37 00 38 00 39 00 3a 00 3b 00 00 00"
-                 (section-hex (generate-binary (car case) pmd-binary (cadr case)) 'voice)))
+                 (section-hex (make-binary-data (car case) pmd-binary (cadr case)) 'voice)))
         (test* "pmd-binary はメタデータの memo の要素が文字列でなければ失敗する"
                (test-error <error> "invalid metadata value: memo is (\"a\" 1) (expected a string or a list of strings)")
-               (generate-binary "meta-memo-element" pmd-binary
+               (make-binary-data "meta-memo-element" pmd-binary
                                 '((define-metadata memo (list "a" 1)) (mml A "c8"))))
         ;; LFO・エンベロープは -m pmd と同じ規則で検査する。PMD3 だけの検査は、チャンネル B と
         ;; 5・6 値のエンベロープである (#28)
         (let ([caught (^[name mode forms]
                         (guard (e [else (condition-message e)])
-                          (generate-binary name mode forms)
+                          (make-binary-data name mode forms)
                           'generated))])
           (dolist [case `(("lfo-type" ,pmd-binary
                            ((define-lfo L1 sw (1 2 3 4)) (mml A "M{L1 A}c8"))
@@ -425,13 +425,13 @@
                    (caught #"check-~(car case)" (cadr case) (caddr case))))
 
           (test* "pmd-binary の LFO の triangle は default と同じバイト内容になる"
-                 (section-hex (generate-binary "lfo-default" pmd-binary
+                 (section-hex (make-binary-data "lfo-default" pmd-binary
                                                '((define-lfo L1 (1 2 -3 4)) (mml A "M{L1 A}c8")))
                               'A)
-                 (section-hex (generate-binary "lfo-triangle" pmd-binary
+                 (section-hex (make-binary-data "lfo-triangle" pmd-binary
                                                '((define-lfo L1 triangle (1 2 -3 4)) (mml A "M{L1 A}c8")))
                               'A))
-          (let* ([source (write-source (work-file "check-cli.sxl")
+          (let* ([source (source-output (work-file "check-cli.sxl")
                                        '((define-lfo L1 sw (1 2 3 4)) (mml A "M{L1 A}c8")))]
                  [output (work-file "check-cli.m")]
                  [result (run-sxlc source "-m" "pmd-binary" "-o" output)])
@@ -442,7 +442,7 @@
                          (file-exists? output)))))
         ;; PCM の音色は 0 から 255 までの整数で、それ以外は書かれた値を示して失敗する (#58)
         (dolist [case '(("@256" "256") ("@{1.5}" "1.5") ("@{x}" "x"))]
-          (let* ([source (write-source (work-file #"pcm-voice-~(cadr case).sxl")
+          (let* ([source (source-output (work-file #"pcm-voice-~(cadr case).sxl")
                                        `((mml J ,#"~(car case)c8")))]
                  [output (work-file #"pcm-voice-~(cadr case).m")]
                  [result (run-sxlc source "-m" "pmd-binary" "-o" output)])
@@ -455,7 +455,7 @@
                          (file-exists? output)))))
         ;; SSG のミックスは 1 から 3 までで、範囲外は値と範囲を示して失敗する (#55)
         (dolist [value '("0" "4")]
-          (let* ([source (write-source (work-file #"ssg-mix-~|value|.sxl")
+          (let* ([source (source-output (work-file #"ssg-mix-~|value|.sxl")
                                        `((mml G ,#"P~|value|c8")))]
                  [output (work-file #"ssg-mix-~|value|.m")]
                  [result (run-sxlc source "-m" "pmd-binary" "-o" output)])
@@ -520,7 +520,7 @@
                           ("PMD3 は合計 tick を書かないので 67200 tick も成功する" "pmd3-binary" "ticks-pmd3"
                            ((mml A "c%67200"))
                            #t))]
-            (let* ([source (write-source (work-file #"limit-~(caddr case).sxl") (cadddr case))]
+            (let* ([source (source-output (work-file #"limit-~(caddr case).sxl") (cadddr case))]
                    [output (work-file #"limit-~(caddr case).m")]
                    [expected (list-ref case 4)]
                    [result (run-sxlc source "-m" (cadr case) "-O" "0" "-o" output)])

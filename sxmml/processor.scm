@@ -46,7 +46,7 @@
   (not (null? x)))
 
 ;; トラック名一つか、トラック名のリストを、トラック名のリストにする
-(define (%track-list track)
+(define (%track->track-list track)
   (if (list? track) track (list track)))
 
 ;; 本文は begin に並べ、その間に反復の開始・脱出・終了の登録を挟む。回数は式として
@@ -56,27 +56,27 @@
   (er-macro-transformer
     (^[form rename id=?]
       ;; MML の文字列 (または文字列を返す式) cmd を、tracks の各トラックに登録する
-      (define (regist tracks cmd)
+      (define (build-registration tracks cmd)
         (map (^[t] (sxmml-form-wrap form rename
                      (quasirename rename
-                       `(sxmml-sio-regist! (sxmml-compile-mml/cc ',t ,cmd) ',t))))
+                       `(sxmml-ir-register! (sxmml-compile-track-mml ',t ,cmd) ',t))))
              tracks))
       ;; 脱出位置は breaks のトラックに置く。breaks が空なら置かない
       (define (expand tracks times body1 breaks body2 body3)
         `(,(rename 'begin)
-          ,@(regist tracks "[")
+          ,@(build-registration tracks "[")
           ,@body1
-          ,@(regist breaks ":")
+          ,@(build-registration breaks ":")
           ,@body2
-          ,@(regist tracks (quasirename rename `(%mml-repeat-end ,times)))
+          ,@(build-registration tracks (quasirename rename `(%mml-repeat-end-format ,times)))
           ,@body3))
       (match form
         ;; 1st format
         [(_ (? %track-spec? track) times (body ...))
-         (expand (%track-list track) times body () () ())]
+         (expand (%track->track-list track) times body () () ())]
         ;; 2nd format
         [(_ (? %track-spec? track) times (body1 ...) (body2 ...))
-         (expand (%track-list track) times body1 (%track-list track) body2 ())]
+         (expand (%track->track-list track) times body1 (%track->track-list track) body2 ())]
         ;; 3rd format
         [(_ (track ..1) times (body1 ...) (body2 ...) ((break ...) body3 ...))
          (expand track times body1 break body2 body3)]
@@ -87,7 +87,7 @@
         [_ (sxmml-form-error form "invalid mml-repeat form: expected (mml-repeat track count (body1 ...) [(body2 ...) [(body3 ...)]])")]))))
 
 ;; 反復の終了の MML を、回数を検査して作る
-(define (%mml-repeat-end count)
+(define (%mml-repeat-end-format count)
   (%processor-value-check "mml-repeat" "count" count %positive-integer? "a positive integer")
   #"]~count")
 
@@ -102,23 +102,23 @@
 
 ;;;  delay
 ;;;
-(define (sxmml-sio-self-echo sio fir vol rep)
+(define (sxmml-ir-self-echo! ir fir vol rep)
   (define (build-vol val)
     (make <sxmml-mml-volume-change> :value val))
   (define (build-prev nn t)
     (make <sxmml-mml-note> :value nn :ticks t))
-  (define (self-echo obj prev)
+  (define (self-echo! obj prev)
     (let ([t (slot-ref obj 'ticks)]
           [len (ash (slot-ref obj 'ticks) -1)])
       (slot-set! obj 'ticks len)
       (list obj (build-vol vol) (build-prev prev (- t len)))))
-  (define (rest-echo obj prev)
+  (define (rest-echo! obj prev)
     (let ([t (slot-ref obj 'ticks)]
           [len (ash (slot-ref obj 'ticks) -1)])
       (slot-set! obj 'ticks (- t len))
       (list (build-vol rep) (build-prev prev len) obj (build-vol (* -1 (+ vol rep))))))
   (define (make-prev)
-    (let loop ([rest (sxmml-compile-mml fir (make <sxmml-mml-context>))])
+    (let loop ([rest (sxmml-compile-mml! fir (make <sxmml-mml-context>))])
       (cond [(null? rest)
              (error "no note data: " fir)]
             [(is-a? (car rest) <sxmml-mml-rest>)
@@ -129,7 +129,7 @@
              (loop (cdr rest))])))
   (%processor-value-check "mml-echo" "voldown" vol exact-integer? "an integer")
   (%processor-value-check "mml-echo" "restdown" rep exact-integer? "an integer")
-  (let loop ([rest sio]
+  (let loop ([rest ir]
              [prev (make-prev)]
              [vol? #f]                  ; restore volume?
              [rstack ()]                ; repeat stack
@@ -139,11 +139,11 @@
           [(null? rest)
            (reverse! res)]
           [(is-a? (car rest) <sxmml-mml-rest>)
-           (loop (cdr rest) prev #f rstack (cons (rest-echo (car rest) prev) res))]
+           (loop (cdr rest) prev #f rstack (cons (rest-echo! (car rest) prev) res))]
           [(and vol? (is-a? (car rest) <sxmml-mml-note>))
-           (loop (cdr rest) (slot-ref (car rest) 'value) #t rstack (acons (build-vol (* -1 vol)) (self-echo (car rest) prev) res))]
+           (loop (cdr rest) (slot-ref (car rest) 'value) #t rstack (acons (build-vol (* -1 vol)) (self-echo! (car rest) prev) res))]
           [(is-a? (car rest) <sxmml-mml-note>)
-           (loop (cdr rest) (slot-ref (car rest) 'value) #t rstack (cons (self-echo (car rest) prev) res))]
+           (loop (cdr rest) (slot-ref (car rest) 'value) #t rstack (cons (self-echo! (car rest) prev) res))]
           [(is-a? (car rest) <sxmml-mml-repeat-end>)
            (if (car rstack)
              (loop (cdr rest) (car rstack) #f (cdr rstack) (cons (if vol?
@@ -168,19 +168,19 @@
         [(_ track (firstnote voldown restdown) body ...)
          (sxmml-form-wrap form rename
            (quasirename rename
-             `(sxmml-sio-regist!
-               (sxmml-sio-self-echo (sxmml-compile-mml/cc ',track (write-to-string (list ,@body) write-tree))
+             `(sxmml-ir-register!
+               (sxmml-ir-self-echo! (sxmml-compile-track-mml ',track (write-to-string (list ,@body) write-tree))
                                     ,firstnote ,voldown ,restdown)
                ',track)))]
         [_ (sxmml-form-error form "invalid mml-echo form: expected (mml-echo track (firstnote voldown restdown) body ...)")]))))
 
 
-(define (sxmml-sio-self-delay sio tick vol rep)
+(define (sxmml-ir-self-delay! ir tick vol rep)
   (define (build-vol val)
     (make <sxmml-mml-volume-change> :value val))
   (define (build-prev nn t)
     (make <sxmml-mml-note> :value nn :ticks t))
-  (define (self-delay obj prev)
+  (define (self-delay! obj prev)
     (let1 orig-tick (slot-ref obj 'ticks)
       (if (>= tick orig-tick)
         obj
@@ -195,13 +195,13 @@
   (%processor-value-check "mml-delay" "ticks" tick %positive-integer? "a positive integer")
   (%processor-value-check "mml-delay" "voldown" vol exact-integer? "an integer")
   (%processor-value-check "mml-delay" "restdown" rep exact-integer? "an integer")
-  (let loop ([rest sio]
+  (let loop ([rest ir]
              [prev #f]
              [res ()])
     (cond [(null? rest)
            (reverse! res)]
           [(is-a? (car rest) <sxmml-mml-rest>)
-           (loop (cdr rest) #f (if prev (cons (self-delay (car rest) prev) res) (cons (car rest) res)))]
+           (loop (cdr rest) #f (if prev (cons (self-delay! (car rest) prev) res) (cons (car rest) res)))]
           [(is-a? (car rest) <sxmml-mml-note>)
            (loop (cdr rest) (slot-ref (car rest) 'value) (cons (car rest) res))]
           [else
@@ -210,15 +210,15 @@
 (define-syntax mml-delay
   (er-macro-transformer
     (^[form rename id=?]
-      (define (regist track ticks voldown restdown body)
+      (define (build-registration track ticks voldown restdown body)
         (sxmml-form-wrap form rename
           (quasirename rename
-            `(sxmml-sio-regist!
-              (sxmml-sio-self-delay (sxmml-compile-mml/cc ',track (write-to-string (list ,@body) write-tree))
+            `(sxmml-ir-register!
+              (sxmml-ir-self-delay! (sxmml-compile-track-mml ',track (write-to-string (list ,@body) write-tree))
                                     ,ticks ,voldown ,restdown)
               ',track))))
       (match form
         [(_ (? %track-spec? track) (ticks voldown restdown) body ...)
          `(,(rename 'begin)
-           ,@(map (cut regist <> ticks voldown restdown body) (%track-list track)))]
+           ,@(map (cut build-registration <> ticks voldown restdown body) (%track->track-list track)))]
         [_ (sxmml-form-error form "invalid mml-delay form: expected (mml-delay track (ticks voldown restdown) body ...)")]))))

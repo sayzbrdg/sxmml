@@ -28,10 +28,10 @@
 
 (define-module sxmml.util
   (use sxmml.environment)
-  (export bpm->timerb))
+  (export sxmml-bpm->timer-b))
 (select-module sxmml.util)
 
-(define (bpm->timerb bpm :optional (res #f))
+(define (sxmml-bpm->timer-b bpm :optional (res #f))
   (let1 timerb (floor (- 256 (/ 208000 (* bpm (or res (sxmml-resolution-get))))))
     (when (or (< timerb 0)
               (> timerb 255))

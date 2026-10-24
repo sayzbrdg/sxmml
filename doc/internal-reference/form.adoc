@@ -14,7 +14,7 @@
 |[[ref-form-sxmml-form-warn-at]]`(sxmml-form-warn-at location fmt arg ...)` |実行時に、展開時に取った位置 `location` で警告を出す |`format` で本文を作り、`warning: 位置: 本文`（`location` が `#f` なら `warning: 本文`）を標準エラー出力に 1 行で書く。`sxmml-mode` を無視するときの警告に使う |link:../../sxmml/form.scm[form.scm]
 |[[ref-form-sxmml-form-call]]`(sxmml-form-call location thunk)` |実行時のエラーに位置を付ける |`thunk` の値を返す。中で起きたエラー（`error?`）は、`location`、元のエラーを `cause` とした `<sxmml-form-error>` として投げ直す。中で起きたのがすでに `<sxmml-form-error>` なら、いちばん内側の位置を残すためにそのまま通す。エラーでない値や condition（`raise-continuable` されたお知らせなど）もそのまま通し、続けられる性質を保つ。`location` が `#f` なら、何もせずに `thunk` を呼ぶ |link:../../sxmml/form.scm[form.scm]
 |[[ref-form-sxmml-form-wrap]]`(sxmml-form-wrap form rename call)` |マクロの展開で、登録やモードの呼び出しを包む |`(sxmml-form-call 位置 (lambda () call))` の展開を返す。位置は `sxmml-form-location form` で取り、`sxmml-form-call` と `lambda` は `rename` で付け替える |link:../../sxmml/form.scm[form.scm]
-|[[ref-form-internal-located-message]]`(%located-message location message)` |メッセージに位置を付ける |`location` があれば `"位置: 本文"`、`#f` なら `message` をそのまま返す。`sxmml-form-error`・`sxmml-form-warn-at`・`sxmml-form-call` が使う |link:../../sxmml/form.scm[form.scm]
+|[[ref-form-internal-message-to-located-message]]`(%message\->located-message location message)` |メッセージに位置を付ける |`location` があれば `"位置: 本文"`、`#f` なら `message` をそのまま返す。`sxmml-form-error`・`sxmml-form-warn-at`・`sxmml-form-call` が使う |link:../../sxmml/form.scm[form.scm]
 |===
 
 == 使用例

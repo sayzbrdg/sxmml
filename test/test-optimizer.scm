@@ -70,7 +70,7 @@
        [workdir (sys-mkdtemp (build-path (temporary-directory) "sxmml-test"))])
   (define (work-file name) (build-path workdir name))
   ;; name.sxl に text を書いて返す
-  (define (write-source name text)
+  (define (source-output name text)
     (rlet1 source (work-file #"~|name|.sxl")
       (with-output-to-file source (^[] (display text)))))
   ;; args を付けて sxlc を実行し、終了値と標準エラー出力の行のリストを返す
@@ -253,7 +253,7 @@
                            [b (expansion (structure (optimized-objects 'A level `((mml A ,text)))))])
                        (and (= (length a) (length b)) (every same? a b)))))))
         ;; 最適化で不正なチャンネルの命令が落ちず、-O 0 と同じく失敗する (#64)
-        (let1 source (write-source "lfo-invalid-channel"
+        (let1 source (source-output "lfo-invalid-channel"
                                    "(mml A \"Mt{C} Mt c\")")
           (test* "an invalid LFO channel fails with optimize level 1"
                  '(1 #t)
@@ -264,15 +264,15 @@
 
 (let* ([workdir (sys-mkdtemp (build-path (temporary-directory) "sxmml-test"))])
   (define (work-file name) (build-path workdir name))
-  (define (write-source path forms)
+  (define (source-output path forms)
     (with-output-to-file path (^[] (for-each write forms)))
     path)
   ;; ヘッダの 13 個の位置が指す区間の順。PMD4 の音色表の区間は、続くメタ情報を含む。
   (define binary-sections '(A B C D E F G H I J K R voice))
   ;; モードを選んでソースを読み込み、このプロセスで生成した .m の内容を返す。
   ;; level は最適化の水準。省略時は sxlc の既定の -O 1 と同じ最適化を使う。
-  (define (generate-binary name mode forms :optional (level #t))
-    (let1 source (write-source (work-file #"bytes-~|name|.sxl") forms)
+  (define (make-binary-data name mode forms :optional (level #t))
+    (let1 source (source-output (work-file #"bytes-~|name|.sxl") forms)
       (parameterize ([sxmml-environment (make <sxmml-environment>)]
                      [sxmml-source-file source])
         (mode)
@@ -292,8 +292,8 @@
       (begin
         ;; 圧縮で生成した : を含むループは、同じ形を手で書いた MML と同じバイト内容になる (#69)
         (test* "pmd-binary の生成したループ"
-               (section-hex (generate-binary "rep-hand" pmd-binary '((mml A "[cd:e]3"))) 'A)
-               (section-hex (generate-binary "rep-gen" pmd-binary '((mml A "cdecdecd")) :repeat) 'A))
+               (section-hex (make-binary-data "rep-hand" pmd-binary '((mml A "[cd:e]3"))) 'A)
+               (section-hex (make-binary-data "rep-gen" pmd-binary '((mml A "cdecdecd")) :repeat) 'A))
       )
     (remove-directory* workdir)))
 

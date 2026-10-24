@@ -69,24 +69,24 @@
    [objects-order :init-form (make-tree-map integer-comparator)]
    ))
 
-(define-class <sxmml-optimize-2path-context> ()
+(define-class <sxmml-optimize-2nd-pass-context> ()
   ([voice :init-value #f]
-   [voice-placed? :init-value #f]
+   [voice-placed :init-value #f]
    [volume :init-value #f]
-   [volume-placed? :init-value #f]
-   [gatetime :init-value #f]
-   [gatetime-placed? :init-value #f]
+   [volume-placed :init-value #f]
+   [gate-time :init-value #f]
+   [gate-time-placed :init-value #f]
    [pan :init-value #f]
-   [pan-placed? :init-value #f]
+   [pan-placed :init-value #f]
    [detune :init-value #f]
-   [detune-placed? :init-value #f]
+   [detune-placed :init-value #f]
    [envelope :init-value #f]
-   [envelope-placed? :init-value #f]
+   [envelope-placed :init-value #f]
    ;; LFO はチャンネルごとに、値をチャンネルの連想リスト、置いたかどうかをチャンネルのリストで持つ
    [lfo :init-value ()]
-   [lfo-placed? :init-value ()]
+   [lfo-placed-channels :init-value ()]
    [lfo-switch :init-value ()]
-   [lfo-switch-placed? :init-value ()]
+   [lfo-switch-placed-channels :init-value ()]
    [repeat-depth :init-value 0]))
 
 ;;;
@@ -102,7 +102,7 @@
    [current-ticks :init-form (acons 0 0 ())]
    [total-ticks :init-value 0 :init-keyword :total-ticks]
    [loop-ticks :init-value 0 :init-keyword :loop-ticks]
-   [loop-exists? :init-value #f :init-keyword :loop-exists]
+   [loop-exists :init-value #f :init-keyword :loop-exists]
    [compiled-data :init-value ()]
    [repeat-stack :init-value ()]
    [ticks-statistics :init-form (make-hash-table eqv-comparator)]
@@ -122,7 +122,7 @@
 (define-class <sxmml-mml-octave> (<sxmml-mml>) ())
 (define-class <sxmml-mml-volume> (<sxmml-mml>) ())
 (define-class <sxmml-mml-volume-change> (<sxmml-mml>) ())
-(define-class <sxmml-mml-gatetime> (<sxmml-mml>) ())
+(define-class <sxmml-mml-gate-time> (<sxmml-mml>) ())
 (define-class <sxmml-mml-tie> (<sxmml-mml>) ())
 (define-class <sxmml-mml-transpose> (<sxmml-mml>) ())
 (define-class <sxmml-mml-transpose-change> (<sxmml-mml>) ())
@@ -140,7 +140,7 @@
   ([channel :init-keyword :channel :init-value #f]))
 (define-class <sxmml-mml-lfo-switch> (<sxmml-mml-lfo>) ())
 (define-class <sxmml-mml-envelope> (<sxmml-mml>) ())
-(define-class <sxmml-mml-portament> (<sxmml-mml-note>) ())
+(define-class <sxmml-mml-portamento> (<sxmml-mml-note>) ())
 (define-class <sxmml-mml-noise-frequency> (<sxmml-mml>) ())
 (define-class <sxmml-mml-output-switch> (<sxmml-mml>) ())
 

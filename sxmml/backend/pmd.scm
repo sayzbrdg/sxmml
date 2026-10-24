@@ -37,9 +37,9 @@
   (use sxmml.optimizer)
   (use sxmml.voice)
   (use sxmml.util)
-  (export sxmml-pmd3-source-generate sxmml-pmd4-source-generate sxmml-pmd-source-generate
+  (export sxmml-pmd3-source-output sxmml-pmd4-source-output sxmml-pmd-source-output
           pmd3-source pmd4-source pmd-source pmd3 pmd
-          sxmml-pmd-voice-numbers sxmml-pmd-lfo-values sxmml-pmd-envelope-values
+          sxmml-pmd-voice-number-table-compute sxmml-pmd-lfo-values sxmml-pmd-envelope-values
           sxmml-pmd-metadata-value
           ))
 (select-module sxmml.backend.pmd)
@@ -54,7 +54,7 @@
 (define sxmml-pmd-track-environment
   (make-parameter #f))
 
-;; 生成中の音色番号の表 (sxmml-pmd-voice-numbers の値)
+;; 生成中の音色番号の表 (sxmml-pmd-voice-number-table-compute の値)
 (define %pmd-voice-numbers
   (make-parameter #f))
 
@@ -62,15 +62,15 @@
 ;;; mode
 ;;;
 (define (pmd3-source)
-  (slot-set! (sxmml-environment) 'backend sxmml-pmd3-source-generate)
+  (slot-set! (sxmml-environment) 'backend sxmml-pmd3-source-output)
   (slot-set! (sxmml-environment) 'mode "PMD3")
   (%pmd-source))
 (define (pmd4-source)
-  (slot-set! (sxmml-environment) 'backend sxmml-pmd4-source-generate)
+  (slot-set! (sxmml-environment) 'backend sxmml-pmd4-source-output)
   (slot-set! (sxmml-environment) 'mode "PMD4")
   (%pmd-source))
 (define (pmd-source)
-  (slot-set! (sxmml-environment) 'backend sxmml-pmd-source-generate)
+  (slot-set! (sxmml-environment) 'backend sxmml-pmd-source-output)
   (slot-set! (sxmml-environment) 'mode "PMD")
   (%pmd-source))
 (define pmd3 pmd3-source)
@@ -85,21 +85,21 @@
 ;;;
 ;;; translate procedure
 ;;;
-(define (sxmml-pmd3-source-generate)
-  (%sxmml-pmdx-source-generate #t))
+(define (sxmml-pmd3-source-output)
+  (%sxmml-pmdx-source-output #t))
 
-(define (sxmml-pmd4-source-generate)
-  (%sxmml-pmdx-source-generate #f))
+(define (sxmml-pmd4-source-output)
+  (%sxmml-pmdx-source-output #f))
 
-(define (sxmml-pmd-source-generate :optional (mode #f))
-  (%sxmml-pmdx-source-generate mode))
+(define (sxmml-pmd-source-output :optional (mode #f))
+  (%sxmml-pmdx-source-output mode))
 
-(define (%sxmml-pmdx-source-generate mode)
-  (parameterize ([%pmd-voice-numbers (sxmml-pmd-voice-numbers)])
+(define (%sxmml-pmdx-source-output mode)
+  (parameterize ([%pmd-voice-numbers (sxmml-pmd-voice-number-table-compute)])
     (%pmd-source-output mode))
   (sxmml-environment))
 
-(define (%track-generate track part voice-proc! vol-set-proc! vol-change-proc!)
+(define (%track-output track part voice-proc! vol-set-proc! vol-change-proc!)
   (let ([lis (sxmml-optimize-tree track :optimize (slot-ref (sxmml-environment) 'optimize))]
         [mode (%find-mode-ticks track)])
     (unless (null? lis)
@@ -108,107 +108,107 @@
         (when mode
           (slot-set! (sxmml-pmd-track-environment) 'mode mode)
           (format #t "l%~d" mode))
-        (%pmd-track-generate lis
+        (%pmd-track-output lis
                              voice-proc!
                              vol-set-proc!
                              vol-change-proc!)
         (display "\r\n\r\n")))))
 
-(define (%fm-track-generate track part)
-  (%track-generate track part %pmd-fm-voice-set! %pmd-fm-volume-set! %pmd-fm-volume-change-set!))
+(define (%fm-track-output track part)
+  (%track-output track part %pmd-fm-voice-output %pmd-fm-volume-output %pmd-fm-volume-change-output))
 
-(define (%ssg-track-generate track part)
-  (%track-generate track part %pmd-ssg-voice-set! %pmd-ssg-volume-set! %pmd-ssg-volume-change-set!))
+(define (%ssg-track-output track part)
+  (%track-output track part %pmd-ssg-voice-output %pmd-ssg-volume-output %pmd-ssg-volume-change-output))
 
-(define (%pcm-track-generate track part)
-  (%track-generate track part %pmd-pcm-voice-set! %pmd-pcm-volume-set! %pmd-pcm-volume-change-set!))
+(define (%pcm-track-output track part)
+  (%track-output track part %pmd-pcm-voice-output %pmd-pcm-volume-output %pmd-pcm-volume-change-output))
 
-(define (%pmd-track-generate lis voiceproc volproc volcproc)
+(define (%pmd-track-output lis voiceproc volproc volcproc)
   (let loop ([rest lis])
     (cond [(null? rest)
            ()]
           [(is-a? (car rest) <sxmml-mml-rest>)
-           (%pmd-rest-set! (car rest))
+           (%pmd-rest-output (car rest))
            (loop (cdr rest))]
-          [(is-a? (car rest) <sxmml-mml-portament>)
-           (%pmd-portament-set! (car rest))
+          [(is-a? (car rest) <sxmml-mml-portamento>)
+           (%pmd-portamento-output (car rest))
            (loop (cdr rest))]
           [(is-a? (car rest) <sxmml-mml-note>)
-           (%pmd-note-set! (car rest))
+           (%pmd-note-output (car rest))
            (loop (cdr rest))]
           [(is-a? (car rest) <sxmml-mml-voice>)
            (voiceproc (car rest))
            (loop (cdr rest) )]
-          [(is-a? (car rest) <sxmml-mml-gatetime>)
-           (%pmd-gatetime-set! (car rest))
+          [(is-a? (car rest) <sxmml-mml-gate-time>)
+           (%pmd-gate-time-output (car rest))
            (loop (cdr rest))]
           [(is-a? (car rest) <sxmml-mml-volume>)
            (volproc (car rest))
            (loop (cdr rest))]
           [(is-a? (car rest) <sxmml-mml-tempo-absolute>)
-           (%pmd-tempo-absolute-set! (car rest))
+           (%pmd-tempo-absolute-output (car rest))
            (loop (cdr rest))]
           [(is-a? (car rest) <sxmml-mml-tempo>)
-           (%pmd-tempo-set! (car rest))
+           (%pmd-tempo-output (car rest))
            (loop (cdr rest))]
           [(is-a? (car rest) <sxmml-mml-tie>)
-           (%pmd-tie-set! (car rest))
+           (%pmd-tie-output (car rest))
            (loop (cdr rest))]
           [(is-a? (car rest) <sxmml-mml-detune>)
-           (%pmd-detune-set! (car rest))
+           (%pmd-detune-output (car rest))
            (loop (cdr rest))]
           [(is-a? (car rest) <sxmml-mml-repeat-start>)
-           (%pmd-repeat-start-set! (car rest))
+           (%pmd-repeat-start-output (car rest))
            (loop (cdr rest))]
           [(is-a? (car rest) <sxmml-mml-repeat-end>)
-           (%pmd-repeat-end-set! (car rest))
+           (%pmd-repeat-end-output (car rest))
            (loop (cdr rest))]
           [(is-a? (car rest) <sxmml-mml-repeat-break>)
-           (%pmd-repeat-break-set! (car rest))
+           (%pmd-repeat-break-output (car rest))
            (loop (cdr rest))]
           [(is-a? (car rest) <sxmml-mml-loop>)
-           (%pmd-loop-set! (car rest))
+           (%pmd-loop-output (car rest))
            (loop (cdr rest))]
           [(is-a? (car rest) <sxmml-mml-transpose>)
-           (%pmd-transpose-set! (car rest))
+           (%pmd-transpose-output (car rest))
            (loop (cdr rest))]
           [(is-a? (car rest) <sxmml-mml-lfo-switch>)
-           (%pmd-lfo-switch-set! (car rest))
+           (%pmd-lfo-switch-output (car rest))
            (loop (cdr rest))]
           [(is-a? (car rest) <sxmml-mml-lfo>)
-           (%pmd-lfo-set! (car rest))
+           (%pmd-lfo-output (car rest))
            (loop (cdr rest))]
           [(is-a? (car rest) <sxmml-mml-envelope>)
-           (%pmd-envelope-set! (car rest))
+           (%pmd-envelope-output (car rest))
            (loop (cdr rest))]
           [(is-a? (car rest) <sxmml-mml-pan>)
-           (%pmd-pan-set! (car rest))
+           (%pmd-pan-output (car rest))
            (loop (cdr rest))]
           [(is-a? (car rest) <sxmml-mml-transpose-change>)
-           (%pmd-transpose-change-set! (car rest))
+           (%pmd-transpose-change-output (car rest))
            (loop (cdr rest))]
           [(is-a? (car rest) <sxmml-mml-volume-change>)
            (volcproc (car rest))
            (loop (cdr rest))]
           [(is-a? (car rest) <sxmml-mml-noise-frequency>)
-           (%pmd-noise-freq-set! (car rest))
+           (%pmd-noise-freq-output (car rest))
            (loop (cdr rest))]
           [(is-a? (car rest) <sxmml-mml-output-switch>)
-           (%pmd-output-switch-set! (car rest))
+           (%pmd-output-switch-output (car rest))
            (loop (cdr rest))]
           [else
            (loop (cdr rest))])))
 
-(define (%pmd-rhythm-track-generate track)
+(define (%pmd-rhythm-track-output track)
   (define lis (sxmml-optimize-tree track :optimize (slot-ref (sxmml-environment) 'optimize)))
   (define has-loop? (boolean (find (^o (is-a? o <sxmml-mml-loop>)) lis)))
   (parameterize ([sxmml-pmd-track-environment (make <sxmml-pmd-track-environment>)])
     ;; R-channel
-    (%pmd-rhythm-definition-track-generate has-loop? lis)
+    (%pmd-rhythm-definition-track-output has-loop? lis)
     ;; K-channel
-    (%pmd-rhythm-deploy-track-generate has-loop? lis)))
+    (%pmd-rhythm-deploy-track-output has-loop? lis)))
 
-(define (%pmd-rhythm-definition-track-generate has-loop? lis)
+(define (%pmd-rhythm-definition-track-output has-loop? lis)
   (define (loop rest)
     (cond [(null? rest)
            (display "\r\n")
@@ -217,28 +217,28 @@
            (display "\r\n")
            (cdr rest)]
           [(is-a? (car rest) <sxmml-mml-rest>)
-           (%pmd-rest-set! (car rest))
+           (%pmd-rest-output (car rest))
            (loop (cdr rest))]
           [(is-a? (car rest) <sxmml-rhythm-emit>)
-           (%pmd-rhythm-emit-set! (car rest))
+           (%pmd-rhythm-emit-output (car rest))
            (loop (cdr rest))]
           [(is-a? (car rest) <sxmml-mml-repeat-start>)
-           (%pmd-repeat-start-set! (car rest))
+           (%pmd-repeat-start-output (car rest))
            (loop (cdr rest))]
           [(is-a? (car rest) <sxmml-mml-repeat-end>)
-           (%pmd-repeat-end-set! (car rest))
+           (%pmd-repeat-end-output (car rest))
            (loop (cdr rest))]
           [(is-a? (car rest) <sxmml-mml-repeat-break>)
-           (%pmd-repeat-break-set! (car rest))
+           (%pmd-repeat-break-output (car rest))
            (loop (cdr rest))]
           [(is-a? (car rest) <sxmml-rhythm-volume>)
-           (%pmd-rhythm-volume-set! (car rest))
+           (%pmd-rhythm-volume-output (car rest))
            (loop (cdr rest))]
           [(is-a? (car rest) <sxmml-rhythm-volume-change>)
-           (%pmd-rhythm-volume-change-set! (car rest))
+           (%pmd-rhythm-volume-change-output (car rest))
            (loop (cdr rest))]
           [(is-a? (car rest) <sxmml-rhythm-pan>)
-           (%pmd-rhythm-pan-set! (car rest))
+           (%pmd-rhythm-pan-output (car rest))
            (loop (cdr rest))]
           [else
            (loop (cdr rest))]))
@@ -250,7 +250,7 @@
         (loop rest)))
     (display "\r\n")))
 
-(define (%pmd-rhythm-deploy-track-generate has-loop? lis)
+(define (%pmd-rhythm-deploy-track-output has-loop? lis)
   (unless (null? lis)
     (display "K ")
     (and-let1 mode (%find-mode-ticks 'L)
@@ -268,13 +268,13 @@
         (^[p n]
           (with-output-conversion p
             (^[]
-              (%pmd-source-head-generate pmd3?)
-              (%pmd-source-meta-generate pmd3?)
-              (%pmd-source-voice-generate)
-              (for-each (^[t p] (%fm-track-generate t p)) (map sxmml-track-find '(A B C D E F)) '(A B C D E F))
-              (for-each (^[t p] (%ssg-track-generate t p)) (map sxmml-track-find '(G H I)) '(G H I))
-              (%pcm-track-generate (sxmml-track-find 'J) 'J)
-              (%pmd-rhythm-track-generate (sxmml-track-find 'L))
+              (%pmd-source-head-output pmd3?)
+              (%pmd-source-meta-output pmd3?)
+              (%pmd-source-voice-output)
+              (for-each (^[t p] (%fm-track-output t p)) (map sxmml-track-find '(A B C D E F)) '(A B C D E F))
+              (for-each (^[t p] (%ssg-track-output t p)) (map sxmml-track-find '(G H I)) '(G H I))
+              (%pcm-track-output (sxmml-track-find 'J) 'J)
+              (%pmd-rhythm-track-output (sxmml-track-find 'L))
               (when pmd3?
                 (display #\x1a)))
             :encoding "cp932")
@@ -283,11 +283,11 @@
       :directory (sys-dirname output-file))
     output-file))
 
-(define (%pmd-source-head-generate :optional (pmd3? #f))
+(define (%pmd-source-head-output :optional (pmd3? #f))
   (format #t ";; This file was generated by sxmml from ~a\r\n;; mode: ~a\r\n\r\n"
           (sys-basename (sxmml-source-file)) (if pmd3? "PMDver3.3" "PMDver4.8")))
 
-(define (%pmd-source-meta-generate :optional (pmd3? #f))
+(define (%pmd-source-meta-output :optional (pmd3? #f))
   (for-each (^[k] (let1 value (sxmml-pmd-metadata-value k)
                     (when value
                       (when pmd3?
@@ -317,7 +317,7 @@
 
 ;; PMD は音色を 0 から 255 の番号で指定するので、定義した全ての音色に、id の
 ;; 辞書順で 0 から番号を振る。id から番号への表を返す
-(define (sxmml-pmd-voice-numbers)
+(define (sxmml-pmd-voice-number-table-compute)
   (let ([ids (sort (hash-table-keys (slot-ref (sxmml-environment) 'voice))
                    (^[a b] (string<? (symbol->string a) (symbol->string b))))]
         [table (make-hash-table eq-comparator)])
@@ -327,7 +327,7 @@
     table))
 
 ;; 同じ入力から同じ生成物を得るため、音色表の反復順ではなく番号順に出力する
-(define (%pmd-source-voice-generate)
+(define (%pmd-source-voice-output)
   (for-each
     (^[voice]
       (let ([number (%pmd-fm-voice-number voice)]
@@ -352,7 +352,7 @@
 ;;;
 
 ;; PMD operator
-(define (%pmd-rest-set! obj)
+(define (%pmd-rest-output obj)
   (let recur ([ticks (slot-ref obj 'ticks)])
     (cond [(> ticks 255)
            (format #t "r%255")
@@ -362,7 +362,7 @@
           [else
            (format #t "r%~d" ticks)])))
 
-(define (%pmd-note-set! obj)
+(define (%pmd-note-output obj)
   (let recur ([note (%note-number->pmd-note (slot-ref obj 'value))]
               [ticks (slot-ref obj 'ticks)]
               [octave (slot-ref (sxmml-pmd-track-environment) 'octave)])
@@ -383,7 +383,7 @@
           [(not (= ticks (slot-ref (sxmml-pmd-track-environment) 'mode)))
            (format #t "%~d" ticks)])))
 
-(define (%pmd-fm-voice-set! obj)
+(define (%pmd-fm-voice-output obj)
   (let1 inst (hash-table-get (slot-ref (sxmml-environment) 'voice) (slot-ref obj 'value) #f)
     (unless inst
       (error "no instrument define: " (slot-ref obj 'value)))
@@ -392,46 +392,46 @@
 (define (%pmd-fm-voice-number voice)
   (hash-table-get (%pmd-voice-numbers) (slot-ref voice 'id)))
 
-(define (%pmd-gatetime-set! obj)
+(define (%pmd-gate-time-output obj)
   (format #t "q~d" (slot-ref obj 'value)))
 
-(define (%pmd-fm-volume-set! obj)
+(define (%pmd-fm-volume-output obj)
   (format #t "V~d" (slot-ref obj 'value)))
 
-(define (%pmd-ssg-volume-set! obj)
+(define (%pmd-ssg-volume-output obj)
   (format #t "v~d" (slot-ref obj 'value)))
 
-(define (%pmd-pcm-volume-set! obj)
+(define (%pmd-pcm-volume-output obj)
   (format #t "V~d" (slot-ref obj 'value)))
 
-(define (%pmd-tempo-absolute-set! obj)
+(define (%pmd-tempo-absolute-output obj)
   (format #t "T~d" (slot-ref obj 'value)))
 
-(define (%pmd-tempo-set! obj)
-  (format #t "T~d" (bpm->timerb (slot-ref obj 'value))))
+(define (%pmd-tempo-output obj)
+  (format #t "T~d" (sxmml-bpm->timer-b (slot-ref obj 'value))))
 
-(define (%pmd-tie-set! obj)
+(define (%pmd-tie-output obj)
   (format #t "&"))
 
-(define (%pmd-detune-set! obj)
+(define (%pmd-detune-output obj)
   (format #t "D~d" (slot-ref obj 'value)))
 
-(define (%pmd-repeat-start-set! obj)
+(define (%pmd-repeat-start-output obj)
   (format #t "["))
 
-(define (%pmd-repeat-end-set! obj)
+(define (%pmd-repeat-end-output obj)
   (format #t "]~d" (slot-ref obj 'value)))
 
-(define (%pmd-repeat-break-set! obj)
+(define (%pmd-repeat-break-output obj)
   (format #t ":"))
 
-(define (%pmd-loop-set! obj)
+(define (%pmd-loop-output obj)
   (format #t "L"))
 
-(define (%pmd-transpose-set! obj)
+(define (%pmd-transpose-output obj)
   (format #t "_~d" (slot-ref obj 'value)))
 
-(define (%pmd-lfo-set! obj)
+(define (%pmd-lfo-output obj)
   (let1 lfo (hash-table-get (slot-ref (sxmml-environment) 'lfo) (slot-ref obj 'value) #f)
     (unless lfo
       (error "no lfo define: " (slot-ref obj 'value)))
@@ -444,7 +444,7 @@
           (display "B"))
         (format #t "~d,~d,~d,~d" (car value) (cadr value) (caddr value) (cadddr value))))))
 
-(define (%pmd-lfo-switch-set! obj)
+(define (%pmd-lfo-switch-output obj)
   (let ([channel (slot-ref obj 'channel)]
         [switch (slot-ref obj 'value)])
     (unless (memq channel '(#f A B))
@@ -454,7 +454,7 @@
         (display "B"))
     (format #t "~d" (if switch 1 0))))
 
-(define (%pmd-envelope-set! obj)
+(define (%pmd-envelope-output obj)
   (let1 envelope (hash-table-get (slot-ref (sxmml-environment) 'envelope) (slot-ref obj 'value) #f)
     (unless envelope
       (error "no envelope define: " (slot-ref obj 'value)))
@@ -504,13 +504,13 @@
                 value (cdr range) (iota (length value) 1))
       value)))
 
-(define (%pmd-pan-set! obj)
+(define (%pmd-pan-output obj)
   (format #t "p~d" (slot-ref obj 'value)))
 
-(define (%pmd-transpose-change-set! obj)
+(define (%pmd-transpose-change-output obj)
   (format #t "__~d" (slot-ref obj 'value)))
 
-(define (%pmd-fm-volume-change-set! obj)
+(define (%pmd-fm-volume-change-output obj)
   (let1 value (slot-ref obj 'value)
     (cond [(= value 4)
            (display ")")]
@@ -521,7 +521,7 @@
           [else
            (format #t "(%~d" (* (slot-ref obj 'value) -1))])))
 
-(define (%pmd-ssg-volume-change-set! obj)
+(define (%pmd-ssg-volume-change-output obj)
   (let1 value (slot-ref obj 'value)
     (cond [(= value 1)
            (display ")")]
@@ -532,7 +532,7 @@
           [else
            (format #t "(%~d" (* (slot-ref obj 'value) -1))])))
 
-(define (%pmd-pcm-volume-change-set! obj)
+(define (%pmd-pcm-volume-change-output obj)
   (let1 value (slot-ref obj 'value)
     (cond [(= value 16)
            (display ")")]
@@ -543,7 +543,7 @@
           [else
            (format #t "(%~d" (* (slot-ref obj 'value) -1))])))
 
-(define (%pmd-portament-set! obj)
+(define (%pmd-portamento-output obj)
   (define (display-octave noteoct)
     (let1 octave (slot-ref (sxmml-pmd-track-environment) 'octave)
       (cond [(or (> (- noteoct octave) 1) (< (- noteoct octave) -1))
@@ -563,10 +563,10 @@
     (display-octave (car end))
     (format #t "~a}%~d" (cdr end) ticks)))
 
-(define (%pmd-ssg-voice-set! obj)
+(define (%pmd-ssg-voice-output obj)
   (format #t "@~d" (%pmd-voice-number obj 9)))
 
-(define (%pmd-pcm-voice-set! obj)
+(define (%pmd-pcm-voice-output obj)
   (format #t "@~d" (%pmd-voice-number obj 255)))
 
 ;; SSG・PCM の音色の値は PMD の @ の数値としてそのまま出力するので、0 から max までの
@@ -578,14 +578,14 @@
       (error "invalid voice parameter: " value))
     value))
 
-(define (%pmd-noise-freq-set! obj)
+(define (%pmd-noise-freq-output obj)
   (format #t "w~d" (slot-ref obj 'value)))
 
-(define (%pmd-output-switch-set! obj)
+(define (%pmd-output-switch-output obj)
   (format #t "P~d" (slot-ref obj 'value)))
 
 ;; Rhythm operator
-(define (%pmd-rhythm-emit-set! obj)
+(define (%pmd-rhythm-emit-output obj)
   (let* ([b (if (slot-ref obj 'bass) (if (slot-ref obj 'value) "\\b" "\\bp") "")]
          [s (if (slot-ref obj 'snare) (if (slot-ref obj 'value) "\\s" "\\sp") "")]
          [t (if (slot-ref obj 'tom) (if (slot-ref obj 'value) "\\t" "\\tp") "")]
@@ -594,9 +594,9 @@
          [i (if (slot-ref obj 'rimshot) (if (slot-ref obj 'value) "\\i" "\\ip") "")])
     (format #t "~a~a~a~a~a~a" b s t c h i)
     (when (slot-ref obj 'value)
-      (%pmd-rest-set! (make <sxmml-mml-rest> :value #f :ticks (slot-ref obj 'ticks))))))
+      (%pmd-rest-output (make <sxmml-mml-rest> :value #f :ticks (slot-ref obj 'ticks))))))
 
-(define (%pmd-rhythm-volume-set! obj)
+(define (%pmd-rhythm-volume-output obj)
   (let ([v (if-let1 a (slot-ref obj 'value) (format "\\V~d" a) "")]
         [b (if-let1 a (slot-ref obj 'bass) (format "\\vb~d" a) "")]
         [s (if-let1 a (slot-ref obj 'snare) (format "\\vs~d" a) "")]
@@ -606,7 +606,7 @@
         [i (if-let1 a (slot-ref obj 'rimshot) (format "\\vi~d" a) "")])
     (format #t "~a~a~a~a~a~a~a" v b s t c h i)))
 
-(define (%pmd-rhythm-volume-change-set! obj)
+(define (%pmd-rhythm-volume-change-output obj)
   (let ([b (if-let1 a (slot-ref obj 'bass) (format "\\vb~@d" a) "")]
         [s (if-let1 a (slot-ref obj 'snare) (format "\\vs~@d" a) "")]
         [t (if-let1 a (slot-ref obj 'tom) (format "\\vt~@d" a) "")]
@@ -615,7 +615,7 @@
         [i (if-let1 a (slot-ref obj 'rimshot) (format "\\vi~@d" a) "")])
     (format #t "~a~a~a~a~a~a" b s t c h i)))
 
-(define (%pmd-rhythm-pan-set! obj)
+(define (%pmd-rhythm-pan-output obj)
   ;; PMD のリズムのパンは右・左・中央だけで、1・2・3 に当たる
   (define (n->c num)
     (case num
