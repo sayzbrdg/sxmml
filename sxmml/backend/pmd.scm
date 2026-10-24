@@ -124,84 +124,83 @@
   (%track-output track part %pmd-pcm-voice-output %pmd-pcm-volume-output %pmd-pcm-volume-change-output))
 
 (define (%pmd-track-output lis voiceproc volproc volcproc)
-  (define loop-seen? #f)
-  (let loop ([rest lis])
+  (let loop ([rest lis]
+             [loop-seen? #f])
     (cond [(null? rest)
            ()]
           [(is-a? (car rest) <sxmml-mml-rest>)
            (%pmd-rest-output (car rest))
-           (loop (cdr rest))]
+           (loop (cdr rest) loop-seen?)]
           [(is-a? (car rest) <sxmml-mml-portamento>)
            (%pmd-portamento-output (car rest))
-           (loop (cdr rest))]
+           (loop (cdr rest) loop-seen?)]
           [(is-a? (car rest) <sxmml-mml-note>)
            (%pmd-note-output (car rest))
-           (loop (cdr rest))]
+           (loop (cdr rest) loop-seen?)]
           [(is-a? (car rest) <sxmml-mml-voice>)
            (voiceproc (car rest))
-           (loop (cdr rest) )]
+           (loop (cdr rest) loop-seen?)]
           [(is-a? (car rest) <sxmml-mml-gate-time>)
            (%pmd-gate-time-output (car rest))
-           (loop (cdr rest))]
+           (loop (cdr rest) loop-seen?)]
           [(is-a? (car rest) <sxmml-mml-volume>)
            (volproc (car rest))
-           (loop (cdr rest))]
+           (loop (cdr rest) loop-seen?)]
           [(is-a? (car rest) <sxmml-mml-tempo-absolute>)
            (%pmd-tempo-absolute-output (car rest))
-           (loop (cdr rest))]
+           (loop (cdr rest) loop-seen?)]
           [(is-a? (car rest) <sxmml-mml-tempo>)
            (%pmd-tempo-output (car rest))
-           (loop (cdr rest))]
+           (loop (cdr rest) loop-seen?)]
           [(is-a? (car rest) <sxmml-mml-tie>)
            (%pmd-tie-output (car rest))
-           (loop (cdr rest))]
+           (loop (cdr rest) loop-seen?)]
           [(is-a? (car rest) <sxmml-mml-detune>)
            (%pmd-detune-output (car rest))
-           (loop (cdr rest))]
+           (loop (cdr rest) loop-seen?)]
           [(is-a? (car rest) <sxmml-mml-repeat-start>)
            (%pmd-repeat-start-output (car rest))
-           (loop (cdr rest))]
+           (loop (cdr rest) loop-seen?)]
           [(is-a? (car rest) <sxmml-mml-repeat-end>)
            (%pmd-repeat-end-output (car rest))
-           (loop (cdr rest))]
+           (loop (cdr rest) loop-seen?)]
           [(is-a? (car rest) <sxmml-mml-repeat-break>)
            (%pmd-repeat-break-output (car rest))
-           (loop (cdr rest))]
+           (loop (cdr rest) loop-seen?)]
           [(is-a? (car rest) <sxmml-mml-loop>)
            (when loop-seen?
              (error "loop command can be used only once in a track"))
-           (set! loop-seen? #t)
            (%pmd-loop-output (car rest))
-           (loop (cdr rest))]
+           (loop (cdr rest) #t)]
           [(is-a? (car rest) <sxmml-mml-transpose>)
            (%pmd-transpose-output (car rest))
-           (loop (cdr rest))]
+           (loop (cdr rest) loop-seen?)]
           [(is-a? (car rest) <sxmml-mml-lfo-switch>)
            (%pmd-lfo-switch-output (car rest))
-           (loop (cdr rest))]
+           (loop (cdr rest) loop-seen?)]
           [(is-a? (car rest) <sxmml-mml-lfo>)
            (%pmd-lfo-output (car rest))
-           (loop (cdr rest))]
+           (loop (cdr rest) loop-seen?)]
           [(is-a? (car rest) <sxmml-mml-envelope>)
            (%pmd-envelope-output (car rest))
-           (loop (cdr rest))]
+           (loop (cdr rest) loop-seen?)]
           [(is-a? (car rest) <sxmml-mml-pan>)
            (%pmd-pan-output (car rest))
-           (loop (cdr rest))]
+           (loop (cdr rest) loop-seen?)]
           [(is-a? (car rest) <sxmml-mml-transpose-change>)
            (%pmd-transpose-change-output (car rest))
-           (loop (cdr rest))]
+           (loop (cdr rest) loop-seen?)]
           [(is-a? (car rest) <sxmml-mml-volume-change>)
            (volcproc (car rest))
-           (loop (cdr rest))]
+           (loop (cdr rest) loop-seen?)]
           [(is-a? (car rest) <sxmml-mml-noise-frequency>)
            (%pmd-noise-freq-output (car rest))
-           (loop (cdr rest))]
+           (loop (cdr rest) loop-seen?)]
           [(is-a? (car rest) <sxmml-mml-output-switch>)
            (%pmd-output-switch-output (car rest))
-           (loop (cdr rest))]
+           (loop (cdr rest) loop-seen?)]
           [else
-           (loop (cdr rest))])))
+           (loop (cdr rest) loop-seen?)])))
 
 (define (%pmd-rhythm-track-output track)
   (define lis (sxmml-optimize-tree track :optimize (slot-ref (sxmml-environment) 'optimize)))
@@ -213,49 +212,47 @@
     (%pmd-rhythm-deploy-track-output has-loop? lis)))
 
 (define (%pmd-rhythm-definition-track-output has-loop? lis)
-  (define loop-seen? #f)
-  (define (loop rest)
+  (define (loop rest loop-seen?)
     (cond [(null? rest)
            (display "\r\n")
            ()]
           [(is-a? (car rest) <sxmml-mml-loop>)
            (when loop-seen?
              (error "loop command can be used only once in a track"))
-           (set! loop-seen? #t)
            (display "\r\n")
            (cdr rest)]
           [(is-a? (car rest) <sxmml-mml-rest>)
            (%pmd-rest-output (car rest))
-           (loop (cdr rest))]
+           (loop (cdr rest) loop-seen?)]
           [(is-a? (car rest) <sxmml-rhythm-emit>)
            (%pmd-rhythm-emit-output (car rest))
-           (loop (cdr rest))]
+           (loop (cdr rest) loop-seen?)]
           [(is-a? (car rest) <sxmml-mml-repeat-start>)
            (%pmd-repeat-start-output (car rest))
-           (loop (cdr rest))]
+           (loop (cdr rest) loop-seen?)]
           [(is-a? (car rest) <sxmml-mml-repeat-end>)
            (%pmd-repeat-end-output (car rest))
-           (loop (cdr rest))]
+           (loop (cdr rest) loop-seen?)]
           [(is-a? (car rest) <sxmml-mml-repeat-break>)
            (%pmd-repeat-break-output (car rest))
-           (loop (cdr rest))]
+           (loop (cdr rest) loop-seen?)]
           [(is-a? (car rest) <sxmml-rhythm-volume>)
            (%pmd-rhythm-volume-output (car rest))
-           (loop (cdr rest))]
+           (loop (cdr rest) loop-seen?)]
           [(is-a? (car rest) <sxmml-rhythm-volume-change>)
            (%pmd-rhythm-volume-change-output (car rest))
-           (loop (cdr rest))]
+           (loop (cdr rest) loop-seen?)]
           [(is-a? (car rest) <sxmml-rhythm-pan>)
            (%pmd-rhythm-pan-output (car rest))
-           (loop (cdr rest))]
+           (loop (cdr rest) loop-seen?)]
           [else
-           (loop (cdr rest))]))
+           (loop (cdr rest) loop-seen?)]))
   (unless (null? lis)
     (display "R0 ")
-    (let1 rest (loop lis)
+    (let1 rest (loop lis #f)
       (when has-loop?
         (display "R1 ")
-        (loop rest)))
+        (loop rest #t)))
     (display "\r\n")))
 
 (define (%pmd-rhythm-deploy-track-output has-loop? lis)

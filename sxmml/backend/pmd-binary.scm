@@ -160,12 +160,12 @@
                             %pmd-pcm-volume-change-set!))
 
 (define (%pmd-track-u8vector-set! index hoffset lis voiceproc volproc volcproc)
-  (define loop-seen? #f)
   (define u8vec (vector-ref (slot-ref (sxmml-pmd-binary-environment) 'track) index))
   (define overall-offset (slot-ref (sxmml-pmd-binary-environment) 'offset))
   (define repeat-stack ())
   (let loop ([rest lis]
-             [track-offset 0])
+             [track-offset 0]
+             [loop-seen? #f])
     (%size-check (+ overall-offset track-offset))
     (cond [(null? rest)
            (u8vector-set! u8vec track-offset #x80)
@@ -176,58 +176,57 @@
              (u8vector-set! (slot-ref (sxmml-pmd-binary-environment) 'head) (+ hoffset 1) hb))
            (sxmml-pmd-binary-environment)]
           [(is-a? (car rest) <sxmml-mml-rest>)
-           (loop (cdr rest) (%pmd-rest-set! u8vec track-offset (car rest)))]
+           (loop (cdr rest) (%pmd-rest-set! u8vec track-offset (car rest)) loop-seen?)]
           [(is-a? (car rest) <sxmml-mml-portamento>)
-           (loop (cdr rest) (%pmd-portamento-set! u8vec track-offset (car rest)))]
+           (loop (cdr rest) (%pmd-portamento-set! u8vec track-offset (car rest)) loop-seen?)]
           [(is-a? (car rest) <sxmml-mml-note>)
-           (loop (cdr rest) (%pmd-note-set! u8vec track-offset (car rest)))]
+           (loop (cdr rest) (%pmd-note-set! u8vec track-offset (car rest)) loop-seen?)]
           [(is-a? (car rest) <sxmml-mml-voice>)
-           (loop (cdr rest) (voiceproc u8vec track-offset (car rest)))]
+           (loop (cdr rest) (voiceproc u8vec track-offset (car rest)) loop-seen?)]
           [(is-a? (car rest) <sxmml-mml-gate-time>)
-           (loop (cdr rest) (%pmd-gate-time-set! u8vec track-offset (car rest)))]
+           (loop (cdr rest) (%pmd-gate-time-set! u8vec track-offset (car rest)) loop-seen?)]
           [(is-a? (car rest) <sxmml-mml-volume>)
-           (loop (cdr rest) (volproc u8vec track-offset (car rest)))]
+           (loop (cdr rest) (volproc u8vec track-offset (car rest)) loop-seen?)]
           [(is-a? (car rest) <sxmml-mml-tempo-absolute>)
-           (loop (cdr rest) (%pmd-tempo-absolute-set! u8vec track-offset (car rest)))]
+           (loop (cdr rest) (%pmd-tempo-absolute-set! u8vec track-offset (car rest)) loop-seen?)]
           [(is-a? (car rest) <sxmml-mml-tempo>)
-           (loop (cdr rest) (%pmd-tempo-set! u8vec track-offset (car rest)))]
+           (loop (cdr rest) (%pmd-tempo-set! u8vec track-offset (car rest)) loop-seen?)]
           [(is-a? (car rest) <sxmml-mml-tie>)
-           (loop (cdr rest) (%pmd-tie-set! u8vec track-offset (car rest)))]
+           (loop (cdr rest) (%pmd-tie-set! u8vec track-offset (car rest)) loop-seen?)]
           [(is-a? (car rest) <sxmml-mml-detune>)
-           (loop (cdr rest) (%pmd-detune-set! u8vec track-offset (car rest)))]
+           (loop (cdr rest) (%pmd-detune-set! u8vec track-offset (car rest)) loop-seen?)]
           [(is-a? (car rest) <sxmml-mml-repeat-start>)
            (push! repeat-stack (cons (+ track-offset 1) 0))
-           (loop (cdr rest) (%pmd-repeat-start-set! u8vec track-offset (car rest)))]
+           (loop (cdr rest) (%pmd-repeat-start-set! u8vec track-offset (car rest)) loop-seen?)]
           [(is-a? (car rest) <sxmml-mml-repeat-end>)
-           (loop (cdr rest) (%pmd-repeat-end-set! u8vec track-offset (car rest) (pop! repeat-stack) overall-offset))]
+           (loop (cdr rest) (%pmd-repeat-end-set! u8vec track-offset (car rest) (pop! repeat-stack) overall-offset) loop-seen?)]
           [(is-a? (car rest) <sxmml-mml-repeat-break>)
            (set! (cdar repeat-stack) (+ track-offset 1))
-           (loop (cdr rest) (%pmd-repeat-break-set! u8vec track-offset (car rest)))]
+           (loop (cdr rest) (%pmd-repeat-break-set! u8vec track-offset (car rest)) loop-seen?)]
           [(is-a? (car rest) <sxmml-mml-loop>)
            (when loop-seen?
              (error "loop command can be used only once in a track"))
-           (set! loop-seen? #t)
-           (loop (cdr rest) (%pmd-loop-set! u8vec track-offset (car rest)))]
+           (loop (cdr rest) (%pmd-loop-set! u8vec track-offset (car rest)) #t)]
           [(is-a? (car rest) <sxmml-mml-transpose>)
-           (loop (cdr rest) (%pmd-transpose-set! u8vec track-offset (car rest)))]
+           (loop (cdr rest) (%pmd-transpose-set! u8vec track-offset (car rest)) loop-seen?)]
           [(is-a? (car rest) <sxmml-mml-lfo-switch>)
-           (loop (cdr rest) (%pmd-lfo-switch-set! u8vec track-offset (car rest)))]
+           (loop (cdr rest) (%pmd-lfo-switch-set! u8vec track-offset (car rest)) loop-seen?)]
           [(is-a? (car rest) <sxmml-mml-lfo>)
-           (loop (cdr rest) (%pmd-lfo-set! u8vec track-offset (car rest)))]
+           (loop (cdr rest) (%pmd-lfo-set! u8vec track-offset (car rest)) loop-seen?)]
           [(is-a? (car rest) <sxmml-mml-envelope>)
-           (loop (cdr rest) (%pmd-envelope-set! u8vec track-offset (car rest)))]
+           (loop (cdr rest) (%pmd-envelope-set! u8vec track-offset (car rest)) loop-seen?)]
           [(is-a? (car rest) <sxmml-mml-pan>)
-           (loop (cdr rest) (%pmd-pan-set! u8vec track-offset (car rest)))]
+           (loop (cdr rest) (%pmd-pan-set! u8vec track-offset (car rest)) loop-seen?)]
           [(is-a? (car rest) <sxmml-mml-transpose-change>)
-           (loop (cdr rest) (%pmd-transpose-change-set! u8vec track-offset (car rest)))]
+           (loop (cdr rest) (%pmd-transpose-change-set! u8vec track-offset (car rest)) loop-seen?)]
           [(is-a? (car rest) <sxmml-mml-volume-change>)
-           (loop (cdr rest) (volcproc u8vec track-offset (car rest)))]
+           (loop (cdr rest) (volcproc u8vec track-offset (car rest)) loop-seen?)]
           [(is-a? (car rest) <sxmml-mml-noise-frequency>)
-           (loop (cdr rest) (%pmd-noise-freq-set! u8vec track-offset (car rest)))]
+           (loop (cdr rest) (%pmd-noise-freq-set! u8vec track-offset (car rest)) loop-seen?)]
           [(is-a? (car rest) <sxmml-mml-output-switch>)
-           (loop (cdr rest) (%pmd-output-switch-set! u8vec track-offset (car rest)))]
+           (loop (cdr rest) (%pmd-output-switch-set! u8vec track-offset (car rest)) loop-seen?)]
           [else
-           (loop (cdr rest) track-offset)])))
+           (loop (cdr rest) track-offset loop-seen?)])))
 
 (define (%pmd-rhythm-track-u8vector-set! lis)
   (define has-loop? (boolean (find (^o (is-a? o <sxmml-mml-loop>)) lis)))
@@ -260,7 +259,6 @@
          (slot-set! (sxmml-pmd-binary-environment) 'offset (+ (overall-offset) 2))]))
 
 (define (%pmd-rhythm-definition-track-u8vector-set! has-loop? lis)
-  (define loop-seen? #f)
   (define (overall-offset) (slot-ref (sxmml-pmd-binary-environment) 'offset))
   (define u8vec (vector-ref (slot-ref (sxmml-pmd-binary-environment) 'track) 11))
   (define repeat-stack ())
@@ -272,7 +270,8 @@
       (u8vector-set! u8vec 0 lb)
       (u8vector-set! u8vec 1 hb)))
   (let loop ([rest lis]
-             [track-offset table-size])
+             [track-offset table-size]
+             [loop-seen? #f])
     (%size-check (+ (overall-offset) track-offset))
     (cond [(null? rest)
            ;; パターンの終わりの ff の次（パターンがなければ先頭）から、PMD4 の末尾の 12 バイトを書く
@@ -303,32 +302,31 @@
           [(is-a? (car rest) <sxmml-mml-loop>)
            (when loop-seen?
              (error "loop command can be used only once in a track"))
-           (set! loop-seen? #t)
            (u8vector-set! u8vec track-offset #xff)
            (receive (lb hb) (%short->le-bytes (+ (overall-offset) track-offset 1))
              (u8vector-set! u8vec 2 lb)
              (u8vector-set! u8vec 3 hb))
-           (loop (cdr rest) (+ track-offset 1))]
+           (loop (cdr rest) (+ track-offset 1) #t)]
           [(is-a? (car rest) <sxmml-mml-rest>)
-           (loop (cdr rest) (%pmd-rest-set! u8vec track-offset (car rest)))]
+           (loop (cdr rest) (%pmd-rest-set! u8vec track-offset (car rest)) loop-seen?)]
           [(is-a? (car rest) <sxmml-rhythm-emit>)
-           (loop (cdr rest) (%pmd-rhythm-emit-set! u8vec track-offset (car rest)))]
+           (loop (cdr rest) (%pmd-rhythm-emit-set! u8vec track-offset (car rest)) loop-seen?)]
           [(is-a? (car rest) <sxmml-mml-repeat-start>)
            (push! repeat-stack (cons (+ track-offset 1) 0))
-           (loop (cdr rest) (%pmd-repeat-start-set! u8vec track-offset (car rest)))]
+           (loop (cdr rest) (%pmd-repeat-start-set! u8vec track-offset (car rest)) loop-seen?)]
           [(is-a? (car rest) <sxmml-mml-repeat-end>)
-           (loop (cdr rest) (%pmd-repeat-end-set! u8vec track-offset (car rest) (pop! repeat-stack) (overall-offset)))]
+           (loop (cdr rest) (%pmd-repeat-end-set! u8vec track-offset (car rest) (pop! repeat-stack) (overall-offset)) loop-seen?)]
           [(is-a? (car rest) <sxmml-mml-repeat-break>)
            (set! (cdar repeat-stack) (+ track-offset 1))
-           (loop (cdr rest) (%pmd-repeat-break-set! u8vec track-offset (car rest)))]
+           (loop (cdr rest) (%pmd-repeat-break-set! u8vec track-offset (car rest)) loop-seen?)]
           [(is-a? (car rest) <sxmml-rhythm-volume>)
-           (loop (cdr rest) (%pmd-rhythm-volume-set! u8vec track-offset (car rest)))]
+           (loop (cdr rest) (%pmd-rhythm-volume-set! u8vec track-offset (car rest)) loop-seen?)]
           [(is-a? (car rest) <sxmml-rhythm-volume-change>)
-           (loop (cdr rest) (%pmd-rhythm-volume-change-set! u8vec track-offset (car rest)))]
+           (loop (cdr rest) (%pmd-rhythm-volume-change-set! u8vec track-offset (car rest)) loop-seen?)]
           [(is-a? (car rest) <sxmml-rhythm-pan>)
-           (loop (cdr rest) (%pmd-rhythm-pan-set! u8vec track-offset (car rest)))]
+           (loop (cdr rest) (%pmd-rhythm-pan-set! u8vec track-offset (car rest)) loop-seen?)]
           [else
-           (loop (cdr rest) track-offset)])))
+           (loop (cdr rest) track-offset loop-seen?)])))
 
 
 (define (%pmd-meta-track-u8vector-set!)
