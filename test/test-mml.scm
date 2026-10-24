@@ -11,6 +11,22 @@
 (use sxmml.form)
 (use sxmml.backend.pmd)
 
+(let ()
+  (define (compile rhythm? text)
+    (parameterize ([sxmml-environment (make <sxmml-environment>)])
+      (define-track G)
+      (define-track L)
+      (if rhythm? (rhythm L text) (mml G text))))
+  (test* "通常MMLの未知のxを報告する"
+         (test-error <error> "sxmml syntax error: unknown MML command \"x\" on G track")
+         (compile #f "c8x"))
+  (test* "リズムMMLの未知のxを報告する"
+         (test-error <error> "sxmml syntax error: unknown MML command \"x\" on L track")
+         (compile #t "@b8x"))
+  (test* "登録済みリズム命令のtickエラーを維持する"
+         (test-error <error> "ticks must be a positive integer:  0")
+         (compile #t "@b%0")))
+
 ;; 反復回数は正の正確な整数。1回の反復の意味と、脱出位置の状態も確認する (#106)
 (let ()
   (define (compile rhythm? text)

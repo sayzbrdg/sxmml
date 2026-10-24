@@ -5,14 +5,16 @@
 
 == 手続き
 
-`sxmml-compile-string!` 系は MML を sxmml IR の列へコンパイルし、`ctx` と合わせて二つの値を返します。`ctx` の解析状態はパーサーによって更新されます。トラックへの登録はここでは行わず、`mml` / `rhythm` マクロが `sxmml-ir-register!` を呼びます。文字列以外の入力は明示的なエラー、PEG の `<parse-error>` は入力付近とトラック名を含む構文エラーとして投げ直します。
+`sxmml-compile-string!` 系は MML を sxmml IR の列へコンパイルし、`ctx` と合わせて二つの値を返します。`ctx` の解析状態はパーサーによって更新されます。トラックへの登録はここでは行わず、`mml` / `rhythm` マクロが `sxmml-ir-register!` を呼びます。文字列以外の入力は明示的なエラー、PEG の `<parse-error>` はトラック名を含む構文エラーとして投げ直します。
+
+PEG の失敗種別 `type` が `fail-error` で、失敗情報 `objects` がタグと単一の `(fail-message . 文字列)` の構造なら、その文字列にトラック情報を付けます。たとえば `$raise` で伝えた未登録命令の理由は `sxmml syntax error: unknown MML command "x" on G track` となります。タグの値や理由の文言には依存しません。それ以外は残りの入力を使う既存の `sxmml syntax error, near "..." on G track` の表記を維持します。
 
 [cols="2,4,4,1",options="header"]
 |===
 |書式 |引数と役割 |戻り値・前提・失敗条件 |ソース
 |[[ref-compiler-sxmml-compile-mml-bang]]`(sxmml-compile-mml! str ctx)` |通常 MML 文字列と解析コンテキスト |`make-sxmml-mml-parser` を作って `sxmml-compile-string!` に渡す。二値を返す |link:../../sxmml/compiler.scm[compiler.scm]
 |[[ref-compiler-sxmml-compile-rhythm-bang]]`(sxmml-compile-rhythm! str ctx)` |リズム MML 文字列と解析コンテキスト |`make-sxmml-rhythm-parser` を作って `sxmml-compile-string!` に渡す。二値を返す |link:../../sxmml/compiler.scm[compiler.scm]
-|[[ref-compiler-sxmml-compile-string-bang]]`(sxmml-compile-string! parser str ctx)` |PEG パーサー、文字列、コンテキスト |パーサーが生成したオブジェクトのリストと `ctx` を返す。`str` が文字列でなければエラー。解析失敗はトラック名付きの構文エラー |link:../../sxmml/compiler.scm[compiler.scm]
+|[[ref-compiler-sxmml-compile-string-bang]]`(sxmml-compile-string! parser str ctx)` |PEG パーサー、文字列、コンテキスト |パーサーが生成したオブジェクトのリストと `ctx` を返す。`str` が文字列でなければエラー。解析失敗は上記の明示的な理由、または入力付近を示すトラック名付き構文エラー |link:../../sxmml/compiler.scm[compiler.scm]
 |[[ref-compiler-sxmml-compile-track-mml]]`(sxmml-compile-track-mml track str)` |登録済み `track` の context を検索して通常 MML を処理 |未登録トラックなら `no defined track` エラー。コンパイル結果の二値を返す |link:../../sxmml/compiler.scm[compiler.scm]
 |[[ref-compiler-sxmml-compile-track-rhythm]]`(sxmml-compile-track-rhythm track str)` |登録済み `track` の context を検索してリズム MML を処理 |未登録トラックなら `no defined track` エラー。コンパイル結果の二値を返す |link:../../sxmml/compiler.scm[compiler.scm]
 |===

@@ -106,7 +106,8 @@ PMD 向けの生成では、`-o` で指定した出力先、指定がなけれ�
 | `(sxmml-resolution 0)` | 正の整数が必要というエラー、終了値 1 |
 | `(mml G "c0")` | 0 での除算エラー、終了値 1 |
 | `(rhythm L "@b0")` | 0 での除算エラー、終了値 1 |
-| `(mml G "c8?")` | 未登録の `?` コマンドに関するエラー、終了値 1 |
+| `(mml G "c8x")` | `sxmml syntax error: unknown MML command "x" on G track`、終了値 1 |
+| `(rhythm L "@b8x")` | `sxmml syntax error: unknown MML command "x" on L track`、終了値 1 |
 | `(rhythm L "@x8")` | `sxmml syntax error, near "x8" on L track`、終了値 1 |
 | `(mml G "[ab]0")`・`(mml G "[a:b]0")`・`(rhythm L "[@b8:@s8]0")` のように反復回数0を書く | `repeat count must be a positive exact integer:` と指定値、終了値 1。波括弧付き・ゼロ埋めの0も同じ |
 | `(mml G "]1")` のように開始命令のない反復終端を書く | `repeat end appeared before repeat start`、終了値 1 |

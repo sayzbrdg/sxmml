@@ -5,6 +5,8 @@
 
 `$` で始まる項目の大半は Gauche `parser.peg` のパーサー値です。`define-inline` は値を常にマクロにする形式ではなく、ここでは手続きまたはパーサー値として働きます。各パーサーは PEG の入力状態を受ける手続きで、通常は直接呼ばず `make-sxmml-mml-parser` または `make-sxmml-rhythm-parser` から使用します。入力に一致しなければ PEG の失敗を返し、構文全体の解析失敗は呼び出し側でエラーになります。表の「結果」は一致時の値です。オブジェクト生成やパーサーの構築だけでは登録済みトラックは変更されません。`$note` などは解析コンテキストを変更します。
 
+未登録の命令文字は、命令表の検索だけを `guard` で捕捉し、読んだ文字を含む理由を `$raise` に渡して回復不能な PEG の失敗とします。理由は `unknown MML command "x"` の形式で、トラック情報の付与は呼び出し側の `sxmml-compile-string!` が担当します。登録済みの命令パーサーの実行は、この捕捉の対象に含めません。
+
 `define-inline`、Parameters、`parser.peg`、`$let`、`$return` は Gauche 0.9.15 の動作に従います。定義は表のソースファイル内で項目名から探せます。
 
 == 解析コンテキストと部品を作る定義
@@ -95,7 +97,7 @@
 |[[ref-mml-parser-portamento]]`$portamento` |開始・終了音と長さを持つ `<sxmml-mml-portamento>` を作る |解析時に tick 累計と統計を更新 |link:../../sxmml/mml.scm[mml.scm]
 |[[ref-mml-parser-noise-frequency]]`$noise-frequency` |`<sxmml-mml-noise-frequency>` を作る |符号なし値 |link:../../sxmml/mml.scm[mml.scm]
 |[[ref-mml-parser-output-switch]]`$output-switch` |`<sxmml-mml-output-switch>` を作る |符号なし値 |link:../../sxmml/mml.scm[mml.scm]
-|[[ref-mml-parser-note-commands]]`$note-commands` |空白、音符、または登録済み通常コマンドを読む |未登録文字で `hash-table-get` が失敗 |link:../../sxmml/mml.scm[mml.scm]
+|[[ref-mml-parser-note-commands]]`$note-commands` |空白、音符、または登録済み通常コマンドを読む |未登録文字を含む理由を `$raise` で通知 |link:../../sxmml/mml.scm[mml.scm]
 |===
 
 == リズム MML コマンドのパーサー
@@ -114,7 +116,7 @@
 |[[ref-mml-parser-rhythm-instrument-volume-up]]`$rhythm-instrument-volume-up` |楽器ごとの `<sxmml-rhythm-volume-change>` を作る |符号付き整数をそのまま格納 |link:../../sxmml/mml.scm[mml.scm]
 |[[ref-mml-parser-rhythm-instrument-volume-down]]`$rhythm-instrument-volume-down` |楽器ごとの `<sxmml-rhythm-volume-change>` を作る |符号付き整数の符号を反転して格納 |link:../../sxmml/mml.scm[mml.scm]
 |[[ref-mml-parser-rhythm-pan]]`$rhythm-pan` |楽器ごとの `<sxmml-rhythm-pan>` を作る |楽器 slot に値を格納 |link:../../sxmml/mml.scm[mml.scm]
-|[[ref-mml-parser-rhythm-commands]]`$rhythm-commands` |空白の後に登録済みリズムコマンドを読む |未登録文字で `hash-table-get` が失敗 |link:../../sxmml/mml.scm[mml.scm]
+|[[ref-mml-parser-rhythm-commands]]`$rhythm-commands` |空白の後に登録済みリズムコマンドを読む |未登録文字を含む理由を `$raise` で通知 |link:../../sxmml/mml.scm[mml.scm]
 |===
 
 == 音長計算例
