@@ -10,7 +10,7 @@
 | sxlc | `make check`、`test.log`（`test/test-sxlc.scm`） | 実際の CLI を使い、引数・モード・出力先・診断・終了値・後処理・入力保護・文字コードを確認する。独立した内部処理のユニットテストではない |
 | 製品全体の結合 | `make check`、`test.log`（`test/test-integration.scm`） | pmd-source の失敗 4 件、pmd-binary の失敗 6 件、両モードの反復回数 0 の失敗 2 件で、終了・診断・既存ファイルやディレクトリ内容の保持を確認する。個々の書込み・置換・削除操作を独立に検査するものではない |
 | 計測の道具 | `make check`、`test.log`（`tools/test-measure-optimize.scm`、`tools/` があるときだけ） | `tools/measure-optimize.scm` の既定の設定、列、オブジェクト数の合計、E と W の指定、変換の失敗の表示、一時ディレクトリを残さないこと、設定とソースの誤りの終了値 2 |
-| 解析・中間オブジェクト | `sxmml-compile-mml`、`sxmml-compile-rhythm` と公開マクロの評価 | オブジェクト列・トラック文脈・合計 tick |
+| 解析・中間オブジェクト | `sxmml-compile-mml!`、`sxmml-compile-rhythm!` と公開マクロの評価 | オブジェクト列・トラック文脈・合計 tick |
 | CLI・生成物 | インストール済み `sxlc` で入力を変換 | 終了値、表示、生成先、CP932 の内容、後処理の引数 |
 | 意味保持 | 最適化前後の列を解釈して比較 | 下記 Q-01 の時間配置・音高・状態変更 |
 | 文書例 | README・入門・両マニュアルの例を実行 | 各例の期待結果 |

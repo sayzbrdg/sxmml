@@ -1,7 +1,7 @@
 = `sxmml.optimizer` のオブジェクト列最適化
 :toc: left
 
-`sxmml.optimizer` は三十の手続きとクラス（record 型）一つを定義し、`sxmml-optimize-tree` を公開します。入力は登録済みトラックの `compiled-data` にある MML オブジェクト列です。戻り値は平坦化されたオブジェクトのリストで、元オブジェクトの `value` や `ticks` を更新する処理もあります。意味保持の判定原則は link:../verification.md#q-01-音楽的な意味の保持[検証方針]を参照してください。
+`sxmml.optimizer` は三十の手続きとクラス（record 型）一つを定義し、`sxmml-optimize-tree` を公開します。入力は登録済みトラックの `compiled-data` にある sxmml IR の列です。戻り値は平坦化されたオブジェクトのリストで、元オブジェクトの `value` や `ticks` を更新する処理もあります。意味保持の判定原則は link:../verification.md#q-01-音楽的な意味の保持[検証方針]を参照してください。
 
 `sxmml-optimize-tree` は先にトラックの `total-ticks` と `loop-ticks` を設定します。`:optimize #f` は無操作オブジェクトを除いて平坦化、真値は第 1 段階、`:full` は第 1 段階に加えて第 2 段階を適用します。`:repeat` は第 2 段階の後に、既存のリピートをひとまとめにして命令列を反復で圧縮し、`:repeat-expand` は展開後の長さが 256 以下の既存のリピートを展開してから圧縮します。圧縮は xref:repeat-tree.adoc[`sxmml.repeat-tree`] を使い、回数 2〜255、制御費用は `[ ]` が 2、`[ : ]` が 3、窓幅は `:repeat` が 256、`:repeat-expand` が 1024 です。展開すると反復の周期が延びるので、`:repeat-expand` は窓幅を広げます。回数の上限 255 と入れ子の上限 32 は PMD の局所ループの範囲です。最適化の目的は、コンパイル後のオブジェクトリストに連結されたオブジェクト数の削減です。バックエンドの最終文字列長は評価基準に含めません。オブジェクト、ハッシュ表、tree map は Gauche 0.9.15 の動作に従います。
 
@@ -9,18 +9,18 @@
 |===
 |名前・書式 |引数と役割 |戻り値・副作用・失敗条件 |ソース
 |[[ref-optimizer-sxmml-optimize-tree]]`(sxmml-optimize-tree track :key (optimize #t))` |登録済みトラックの列を指定水準で処理 |平坦なオブジェクトリストを返す。`total-ticks`・`loop-ticks` を更新。未登録トラックは検索で失敗 |link:../../sxmml/optimizer.scm[optimizer.scm]
-|[[ref-optimizer-internal-sxmml-optimize-tree]]`(%sxmml-optimize-tree mmlenv)` |第 1 段階。列の平坦化、同種設定の整理、音量変更の加算、無操作の除去 |新しいリストを返す。蓄積中のオブジェクトの `value` を更新する場合がある |link:../../sxmml/optimizer.scm[optimizer.scm]
+|[[ref-optimizer-internal-sxmml-optimize-tree-bang]]`(%sxmml-optimize-tree! mmlenv)` |第 1 段階。列の平坦化、同種設定の整理、音量変更の加算、無操作の除去 |新しいリストを返す。蓄積中のオブジェクトの `value` を更新する場合がある |link:../../sxmml/optimizer.scm[optimizer.scm]
 |[[ref-optimizer-object-sum-update-bang]]`(object-sum-update! env obj)` |音量差のオブジェクトをクラス別に蓄積 |同種の差分なら `value` を加算。`env` の表と順序表を更新 |link:../../sxmml/optimizer.scm[optimizer.scm]
-|[[ref-optimizer-object-store]]`(object-store env obj)` |蓄積した設定を順序に沿って取り出す |音量の絶対値と差分を合わせ、蓄積表を空にする。`obj` が EOF なら追加しない |link:../../sxmml/optimizer.scm[optimizer.scm]
+|[[ref-optimizer-object-flush-bang]]`(object-flush! env obj)` |蓄積した設定を順序に沿って取り出す |音量の絶対値と差分を合わせ、蓄積表を空にする。`obj` が EOF なら追加しない |link:../../sxmml/optimizer.scm[optimizer.scm]
 |[[ref-optimizer-object-set-bang]]`(object-set! env obj)` |同じ鍵の設定を新しい値で置換。鍵は `%object-key` で決める |蓄積表と順序表を更新 |link:../../sxmml/optimizer.scm[optimizer.scm]
 |[[ref-optimizer-internal-object-key]]`(%object-key obj)` |`object-set!` で置き換える設定の鍵を返す |オブジェクトのクラスを返す。LFO の定義・切り替えは、LFO の状態がチャンネルごとにあるので、クラスと `channel` の値の対を返す。チャンネルの値の意味はバックエンドが決めるので、省略 (`#f`) と `A` も区別する |link:../../sxmml/optimizer.scm[optimizer.scm]
 |[[ref-optimizer-object-rhythm-update-bang]]`(object-rhythm-update! env obj)` |リズム音量・パンの楽器 slot を更新 |既存の同種オブジェクトに真の slot 値を重ねる |link:../../sxmml/optimizer.scm[optimizer.scm]
 |[[ref-optimizer-object-rhythm-sum-update-bang]]`(object-rhythm-sum-update! env obj)` |リズム音量差を楽器ごとに加算 |既存の同種オブジェクトの該当 slot を更新 |link:../../sxmml/optimizer.scm[optimizer.scm]
-|[[ref-optimizer-internal-sxmml-optimize-2path]]`(%sxmml-optimize-2path lis)` |第 2 段階。反復を考慮して重複設定を省略し、隣接する休符を結合。LFO の定義・切り替えはチャンネルごとに重複を判定する |新しいリストを返す。結合先の休符の `ticks` を更新。反復構造が不整合なら内部処理で失敗し得る |link:../../sxmml/optimizer.scm[optimizer.scm]
+|[[ref-optimizer-internal-sxmml-optimize-2nd-pass-bang]]`(%sxmml-optimize-2nd-pass! lis)` |第 2 段階。反復を考慮して重複設定を省略し、隣接する休符を結合。LFO の定義・切り替えはチャンネルごとに重複を判定する |新しいリストを返す。結合先の休符の `ticks` を更新。反復構造が不整合なら内部処理で失敗し得る |link:../../sxmml/optimizer.scm[optimizer.scm]
 |[[ref-optimizer-internal-channel-ref]]`(%channel-ref alist channel default)` |チャンネルごとの連想リストから値を引く |`channel` の値を返す。なければ `default` を返す |link:../../sxmml/optimizer.scm[optimizer.scm]
-|[[ref-optimizer-internal-repeat-end-ctx]]`(%repeat-end-ctx lis)` |反復終了までの状態指定を先読み |`<sxmml-optimize-2path-context>` を返す。終了記号前に MML が終われば `MML terminated before repeat end` エラー |link:../../sxmml/optimizer.scm[optimizer.scm]
+|[[ref-optimizer-internal-make-repeat-end-context]]`(%make-repeat-end-context lis)` |反復終了までの状態指定を先読み |`<sxmml-optimize-2nd-pass-context>` を返す。終了記号前に MML が終われば `MML terminated before repeat end` エラー |link:../../sxmml/optimizer.scm[optimizer.scm]
 |[[ref-optimizer-internal-sxmml-optimize-repeat]]`(%sxmml-optimize-repeat lis expand?)` |`:repeat`・`:repeat-expand` の圧縮。第 2 段階の後の `lis` をブロックに組み立て、`expand?` なら小さいブロックを展開し、`%repeat-compress` で圧縮する |平坦な新しいリストを返す。`%repeat-check` が出力と入力の不一致を見つければ `repeat optimization changed the expanded objects` エラー。リピートの組み立ての誤りは `%repeat-structure` のエラー |link:../../sxmml/optimizer.scm[optimizer.scm]
-|[[ref-optimizer-internal-repeat-block]]`%repeat-block` +
+|[[ref-optimizer-class-repeat-block]]`<repeat-block>` +
 [[ref-optimizer-internal-make-repeat-block]]`(%make-repeat-block start front break back end)` +
 [[ref-optimizer-internal-repeat-block-p]]`(%repeat-block? obj)` +
 [[ref-optimizer-internal-repeat-block-start]]`(%repeat-block-start b)` +
@@ -36,7 +36,7 @@
 |[[ref-optimizer-internal-repeat-same-p]]`(%repeat-same? a b)` |圧縮で同じとみなすか。オブジェクトはクラスと全スロット（未束縛どうしは同じ）、ブロックは回数・`:` の有無・本文の要素、音符と `&` をまとめた要素（オブジェクトのリスト）は要素ごとに比べる。クラスごとのスロット名は表 `%repeat-slot-names` に覚える |真偽値を返す |link:../../sxmml/optimizer.scm[optimizer.scm]
 |[[ref-optimizer-internal-repeat-compress]]`(%repeat-compress items depth settings)` |要素のリストを圧縮する。ブロックは本文を圧縮した原子とし、重みを出力の長さとする。`&` は直前の音符と一つの要素にまとめ、間にループの境界を入れない（`&` は音符の直後に置く）。`L`、`L` を含むブロック、ブロックの 2 個目以降の `:` の前後は別の区間として `repeat-tree-compress` に渡し、これらを生成するループに入れない |平坦なオブジェクトのリストを返す。入れ子の深さ（外側の `depth` を含む）が 32 を超え、圧縮前より深くなる区間は圧縮しない |link:../../sxmml/optimizer.scm[optimizer.scm]
 |[[ref-optimizer-internal-repeat-loop-p]]`(%repeat-loop? block)` |ブロックの本文（入れ子を含む）に `L` があるか |真偽値を返す |link:../../sxmml/optimizer.scm[optimizer.scm]
-|[[ref-optimizer-internal-repeat-emit]]`(%repeat-emit tree outputs)` |圧縮した木をオブジェクトのリストにする |葉は `outputs` の出力に置き換え、反復には新しい `[`・`:`・`]` のオブジェクトを作る |link:../../sxmml/optimizer.scm[optimizer.scm]
+|[[ref-optimizer-internal-repeat-tree-to-ir]]`(%repeat-tree\->ir tree outputs)` |圧縮した木をオブジェクトのリストにする |葉は `outputs` の出力に置き換え、反復には新しい `[`・`:`・`]` のオブジェクトを作る |link:../../sxmml/optimizer.scm[optimizer.scm]
 |[[ref-optimizer-internal-repeat-depth]]`(%repeat-depth lis)` |平坦なオブジェクトのリストの、リピートの入れ子の最大の深さ |整数を返す |link:../../sxmml/optimizer.scm[optimizer.scm]
 |[[ref-optimizer-internal-repeat-check]]`(%repeat-check output input)` |圧縮の出力が入力と同じ列を表すかを確かめる。生成したループだけを展開し、既存のリピートは回数・`:` の有無・本文で比べる。オブジェクトは `%repeat-same?` で比べる |一致しなければ `repeat optimization changed the expanded objects` エラー |link:../../sxmml/optimizer.scm[optimizer.scm]
 |===

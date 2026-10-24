@@ -17,7 +17,7 @@
 (let* ([workdir (sys-mkdtemp (build-path (temporary-directory) "sxmml-test"))])
   (define (work-file name) (build-path workdir name))
   ;; name.sxl に text を書いて返す
-  (define (write-source name text)
+  (define (source-output name text)
     (rlet1 source (work-file #"~|name|.sxl")
       (with-output-to-file source (^[] (display text)))))
   (unwind-protect
@@ -32,7 +32,7 @@
           (let* ([macro (car def)]
                  [table (cadr def)]
                  [load-result (^[name text]
-                                (let1 source (write-source name text)
+                                (let1 source (source-output name text)
                                   (parameterize ([sxmml-environment (make <sxmml-environment>)]
                                                  [sxmml-source-file source])
                                     (guard (e [else (cons source e)])
@@ -77,10 +77,10 @@
         ;; sxmml-mode の引数は式として評価する。-m でモードが決まっているときは、モード名も
         ;; 引数も評価せず、位置付きの警告だけを出す。誤りにはフォームの開始位置を付ける (#51)
         (let* ([mode-load (^[name text fixed]
-                            (let1 source (write-source name text)
+                            (let1 source (source-output name text)
                               (parameterize ([sxmml-environment (make <sxmml-environment>)]
                                              [sxmml-source-file source]
-                                             [sxmml-mode-fixed? fixed])
+                                             [sxmml-mode-fixed fixed])
                                 (when fixed (pmd-source))
                                 (let* ([result #f]
                                        [err (call-with-output-string
@@ -133,7 +133,7 @@
           (test* "sxmml-mode without a location is ignored with a warning when the mode is fixed"
                  '("PMD" "warning: sxmml-mode in source is ignored; mode is already set to PMD\n")
                  (parameterize ([sxmml-environment (make <sxmml-environment>)]
-                                [sxmml-mode-fixed? #t])
+                                [sxmml-mode-fixed #t])
                    (pmd-source)
                    (let1 err (call-with-output-string
                                (^p (with-error-to-port p
@@ -142,7 +142,7 @@
         ;; define-metadata の値は式として評価する。括弧の中が全て文字列の旧書式は、
         ;; 展開時に位置付きの警告を 1 回出して文字列のリストとして受け付ける (#13)
         (let* ([meta-load (^[name text :optional (after #f)]
-                            (let1 source (write-source name text)
+                            (let1 source (source-output name text)
                               (parameterize ([sxmml-environment (make <sxmml-environment>)]
                                              [sxmml-source-file source])
                                 (let* ([result #f]

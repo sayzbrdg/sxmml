@@ -38,7 +38,7 @@
         (list (not (zero? (process-exit-status p)))
               (equal? before (snapshot))))))
   ;; name.sxl に text を書いて返す
-  (define (write-source name text)
+  (define (source-output name text)
     (rlet1 source (work-file #"~|name|.sxl")
       (with-output-to-file source (^[] (display text)))))
   ;; args を付けて sxlc を実行し、終了値と標準エラー出力の行のリストを返す
@@ -64,7 +64,7 @@
                  (run-failure-check (car c) (cadr c) (caddr c))))
         ;; どちらのバックエンドでも、0回は構文解釈時に拒否し、既存の生成物を保つ (#106)
         (dolist [mode '("pmd" "pmd-binary")]
-          (let* ([source (write-source #"repeat-zero-~mode" "(mml A \"[a:b]0\")")]
+          (let* ([source (source-output #"repeat-zero-~mode" "(mml A \"[a:b]0\")")]
                  [output (work-file #"repeat-zero-~|mode|.out")])
             (with-output-to-file output (^[] (display "既存の生成物")))
             (test* #"~mode は0回を回数の誤りとして終了値1で拒否し、既存の生成物を保つ"

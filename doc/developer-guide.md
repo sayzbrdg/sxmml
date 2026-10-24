@@ -2,6 +2,8 @@
 
 この文書は sxmml の開発・改修手順を示す。検証基準は Gauche 0.9.15 とする。最初のコマンドはリポジトリのルートで実行する。構成と変更箇所は[構成と設計](architecture.md)、個々の内部定義は[内部リファレンス](internal-reference/index.adoc)、要求と検証範囲は[検証方針](verification.md)を参照する。
 
+識別子の命名や改名では、[命名規約](internal-reference/naming-conventions.adoc)を参照する。適用範囲、接頭辞・接尾辞、構築・変換・処理の名前の選び方を定めている。
+
 ## 必要な環境と生成物
 
 開発・検証環境は Gauche 0.9.15、GNU Make、`iconv` とする。`configure` は Gauche の `gauche.configure` を使用する。`package.scm` の依存条件は Gauche 0.9.15 以上である。`Makefile.in` は `gosh`、`gauche-config`、`gauche-package`、`gauche-install` を使用する。

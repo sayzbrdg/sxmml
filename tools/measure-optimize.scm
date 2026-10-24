@@ -44,7 +44,7 @@
 (define (child mode level e w source result outdir)
   (let1 t0 (current-time)
     (parameterize ([sxmml-source-file source]
-                   [sxmml-mode-fixed? #t])
+                   [sxmml-mode-fixed #t])
       ((eval (string->symbol mode) (current-module)))
       (load source)
       (slot-set! (sxmml-environment) 'optimize (read-from-string level))

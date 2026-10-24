@@ -44,7 +44,7 @@
   (let ([location (sxmml-form-location form)]
         [message (apply format #f fmt args)])
     (raise (condition (<sxmml-form-error>
-                       (message (%located-message location message))
+                       (message (%message->located-message location message))
                        (location location)
                        (cause #f))))))
 
@@ -55,7 +55,7 @@
 ;; 実行時の警告を、展開時に取った位置 location を付けて標準エラー出力に書く
 (define (sxmml-form-warn-at location fmt . args)
   (format (current-error-port) "warning: ~a\n"
-          (%located-message location (apply format #f fmt args))))
+          (%message->located-message location (apply format #f fmt args))))
 
 ;; thunk の中で起きたエラーを、定義の位置 location を付けて投げ直す。内側の定義の
 ;; 誤りはその位置を残し、エラーでない値や condition はそのまま通す
@@ -64,7 +64,7 @@
     (guard (e [(sxmml-form-error? e) (raise e)]
               [(error? e)
                (raise (condition (<sxmml-form-error>
-                                  (message (%located-message location (condition-message e)))
+                                  (message (%message->located-message location (condition-message e)))
                                   (location location)
                                   (cause e))))])
       (thunk))
@@ -75,5 +75,5 @@
 (define (sxmml-form-wrap form rename call)
   `(,(rename 'sxmml-form-call) ,(sxmml-form-location form) (,(rename 'lambda) () ,call)))
 
-(define (%located-message location message)
+(define (%message->located-message location message)
   (if location #"~|location|: ~message" message))

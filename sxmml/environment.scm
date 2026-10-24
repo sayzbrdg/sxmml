@@ -31,13 +31,13 @@
   (use gauche.unicode)
   (use sxmml.classes)
   (use sxmml.form)
-  (export sxmml-environment sxmml-source-file sxmml-mode sxmml-mode-fixed?
+  (export sxmml-environment sxmml-source-file sxmml-mode sxmml-mode-fixed
           define-metadata sxmml-metadata-get sxmml-metadata-set!
           sxmml-resolution sxmml-resolution-get sxmml-resolution-set!
           define-lfo sxmml-lfo-get sxmml-lfo-set!
           define-envelope sxmml-envelope-get sxmml-envelope-set!
           define-track sxmml-track-get sxmml-track-set! sxmml-track-delete! sxmml-track-clear!
-          sxmml-track-list sxmml-track-find sxmml-sio-regist!
+          sxmml-track-list sxmml-track-find sxmml-ir-register!
           ))
 (select-module sxmml.environment)
 
@@ -47,7 +47,7 @@
 (define sxmml-environment (make-parameter (make <sxmml-environment>)))
 (define sxmml-source-file (make-parameter #f))
 ;; 真の場合、ソース中の sxmml-mode を無視する (sxlc の -m 指定を優先するため)
-(define sxmml-mode-fixed? (make-parameter #f))
+(define sxmml-mode-fixed (make-parameter #f))
 
 (define (sxmml-resolution-get)
   (slot-ref (sxmml-environment) 'resolution))
@@ -73,7 +73,7 @@
         [_ (sxmml-form-error form "invalid sxmml-mode form: expected (sxmml-mode mode arg ...)")]))))
 
 (define (%sxmml-mode-select location thunk)
-  (if (sxmml-mode-fixed?)
+  (if (sxmml-mode-fixed)
     (sxmml-form-warn-at location "sxmml-mode in source is ignored; mode is already set to ~a"
                         (slot-ref (sxmml-environment) 'mode))
     (thunk)))
@@ -167,16 +167,16 @@
   (hash-table-find (slot-ref (sxmml-environment) 'track)
                    (^[k v] (and (eq? (slot-ref v 'part) part) k))))
 
-(define (sxmml-sio-regist! sio track)
+(define (sxmml-ir-register! ir track)
   (if-let1 ctx (sxmml-track-get track)
     (slot-set! ctx 'compiled-data (if (null? (slot-ref ctx 'compiled-data))
-                                    sio
-                                    (cons (slot-ref ctx 'compiled-data) sio)))))
+                                    ir
+                                    (cons (slot-ref ctx 'compiled-data) ir)))))
 
 (define-syntax define-track
   (er-macro-transformer
     (^[form rename id=?]
-      (define (regist-context! track param)
+      (define (build-track-registration track param)
         (quasirename rename
           `(sxmml-track-set! ',track ,@param)))
       (define (build-part track params)
@@ -189,9 +189,9 @@
         [(_ (track ..1) param ...)
          (quasirename rename
            `(begin
-              ,@(fold (^[t r] (cons (regist-context! t (build-part t param)) r))
+              ,@(fold (^[t r] (cons (build-track-registration t (build-part t param)) r))
                       ()
                       track)))]
         [(_ track param ...)
-         (regist-context! track (build-part track param))]
+         (build-track-registration track (build-part track param))]
         ))))

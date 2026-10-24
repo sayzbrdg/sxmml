@@ -76,7 +76,7 @@
 (let* ([workdir (sys-mkdtemp (build-path (temporary-directory) "sxmml-test"))])
   (define (work-file name) (build-path workdir name))
   ;; name.sxl に text を書いて返す
-  (define (write-source name text)
+  (define (source-output name text)
     (rlet1 source (work-file #"~|name|.sxl")
       (with-output-to-file source (^[] (display text)))))
   (unwind-protect
@@ -87,7 +87,7 @@
                ;; 3 行目の begin の中の定義。op2 と al/fb を差し替えられる
                [voice-text (^[alfb op2] #"; voice\n(begin\n  (define-opn-voice V1 ~alfb\n    ~op0 ~op2 ~op0 ~op0)\n  (define %test-after-voice 1))\n")]
                [load-result (^[name text]
-                              (let1 source (write-source name text)
+                              (let1 source (source-output name text)
                                 (parameterize ([sxmml-environment (make <sxmml-environment>)]
                                                [sxmml-source-file source])
                                   (guard (e [else (cons source e)])

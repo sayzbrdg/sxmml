@@ -61,11 +61,11 @@
 ;;; 設定
 ;;;
 (define-record-type <repeat-tree-settings>
-  (%make-repeat-tree-settings repeat-costs final-costs allow-final? window)
+  (%make-repeat-tree-settings repeat-costs final-costs allow-final window)
   repeat-tree-settings?
   (repeat-costs repeat-tree-settings-repeat-costs)
   (final-costs repeat-tree-settings-final-costs)
-  (allow-final? repeat-tree-settings-allow-final?)
+  (allow-final repeat-tree-settings-allow-final?)
   (window repeat-tree-settings-window))
 
 ;; ((回数 . 制御費用) ...) を検査してコピーする。回数は昇順・重複なしの 2 以上、費用は 0 以上
