@@ -110,6 +110,14 @@
     (test* "a loop in a rhythm repeat fails" loop-error (compiled (rhythm L "@b8[@s8L@b8]2"))))
   (test* "loops outside of repeats are accepted" '(compiled compiled)
          (list (compiled (mml G "[cd]2Le[fg]2"))
-               (compiled (rhythm L "[@b8]2L[@s8]2")))))
+               (compiled (rhythm L "[@b8]2L[@s8]2"))))
+  (test* "同じ文字列の2個目のLを拒否する"
+         (test-error <error> "loop command can be used only once in a track")
+         (compiled (mml G "c8Ld8Le8")))
+  (test* "登録をまたぐ2個目のLを拒否する"
+         (test-error <error> "loop command can be used only once in a track")
+         (compiled (rhythm L "@b8L@s8") (rhythm L "L@h8")))
+  (test* "別トラックではそれぞれLを使用できる" 'compiled
+         (compiled (mml G "c8Ld8") (rhythm L "@b8L@s8"))))
 
 (test-end :exit-on-failure #t)

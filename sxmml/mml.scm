@@ -221,6 +221,8 @@
    ;; 反復は同じ位置を何度も通り、戻り先を一つに決められないので、L は反復の外にだけ書ける
    (begin (unless (null? (slot-ref (sxmml-mml-context) 'repeat-stack))
             (error "loop command cannot be used inside repeats"))
+          (when (slot-ref (sxmml-mml-context) 'loop-exists)
+            (error "loop command can be used only once in a track"))
           (slot-set! (sxmml-mml-context) 'loop-exists #t)
           (let loop ([rest (slot-ref (sxmml-mml-context) 'current-ticks)]
                      [buf 0])
