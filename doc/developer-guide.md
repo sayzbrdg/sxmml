@@ -69,6 +69,12 @@ docker run --rm -v "$PWD:/work:ro" -v "$render_dir:/out" -w /work \
   doc/sxmml-mml-manual.adoc doc/sxmml-reference-manual.adoc
 ```
 
+## pmd-source の仕様根拠と値の検査
+
+pmd-source の対応済み命令・定義は、公開されている [PMDMML.MAN](https://github.com/d2lmirrors/pmd/blob/master/mc/PMDMML.MAN) を仕様の根拠として検査する。FM・SSG・PCM の区分で範囲を分け、細かな種別差は最も広い範囲に合わせる。対象音源の列挙だけで使用を禁止せず、効果を再現しない。曖昧な記載から推測で制限を加えず、MC.EXE による実測はこの検査方針の前提にしない。MC.EXE の受理やドライバでの演奏を包括的に保証するものではない。
+
+検査は生成する値の出力箇所に置く。最適化で消えた命令や出力されない音色を追加走査しない。各範囲は[外部動作仕様](behavior-spec.md#pmd-source-の出力値の検査)、内部手続きは[PMD内部リファレンス](internal-reference/pmd.adoc)を参照する。pmd-binary のバイナリ形式の確認については、従来の別の方針を維持する。
+
 ## 変更種別ごとの調査と確認
 
 変更前に[構成と設計の対応表](architecture.md#代表的な変更時の調査先)から関係モジュールを特定する。`make check` に加え、変更した振る舞いに対応する[検証方針](verification.md#要求と検証の対応)の入力・観測点を確認する。

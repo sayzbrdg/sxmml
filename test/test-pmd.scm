@@ -42,6 +42,31 @@
         (slot-set! (sxmml-environment) 'output output)
         ((slot-ref (sxmml-environment) 'backend))
         (file->string output :encoding "cp932"))))
+  ;; 値と反復の検査は、パーサーを通さず公開バックエンドへ IR を渡す
+  (define (pmd-ir-text name track ir :optional (setup (^[] #f)))
+    (parameterize ([sxmml-environment (make <sxmml-environment>)]
+                   [sxmml-source-file (work-file #"~|name|.sxl")])
+      (pmd-source)
+      (slot-set! (sxmml-environment) 'optimize #f)
+      (slot-set! (sxmml-environment) 'output (work-file #"~|name|.mml"))
+      (setup)
+      (sxmml-ir-register! ir track)
+      (sxmml-pmd-source-output)
+      (file->string (work-file #"~|name|.mml") :encoding "cp932")))
+  (define (pmd-ir-result name track ir :optional (setup (^[] #f)))
+    (guard (e [else (condition-message e)])
+      (filter #/^(@\d|[A-JK] |R[01] )/
+              (string-split (pmd-ir-text name track ir setup) "\r\n"))))
+  (define (range-message kind value low high)
+    (format "invalid ~a value: ~s (expected integer ~a - ~a)" kind value low high))
+  (define (range-ir obj track)
+    (list obj (if (eq? track 'L)
+                (make <sxmml-rhythm-emit> :value #t :bass #t :ticks 12)
+                (make <sxmml-mml-note> :value 48 :ticks 12))))
+  (define (repeat-ir depth count track)
+    (append (make-list depth (make <sxmml-mml-repeat-start>))
+            (cdr (range-ir #f track))
+            (make-list depth (make <sxmml-mml-repeat-end> :value count))))
   ;; name.sxl に text を書いて返す
   (define (source-output name text)
     (rlet1 source (work-file #"~|name|.sxl")
@@ -143,7 +168,7 @@
                     (filter-map #/^@(\d+)/
                                 (string-split (generated-text
                                                "voice-order"
-                                               (append (map voice-form '(j i h g f e d c b a) (iota 10))
+                                               (append (map voice-form '(j i h g f e d c b a) (make-list 10 0))
                                                        '((mml A "@{j}c8@{i}c8@{h}c8@{g}c8@{f}c8@{e}c8@{d}c8@{c}c8@{b}c8@{a}c8"))))
                                               "\r\n"))))
         ;; begin 内で定義しても、同じ入力からは同じ出力になること
@@ -327,11 +352,14 @@
                                                             (define-envelope E6 (1 2 3 4 5 6))
                                                             (mml G "E{E4}c8E{E5}c8E{E6}c8")))
                                           "\r\n")))
-        ;; 負の音高も、オクターブと 0～11 の音名に分けて出力すること
-        (test* "a negative note number is output with its octave and note name"
-               "A l%24o1co-1b"
-               (find #/^A / (string-split (generated-text "negative-note" '((mml A "o1c<<b")))
-                                          "\r\n")))
+        ;; 負の音高は、値と許容範囲を示して失敗すること
+        (test* "負の音高は終了値1と範囲外の診断を返す"
+               '(1 #t)
+               (status-and-message
+                (sxlc-status "-m" "pmd" "-o" (work-file "negative-note.mml")
+                             (source-output "negative-note" "(mml A \"o1c<<b\")"))
+                (string->regexp
+                 (regexp-quote "invalid note value: -1 (expected integer 12 - 107)"))))
         ;; リズムのパンは 1（右）・2（左）・3（中央）で、範囲外は値と範囲を示して失敗する。
         ;; これまでは \#<undef>b のような壊れた MML を書いていた (#102)
         (test* "rhythm pans 1, 2 and 3 are output as right, left and center"
@@ -341,10 +369,121 @@
           (test* #"a rhythm pan out of range fails: ~value"
                  #"rhythm pan out of range: ~value (1 - 3)"
                  (pmd-r0-result #"rhythm-pan-~value" `((rhythm L ,#"pb~|value|@b8")))))
-        ;; 楽器別の音量は、他の命令と同じく値をそのまま書く。検査の範囲は #110 で決める
-        (test* "a rhythm instrument volume is output as it is"
-               "R0 \\vb32\\br%12"
-               (pmd-r0-result "rhythm-volume" '((rhythm L "vb32@b8"))))
+        ;; 楽器別の音量は有効範囲の値をそのまま出力する
+        (test* "a rhythm instrument volume within range is output"
+               "R0 \\vb31\\br%12"
+               (pmd-r0-result "rhythm-volume" '((rhythm L "vb31@b8"))))
+        (for-each
+         (^[case]
+           (apply (^[name track class accepted rejected kind low high line]
+                    (test* #"~|name|の境界値を出力する"
+                           (list line)
+                           (pmd-ir-result #"range-~|kind|-ok" track
+                                          (range-ir (make class :value accepted) track)))
+                    (test* #"~|name|の範囲外を拒否する"
+                           (range-message kind rejected low high)
+                           (pmd-ir-result #"range-~|kind|-bad" track
+                                          (range-ir (make class :value rejected) track))))
+                  case))
+         `(("FM音量" A ,<sxmml-mml-volume> 127 128 "FM volume" 0 127 "A V127o4c%12")
+           ("SSG音量" G ,<sxmml-mml-volume> 15 16 "SSG volume" 0 15 "G v15o4c%12")
+           ("PCM音量" J ,<sxmml-mml-volume> 255 256 "PCM volume" 0 255 "J V255o4c%12")
+           ("ゲートタイム" A ,<sxmml-mml-gate-time> 255 256 "gate time" 0 255 "A q255o4c%12")
+           ("デチューン" A ,<sxmml-mml-detune> -32768 -32769 "detune" -32768 32767 "A D-32768o4c%12")
+           ("絶対転調" A ,<sxmml-mml-transpose> 127 128 "transpose" -128 127 "A _127o4c%12")
+           ("相対転調" A ,<sxmml-mml-transpose-change> -128 -129 "relative transpose" -128 127 "A __-128o4c%12")
+           ("相対音量" A ,<sxmml-mml-volume-change> 255 256 "relative volume" -255 255 "A )%255o4c%12")
+           ("パン" A ,<sxmml-mml-pan> 3 4 "pan" 0 3 "A p3o4c%12")
+           ("出力選択" G ,<sxmml-mml-output-switch> 1 0 "output switch" 1 3 "G P1o4c%12")
+           ("ノイズ周波数" G ,<sxmml-mml-noise-frequency> 31 32 "noise frequency" 0 31 "G w31o4c%12")
+           ("Timer-B" A ,<sxmml-mml-tempo-absolute> 255 256 "timerb" 0 255 "A T255o4c%12")))
+        (test* "SSGのパンもコマンド共通の範囲で出力する"
+               '("G p0o4c%12")
+               (pmd-ir-result "ssg-pan" 'G (range-ir (make <sxmml-mml-pan> :value 0) 'G)))
+        (for-each
+         (^[case]
+           (apply (^[name class slot accepted rejected kind low high line]
+                    (test* #"~|name|の境界値を出力する"
+                           (list line "K R0")
+                           (pmd-ir-result #"rhythm-~|kind|-ok" 'L
+                                          (range-ir (make class slot accepted) 'L)))
+                    (test* #"~|name|の範囲外を拒否する"
+                           (range-message kind rejected low high)
+                           (pmd-ir-result #"rhythm-~|kind|-bad" 'L
+                                          (range-ir (make class slot rejected) 'L))))
+                  case))
+         `(("リズム全体音量" ,<sxmml-rhythm-volume> :value 63 64 "rhythm volume" 0 63 "R0 \\V63\\br%12")
+           ("リズム楽器別音量" ,<sxmml-rhythm-volume> :bass 31 32 "rhythm instrument volume" 0 31 "R0 \\vb31\\br%12")
+           ("リズム相対音量" ,<sxmml-rhythm-volume-change> :bass -31 -32 "relative rhythm volume" -31 31 "R0 \\vb-31\\br%12")))
+        (test* "通常音符の音域上限を出力する"
+               '("A o8b%12")
+               (pmd-ir-result "note-high" 'A (list (make <sxmml-mml-note> :value 107 :ticks 12))))
+        (test* "通常音符の音域外を拒否する"
+               (range-message "note" 108 12 107)
+               (pmd-ir-result "note-outside" 'A (list (make <sxmml-mml-note> :value 108 :ticks 12))))
+        (let ([upper '(31 31 31 15 15 127 3 15 7 0 0 1)]
+              [ir (range-ir (make <sxmml-mml-voice> :value 'tone) 'A)])
+          (define (voice-result name alfb op :optional (used? #t))
+            (pmd-ir-result name 'A (if used? ir (cdr ir))
+                           (^[] (sxmml-opn-voice-set! 'tone alfb op op op op))))
+          (test* "FM音色の出力パラメータ上限を受理する"
+                 (append '("@000 007 007")
+                         (make-list 4 " 031 031 031 015 015 127 003 015 007 001")
+                         '("A @0o4c%12"))
+                 (guard (e [else (condition-message e)])
+                   (filter #/^(@\d| \d|A )/
+                           (string-split
+                            (pmd-ir-text "voice-upper" 'A ir
+                                         (^[] (sxmml-opn-voice-set! 'tone '(7 7) upper upper upper upper)))
+                            "\r\n"))))
+          (for-each
+           (^[case]
+             (apply (^[field index value high]
+                      (test* #"FM音色~|field|の範囲外を拒否する"
+                             (range-message #"FM voice ~field" value 0 high)
+                             (voice-result #"voice-~field" (if (= index -1) '(8 7) '(7 7))
+                                           (map (^[i v] (if (= i index) value v)) (iota 12) upper))))
+                    case))
+           '(("AL" -1 8 7) ("AR" 0 32 31) ("RR" 3 16 15) ("TL" 5 128 127)
+             ("KS" 6 4 3) ("DT" 8 8 7) ("AMS" 11 2 1)))
+          (test* "出力しないFM音色の上限は追加検査しない"
+                 '("A o4c%12")
+                 (voice-result "voice-unused" '(8 7) upper #f)))
+        (test* "長い通常音符の分割出力を維持する"
+               '("A o4c%255&c%45")
+               (pmd-ir-result "long-note" 'A (list (make <sxmml-mml-note> :value 48 :ticks 300))))
+        (test* "反復回数255を出力する"
+               '("A [o4c%12]255")
+               (pmd-ir-result "repeat-255" 'A (repeat-ir 1 255 'A)))
+        (test* "反復回数256を拒否する"
+               (range-message "repeat count" 256 1 255)
+               (pmd-ir-result "repeat-256" 'A (repeat-ir 1 256 'A)))
+        (test* "通常トラックの反復32段を出力する"
+               (list (string-append "A " (make-string 32 #\[) "o4c%12"
+                                    (apply string-append (make-list 32 "]2"))))
+               (pmd-ir-result "repeat-depth-32" 'A (repeat-ir 32 2 'A)))
+        (test* "通常トラックの反復33段を拒否する"
+               (range-message "repeat depth" 33 1 32)
+               (pmd-ir-result "repeat-depth-33" 'A (repeat-ir 33 2 'A)))
+        (test* "リズムトラックの反復33段を拒否する"
+               (range-message "repeat depth" 33 1 32)
+               (pmd-ir-result "rhythm-depth-33" 'L (repeat-ir 33 2 'L)))
+        (test* "ポルタメントの音程と音長の上限を出力する"
+               '("A o1{co8b}%255")
+               (pmd-ir-result "portamento-upper" 'A
+                              (list (make <sxmml-mml-portamento> :value '(12 . 107) :ticks 255))))
+        (test* "ポルタメントの音長256を拒否する"
+               (range-message "portamento ticks" 256 1 255)
+               (pmd-ir-result "portamento-long" 'A
+                              (list (make <sxmml-mml-portamento> :value '(12 . 107) :ticks 256))))
+        (test* "ポルタメントの終点音域外を拒否する"
+               (range-message "portamento end" 108 12 107)
+               (pmd-ir-result "portamento-end" 'A
+                              (list (make <sxmml-mml-portamento> :value '(48 . 108) :ticks 12))))
+        (test* "整数でないゲートタイムを拒否する"
+               (range-message "gate time" 1/2 0 255)
+               (pmd-ir-result "gate-fraction" 'A
+                              (range-ir (make <sxmml-mml-gate-time> :value 1/2) 'A)))
         ;; PCM の音色は 0 から 255、SSG の音色は 0 から 9 までの整数とし、
         ;; それ以外は書かれた値を示して失敗する (#58)
         (test* "a PCM voice 0 is accepted"

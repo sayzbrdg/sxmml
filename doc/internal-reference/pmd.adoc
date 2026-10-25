@@ -1,7 +1,7 @@
 = `sxmml.backend.pmd` の生成処理
 :toc: left
 
-`sxmml.backend.pmd` には、PMD 向け MML の生成に使う 69 の定義と、LFO・エンベロープの規則の 4 つの表（`%pmd-lfo-types`・`%pmd-lfo-ranges`・`%pmd-envelope-types`・`%pmd-envelope-ranges`）があります。公開名はモード選択と生成の手続きで、`%` で始まる手続き、トラック状態のクラスとパラメータは内部で使います。パラメータ、オブジェクト、文字コード変換、一時ファイル、ファイル名操作は Gauche 0.9.15 の動作に従います。
+`sxmml.backend.pmd` には、PMD 向け MML の生成に使う 70 の定義と、LFO・エンベロープの規則の 4 つの表（`%pmd-lfo-types`・`%pmd-lfo-ranges`・`%pmd-envelope-types`・`%pmd-envelope-ranges`）があります。公開名はモード選択と生成の手続きで、`%` で始まる手続き、トラック状態のクラスとパラメータは内部で使います。パラメータ、オブジェクト、文字コード変換、一時ファイル、ファイル名操作は Gauche 0.9.15 の動作に従います。
 
 生成系の `%pmd-...set!` 手続きは、特記しない限り `obj` を受けて現在の出力ポートへ PMD MML の文字列を書きます。名前の `set!` は文字列出力を含む内部の慣用名で、環境オブジェクトの slot を必ず変更するという意味ではありません。戻り値は生成側で使いません。必要なオブジェクト型と slot は xref:classes.adoc[クラス一覧]を参照してください。
 
@@ -66,12 +66,17 @@ PMD4 向けに利用するときは `pmd`、PMD3 向けには `pmd3` を指定�
 
 == 通常 MML オブジェクトの出力
 
+各出力手続きは `%pmd-value-check` で、実際に生成する値の正確な整数性と範囲を確認します。音量はFM・SSG・PCMで分け、範囲は link:../behavior-spec.md#pmd-source-の出力値の検査[外部動作仕様]に従います。反復深さは通常・リズムの既存走査の再帰引数で保持し、開始時に32段を超える場合に失敗します。新しい状態パラメータや環境slot、IRの追加全件走査は設けません。
+
+FM音色定義の出力ではAL・FB・DT、AR・DR・SR、RR・SL・ML、TL、KS、AMSの各範囲を検査します。DT2・SEGと出力しない音色定義は追加検査しません。通常音符の音程とポルタメント両端は内部値12～107で検査します。ポルタメントの音長は1～255で検査し、通常音符の分割処理は維持します。
+
 次の各手続きは一つの `obj` を受けます。型ごとの出力文字列を現在のポートへ書き、値が不適切なときには数値演算、slot 参照、明示的な検査で失敗します。必要なトラック状態は `%track-output` が設定します。個々の数値の音響上の効果は外部ドライバーに依存します。
 
 [cols="2,5,3,1",options="header"]
 |===
 |書式 |入力と出力 |状態・失敗条件 |ソース
 |[[ref-pmd-internal-pmd-rest-output]]`(%pmd-rest-output obj)` |休符の `ticks` を `r` または `r%数` で書く |255 を超える長さは複数に分割。既定音長と一致すれば数値を省略 |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-internal-pmd-value-check]]`(%pmd-value-check kind value min max)` |出力値を検査する内部手続き |正確な整数で `min` 以上 `max` 以下なら元の値を返す。それ以外は項目名・値・許容範囲を示すエラー |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-internal-pmd-note-output]]`(%pmd-note-output obj)` |音高をオクターブ指定と音名、長さで書く |トラック状態の `octave` を更新。255 超の長さは `&` で分割 |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-internal-pmd-fm-voice-output]]`(%pmd-fm-voice-output obj)` |登録済み FM 音色を `@番号` で書く |番号は `%pmd-fm-voice-number` で引く。ID が `voice` 表になければ `no instrument define` エラー |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-internal-pmd-fm-voice-number]]`(%pmd-fm-voice-number voice)` |音色オブジェクトの番号を返す |`%pmd-voice-numbers` の表を `id` で引く |link:../../sxmml/backend/pmd.scm[pmd.scm]
@@ -84,7 +89,7 @@ PMD4 向けに利用するときは `pmd`、PMD3 向けには `pmd3` を指定�
 |[[ref-pmd-internal-pmd-tie-output]]`(%pmd-tie-output obj)` |タイ記号 `&` を書く |`obj` の値を参照しない |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-internal-pmd-detune-output]]`(%pmd-detune-output obj)` |デチューンを `D数` で書く |`value` が必要 |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-internal-pmd-repeat-start-output]]`(%pmd-repeat-start-output obj)` |反復開始 `[` を書く |`obj` の値を参照しない |link:../../sxmml/backend/pmd.scm[pmd.scm]
-|[[ref-pmd-internal-pmd-repeat-end-output]]`(%pmd-repeat-end-output obj)` |反復終了と回数 `]数` を書く |`value` が必要 |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-internal-pmd-repeat-end-output]]`(%pmd-repeat-end-output obj)` |反復終了と回数 `]数` を書く |`value` を1～255で検査 |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-internal-pmd-repeat-break-output]]`(%pmd-repeat-break-output obj)` |脱出位置 `:` を書く |`obj` の値を参照しない |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-internal-pmd-loop-output]]`(%pmd-loop-output obj)` |ループ位置 `L` を書く |`obj` の値を参照しない |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-internal-pmd-transpose-output]]`(%pmd-transpose-output obj)` |移調値を `_数` で書く |`value` が必要 |link:../../sxmml/backend/pmd.scm[pmd.scm]
