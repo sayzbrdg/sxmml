@@ -125,82 +125,84 @@
 
 (define (%pmd-track-output lis voiceproc volproc volcproc)
   (let loop ([rest lis]
-             [loop-seen? #f])
+             [loop-seen? #f]
+             [depth 0])
     (cond [(null? rest)
            ()]
           [(is-a? (car rest) <sxmml-mml-rest>)
            (%pmd-rest-output (car rest))
-           (loop (cdr rest) loop-seen?)]
+           (loop (cdr rest) loop-seen? depth)]
           [(is-a? (car rest) <sxmml-mml-portamento>)
            (%pmd-portamento-output (car rest))
-           (loop (cdr rest) loop-seen?)]
+           (loop (cdr rest) loop-seen? depth)]
           [(is-a? (car rest) <sxmml-mml-note>)
            (%pmd-note-output (car rest))
-           (loop (cdr rest) loop-seen?)]
+           (loop (cdr rest) loop-seen? depth)]
           [(is-a? (car rest) <sxmml-mml-voice>)
            (voiceproc (car rest))
-           (loop (cdr rest) loop-seen?)]
+           (loop (cdr rest) loop-seen? depth)]
           [(is-a? (car rest) <sxmml-mml-gate-time>)
            (%pmd-gate-time-output (car rest))
-           (loop (cdr rest) loop-seen?)]
+           (loop (cdr rest) loop-seen? depth)]
           [(is-a? (car rest) <sxmml-mml-volume>)
            (volproc (car rest))
-           (loop (cdr rest) loop-seen?)]
+           (loop (cdr rest) loop-seen? depth)]
           [(is-a? (car rest) <sxmml-mml-tempo-absolute>)
            (%pmd-tempo-absolute-output (car rest))
-           (loop (cdr rest) loop-seen?)]
+           (loop (cdr rest) loop-seen? depth)]
           [(is-a? (car rest) <sxmml-mml-tempo>)
            (%pmd-tempo-output (car rest))
-           (loop (cdr rest) loop-seen?)]
+           (loop (cdr rest) loop-seen? depth)]
           [(is-a? (car rest) <sxmml-mml-tie>)
            (%pmd-tie-output (car rest))
-           (loop (cdr rest) loop-seen?)]
+           (loop (cdr rest) loop-seen? depth)]
           [(is-a? (car rest) <sxmml-mml-detune>)
            (%pmd-detune-output (car rest))
-           (loop (cdr rest) loop-seen?)]
+           (loop (cdr rest) loop-seen? depth)]
           [(is-a? (car rest) <sxmml-mml-repeat-start>)
+           (%pmd-value-check "repeat depth" (+ depth 1) 1 32)
            (%pmd-repeat-start-output (car rest))
-           (loop (cdr rest) loop-seen?)]
+           (loop (cdr rest) loop-seen? (+ depth 1))]
           [(is-a? (car rest) <sxmml-mml-repeat-end>)
            (%pmd-repeat-end-output (car rest))
-           (loop (cdr rest) loop-seen?)]
+           (loop (cdr rest) loop-seen? (- depth 1))]
           [(is-a? (car rest) <sxmml-mml-repeat-break>)
            (%pmd-repeat-break-output (car rest))
-           (loop (cdr rest) loop-seen?)]
+           (loop (cdr rest) loop-seen? depth)]
           [(is-a? (car rest) <sxmml-mml-loop>)
            (when loop-seen?
              (error "loop command can be used only once in a track"))
            (%pmd-loop-output (car rest))
-           (loop (cdr rest) #t)]
+           (loop (cdr rest) #t depth)]
           [(is-a? (car rest) <sxmml-mml-transpose>)
            (%pmd-transpose-output (car rest))
-           (loop (cdr rest) loop-seen?)]
+           (loop (cdr rest) loop-seen? depth)]
           [(is-a? (car rest) <sxmml-mml-lfo-switch>)
            (%pmd-lfo-switch-output (car rest))
-           (loop (cdr rest) loop-seen?)]
+           (loop (cdr rest) loop-seen? depth)]
           [(is-a? (car rest) <sxmml-mml-lfo>)
            (%pmd-lfo-output (car rest))
-           (loop (cdr rest) loop-seen?)]
+           (loop (cdr rest) loop-seen? depth)]
           [(is-a? (car rest) <sxmml-mml-envelope>)
            (%pmd-envelope-output (car rest))
-           (loop (cdr rest) loop-seen?)]
+           (loop (cdr rest) loop-seen? depth)]
           [(is-a? (car rest) <sxmml-mml-pan>)
            (%pmd-pan-output (car rest))
-           (loop (cdr rest) loop-seen?)]
+           (loop (cdr rest) loop-seen? depth)]
           [(is-a? (car rest) <sxmml-mml-transpose-change>)
            (%pmd-transpose-change-output (car rest))
-           (loop (cdr rest) loop-seen?)]
+           (loop (cdr rest) loop-seen? depth)]
           [(is-a? (car rest) <sxmml-mml-volume-change>)
            (volcproc (car rest))
-           (loop (cdr rest) loop-seen?)]
+           (loop (cdr rest) loop-seen? depth)]
           [(is-a? (car rest) <sxmml-mml-noise-frequency>)
            (%pmd-noise-freq-output (car rest))
-           (loop (cdr rest) loop-seen?)]
+           (loop (cdr rest) loop-seen? depth)]
           [(is-a? (car rest) <sxmml-mml-output-switch>)
            (%pmd-output-switch-output (car rest))
-           (loop (cdr rest) loop-seen?)]
+           (loop (cdr rest) loop-seen? depth)]
           [else
-           (loop (cdr rest) loop-seen?)])))
+           (loop (cdr rest) loop-seen? depth)])))
 
 (define (%pmd-rhythm-track-output track)
   (define lis (sxmml-optimize-tree track :optimize (slot-ref (sxmml-environment) 'optimize)))
@@ -212,7 +214,7 @@
     (%pmd-rhythm-deploy-track-output has-loop? lis)))
 
 (define (%pmd-rhythm-definition-track-output has-loop? lis)
-  (define (loop rest loop-seen?)
+  (define (loop rest loop-seen? depth)
     (cond [(null? rest)
            (display "\r\n")
            ()]
@@ -223,36 +225,37 @@
            (cdr rest)]
           [(is-a? (car rest) <sxmml-mml-rest>)
            (%pmd-rest-output (car rest))
-           (loop (cdr rest) loop-seen?)]
+           (loop (cdr rest) loop-seen? depth)]
           [(is-a? (car rest) <sxmml-rhythm-emit>)
            (%pmd-rhythm-emit-output (car rest))
-           (loop (cdr rest) loop-seen?)]
+           (loop (cdr rest) loop-seen? depth)]
           [(is-a? (car rest) <sxmml-mml-repeat-start>)
+           (%pmd-value-check "repeat depth" (+ depth 1) 1 32)
            (%pmd-repeat-start-output (car rest))
-           (loop (cdr rest) loop-seen?)]
+           (loop (cdr rest) loop-seen? (+ depth 1))]
           [(is-a? (car rest) <sxmml-mml-repeat-end>)
            (%pmd-repeat-end-output (car rest))
-           (loop (cdr rest) loop-seen?)]
+           (loop (cdr rest) loop-seen? (- depth 1))]
           [(is-a? (car rest) <sxmml-mml-repeat-break>)
            (%pmd-repeat-break-output (car rest))
-           (loop (cdr rest) loop-seen?)]
+           (loop (cdr rest) loop-seen? depth)]
           [(is-a? (car rest) <sxmml-rhythm-volume>)
            (%pmd-rhythm-volume-output (car rest))
-           (loop (cdr rest) loop-seen?)]
+           (loop (cdr rest) loop-seen? depth)]
           [(is-a? (car rest) <sxmml-rhythm-volume-change>)
            (%pmd-rhythm-volume-change-output (car rest))
-           (loop (cdr rest) loop-seen?)]
+           (loop (cdr rest) loop-seen? depth)]
           [(is-a? (car rest) <sxmml-rhythm-pan>)
            (%pmd-rhythm-pan-output (car rest))
-           (loop (cdr rest) loop-seen?)]
+           (loop (cdr rest) loop-seen? depth)]
           [else
-           (loop (cdr rest) loop-seen?)]))
+           (loop (cdr rest) loop-seen? depth)]))
   (unless (null? lis)
     (display "R0 ")
-    (let1 rest (loop lis #f)
+    (let1 rest (loop lis #f 0)
       (when has-loop?
         (display "R1 ")
-        (loop rest #t)))
+        (loop rest #t 0)))
     (display "\r\n")))
 
 (define (%pmd-rhythm-deploy-track-output has-loop? lis)
@@ -343,6 +346,8 @@
 
 ;; 同じ入力から同じ生成物を得るため、音色表の反復順ではなく番号順に出力する
 (define (%pmd-source-voice-output used-voice-ids)
+  (define (check kind value high)
+    (%pmd-value-check (string-append "FM voice " kind) value 0 high))
   (for-each
     (^[voice]
       (let ([number (%pmd-fm-voice-number voice)]
@@ -350,13 +355,16 @@
         (format #t "@~3,'0d" number)
         (match (car value)
           [(al fb)
-           (format #t " ~3,'0d ~3,'0d\r\n" al fb)])
+           (format #t " ~3,'0d ~3,'0d\r\n" (check "AL" al 7) (check "FB" fb 7))])
         (let loop ([rest (cdr value)])
           (unless (null? rest)
             (match (car rest)
               [(ar dr sr rr sl tl ks ml dt dt2 seg ams)
                (format #t " ~3,'0d ~3,'0d ~3,'0d ~3,'0d ~3,'0d ~3,'0d ~3,'0d ~3,'0d ~3,'0d ~3,'0d\r\n"
-                       ar dr sr rr sl tl ks ml dt ams)
+                       (check "AR" ar 31) (check "DR" dr 31) (check "SR" sr 31)
+                       (check "RR" rr 15) (check "SL" sl 15) (check "TL" tl 127)
+                       (check "KS" ks 3) (check "ML" ml 15) (check "DT" dt 7)
+                       (check "AMS" ams 1))
                (loop (cdr rest))])))))
     (sort (filter (^[voice] (hash-table-exists? used-voice-ids (slot-ref voice 'id)))
                   (hash-table-values (slot-ref (sxmml-environment) 'voice)))
@@ -366,6 +374,12 @@
 ;;;
 ;;; operators
 ;;;
+
+;; 出力する値だけを、項目ごとの両端を含む範囲で検査する
+(define (%pmd-value-check kind value min max)
+  (unless (and (exact-integer? value) (<= min value max))
+    (errorf "invalid ~a value: ~s (expected integer ~a - ~a)" kind value min max))
+  value)
 
 ;; PMD operator
 (define (%pmd-rest-output obj)
@@ -379,7 +393,7 @@
            (format #t "r%~d" ticks)])))
 
 (define (%pmd-note-output obj)
-  (let recur ([note (%note-number->pmd-note (slot-ref obj 'value))]
+  (let recur ([note (%note-number->pmd-note (%pmd-value-check "note" (slot-ref obj 'value) 12 107))]
               [ticks (slot-ref obj 'ticks)]
               [octave (slot-ref (sxmml-pmd-track-environment) 'octave)])
     (cond [(or (> (- (car note) octave) 1) (< (- (car note) octave) -1))
@@ -409,19 +423,19 @@
   (hash-table-get (%pmd-voice-numbers) (slot-ref voice 'id)))
 
 (define (%pmd-gate-time-output obj)
-  (format #t "q~d" (slot-ref obj 'value)))
+  (format #t "q~d" (%pmd-value-check "gate time" (slot-ref obj 'value) 0 255)))
 
 (define (%pmd-fm-volume-output obj)
-  (format #t "V~d" (slot-ref obj 'value)))
+  (format #t "V~d" (%pmd-value-check "FM volume" (slot-ref obj 'value) 0 127)))
 
 (define (%pmd-ssg-volume-output obj)
-  (format #t "v~d" (slot-ref obj 'value)))
+  (format #t "v~d" (%pmd-value-check "SSG volume" (slot-ref obj 'value) 0 15)))
 
 (define (%pmd-pcm-volume-output obj)
-  (format #t "V~d" (slot-ref obj 'value)))
+  (format #t "V~d" (%pmd-value-check "PCM volume" (slot-ref obj 'value) 0 255)))
 
 (define (%pmd-tempo-absolute-output obj)
-  (format #t "T~d" (slot-ref obj 'value)))
+  (format #t "T~d" (%pmd-value-check "timerb" (slot-ref obj 'value) 0 255)))
 
 (define (%pmd-tempo-output obj)
   (format #t "T~d" (sxmml-bpm->timer-b (slot-ref obj 'value))))
@@ -430,13 +444,13 @@
   (format #t "&"))
 
 (define (%pmd-detune-output obj)
-  (format #t "D~d" (slot-ref obj 'value)))
+  (format #t "D~d" (%pmd-value-check "detune" (slot-ref obj 'value) -32768 32767)))
 
 (define (%pmd-repeat-start-output obj)
   (format #t "["))
 
 (define (%pmd-repeat-end-output obj)
-  (format #t "]~d" (slot-ref obj 'value)))
+  (format #t "]~d" (%pmd-value-check "repeat count" (slot-ref obj 'value) 1 255)))
 
 (define (%pmd-repeat-break-output obj)
   (format #t ":"))
@@ -445,7 +459,7 @@
   (format #t "L"))
 
 (define (%pmd-transpose-output obj)
-  (format #t "_~d" (slot-ref obj 'value)))
+  (format #t "_~d" (%pmd-value-check "transpose" (slot-ref obj 'value) -128 127)))
 
 (define (%pmd-lfo-output obj)
   (let1 lfo (hash-table-get (slot-ref (sxmml-environment) 'lfo) (slot-ref obj 'value) #f)
@@ -521,43 +535,43 @@
       value)))
 
 (define (%pmd-pan-output obj)
-  (format #t "p~d" (slot-ref obj 'value)))
+  (format #t "p~d" (%pmd-value-check "pan" (slot-ref obj 'value) 0 3)))
 
 (define (%pmd-transpose-change-output obj)
-  (format #t "__~d" (slot-ref obj 'value)))
+  (format #t "__~d" (%pmd-value-check "relative transpose" (slot-ref obj 'value) -128 127)))
 
 (define (%pmd-fm-volume-change-output obj)
-  (let1 value (slot-ref obj 'value)
+  (let1 value (%pmd-value-check "relative volume" (slot-ref obj 'value) -255 255)
     (cond [(= value 4)
            (display ")")]
           [(= value -4)
            (display "(")]
           [(>= value 0)
-           (format #t ")%~d" (slot-ref obj 'value))]
+           (format #t ")%~d" value)]
           [else
-           (format #t "(%~d" (* (slot-ref obj 'value) -1))])))
+           (format #t "(%~d" (* value -1))])))
 
 (define (%pmd-ssg-volume-change-output obj)
-  (let1 value (slot-ref obj 'value)
+  (let1 value (%pmd-value-check "relative volume" (slot-ref obj 'value) -255 255)
     (cond [(= value 1)
            (display ")")]
           [(= value -1)
            (display "(")]
           [(>= value 0)
-           (format #t ")%~d" (slot-ref obj 'value))]
+           (format #t ")%~d" value)]
           [else
-           (format #t "(%~d" (* (slot-ref obj 'value) -1))])))
+           (format #t "(%~d" (* value -1))])))
 
 (define (%pmd-pcm-volume-change-output obj)
-  (let1 value (slot-ref obj 'value)
+  (let1 value (%pmd-value-check "relative volume" (slot-ref obj 'value) -255 255)
     (cond [(= value 16)
            (display ")")]
           [(= value -16)
            (display "(")]
           [(>= value 0)
-           (format #t ")%~d" (slot-ref obj 'value))]
+           (format #t ")%~d" value)]
           [else
-           (format #t "(%~d" (* (slot-ref obj 'value) -1))])))
+           (format #t "(%~d" (* value -1))])))
 
 (define (%pmd-portamento-output obj)
   (define (octave-output noteoct)
@@ -571,9 +585,11 @@
             [(= (- noteoct octave) -1)
              (slot-set! (sxmml-pmd-track-environment) 'octave noteoct)
              (format #t "<")])))
-  (let ([start (%note-number->pmd-note (car (slot-ref obj 'value)))]
-        [end (%note-number->pmd-note (cdr (slot-ref obj 'value)))]
-        [ticks (slot-ref obj 'ticks)])
+  (let ([start (%note-number->pmd-note
+                (%pmd-value-check "portamento start" (car (slot-ref obj 'value)) 12 107))]
+        [end (%note-number->pmd-note
+              (%pmd-value-check "portamento end" (cdr (slot-ref obj 'value)) 12 107))]
+        [ticks (%pmd-value-check "portamento ticks" (slot-ref obj 'ticks) 1 255)])
     (octave-output (car start))
     (format #t "{~a" (cdr start))
     (octave-output (car end))
@@ -595,10 +611,10 @@
     value))
 
 (define (%pmd-noise-freq-output obj)
-  (format #t "w~d" (slot-ref obj 'value)))
+  (format #t "w~d" (%pmd-value-check "noise frequency" (slot-ref obj 'value) 0 31)))
 
 (define (%pmd-output-switch-output obj)
-  (format #t "P~d" (slot-ref obj 'value)))
+  (format #t "P~d" (%pmd-value-check "output switch" (slot-ref obj 'value) 1 3)))
 
 ;; Rhythm operator
 (define (%pmd-rhythm-emit-output obj)
@@ -613,22 +629,22 @@
       (%pmd-rest-output (make <sxmml-mml-rest> :value #f :ticks (slot-ref obj 'ticks))))))
 
 (define (%pmd-rhythm-volume-output obj)
-  (let ([v (if-let1 a (slot-ref obj 'value) (format "\\V~d" a) "")]
-        [b (if-let1 a (slot-ref obj 'bass) (format "\\vb~d" a) "")]
-        [s (if-let1 a (slot-ref obj 'snare) (format "\\vs~d" a) "")]
-        [t (if-let1 a (slot-ref obj 'tom) (format "\\vt~d" a) "")]
-        [c (if-let1 a (slot-ref obj 'cymbal) (format "\\vc~d" a) "")]
-        [h (if-let1 a (slot-ref obj 'hihat) (format "\\vh~d" a) "")]
-        [i (if-let1 a (slot-ref obj 'rimshot) (format "\\vi~d" a) "")])
+  (let ([v (if-let1 a (slot-ref obj 'value) (format "\\V~d" (%pmd-value-check "rhythm volume" a 0 63)) "")]
+        [b (if-let1 a (slot-ref obj 'bass) (format "\\vb~d" (%pmd-value-check "rhythm instrument volume" a 0 31)) "")]
+        [s (if-let1 a (slot-ref obj 'snare) (format "\\vs~d" (%pmd-value-check "rhythm instrument volume" a 0 31)) "")]
+        [t (if-let1 a (slot-ref obj 'tom) (format "\\vt~d" (%pmd-value-check "rhythm instrument volume" a 0 31)) "")]
+        [c (if-let1 a (slot-ref obj 'cymbal) (format "\\vc~d" (%pmd-value-check "rhythm instrument volume" a 0 31)) "")]
+        [h (if-let1 a (slot-ref obj 'hihat) (format "\\vh~d" (%pmd-value-check "rhythm instrument volume" a 0 31)) "")]
+        [i (if-let1 a (slot-ref obj 'rimshot) (format "\\vi~d" (%pmd-value-check "rhythm instrument volume" a 0 31)) "")])
     (format #t "~a~a~a~a~a~a~a" v b s t c h i)))
 
 (define (%pmd-rhythm-volume-change-output obj)
-  (let ([b (if-let1 a (slot-ref obj 'bass) (format "\\vb~@d" a) "")]
-        [s (if-let1 a (slot-ref obj 'snare) (format "\\vs~@d" a) "")]
-        [t (if-let1 a (slot-ref obj 'tom) (format "\\vt~@d" a) "")]
-        [c (if-let1 a (slot-ref obj 'cymbal) (format "\\vc~@d" a) "")]
-        [h (if-let1 a (slot-ref obj 'hihat) (format "\\vh~@d" a) "")]
-        [i (if-let1 a (slot-ref obj 'rimshot) (format "\\vi~@d" a) "")])
+  (let ([b (if-let1 a (slot-ref obj 'bass) (format "\\vb~@d" (%pmd-value-check "relative rhythm volume" a -31 31)) "")]
+        [s (if-let1 a (slot-ref obj 'snare) (format "\\vs~@d" (%pmd-value-check "relative rhythm volume" a -31 31)) "")]
+        [t (if-let1 a (slot-ref obj 'tom) (format "\\vt~@d" (%pmd-value-check "relative rhythm volume" a -31 31)) "")]
+        [c (if-let1 a (slot-ref obj 'cymbal) (format "\\vc~@d" (%pmd-value-check "relative rhythm volume" a -31 31)) "")]
+        [h (if-let1 a (slot-ref obj 'hihat) (format "\\vh~@d" (%pmd-value-check "relative rhythm volume" a -31 31)) "")]
+        [i (if-let1 a (slot-ref obj 'rimshot) (format "\\vi~@d" (%pmd-value-check "relative rhythm volume" a -31 31)) "")])
     (format #t "~a~a~a~a~a~a" b s t c h i)))
 
 (define (%pmd-rhythm-pan-output obj)
