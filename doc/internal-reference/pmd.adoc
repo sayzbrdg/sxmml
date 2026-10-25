@@ -13,6 +13,8 @@ PMD4 向けに利用するときは `pmd`、PMD3 向けには `pmd3` を指定�
 
 `%pmd-source-output` は出力先と同じディレクトリの一時ファイルへ書き、成功後に出力先へ改名します。R1の出力途中で重複を検出して失敗した場合も既存出力を保持し、`call-with-temporary-file` の後始末で一時ファイルを破棄します。
 
+`%pmd-source-output` は、全トラック本文を一つの文字列ポートに生成し、FM 音色指定の出力時に使用 id を記録します。記録表と記録用手続きは生成1回に閉じた局所定義です。使用された音色定義を番号順に書いた後で本文を出力し、PMD3 の終端は本文の後に付けます。ヘッダ・メタデータは本文に含めません。最適化レベルによる省略処理の分岐や、使用音色を集めるための IR の追加全件走査は行いません。
+
 [cols="2,4,4,1",options="header"]
 |===
 |名前・書式 |役割・引数 |結果・状態・失敗条件 |ソース
@@ -37,7 +39,7 @@ PMD4 向けに利用するときは `pmd`、PMD3 向けには `pmd3` を指定�
 |[[ref-pmd-internal-pmd-source-head-output]]`(%pmd-source-head-output :optional (pmd3? #f))` |生成元名と PMD バージョンの行を書く |`sxmml-source-file` が必要。PMD3 は `PMDver3.3`、それ以外は `PMDver4.8` |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-internal-pmd-source-meta-output]]`(%pmd-source-meta-output :optional (pmd3? #f))` |`title` 等と複数の `memo` を書く |値は `sxmml-pmd-metadata-value` で検査して受け取る。PMD3 はメタデータ行の先頭に `; ` を付ける。値がないキーは書かない |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-sxmml-pmd-metadata-value]]`(sxmml-pmd-metadata-value key)` |PMD が使うメタデータの値を検査して返す |`memo` は文字列 1 つか文字列のリストに限り、文字列のリスト（定義がなければ `()`）を返す。それ以外のキーは文字列に限り、その文字列（定義がなければ `#f`）を返す。誤りは `invalid metadata value: ~a is ~s (expected …)`。`sxmml.backend.pmd-binary` も使う |link:../../sxmml/backend/pmd.scm[pmd.scm]
-|[[ref-pmd-internal-pmd-source-voice-output]]`(%pmd-source-voice-output)` |登録された全ての音色を番号順に書く |各演算子で `ar dr sr rr sl tl ks ml dt ams` を出力し、`dt2`・`seg` は出力しない |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-internal-pmd-source-voice-output]]`(%pmd-source-voice-output used-voice-ids)` |id をキーとする使用記録表に含まれる音色だけを、既存の番号順に書く |各演算子で `ar dr sr rr sl tl ks ml dt ams` を出力し、`dt2`・`seg` は出力しない |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-internal-output-file-get]]`(%output-file-get)` |出力先を決める |環境の `output` slot が設定されていればその値を返す。`#f` の場合は入力名の拡張子を `output-extension` の値に替えたもの、入力名がなければ `./a.mml` を slot に設定して返す。`sxlc` から使う場合は `sxlc` が出力先を設定するため、この既定値は `sxlc` を通さずに使う場合にだけ使われる。ファイルへの書き込みはしない |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-internal-check-obsolete-metadata]]`(%check-obsolete-metadata)` |廃止したメタデータの確認 |`filename` メタデータが設定されていれば、生成先には使わない旨の警告を標準エラー出力に表示する |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |===
@@ -52,7 +54,7 @@ PMD4 向けに利用するときは `pmd`、PMD3 向けには `pmd3` を指定�
 |===
 |書式 |引数と役割 |出力・前提・失敗条件 |ソース
 |[[ref-pmd-internal-track-output]]`(%track-output track part voice-proc! vol-set-proc! vol-change-proc!)` |通常トラック共通。part 文字と音色・音量の処理手続きを受ける |登録済み track と正しい処理手続きが必要。トラック状態パラメータを動的に設定し、CRLF で終わる行を書く |link:../../sxmml/backend/pmd.scm[pmd.scm]
-|[[ref-pmd-internal-fm-track-output]]`(%fm-track-output track part)` |FM 向けの音色・音量処理を選ぶ |A～F の行生成に使用 |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-internal-fm-track-output]]`(%fm-track-output track part voice-proc)` |FM 向けの音色・音量処理を選ぶ |A～F の行生成に使用。記録付きの音色出力手続き `voice-proc` を `%track-output` へ渡す |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-internal-ssg-track-output]]`(%ssg-track-output track part)` |SSG 向けの音色・音量処理を選ぶ |G～I の行生成に使用 |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-internal-pcm-track-output]]`(%pcm-track-output track part)` |PCM 向けの音色・音量処理を選ぶ |J の行生成に使用 |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-internal-pmd-track-output]]`(%pmd-track-output lis voiceproc volproc volcproc)` |オブジェクト型ごとに emitter を振り分ける |`lis` を順に走査。対応しない型は出力せず進む |link:../../sxmml/backend/pmd.scm[pmd.scm]

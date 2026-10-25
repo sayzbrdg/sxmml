@@ -114,8 +114,8 @@
                              vol-change-proc!)
         (display "\r\n\r\n")))))
 
-(define (%fm-track-output track part)
-  (%track-output track part %pmd-fm-voice-output %pmd-fm-volume-output %pmd-fm-volume-change-output))
+(define (%fm-track-output track part voice-proc)
+  (%track-output track part voice-proc %pmd-fm-volume-output %pmd-fm-volume-change-output))
 
 (define (%ssg-track-output track part)
   (%track-output track part %pmd-ssg-voice-output %pmd-ssg-volume-output %pmd-ssg-volume-change-output))
@@ -268,18 +268,28 @@
 
 (define (%pmd-source-output :optional (pmd3? #f))
   (%check-obsolete-metadata)
-  (let1 output-file (%output-file-get)
+  (let ([output-file (%output-file-get)]
+        [used-voice-ids (make-hash-table eq-comparator)])
+    (define (fm-voice-output obj)
+      (%pmd-fm-voice-output obj)
+      (hash-table-put! used-voice-ids (slot-ref obj 'value) #t))
     (call-with-temporary-file
         (^[p n]
           (with-output-conversion p
             (^[]
               (%pmd-source-head-output pmd3?)
               (%pmd-source-meta-output pmd3?)
-              (%pmd-source-voice-output)
-              (for-each (^[t p] (%fm-track-output t p)) (map sxmml-track-find '(A B C D E F)) '(A B C D E F))
-              (for-each (^[t p] (%ssg-track-output t p)) (map sxmml-track-find '(G H I)) '(G H I))
-              (%pcm-track-output (sxmml-track-find 'J) 'J)
-              (%pmd-rhythm-track-output (sxmml-track-find 'L))
+              (let1 tracks
+                  (with-output-to-string
+                    (^[]
+                      (for-each (^[t p] (%fm-track-output t p fm-voice-output))
+                                (map sxmml-track-find '(A B C D E F)) '(A B C D E F))
+                      (for-each (^[t p] (%ssg-track-output t p))
+                                (map sxmml-track-find '(G H I)) '(G H I))
+                      (%pcm-track-output (sxmml-track-find 'J) 'J)
+                      (%pmd-rhythm-track-output (sxmml-track-find 'L))))
+                (%pmd-source-voice-output used-voice-ids)
+                (display tracks))
               (when pmd3?
                 (display #\x1a)))
             :encoding "cp932")
@@ -332,7 +342,7 @@
     table))
 
 ;; 同じ入力から同じ生成物を得るため、音色表の反復順ではなく番号順に出力する
-(define (%pmd-source-voice-output)
+(define (%pmd-source-voice-output used-voice-ids)
   (for-each
     (^[voice]
       (let ([number (%pmd-fm-voice-number voice)]
@@ -348,7 +358,8 @@
                (format #t " ~3,'0d ~3,'0d ~3,'0d ~3,'0d ~3,'0d ~3,'0d ~3,'0d ~3,'0d ~3,'0d ~3,'0d\r\n"
                        ar dr sr rr sl tl ks ml dt ams)
                (loop (cdr rest))])))))
-    (sort (hash-table-values (slot-ref (sxmml-environment) 'voice))
+    (sort (filter (^[voice] (hash-table-exists? used-voice-ids (slot-ref voice 'id)))
+                  (hash-table-values (slot-ref (sxmml-environment) 'voice)))
           (^[a b] (< (%pmd-fm-voice-number a) (%pmd-fm-voice-number b)))))
   (display "\r\n"))
 

@@ -29,6 +29,19 @@
   (define (generated-text name forms)
     (run-sxlc name forms "-m" "pmd")
     (file->string (work-file #"~|name|.mml")))
+  ;; CLI を通さず、指定したモードと最適化設定で生成物を返す
+  (define (pmd-text name forms mode optimize)
+    (let ([source (source-output name (with-output-to-string
+                                      (^[] (for-each write forms))))]
+          [output (work-file #"~|name|.mml")])
+      (parameterize ([sxmml-environment (make <sxmml-environment>)]
+                     [sxmml-source-file source])
+        (mode)
+        (slot-set! (sxmml-environment) 'optimize optimize)
+        (load source)
+        (slot-set! (sxmml-environment) 'output output)
+        ((slot-ref (sxmml-environment) 'backend))
+        (file->string output :encoding "cp932"))))
   ;; name.sxl に text を書いて返す
   (define (source-output name text)
     (rlet1 source (work-file #"~|name|.sxl")
@@ -131,7 +144,7 @@
                                 (string-split (generated-text
                                                "voice-order"
                                                (append (map voice-form '(j i h g f e d c b a) (iota 10))
-                                                       '((mml A "@{a}c8"))))
+                                                       '((mml A "@{j}c8@{i}c8@{h}c8@{g}c8@{f}c8@{e}c8@{d}c8@{c}c8@{b}c8@{a}c8"))))
                                               "\r\n"))))
         ;; begin 内で定義しても、同じ入力からは同じ出力になること
         (let1 forms (append (map voice-form '(c b a) '(0 1 2))
@@ -153,8 +166,49 @@
                                      `(,(voice-form 2 3) ,(voice-form 10 2) ,(voice-form 0 1)
                                        (mml A "@2c8")))
             (test* "voice numbers follow the dictionary order of ids"
-                   '("A l%12@2o4c" ((0 1) (1 2) (2 3)))
+                   '("A l%12@2o4c" ((2 3)))
                    (list (a-line text) (voice-lines text))))
+          (let1 forms (append (map voice-form '(a b c) '(0 1 2))
+                              '((mml A "@{b}@{c}c8")))
+            (let1 text (pmd-text "used-voices-O0" forms pmd-source #f)
+              (test* "最適化なしでは生成する全音色指定の定義だけを出力する"
+                     '("A l%12@1@2o4c" ((1 1) (2 2)))
+                     (list (a-line text) (voice-lines text))))
+            (let1 text (pmd-text "used-voices-O1" forms pmd-source #t)
+              (test* "最適化で消えた音色指定の定義を省き番号を維持する"
+                     '("A l%12@2o4c" ((2 2)))
+                     (list (a-line text) (voice-lines text)))))
+          (let1 text (pmd-text "used-voices-ssg-pcm"
+                              `(,(voice-form 0 0) (mml G "@0c8") (mml J "@0c8"))
+                              pmd-source #t)
+            (test* "SSGとPCMの音色指定ではFM音色定義を出力しない"
+                   '(() ("G l%12@0o4c" "J l%12@0o4c"))
+                   (list (voice-lines text)
+                         (filter #/^[GJ] / (string-split text "\r\n")))))
+          (let1 text (pmd-text "used-voices-tracks"
+                              (append (map voice-form '(a b c) '(0 1 2))
+                                      '((mml A "@{c}c8")
+                                        (mml F "@{a}c8@{c}c8")
+                                        (mml G "c8") (mml J "c8")
+                                        (rhythm L "@b8")))
+                              pmd-source #t)
+            (test* "複数トラックの使用音色を集約し定義と全本文を順に出力する"
+                   '("@000 000 000" "@002 002 000"
+                     "A l%12@2o4c" "F l%12@0o4c@2c"
+                     "G l%12o4c" "J l%12o4c"
+                     "R0 \\br%12" "K l%12 R0")
+                   (filter #/^(@\d|[A-JK] |R[01] )/
+                           (string-split text "\r\n"))))
+          (let1 text (pmd-text "used-voices-pmd3"
+                              `(,(voice-form 'a 0) ,(voice-form 'b 1)
+                                (mml A "@{b}c8"))
+                              pmd3-source #t)
+            (test* "PMD3でも未使用定義を省きヘッダと終端を維持する"
+                   '(((1 1)) #t "A l%12@1o4c" 26)
+                   (list (voice-lines text)
+                         (boolean (string-scan text ";; mode: PMDver3.3\r\n"))
+                         (a-line text)
+                         (char->integer (string-ref text (- (string-length text) 1))))))
           (let1 text (generated-text "voice-in-begin"
                                      `((begin ,(voice-form 'b 1) ,(voice-form 'a 2))
                                        (mml A "@{a}c8@{b}c8")))
