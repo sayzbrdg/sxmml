@@ -180,7 +180,7 @@
                    '(1 #t #t)
                    (status-with-location (sxlc-status "-m" "pmd" "-o" (work-file "voice-sxlc-location.mml") source)
                                        (string->regexp
-                                      (regexp-quote #"invalid voice @V1 operator(2):")) #"~|source|:4"))))
+                                      (regexp-quote #"invalid voice @V1 operator(2) AR:")) #"~|source|:4"))))
         (dolist [def '((define-lfo lfo) (define-envelope envelope))]
           (let ([macro (car def)])
             (let1 source (source-output #"~|macro|-sxlc-location" #"(mml G \"c8\")\n(~macro X1)\n")

@@ -84,6 +84,12 @@
                                 (event :snare) (make <sxmml-mml-loop>)
                                 (event :hihat)) track)
       (sxmml-pmd-binary-output)))
+  (define (raw-voice-data name alfb op :optional (used? #t))
+    (make-binary-data name pmd-binary
+                      `((hash-table-put! (slot-ref (sxmml-environment) 'voice) 'tone
+                                         (make <sxmml-opn-voice> :id 'tone
+                                               :value ',(cons alfb (make-list 4 op))))
+                        (mml A ,(if used? "@{tone}o4c%12" "o4c%12"))) #f))
   (unwind-protect
       (begin
         (dolist [case '(("SSG" G 16 "invalid SSG volume: 16 (expected an integer from 0 to 15)")
@@ -126,6 +132,53 @@
             (test* #"~|kind|相対音量の負側境界の符号化を維持する"
                    (format "e2 ~a 30 0c 80" (cadddr case))
                    (section-hex (relative-data #"relative-~|kind|-boundary" (- limit)) track))))
+
+        (let ([upper '(31 31 31 15 15 127 3 15 7 3 15 1)]
+              [ranges '((AL 0 7) (FB 1 7) (AR 0 31) (DR 1 31) (SR 2 31)
+                        (RR 3 15) (SL 4 15) (TL 5 127) (KS 6 3) (ML 7 15)
+                        (DT 8 7) (AMS 11 1))])
+          (dolist [r ranges]
+            (let* ([field (car r)] [index (cadr r)] [high (caddr r)]
+                   [common? (memq field '(AL FB))])
+              (test* #"手作り音色の~|field|の上限超過を出力時に拒否する"
+                     (test-error <sxmml-value-error>
+                                 (format "invalid voice @tone~a ~a: ~a (expected an integer from 0 to ~a)"
+                                         (if common? "" " operator(1)") field (+ high 1) high))
+                     (raw-voice-data #"raw-upper-~field"
+                                     (map (^[i] (if (and common? (= i index)) (+ high 1) 0)) (iota 2))
+                                     (map (^[i] (if (and (not common?) (= i index)) (+ high 1) 0))
+                                          (iota 12))))))
+          (test* "手作り音色の負のDTは出力時に正規化せず拒否する"
+                 (test-error <sxmml-value-error>
+                             "invalid voice @tone operator(1) DT: -1 (expected an integer from 0 to 7)")
+                 (raw-voice-data "raw-negative-dt" '(0 0) '(0 0 0 0 0 0 0 0 -1 0 0 0)))
+          (test* "手作り音色の全出力項目上限の25バイトを維持する"
+                 (string-join (append '("00") (make-list 8 "7f") (make-list 4 "df")
+                                      (make-list 4 "9f") (make-list 4 "1f") (make-list 4 "ff") '("3f")) " ")
+                 (string-join (take (string-split
+                                    (section-hex (raw-voice-data "raw-upper-ok" '(7 7) upper) 'voice) " ") 26)
+                              " "))
+          (test* "未使用の手作り音色は出力時の検査対象に加えない"
+                 '("00" "ff")
+                 (take (string-split
+                        (section-hex (raw-voice-data "raw-unused" '(0 0)
+                                                     '(32 0 0 0 0 0 0 0 0 0 0 0) #f) 'voice) " ") 2))
+          (test* "非出力項目DT2とSEGは手作り音色の生成バイトに影響しない"
+                 (section-hex (raw-voice-data "raw-ignored-zero" '(0 0) (make-list 12 0)) 'voice)
+                 (section-hex (raw-voice-data "raw-ignored-fields" '(0 0)
+                                              '(0 0 0 0 0 0 0 0 0 4 16 0)) 'voice))
+          (let1 registered-data
+              (^[dt] (section-hex
+                      (make-binary-data #"registered-dt-~dt" pmd-binary
+                                        `((define-opn-voice tone (0 0)
+                                            ,@(make-list 4 (list 0 0 0 0 0 0 0 0 dt)))
+                                          (mml A "@{tone}o4c%12")) #f) 'voice))
+            (test* "負数表記と非負表記のDTは同じ音色表を出力する"
+                   #t (equal? (registered-data -1) (registered-data 5))))
+          (test* "手作り音色の非整数は符号化前に値エラーとして拒否する"
+                 (test-error <sxmml-value-error>
+                             "invalid voice @tone operator(1) TL: 1/2 (expected an integer from 0 to 127)")
+                 (raw-voice-data "raw-fraction" '(0 0) '(0 0 0 0 0 1/2 0 0 0 0 0 0))))
 
         (test* "公開pmd-binary出力の範囲違反は値エラーになる"
                (test-error <sxmml-value-error> "invalid FM volume: 128 (expected an integer from 0 to 127)")

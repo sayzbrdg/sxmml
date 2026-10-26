@@ -69,7 +69,12 @@
     [else
      (errorf <sxmml-value-error> "invalid voice @~a operator(~a): ~s (expected a list of 9 to 12 values)" id openum form)]))
 
-;; 音色を検査して登録する。演算子の値は 12 値に直し、どの値も 0 以上の正確な整数とする。
+(define %voice-alfb-ranges '((AL 0 7) (FB 0 7)))
+(define %voice-operator-ranges
+  '((AR 0 31) (DR 0 31) (SR 0 31) (RR 0 15) (SL 0 15) (TL 0 127)
+    (KS 0 3) (ML 0 15) (DT -3 7) (DT2 0 3) (SEG 0 15) (AMS 0 1)))
+
+;; 音色を検査して登録する。演算子は12値に補完し、範囲検査後に負のDTを正規化する。
 ;; 同じ id の音色は置き換える。番号はバックエンドが決めるので、ここでは持たない
 (define (sxmml-opn-voice-set! id alfb op1 op2 op3 op4)
   (unless (symbol? id)
@@ -80,15 +85,24 @@
               (unless (%voice-operator-form? op)
                 (errorf <sxmml-value-error> "invalid voice @~a operator(~a): ~s (expected a list of 9 to 12 values)" id openum op)))
             (list op1 op2 op3 op4) '(1 2 3 4))
-  (let1 ops (map (cut %4op-voice-shape <> id <>) (list op1 op2 op3 op4) '(1 2 3 4))
-    (%voice-values-check alfb id "al/fb")
-    (for-each (^[op openum] (%voice-values-check op id #"operator(~openum)")) ops '(1 2 3 4))
+  (let* ([ops (map (cut %4op-voice-shape <> id <>) (list op1 op2 op3 op4) '(1 2 3 4))]
+         [checked-alfb (%voice-values-check alfb %voice-alfb-ranges id #f)]
+         [checked-ops (map (^[op openum]
+                             (%voice-values-check op %voice-operator-ranges id #"operator(~openum)"))
+                           ops '(1 2 3 4))])
     (hash-table-set! (slot-ref (sxmml-environment) 'voice) id
-                     (make <sxmml-opn-voice> :id id :value (cons alfb ops)))))
+                    (make <sxmml-opn-voice> :id id :value (cons checked-alfb checked-ops)))))
 
-(define (%voice-values-check values id place)
-  (if-let1 v (find (^v (not (and (exact-integer? v) (>= v 0)))) values)
-    (errorf <sxmml-value-error> "invalid voice @~a ~a: ~s (expected a nonnegative exact integer)" id place v)))
+(define (%voice-values-check values ranges id place)
+  (map (^[v range]
+         (match range
+           [(name low high)
+            (unless (and (exact-integer? v) (<= low v high))
+              (errorf <sxmml-value-error>
+                      "invalid voice @~a~a ~a: ~s (expected an integer from ~a to ~a)"
+                      id (if place (format #f " ~a" place) "") name v low high))
+            (if (and (eq? name 'DT) (negative? v)) (+ 4 (abs v)) v)]))
+       values ranges))
 
 ;; 音色の枠の要素の数の規則。マクロの展開時と、登録の手続きの両方で使う
 (define (%voice-alfb-form? x)
