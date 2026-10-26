@@ -1,6 +1,8 @@
 = `sxmml.voice` の音色定義
 :toc: left
 
+直接登録手続きの形式・値検査はvalue-error、マクロの構文上の枠の誤りはform-syntax-errorです。既知のエラーにだけ取得済みのフォーム位置を添え、未定義のScheme変数はGaucheのエラーのまま通します。
+
 `sxmml.voice` には八つの定義があり、`define-opn-voice`、`sxmml-opn-voice-set!`、`sxmml-opmn-operator-zip` を公開します。音色の基底クラスは xref:classes.adoc#ref-classes-class-sxmml-voice[`<sxmml-voice>`] を参照してください。`util.match`、マクロ展開、ハッシュ表は Gauche 0.9.15 の動作に従います。
 
 [cols="2,4,4,1",options="header"]

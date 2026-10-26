@@ -22,12 +22,20 @@
       (with-output-to-file source (^[] (display text)))))
   (unwind-protect
       (begin
+        (test* "解像度0は値エラーになる"
+               (test-error <sxmml-value-error> #/resolution must be positive integer/)
+               (parameterize ([sxmml-environment (make <sxmml-environment>)])
+                 (sxmml-resolution 0)))
+        (test* "空のdefine-trackはフォーム構文エラーになる"
+               (test-error <sxmml-form-syntax-error> "define-track requires at least one track name")
+               (eval '(define-track ()) (interaction-environment)))
+
         (test* "sxmml-output-file is not exported"
                #f
                (boolean (memq 'sxmml-output-file
                               (module-exports (find-module 'sxmml.environment)))))
         ;; define-lfo・define-envelope の枠の中の値は式として評価し、種類はリテラルとする。
-        ;; 形の誤りと値の式の誤りには、定義の開始位置を付ける (#28)
+        ;; 既知の入力エラーには定義位置を添え、値の式の未知の例外は通す (#28)
         (dolist [def '((define-lfo lfo) (define-envelope envelope))]
           (let* ([macro (car def)]
                  [table (cadr def)]
@@ -56,18 +64,16 @@
                             ("non-symbol-type" " 1 (1 2)") ("too-many" " sw (1 2) 3"))]
               (let1 r (load-result #"~|macro|-~(car case)" #"; def\n(begin\n  (~macro X1~(cadr case))\n  1)\n")
                 (test* #"a wrong ~macro form fails with its location: ~(car case)"
-                       (list #t #"~(car r):3: ~form-message" #"~(car r):3" #f)
+                       (list #t #"~form-message" #"~(car r):3" #t)
                        (let1 e (cdr r)
-                         (list (sxmml-form-error? e) (condition-message e)
-                               (sxmml-form-error-location e) (sxmml-form-error-cause e))))))
+                         (list (sxmml-form-syntax-error? e) (condition-message e)
+                               (sxmml-source-context-location e) (sxmml-form-syntax-error? e))))))
             (let1 r (load-result #"~|macro|-undefined" #"; def\n(begin\n  (~macro X1 (1 %test-undefined-value))\n  1)\n")
-              (test* #"an undefined variable in ~macro fails with its location"
-                     (list #t #t #"~(car r):3" #t)
+              (test* #"~|macro|内の未定義変数はGaucheのエラーとして通過する"
+                     '(#t #f #f)
                      (let1 e (cdr r)
-                       (list (sxmml-form-error? e)
-                             (boolean (#/^\S+:3: / (condition-message e)))
-                             (sxmml-form-error-location e)
-                             (is-a? (sxmml-form-error-cause e) <unbound-variable-error>)))))
+                       (list (condition-has-type? e <unbound-variable-error>)
+                             (sxmml-error? e) (sxmml-source-context? e)))))
             (test* #"~macro without a location registers"
                    '(5 6)
                    (parameterize ([sxmml-environment (make <sxmml-environment>)])
@@ -92,8 +98,8 @@
                                   (list source result
                                         (filter #/^warning:/ (string-split err "\n")))))))]
                [error-report (^[r] (let1 e (cadr r)
-                                     (list (sxmml-form-error? e) (condition-message e)
-                                           (sxmml-form-error-location e))))]
+                                     (list (sxmml-form-syntax-error? e) (condition-message e)
+                                           (sxmml-source-context-location e))))]
                [ignored (^[location] #"warning: ~|location|: sxmml-mode in source is ignored; mode is already set to PMD")]
                ;; 3 行目の begin の中に form を置いた入力
                [in-begin (^[form] #"; mode\n(begin\n  ~form\n  1)\n")]
@@ -113,23 +119,20 @@
           (dolist [fixed '(#f #t)]
             (let1 r (mode-load #"mode-no-mode-~fixed" (in-begin "(sxmml-mode)") fixed)
               (test* #"a wrong sxmml-mode form fails at expansion with its location: fixed ~fixed"
-                     (list #t #"~(car r):3: invalid sxmml-mode form: expected (sxmml-mode mode arg ...)" #"~(car r):3" #f)
-                     (append (error-report r) (list (sxmml-form-error-cause (cadr r)))))))
+                     (list #t #"invalid sxmml-mode form: expected (sxmml-mode mode arg ...)" #"~(car r):3" #t)
+                     (append (error-report r) (list (sxmml-form-syntax-error? (cadr r)))))))
           (let1 r (mode-load "mode-undefined" (in-begin "(sxmml-mode %test-undefined-mode)") #f)
-            (test* "an undefined mode fails with its location"
-                   (list #t #t #"~(car r):3" #t)
+            (test* "未定義モードのSchemeエラーを変換しない"
+                   '(#t #f #f)
                    (let1 e (cadr r)
-                     (list (sxmml-form-error? e)
-                           (boolean (#/^\S+:3: / (condition-message e)))
-                           (sxmml-form-error-location e)
-                           (is-a? (sxmml-form-error-cause e) <unbound-variable-error>)))))
+                     (list (condition-has-type? e <unbound-variable-error>)
+                             (sxmml-error? e) (sxmml-source-context? e)))))
           (let1 r (mode-load "mode-wrong-args" (in-begin "(sxmml-mode pmd 1)") #f)
-            (test* "a mode with wrong arguments fails with its location"
-                   (list #t #t #"~(car r):3")
+            (test* "モード手続きの引数個数エラーを変換しない"
+                   '(#t #f #f)
                    (let1 e (cadr r)
-                     (list (sxmml-form-error? e)
-                           (boolean (#/^\S+:3: wrong number of arguments/ (condition-message e)))
-                           (sxmml-form-error-location e)))))
+                     (list (condition-has-type? e <error>)
+                           (sxmml-error? e) (sxmml-source-context? e)))))
           (test* "sxmml-mode without a location is ignored with a warning when the mode is fixed"
                  '("PMD" "warning: sxmml-mode in source is ignored; mode is already set to PMD\n")
                  (parameterize ([sxmml-environment (make <sxmml-environment>)]
@@ -189,7 +192,7 @@
           (let1 r (meta-load "meta-mixed" "(define-metadata memo (\"a\" (string-append \"b\" \"c\")))\n")
             (test* "a mixed define-metadata value is evaluated, not taken as the old form"
                    '(#t ())
-                   (list (sxmml-form-error? (cadr r)) (caddr r))))
+                   (list (and (condition-has-type? (cadr r) <error>) (not (sxmml-error? (cadr r)))) (caddr r))))
           ;; 空の括弧も旧書式ではない。Gauche は () を評価すると () を返すので、空のリストになる
           (let1 r (meta-load "meta-empty" "(define-metadata memo ())\n")
             (test* "an empty define-metadata value is evaluated, not taken as the old form"
@@ -198,18 +201,16 @@
           (dolist [case '(("no-value" "") ("too-many" " \"a\" \"b\""))]
             (let1 r (meta-load #"meta-~(car case)" #"; meta\n(begin\n  (define-metadata title~(cadr case))\n  1)\n")
               (test* #"a wrong define-metadata form fails with its location: ~(car case)"
-                     (list #t #"~(car r):3: invalid define-metadata form: expected (define-metadata key value)" #"~(car r):3" #f)
+                     (list #t #"invalid define-metadata form: expected (define-metadata key value)" #"~(car r):3" #t)
                      (let1 e (cadr r)
-                       (list (sxmml-form-error? e) (condition-message e)
-                             (sxmml-form-error-location e) (sxmml-form-error-cause e))))))
+                       (list (sxmml-form-syntax-error? e) (condition-message e)
+                             (sxmml-source-context-location e) (sxmml-form-syntax-error? e))))))
           (let1 r (meta-load "meta-undefined" "; meta\n(begin\n  (define-metadata title %test-undefined-meta)\n  1)\n")
-            (test* "an undefined variable in define-metadata fails with its location"
-                   (list #t #t #"~(car r):3" #t)
+            (test* "metadata内の未定義変数を変換しない"
+                   '(#t #f #f)
                    (let1 e (cadr r)
-                     (list (sxmml-form-error? e)
-                           (boolean (#/^\S+:3: / (condition-message e)))
-                           (sxmml-form-error-location e)
-                           (is-a? (sxmml-form-error-cause e) <unbound-variable-error>)))))
+                     (list (condition-has-type? e <unbound-variable-error>)
+                             (sxmml-error? e) (sxmml-source-context? e)))))
 
           )
       )

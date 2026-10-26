@@ -139,8 +139,25 @@
       (sxmml-pmd-source-output)))
   (unwind-protect
       (begin
+        (test* "公開pmd-source出力の範囲違反は値エラーになる"
+               (test-error <sxmml-value-error> #/invalid FM volume value: 128/)
+               (pmd-ir-text "typed-volume" 'A
+                            (range-ir (make <sxmml-mml-volume> :value 128) 'A)))
+        (test* "公開pmd-source出力の未定義音色は参照エラーになる"
+               (test-error <sxmml-reference-error> #/no instrument define/)
+               (pmd-ir-text "typed-reference" 'A
+                            (range-ir (make <sxmml-mml-voice> :value 'UNKNOWN) 'A)))
+        (test* "音色数の上限違反は基底sxmml-errorになる"
+               #t
+               (parameterize ([sxmml-environment (make <sxmml-environment>)])
+                 (dolist [n (iota 257)]
+                   (apply sxmml-opn-voice-set! (string->symbol #"V~n") '(0 0)
+                          (make-list 4 '(0 0 0 0 0 0 0 0 0))))
+                 (guard (e [else (eq? (class-of e) <sxmml-error>)])
+                   (sxmml-pmd-voice-number-table-compute))))
+
         (test* "通常トラックの直接IR入力で2個目のLを拒否する"
-               (test-error <error> "loop command can be used only once in a track")
+               (test-error <sxmml-mml-syntax-error> "loop command can be used only once in a track")
                (multiple-loop-output 'G (work-file "direct-loop-G.mml")))
         (let* ([dir (work-file "direct-loop-L")]
                [output (build-path dir "out.mml")]
@@ -149,7 +166,7 @@
           (make-directory* dir)
           (with-output-to-file output (^[] (display "既存の生成物")))
           (let* ([before (snapshot)]
-                 [message (guard (e [(is-a? e <error>) (condition-message e)])
+                 [message (guard (e [(condition-has-type? e <error>) (condition-message e)])
                             (multiple-loop-output 'L output)
                             'accepted)])
             (test* "リズムの直接IR入力の重複で失敗し、既存出力を保ち一時ファイルを残さない"

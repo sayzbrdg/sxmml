@@ -67,18 +67,18 @@
     [(ar dr sr rr sl tl ks ml dt)
      (%4op-voice-shape (list ar dr sr rr sl tl ks ml dt 0 0 0) id openum)]
     [else
-     (errorf "invalid voice format: @~a, operator(~a), ~a" id openum form)]))
+     (errorf <sxmml-value-error> "invalid voice format: @~a, operator(~a), ~a" id openum form)]))
 
 ;; 音色を検査して登録する。演算子の値は 12 値に直し、どの値も 0 以上の正確な整数とする。
 ;; 同じ id の音色は置き換える。番号はバックエンドが決めるので、ここでは持たない
 (define (sxmml-opn-voice-set! id alfb op1 op2 op3 op4)
   (unless (symbol? id)
-    (errorf "voice id must be a symbol: ~a" id))
+    (errorf <sxmml-value-error> "voice id must be a symbol: ~a" id))
   (unless (%voice-alfb-form? alfb)
-    (errorf "invalid voice format: @~a, al/fb, ~a" id alfb))
+    (errorf <sxmml-value-error> "invalid voice format: @~a, al/fb, ~a" id alfb))
   (for-each (^[op openum]
               (unless (%voice-operator-form? op)
-                (errorf "invalid voice format: @~a, operator(~a), ~a" id openum op)))
+                (errorf <sxmml-value-error> "invalid voice format: @~a, operator(~a), ~a" id openum op)))
             (list op1 op2 op3 op4) '(1 2 3 4))
   (let1 ops (map (cut %4op-voice-shape <> id <>) (list op1 op2 op3 op4) '(1 2 3 4))
     (%voice-values-check alfb id "al/fb")
@@ -88,7 +88,7 @@
 
 (define (%voice-values-check values id place)
   (if-let1 v (find (^v (not (and (exact-integer? v) (>= v 0)))) values)
-    (errorf "invalid voice value: @~a, ~a, ~a" id place v)))
+    (errorf <sxmml-value-error> "invalid voice value: @~a, ~a, ~a" id place v)))
 
 ;; 音色の枠の要素の数の規則。マクロの展開時と、登録の手続きの両方で使う
 (define (%voice-alfb-form? x)

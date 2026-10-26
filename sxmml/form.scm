@@ -30,7 +30,7 @@
 (define-module sxmml.form
   (use util.match)
   (use sxmml.classes)
-  (export sxmml-form-location sxmml-form-error sxmml-form-warn sxmml-form-warn-at sxmml-form-call sxmml-form-wrap))
+  (export sxmml-form-location sxmml-form-error sxmml-form-warn sxmml-form-warn-at sxmml-form-call sxmml-form-wrap sxmml-error-with-context))
 (select-module sxmml.form)
 
 ;; フォームの開始位置を "ファイル:行" で返す。わからなければ #f
@@ -39,14 +39,23 @@
     [(file line . _) #"~|file|:~|line|"]
     [_ #f]))
 
-;; 展開時の形の誤りを、フォームの位置を付けて投げる
+;; 同じ種類の文脈がある場合は内側の情報を残す。
+(define (sxmml-error-with-context e context)
+  (if (and (sxmml-error? e) context
+           (not (condition-has-type? e (class-of context))))
+    (make-compound-condition e context)
+    e))
+
+;; 展開時の形の誤りに、取得できるフォーム位置だけを添える。
 (define (sxmml-form-error form fmt . args)
-  (let ([location (sxmml-form-location form)]
-        [message (apply format #f fmt args)])
-    (raise (condition (<sxmml-form-error>
-                       (message (%message->located-message location message))
-                       (location location)
-                       (cause #f))))))
+  (let1 location (sxmml-form-location form)
+    (raise (sxmml-error-with-context
+            (make-condition <sxmml-form-syntax-error> 'message (apply format #f fmt args))
+            (and location (make-condition <sxmml-source-context> 'source-location location))))))
+
+;; #80単独でも、Gaucheの標準報告にフォーム位置を表示する。
+(define-method report-additional-condition ((context <sxmml-source-context>) out)
+  (format out "    at ~a\n" (sxmml-source-context-location context)))
 
 ;; 定義のマクロの警告を、フォームの位置を付けて標準エラー出力に書く
 (define (sxmml-form-warn form fmt . args)
@@ -57,16 +66,12 @@
   (format (current-error-port) "warning: ~a\n"
           (%message->located-message location (apply format #f fmt args))))
 
-;; thunk の中で起きたエラーを、定義の位置 location を付けて投げ直す。内側の定義の
-;; 誤りはその位置を残し、エラーでない値や condition はそのまま通す
+;; 既知の入力エラーだけにフォーム位置を付け、未知の例外はそのまま通す。
 (define (sxmml-form-call location thunk)
   (if location
-    (guard (e [(sxmml-form-error? e) (raise e)]
-              [(error? e)
-               (raise (condition (<sxmml-form-error>
-                                  (message (%message->located-message location (condition-message e)))
-                                  (location location)
-                                  (cause e))))])
+    (guard (e [(sxmml-error? e)
+               (raise (sxmml-error-with-context e
+                        (make-condition <sxmml-source-context> 'source-location location)))])
       (thunk))
     (thunk)))
 

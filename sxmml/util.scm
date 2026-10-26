@@ -28,6 +28,7 @@
 
 (define-module sxmml.util
   (use sxmml.environment)
+  (use sxmml.classes)
   (export sxmml-bpm->timer-b))
 (select-module sxmml.util)
 
@@ -35,5 +36,5 @@
   (let1 timerb (floor (- 256 (/ 208000 (* bpm (or res (sxmml-resolution-get))))))
     (when (or (< timerb 0)
               (> timerb 255))
-      (error "timerb must range from 0 to 255, but calculated result:" timerb))
+      (error <sxmml-value-error> "timerb must range from 0 to 255, but calculated result:" timerb))
     timerb))

@@ -1,6 +1,8 @@
 = `sxmml.mml` の手続きとパーサー
 :toc: left
 
+既存の音長・付点・反復・ループの規則違反はmml-syntax-errorで通知します。明示的な分母0は `%make-note-length-parser` で計算前に、`l0` は `$length` で登録前に拒否します。音長省略と正の音長は維持します。PEG固有の失敗はcompilerとの境界で解釈します。
+
 `sxmml.mml` は通常 MML とリズム MML のパーサーを定義します。`make-sxmml-mml-parser` と `make-sxmml-rhythm-parser` を公開し、その他の掲載項目はモジュール内部で使用します。`*note-command*` と `*rhythm-command*` はハッシュ表のため、手続きの項目には含めません。MML 文字列の構文は xref:../sxmml-mml-manual.adoc[MML コマンドマニュアル]を参照してください。
 
 `$` で始まる項目の大半は Gauche `parser.peg` のパーサー値です。`define-inline` は値を常にマクロにする形式ではなく、ここでは手続きまたはパーサー値として働きます。各パーサーは PEG の入力状態を受ける手続きで、通常は直接呼ばず `make-sxmml-mml-parser` または `make-sxmml-rhythm-parser` から使用します。入力に一致しなければ PEG の失敗を返し、構文全体の解析失敗は呼び出し側でエラーになります。表の「結果」は一致時の値です。オブジェクト生成やパーサーの構築だけでは登録済みトラックは変更されません。`$note` などは解析コンテキストを変更します。

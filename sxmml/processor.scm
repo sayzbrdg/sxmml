@@ -94,7 +94,7 @@
 ;; 加工マクロ macro の値 name を検査する。誤りは、マクロと値の名前を示すエラーとする
 (define (%processor-value-check macro name value ok? expected)
   (unless (ok? value)
-    (errorf "invalid ~a value: ~a is ~s (expected ~a)" macro name value expected)))
+    (errorf <sxmml-value-error> "invalid ~a value: ~a is ~s (expected ~a)" macro name value expected)))
 
 (define (%positive-integer? x)
   (and (exact-integer? x) (positive? x)))
@@ -120,7 +120,7 @@
   (define (first-note-number-find)
     (let loop ([rest (sxmml-compile-mml! fir (make <sxmml-mml-context>))])
       (cond [(null? rest)
-             (error "no note data: " fir)]
+             (error <sxmml-value-error> "no note data: " fir)]
             [(is-a? (car rest) <sxmml-mml-rest>)
              (loop (cdr rest))]
             [(is-a? (car rest) <sxmml-mml-note>)

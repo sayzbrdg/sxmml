@@ -53,7 +53,7 @@
   (slot-ref (sxmml-environment) 'resolution))
 (define (sxmml-resolution-set! resolution)
   (unless (and (integer? resolution) (positive? resolution))
-    (error "resolution must be positive integer, but got:" resolution))
+    (error <sxmml-value-error> "resolution must be positive integer, but got:" resolution))
   (slot-set! (sxmml-environment) 'resolution resolution))
 
 (define sxmml-resolution sxmml-resolution-set!)
@@ -136,7 +136,7 @@
       (%define-lfo/envelope-expand form rename "define-envelope" 'sxmml-envelope-set!))))
 
 ;; define-lfo・define-envelope の展開。枠の中の値は式として評価し、種類 (type) は
-;; リテラルのシンボルとする。形は展開時に検査し、誤りと値の式の誤りには定義の位置を付ける
+;; リテラルのシンボルとする。形は展開時に検査し、誤りと既知の値の誤りには定義の位置を付ける
 (define (%define-lfo/envelope-expand form rename name set-proc)
   (define (expand id type exprs)
     (let1 idsym (string->symbol (x->string id))
@@ -185,7 +185,7 @@
           (cons* :part `',track params)))
       (match form
         [(_ () param ...)
-         (error "define-track requires at least one track name")]
+         (sxmml-form-error form "define-track requires at least one track name")]
         [(_ (track ..1) param ...)
          (quasirename rename
            `(begin

@@ -71,7 +71,7 @@
           (%convert (^[]
                       (load (sxmml-source-file))
                       (unless (slot-ref (sxmml-environment) 'backend)
-                        (error "backend is not specified by option or source file" ))
+                        (error <sxmml-error> "backend is not specified by option or source file" ))
                       (slot-set! (sxmml-environment) 'optimize (cond [(>= optimize 4) :repeat-expand]
                                                                      [(= optimize 3) :repeat]
                                                                      [(= optimize 2) :full]

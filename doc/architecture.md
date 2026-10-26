@@ -30,7 +30,7 @@ flowchart LR
 | --- | --- | --- |
 | [`sxlc.in`](../sxlc.in) | 引数解析、モード設定、ソースの `load`、最適化水準の設定、バックエンド呼び出し、情報表示、任意の後処理 | `sxmml` と列挙した `sxmml.backend.*` を使用。ソースファイル・生成先・プロセスを扱う |
 | [`sxmml.scm`](../sxmml.scm) | 基本モジュール群を `extend` して `sxmml` を構成 | PMD バックエンド（`backend/pmd.scm`・`backend/pmd-binary.scm`）は継承対象に含まれない |
-| [`sxmml/classes.scm`](../sxmml/classes.scm) | 環境、トラック文脈、解析結果、最適化文脈、音色等のクラスと、エラーの種類（`<sxmml-error>`・`<sxmml-form-error>`） | 他モジュールが共有するオブジェクトの形を定義 |
+| [`sxmml/classes.scm`](../sxmml/classes.scm) | 環境、トラック文脈、解析結果、最適化文脈、音色等のクラスと、エラーの種類（`<sxmml-error>` の分類と独立した位置・トラックの文脈condition） | 他モジュールが共有するオブジェクトの形を定義 |
 | [`sxmml/environment.scm`](../sxmml/environment.scm) | 環境・ファイル名のパラメータ、トラック・メタデータ・LFO・エンベロープの登録と参照 | 環境内の表とトラック文脈を更新 |
 | [`sxmml/mml.scm`](../sxmml/mml.scm) | 通常 MML とリズム MML の PEG パーサー、コマンドから中間オブジェクトへの変換 | トラック文脈を参照・更新し、解析結果を作る |
 | [`sxmml/compiler.scm`](../sxmml/compiler.scm) | Scheme 式の結果を MML 文字列にし、パーサーを起動して解析結果を登録 | `mml` / `rhythm` マクロ、文字列、トラック文脈、中間オブジェクト列 |

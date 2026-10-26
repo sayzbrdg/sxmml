@@ -43,14 +43,21 @@
                                    (load source)
                                    (cons source #f)))))]
                [error-report (^[r] (let1 e (cdr r)
-                                     (list (sxmml-form-error? e) (condition-message e)
-                                           (sxmml-form-error-location e)
-                                           (and-let1 cause (sxmml-form-error-cause e)
-                                             (condition-message cause)))))]
-               ;; 3 行目の begin の中に form を置いた入力
+                                     (list (sxmml-error? e) (condition-message e)
+                                           (sxmml-source-context-location e)
+                                           (cond [(sxmml-value-error? e) 'value]
+                                                 [(sxmml-form-syntax-error? e) 'form]
+                                                 [(sxmml-reference-error? e) 'reference]))))]
+          ;; 3 行目の begin の中に form を置いた入力
                [in-begin (^[form] #"; processor\n(begin\n  ~form\n  1)\n")]
                [delay-line "G l%12o4cr%6)%2c%6(%2"]
                [echo-line "G l%12o4c%6)%2g%6(%2d%6)%2c%6)d%6r%6(%3"])
+        (test* "先行音に音符がないエコーは位置付きの値エラーになる"
+               '(#t #t)
+               (let1 r (load-error "echo-no-note" (in-begin "(mml-echo G (\"r\" 2 1) \"c8\")"))
+                 (list (sxmml-value-error? (cdr r))
+                       (equal? (sxmml-source-context-location (cdr r)) #"~(car r):3"))))
+
           (dolist [case `(("repeat" ((mml-repeat G 2 ((mml G "c8d8")))) ((mml G "[c8d8]2")))
                           ("repeat-2" ((mml-repeat G 3 ((mml G "c")) ((mml G "d")))) ((mml G "[c:d]3")))
                           ("repeat-3" ((mml-repeat G 2 ((mml G "c")) ((mml G "d")) ((mml G "e"))))
@@ -85,7 +92,7 @@
                    (slot-ref (find (cut is-a? <> <sxmml-mml-repeat-end>)
                                    (sxmml-optimize-tree 'G :optimize #f))
                              'value)))
-          ;; 値の誤りは実行時に検査するので、元のエラーを cause に持つ
+          ;; 値の誤りは実行時の値エラーとして通知する
           (dolist [case '(("repeat-zero" "(mml-repeat G 0 ((mml G \"c\")))" "mml-repeat value: count is 0 (expected a positive integer)")
                           ("repeat-negative" "(mml-repeat G -1 ((mml G \"c\")))" "mml-repeat value: count is -1 (expected a positive integer)")
                           ("repeat-fraction" "(mml-repeat G 2.5 ((mml G \"c\")) ((mml G \"d\")))" "mml-repeat value: count is 2.5 (expected a positive integer)")
@@ -101,9 +108,9 @@
                           ("echo-restdown" "(mml-echo G (\"g\" 2 \"a\") \"c8\")" "mml-echo value: restdown is \"a\" (expected an integer)"))]
             (let1 r (load-error #"processor-~(car case)" (in-begin (cadr case)))
               (test* #"a wrong value fails with its location: ~(car case)"
-                     (list #t #"~(car r):3: invalid ~(caddr case)" #"~(car r):3" #"invalid ~(caddr case)")
+                     (list #t #"invalid ~(caddr case)" #"~(car r):3" 'value)
                      (error-report r))))
-          ;; 形の誤りは展開時に検査するので、cause を持たない
+          ;; 形の誤りは展開時に構文エラーとして通知する
           (dolist [case '(("repeat-no-body" "(mml-repeat G 2)" "mml-repeat" "(mml-repeat track count (body1 ...) [(body2 ...) [(body3 ...)]])")
                           ("repeat-not-body" "(mml-repeat G 2 1)" "mml-repeat" "(mml-repeat track count (body1 ...) [(body2 ...) [(body3 ...)]])")
                           ("repeat-too-many" "(mml-repeat G 2 () () () ())" "mml-repeat" "(mml-repeat track count (body1 ...) [(body2 ...) [(body3 ...)]])")
@@ -118,19 +125,17 @@
                           ("echo-no-values" "(mml-echo G)" "mml-echo" "(mml-echo track (firstnote voldown restdown) body ...)"))]
             (let1 r (load-error #"processor-~(car case)" (in-begin (cadr case)))
               (test* #"a wrong form fails at expansion with its location: ~(car case)"
-                     (list #t #"~(car r):3: invalid ~(caddr case) form: expected ~(cadddr case)" #"~(car r):3" #f)
+                     (list #t #"invalid ~(caddr case) form: expected ~(cadddr case)" #"~(car r):3" 'form)
                      (error-report r))))
           (let1 r (load-error "processor-undefined-count" (in-begin "(mml-repeat G %test-undefined-count ((mml G \"c\")))"))
-            (test* "an undefined variable in the count fails with its location"
-                   (list #t #t #"~(car r):3" #t)
+            (test* "回数式の未定義変数をGaucheのエラーとして通す"
+                   '(#t #f #f)
                    (let1 e (cdr r)
-                     (list (sxmml-form-error? e)
-                           (boolean (#/^\S+:3: / (condition-message e)))
-                           (sxmml-form-error-location e)
-                           (is-a? (sxmml-form-error-cause e) <unbound-variable-error>)))))
+                     (list (condition-has-type? e <unbound-variable-error>)
+                             (sxmml-error? e) (sxmml-source-context? e)))))
           (let1 r (load-error "processor-delay-track" (in-begin "(mml-delay X (6 2 1) \"c8r8\")"))
             (test* "an undefined track of mml-delay fails with its location"
-                   (list #t #"~(car r):3: no defined track:  X" #"~(car r):3" "no defined track:  X")
+                   (list #t #"no defined track:  X" #"~(car r):3" 'reference)
                    (error-report r)))
           )
       )
