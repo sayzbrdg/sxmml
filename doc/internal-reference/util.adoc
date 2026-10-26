@@ -1,5 +1,7 @@
 = `sxmml.util` の補助手続き
 
+換算結果の既存の範囲違反は `invalid Timer-B: 値 (expected an integer from 0 to 255)` と表示します。範囲や計算、未知の計算エラーの扱いは変更しません。
+
 BPM換算結果の既存の範囲違反はvalue-errorで通知します。計算自体のGaucheエラーを捕捉せず、新しい入力検査や受理範囲の変更は加えません。
 
 `sxmml.util` は `sxmml-bpm\->timer-b` を公開します。

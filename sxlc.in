@@ -88,10 +88,19 @@
             (%post-process cmd cmd-args wsl)
             0))))))
 
-;; 変換中のエラーは、Gauche の通常の表示を出して変換の失敗とする
+;; 既知の入力エラーは簡潔に、未知の例外はGaucheの標準報告で知らせる。
 (define (%convert thunk)
-  (guard (e [else (report-error e) (exit 1)])
+  (guard (e [(sxmml-error? e) (%known-error-output e) (exit 1)]
+            [else (report-error e) (exit 1)])
     (thunk)))
+
+(define (%known-error-output e)
+  (format (current-error-port) "sxlc: error: ~a~a~a\n"
+          (if (sxmml-source-context? e)
+            (format #f "~a: " (sxmml-source-context-location e)) "")
+          (condition-message e)
+          (if (sxmml-track-context? e)
+            (format #f " on ~a track" (sxmml-track-context-track e)) "")))
 
 ;; 出力先を決める。-o の指定、なければ入力ファイル名の拡張子を、選んだモードが
 ;; 登録した拡張子に替えたものとする。拡張子が登録されていなければ #f を返し、

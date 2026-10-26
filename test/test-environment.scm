@@ -23,7 +23,7 @@
   (unwind-protect
       (begin
         (test* "解像度0は値エラーになる"
-               (test-error <sxmml-value-error> #/resolution must be positive integer/)
+               (test-error <sxmml-value-error> "invalid resolution: 0 (expected a positive integer)")
                (parameterize ([sxmml-environment (make <sxmml-environment>)])
                  (sxmml-resolution 0)))
         (test* "空のdefine-trackはフォーム構文エラーになる"

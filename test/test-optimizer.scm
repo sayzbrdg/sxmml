@@ -258,7 +258,7 @@
           (test* "an invalid LFO channel fails with optimize level 1"
                  '(1 #t)
                  (status-and-message (sxlc-status "-O" "1" "-m" "pmd" "-o" (work-file "lfo-invalid.mml") source)
-                                     #/invalid lfo channel/)))
+                                     #/invalid LFO channel/)))
       )
     (remove-directory* workdir)))
 

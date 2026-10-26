@@ -43,7 +43,7 @@ MML オブジェクトを加工する公開マクロとして `mml-repeat`、`mm
 
 ## PMD 向け生成物
 
-PMD 向けの生成では、`-o` で指定した出力先、指定がなければ入力ファイル名の拡張子を `.mml` に替えた名前を生成先に使う。`filename` メタデータは生成先の指定に使わず、指定されていれば標準エラー出力に `warning: metadata 'filename' is ignored; use the -o option of sxlc to set the output file` を表示して無視する。生成物は CP932 で書かれ、行末は CRLF。先頭に元の入力ファイル名と `PMDver4.8` または `PMDver3.3` のモード行を含む。設定されたメタデータ、音色定義、データのあるトラックの行が続く。音色定義は、最適化レベルにかかわらず、生成する FM 音色指定から参照されるものだけを PMD の音色番号の順に出力する。実際の発音に寄与するかは追加解析しない。未使用の定義を省いても番号を詰め直さない。音色番号は、定義した全ての FM 音色に、音色の名前の辞書順（文字コードの順）で 0 から振る。音色が 256 を超える場合は、`too many voices: 257 (max 256)` のように音色の数と上限を表示して、変換の失敗とする。PMD が使うメタデータ（`title`・`composer`・`arranger`・`pcmfile`・`ppzfile`・`ppsfile`・`memo`）の値は、書くときに検査する。`memo` は文字列 1 つか文字列のリスト、それ以外は文字列に限り、それ以外の値は `invalid metadata value: title is 1 (expected a string)` のようにキーと値を表示して変換の失敗とする。PMD3 の MML（`-m pmd3`）は値をコメントとして書くので、同じく検査する。LFO・エンベロープの定義は、`M`・`E` で使うときに検査する。種類は LFO が `default`・`triangle`（同じ意味）、エンベロープが `default` に限る。値の数は LFO が 4、エンベロープが 4・5・6 で、各値は範囲の中の整数に限る。誤りは `unsupported lfo type: sw in L1 (supported: default, triangle)`、`invalid envelope values: E1 has 3 values (expected 4, 5 or 6)`、`invalid lfo value: L1, value 2 is 300 (0 - 255)` のように、定義と誤りを表示して変換の失敗とする。使わない定義と、最適化で取り除かれた命令の定義は検査しない。同じ条件で変換した生成物はバイト単位で一致する（要求仕様の Q-03）。PMD3 形式は末尾に `0x1A` を付ける。日本語のタイトルも CP932 で出力する。リズムの楽器別のパン（`p楽器 数値`）の値は、1 が右、2 が左、3 が中央で、それ以外は `rhythm pan out of range: 4 (1 - 3)` のように値と範囲を表示して変換の失敗とする。PMD バイナリ生成物でも同じである。
+PMD 向けの生成では、`-o` で指定した出力先、指定がなければ入力ファイル名の拡張子を `.mml` に替えた名前を生成先に使う。`filename` メタデータは生成先の指定に使わず、指定されていれば標準エラー出力に `warning: metadata 'filename' is ignored; use the -o option of sxlc to set the output file` を表示して無視する。生成物は CP932 で書かれ、行末は CRLF。先頭に元の入力ファイル名と `PMDver4.8` または `PMDver3.3` のモード行を含む。設定されたメタデータ、音色定義、データのあるトラックの行が続く。音色定義は、最適化レベルにかかわらず、生成する FM 音色指定から参照されるものだけを PMD の音色番号の順に出力する。実際の発音に寄与するかは追加解析しない。未使用の定義を省いても番号を詰め直さない。音色番号は、定義した全ての FM 音色に、音色の名前の辞書順（文字コードの順）で 0 から振る。音色が 256 を超える場合は、`too many voices: 257 (max 256)` のように音色の数と上限を表示して、変換の失敗とする。PMD が使うメタデータ（`title`・`composer`・`arranger`・`pcmfile`・`ppzfile`・`ppsfile`・`memo`）の値は、書くときに検査する。`memo` は文字列 1 つか文字列のリスト、それ以外は文字列に限り、それ以外の値は `invalid metadata value: title is 1 (expected a string)` のようにキーと値を表示して変換の失敗とする。PMD3 の MML（`-m pmd3`）は値をコメントとして書くので、同じく検査する。LFO・エンベロープの定義は、`M`・`E` で使うときに検査する。種類は LFO が `default`・`triangle`（同じ意味）、エンベロープが `default` に限る。値の数は LFO が 4、エンベロープが 4・5・6 で、各値は範囲の中の整数に限る。誤りは `unsupported LFO type: sw in L1 (supported: default, triangle)`、`invalid envelope values: E1 has 3 values (expected 4, 5 or 6)`、`invalid LFO L1 value 2: 300 (expected an integer from 0 to 255)` のように、定義と誤りを表示して変換の失敗とする。使わない定義と、最適化で取り除かれた命令の定義は検査しない。同じ条件で変換した生成物はバイト単位で一致する（要求仕様の Q-03）。PMD3 形式は末尾に `0x1A` を付ける。日本語のタイトルも CP932 で出力する。リズムの楽器別のパン（`p楽器 数値`）の値は、1 が右、2 が左、3 が中央で、それ以外は `invalid rhythm pan: 4 (expected an integer from 1 to 3)` のように値と範囲を表示して変換の失敗とする。PMD バイナリ生成物でも同じである。
 
 モードごとの出力を比較するには、まず `mkdir -p /tmp/sxmml-examples/pmd-output` を実行し、`/tmp/sxmml-examples/pmd-output/modes.sxl` に `(mml G "c8")` を保存する。次のコマンドは同じ `modes.mml` を上書きするため、各回の出力を別名に保存する。
 
@@ -99,7 +99,7 @@ FM・SSG・PCM の3区分で範囲が異なるものは分け、区分内の細�
 
 生成先は、`-o` で指定した出力先、指定がなければ入力ファイル名の拡張子を `.m` に替えた名前である。拡張子 `.m` の入力を `-o` なしで変換すると、出力先が入力ファイルと同じになるため使用法の誤り（終了値 2）となる。`filename` メタデータは PMD 向け生成物と同じく生成先の指定に使わず、警告を表示して無視する。トラックの登録（A～F が FM、G～I が SSG、J が PCM、L がリズム）も PMD 向けのモードと同じである。生成物はバイナリであり、生成先と同じディレクトリの一時ファイルに書いてから生成先へ移す。
 
-`pmd-binary` と `pmd4-binary` は同じ PMD4 向けの生成物を作る。PMD4 向けの生成物は、`title` などのメタデータの領域を含む。メタデータの値の検査は、PMD 向けの生成と同じである。`pmd3-binary` の生成物はこの領域を含まず、LFO のチャンネル `B`（`invalid lfo channel: B`）と、5 値・6 値のエンベロープ（`unsupported envelope values in PMD3: E6 has 6 values (expected 4)`）は変換の失敗となる。LFO・エンベロープの種類と値の検査は、PMD 向けの生成と同じである。どのモードでも、リズムの楽器別の音量（`v楽器 数値`）は 0 から 31 までで、範囲外は `rhythm volume out of range: 32 (0 - 31)` のように値と範囲を表示して変換の失敗とする（PMD 向けの生成では値をそのまま書く）。どのモードでも、音高（ポルタメントの開始音・終了音を含む）は o1c から o8b までを表せる。範囲外の音高は、`note out of range: o9c (o1c - o8b)` のように範囲外の音高と許される範囲を表示して、変換の失敗とする。255 tick を超える音符と休符は分割して書くが、ポルタメントの音長は分割できないので 255 tick までとし、超える場合は `portamento ticks out of range: 300 (1 - 255)` のように音長と許される範囲を表示して、変換の失敗とする。生成物の大きさは 65535 バイトまでで、超える場合は `PMD data exceeds the size limit (65535 bytes) in track B` のように、超えた場所（トラック、`voice table`、`metadata`）を表示して変換の失敗とする。全体の大きさだけが超える場合は場所を表示しない。PMD4 向けの生成物には、L トラックを含む全トラックの最大の合計 tick と、`L` のあるトラックの最大の loop tick（`L` のあるトラックがなければ 0）を書く。合計 tick は 65535 までで、超える場合は `total ticks exceed the limit: 67200 (max 65535)` のように、合計 tick と上限を表示して変換の失敗とする。使用した FM 音色だけを、PMD の音色番号の順に出力する。音色番号の振り方と上限は PMD 向けの生成と同じである。
+`pmd-binary` と `pmd4-binary` は同じ PMD4 向けの生成物を作る。PMD4 向けの生成物は、`title` などのメタデータの領域を含む。メタデータの値の検査は、PMD 向けの生成と同じである。`pmd3-binary` の生成物はこの領域を含まず、LFO のチャンネル `B`（`invalid LFO channel: B`）と、5 値・6 値のエンベロープ（`unsupported envelope values in PMD3: E6 has 6 values (expected 4)`）は変換の失敗となる。LFO・エンベロープの種類と値の検査は、PMD 向けの生成と同じである。どのモードでも、リズムの楽器別の音量（`v楽器 数値`）は 0 から 31 までで、範囲外は `invalid rhythm instrument volume: 32 (expected an integer from 0 to 31)` のように値と範囲を表示して変換の失敗とする（pmd-sourceも同じ範囲を検査する）。どのモードでも、音高（ポルタメントの開始音・終了音を含む）は o1c から o8b までを表せる。範囲外の音高は、`invalid note: o9c (expected o1c - o8b)` のように範囲外の音高と許される範囲を表示して、変換の失敗とする。255 tick を超える音符と休符は分割して書くが、ポルタメントの音長は分割できないので 255 tick までとし、超える場合は `invalid portamento ticks: 300 (expected an integer from 1 to 255)` のように音長と許される範囲を表示して、変換の失敗とする。生成物の大きさは 65535 バイトまでで、超える場合は `PMD data exceeds the size limit (65535 bytes) in track B` のように、超えた場所（トラック、`voice table`、`metadata`）を表示して変換の失敗とする。全体の大きさだけが超える場合は場所を表示しない。PMD4 向けの生成物には、L トラックを含む全トラックの最大の合計 tick と、`L` のあるトラックの最大の loop tick（`L` のあるトラックがなければ 0）を書く。合計 tick は 65535 までで、超える場合は `total ticks exceed the limit: 67200 (max 65535)` のように、合計 tick と上限を表示して変換の失敗とする。使用した FM 音色だけを、PMD の音色番号の順に出力する。音色番号の振り方と上限は PMD 向けの生成と同じである。
 
 失敗時の扱い（既存の生成物を変更せず、途中までの生成物を残さない。要求仕様の Q-02）と、同じ条件で変換した生成物がバイト単位で一致すること（要求仕様の Q-03）は、他のモードと同じである。
 
@@ -118,11 +118,13 @@ FM・SSG・PCM の3区分で範囲が異なるものは分け、区分内の細�
 | 終了値 | 意味 |
 | --- | --- |
 | 0 | 成功。`-c` を指定した場合は後処理も成功 |
-| 1 | 変換の失敗。既知の入力エラーはMML構文・独自マクロ構文・値・参照などのsxmmlのconditionで通知する。取得できるフォーム位置とトラックは別のconditionに保持する。CLIはGaucheの標準報告（`*** SXMML-VALUE-ERROR:` などとスタックトレース）を標準エラーへ表示し、フォーム位置は別行の `    at ファイル:行` で示す。未知のGaucheエラー、I/O、内部IR・最適化の整合性検査の失敗は入力エラーに包み直さない |
+| 1 | 変換の失敗。既知の入力エラーは `sxlc: error: [ファイル:行: ]本文[ on トラック track]` の1行で標準エラー出力へ表示する。位置とトラックは取得できる文脈だけを使い、型の見出し・補足行・スタックトレースを付けない。未知のGaucheエラー、I/O、内部IR・最適化の整合性検査の失敗は、Gaucheの標準報告とスタックトレースを維持する |
 | 2 | 使用法の誤り。不正なオプションや引数、入力ファイル名なし、`-m` のモードを選べない、`-c` の字句の誤り、出力先が入力ファイルと同じ、入力ファイル名より後ろの引数。誤りの内容を標準エラー出力に、使用法を標準出力に表示する |
 | 3 | 後処理の失敗。`-c` の後処理が 0 以外の終了値やシグナルで終了した、起動できなかった、`-w` の `wslpath` が失敗した |
 
 表中の Scheme 入力を試す場合は、それぞれ 1 行の `/tmp/sxmml-examples/invalid-input.sxl` に保存し、特記した条件以外は `sxlc -m pmd /tmp/sxmml-examples/invalid-input.sxl` を実行する。「モードを指定しない空ソース」は空ファイル、「未登録トラック」は `(mml G "c8r8")` だけを記したファイルを `-m` なしで読み込む。「入力ファイル名なし」は `sxlc` を実行する。
+
+既知の入力エラーの結果欄は本文を示す。CLIは共通の見出しと取得済みの位置・トラックを付ける。例えば通常MMLの未知の文字は `sxlc: error: unknown MML command: "x" on G track` となる。
 
 | 条件と入力 | 結果 |
 | --- | --- |
@@ -132,21 +134,21 @@ FM・SSG・PCM の3区分で範囲が異なるものは分け、区分内の細�
 | `sxlc -m pmd /tmp/sxmml-examples/invalid-input.sxl -o /tmp/sxmml-examples/out.mml` のように入力ファイル名の後ろにオプションを書く | `unexpected argument after the source file: -o`、`options must be placed before the source file` と使用法を表示し、終了値 2。生成物は作らない |
 | `-m nosuch` で存在しないモードを指定 | `invalid mode: nosuch: unbound variable: nosuch` と使用法を表示し、終了値 2 |
 | モードを指定しない空ソース | `backend is not specified by option or source file`、終了値 1 |
-| 未登録トラックへ `(mml G "c8r8")` を評価 | `no defined track: G`、終了値 1。モード未指定の判定より先に失敗 |
+| 未登録トラックへ `(mml G "c8r8")` を評価 | `undefined track: G`、終了値 1。モード未指定の判定より先に失敗 |
 | `(sxmml-resolution 0)` | 正の整数が必要というエラー、終了値 1 |
-| `(mml G "c0")` | 0 での除算エラー、終了値 1 |
-| `(rhythm L "@b0")` | 0 での除算エラー、終了値 1 |
-| `(mml G "c8x")` | `sxmml syntax error: unknown MML command "x" on G track`、終了値 1 |
-| `(rhythm L "@b8x")` | `sxmml syntax error: unknown MML command "x" on L track`、終了値 1 |
-| `(rhythm L "@x8")` | `sxmml syntax error, near "x8" on L track`、終了値 1 |
-| `(mml G "[ab]0")`・`(mml G "[a:b]0")`・`(rhythm L "[@b8:@s8]0")` のように反復回数0を書く | `repeat count must be a positive exact integer:` と指定値、終了値 1。波括弧付き・ゼロ埋めの0も同じ |
+| `(mml G "c0")` | `invalid note length: 0 (expected an integer >= 1)`、終了値 1 |
+| `(rhythm L "@b0")` | `invalid note length: 0 (expected an integer >= 1)`、終了値 1 |
+| `(mml G "c8x")` | `unknown MML command: "x"`、終了値 1 |
+| `(rhythm L "@b8x")` | `unknown MML command: "x"`、終了値 1 |
+| `(rhythm L "@x8")` | `invalid MML syntax near "x8"` とトラック情報、終了値 1 |
+| `(mml G "[ab]0")`・`(mml G "[a:b]0")`・`(rhythm L "[@b8:@s8]0")` のように反復回数0を書く | `invalid repeat count:` と指定値、終了値 1。波括弧付き・ゼロ埋めの0も同じ |
 | `(mml G "]1")` のように開始命令のない反復終端を書く | `repeat end appeared before repeat start`、終了値 1 |
 | `(mml G "c8Ld8Le8")` や `(rhythm L "@b8L@s8L@h8")` のように同じトラックに `L` を複数書く | `loop command can be used only once in a track`、終了値 1。複数回の登録にまたがる2個目も同じ |
 | `(mml G "c8[d8 L e8]2")` や `(rhythm L "@b8[@s8 L @b8]2")` のように反復の中に `L` を書く | `loop command cannot be used inside repeats`、終了値 1。入れ子の内側、`:` の後ろ、`mml-repeat` の本文、複数の `mml` にまたがる反復の中も同じ |
-| `(mml A "@0c8")` で未定義の FM 音色 `@0` を使う | 生成中に `no instrument define`、終了値 1 |
-| 通常トラック G で `(mml G "c%0")` | `ticks must be a positive integer:  0`、終了値 1。新規出力なし |
-| `(rhythm L "@b%0")` | `ticks must be a positive integer:  0`、終了値 1。新規出力なし |
-| `(rhythm L "r%0")` | `ticks must be a positive integer:  0`、終了値 1。新規出力なし |
+| `(mml A "@0c8")` で未定義の FM 音色 `@0` を使う | 生成中に `undefined voice`、終了値 1 |
+| 通常トラック G で `(mml G "c%0")` | `invalid tick length: 0 (expected a positive exact integer)`、終了値 1。新規出力なし |
+| `(rhythm L "@b%0")` | `invalid tick length: 0 (expected a positive exact integer)`、終了値 1。新規出力なし |
+| `(rhythm L "r%0")` | `invalid tick length: 0 (expected a positive exact integer)`、終了値 1。新規出力なし |
 | `(mml G "c8")` を `-o /tmp/sxmml-examples/no-such-dir/out.mml` を付けて変換 | `mkstemp failed: No such file or directory`、終了値 1 |
 | `(mml G "c8")` を `-o /tmp/sxmml-examples` を付けて変換（出力先が既存のディレクトリ） | 一時ファイルを出力先へ改名できず `renaming` で始まるエラー、終了値 1 |
 | `(mml G "c8")` を `-c false` を付けて変換 | 生成後に `post process failed: exit status 1`、終了値 3。生成物は残る |

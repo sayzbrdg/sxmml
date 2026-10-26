@@ -3,6 +3,7 @@
 ;;;
 
 (use gauche.test)
+(use srfi.13)
 
 (test-start "sxlc")
 (use sxmml)
@@ -61,9 +62,47 @@
     (list (car result) (boolean (any pattern (cadr result)))))
   (define (status-with-location result pattern location)
     (list (car result) (boolean (any pattern (cadr result)))
-          (boolean (any (string->regexp (regexp-quote #"    at ~location")) (cadr result)))))
+          (and (= (length (cadr result)) 1)
+               (string-prefix? #"sxlc: error: ~|location|: " (caadr result)))))
+  (define (sxlc-report . args)
+    (let* ([out (work-file "report.out")] [err (work-file "report.err")]
+           [p (run-process `(,@sxlc-command ,@args) :output out :error err :wait #t)])
+      (list (sys-wait-exit-status (process-exit-status p))
+            (file->string-list out) (file->string-list err))))
   (unwind-protect
       (begin
+        (dolist [case '(("track-report" ("-m" "pmd") "(mml G \"c8?\")"
+                         "sxlc: error: unknown MML command: \"?\" on G track")
+                        ("value-report" ("-m" "pmd") "(mml A \"v128c\")"
+                         "sxlc: error: invalid FM volume: 128 (expected an integer from 0 to 127)")
+                        ("both-report" ("-m" "pmd")
+                         "(use sxmml.form) (raise (sxmml-error-with-context (sxmml-error-with-context (make-condition <sxmml-value-error> 'message \"sample error\") (make-condition <sxmml-track-context> 'track-name 'G)) (make-condition <sxmml-source-context> 'source-location \"inner.sxl:7\")))"
+                         "sxlc: error: inner.sxl:7: sample error on G track")
+                        ("base-report" () ""
+                         "sxlc: error: backend is not specified by option or source file"))]
+          (test* #"既知のエラーを文脈に応じた1行でstderrへ表示する: ~(car case)"
+                 (list 1 '() (list (cadddr case)))
+                 (apply sxlc-report (append (cadr case)
+                                           (list (source-output (car case) (caddr case)))))))
+        (test* "入力I/Oの未知のエラーはGaucheの報告を維持する"
+               '(1 #t #t #f)
+               (let1 result (sxlc-report "-m" "pmd" (work-file "missing-input.sxl"))
+                 (list (car result)
+                       (boolean (any #/^\*\*\* / (caddr result)))
+                       (boolean (any #/Stack Trace:/ (caddr result)))
+                       (boolean (any #/^sxlc: error:/ (caddr result))))))
+        (test* "使用法の誤りは診断がstderrでusageがstdoutに出る"
+               '(2 #t #t #f)
+               (let1 result (sxlc-report "--unknown-sxmml-option")
+                 (list (car result)
+                       (boolean (any #/^Usage:/ (cadr result)))
+                       (pair? (caddr result))
+                       (boolean (any #/^Usage:/ (caddr result))))))
+        (test* "明示的なhelpはstdoutだけに出て成功する"
+               '(0 #t ())
+               (let1 result (sxlc-report "--help")
+                 (list (car result) (boolean (any #/^Usage:/ (cadr result))) (caddr result))))
+
         (let1 source (source-output "unknown-error" "(error \"user error\")")
           (test* "未知のSchemeエラーはGaucheの見出しとスタックを維持する"
                  '(1 #t #t #f)
@@ -141,7 +180,7 @@
                    '(1 #t #t)
                    (status-with-location (sxlc-status "-m" "pmd" "-o" (work-file "voice-sxlc-location.mml") source)
                                        (string->regexp
-                                      (regexp-quote #"*** SXMML-VALUE-ERROR: invalid voice value")) #"~|source|:4"))))
+                                      (regexp-quote #"invalid voice @V1 operator(2):")) #"~|source|:4"))))
         (dolist [def '((define-lfo lfo) (define-envelope envelope))]
           (let ([macro (car def)])
             (let1 source (source-output #"~|macro|-sxlc-location" #"(mml G \"c8\")\n(~macro X1)\n")
@@ -149,13 +188,13 @@
                      '(1 #t #t)
                      (status-with-location (sxlc-status "-m" "pmd" "-o" (work-file #"~|macro|-sxlc-location.mml") source)
                                          (string->regexp
-                                      (regexp-quote #"*** SXMML-FORM-SYNTAX-ERROR: invalid ~macro form")) #"~|source|:2")))))
+                                      (regexp-quote #"invalid ~macro form")) #"~|source|:2")))))
         (let1 source (source-output "processor-sxlc-location" "(mml G \"c8\")\n(mml-delay G (0 2 1) \"c8r8\")\n")
           (test* "sxlc shows the location of a wrong mml-delay value"
                  '(1 #t #t)
                  (status-with-location (sxlc-status "-m" "pmd" "-o" (work-file "processor-sxlc-location.mml") source)
                                      (string->regexp
-                                      (regexp-quote #"*** SXMML-VALUE-ERROR: invalid mml-delay value: ticks is 0")) #"~|source|:2")))
+                                      (regexp-quote #"invalid mml-delay value: ticks is 0")) #"~|source|:2")))
         (let1 source (source-output "meta-sxlc-old" "(define-metadata memo (\"a\"))\n(mml G \"c8\")\n")
           (test* "sxlc warns about the old define-metadata form"
                  '(0 #t)
@@ -167,7 +206,7 @@
                  '(1 #t #t)
                  (status-with-location (sxlc-status "-m" "pmd" "-o" (work-file "meta-sxlc-wrong.mml") source)
                                      (string->regexp
-                                      (regexp-quote #"*** SXMML-FORM-SYNTAX-ERROR: invalid define-metadata form")) #"~|source|:2")))
+                                      (regexp-quote #"invalid define-metadata form")) #"~|source|:2")))
         ;; sxlc の -O 3 と -O 4 (#69)。標準出力の Optimize level の行と、生成物のトラック A の行
         (let1 converted (^[name text level]
                           (let1 lines (run-sxlc name `((mml A ,text)) "-m" "pmd" "-O" level)

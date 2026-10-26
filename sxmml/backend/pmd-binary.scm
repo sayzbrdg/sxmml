@@ -444,30 +444,30 @@
 (define (%pmd-fm-voice-set! u8vec offset obj)
   (let1 inst (hash-table-get (slot-ref (sxmml-environment) 'voice) (slot-ref obj 'value) #f)
     (unless inst
-      (error <sxmml-reference-error> "no instrument define: " (slot-ref obj 'value)))
+      (errorf <sxmml-reference-error> "undefined voice: ~a" (slot-ref obj 'value)))
     (hash-table-put! (slot-ref (sxmml-pmd-binary-environment) 'used-fm-voices) inst #t)
-    (%pmd-1byte-set! u8vec offset #xff (%pmd-fm-voice-number inst) 255 0)))
+    (%pmd-1byte-set! u8vec offset #xff (%pmd-fm-voice-number inst) 255 0 "FM voice number")))
 
 (define (%pmd-fm-voice-number voice)
   (hash-table-get (slot-ref (sxmml-pmd-binary-environment) 'voice-numbers) (slot-ref voice 'id)))
 
 (define (%pmd-gate-time-set! u8vec offset obj)
-  (%pmd-1byte-set! u8vec offset #xfe (slot-ref obj 'value) 255 0))
+  (%pmd-1byte-set! u8vec offset #xfe (slot-ref obj 'value) 255 0 "gate time"))
 
 (define (%pmd-fm-volume-set! u8vec offset obj)
-  (%pmd-1byte-set! u8vec offset #xfd (slot-ref obj 'value) 127 0))
+  (%pmd-1byte-set! u8vec offset #xfd (slot-ref obj 'value) 127 0 "FM volume"))
 
 (define (%pmd-ssg-volume-set! u8vec offset obj)
-  (%pmd-1byte-set! u8vec offset #xfd (slot-ref obj 'value) 15 0))
+  (%pmd-1byte-set! u8vec offset #xfd (slot-ref obj 'value) 15 0 "SSG volume"))
 
 (define (%pmd-pcm-volume-set! u8vec offset obj)
-  (%pmd-1byte-set! u8vec offset #xfd (slot-ref obj 'value) 255 0))
+  (%pmd-1byte-set! u8vec offset #xfd (slot-ref obj 'value) 255 0 "PCM volume"))
 
 (define (%pmd-tempo-absolute-set! u8vec offset obj)
-  (%pmd-1byte-set! u8vec offset #xfc (slot-ref obj 'value) 250 0))
+  (%pmd-1byte-set! u8vec offset #xfc (slot-ref obj 'value) 250 0 "Timer-B"))
 
 (define (%pmd-tempo-set! u8vec offset obj)
-  (%pmd-1byte-set! u8vec offset #xfc (sxmml-bpm->timer-b (slot-ref obj 'value)) 250 0))
+  (%pmd-1byte-set! u8vec offset #xfc (sxmml-bpm->timer-b (slot-ref obj 'value)) 250 0 "Timer-B"))
   ;; (when (or (> value 255) (< value 18))
   ;;   (errorf "value exceeds the range: ~a (~a - ~a): ~a" value 18 255 obj))
   ;; (u8vector-set! u8vec offset #xfc)
@@ -479,10 +479,10 @@
   (%pmd-single-set! u8vec offset #xfb))
 
 (define (%pmd-detune-set! u8vec offset obj)
-  (%pmd-2bytes-set! u8vec offset #xfa (slot-ref obj 'value) 32767 -32768))
+  (%pmd-2bytes-set! u8vec offset #xfa (slot-ref obj 'value) 32767 -32768 "detune"))
 
 (define (%pmd-repeat-start-set! u8vec offset obj)
-  (%pmd-2bytes-set! u8vec offset #xf9 0 0 0))
+  (%pmd-2bytes-set! u8vec offset #xf9 0 0 0 "repeat offset"))
 
 (define (%pmd-repeat-end-set! u8vec offset obj addr overall)
   (receive (lb hb) (%short->le-bytes (+ overall offset 1))
@@ -493,7 +493,7 @@
       (u8vector-set! u8vec (+ (cdr addr) 1) hb)))
   (let1 repcnt (slot-ref obj 'value)
     (when (> repcnt 255)
-      (errorf <sxmml-value-error> "value exceeds the max: ~a (>255): ~a" repcnt obj))
+      (errorf <sxmml-value-error> "invalid repeat count: ~s (expected at most 255)" repcnt))
     (u8vector-set! u8vec offset #xf8)
     (u8vector-set! u8vec (+ offset 1) repcnt)
     ;; 回数はコンパイル時に正の正確な整数を保証する。3 バイト目は脱出があれば回数 - 1。
@@ -506,22 +506,22 @@
       (+ offset 5))))
 
 (define (%pmd-repeat-break-set! u8vec offset obj)
-  (%pmd-2bytes-set! u8vec offset #xf7 0 0 0))
+  (%pmd-2bytes-set! u8vec offset #xf7 0 0 0 "repeat break offset"))
 
 (define (%pmd-loop-set! u8vec offset obj)
   (%pmd-single-set! u8vec offset #xf6))
 
 (define (%pmd-transpose-set! u8vec offset obj)
-  (%pmd-1byte-set! u8vec offset #xf5 (slot-ref obj 'value) 127 -128))
+  (%pmd-1byte-set! u8vec offset #xf5 (slot-ref obj 'value) 127 -128 "transpose"))
 
 (define (%pmd-lfo-set! u8vec offset obj)
   (let1 lfo (hash-table-get (slot-ref (sxmml-environment) 'lfo) (slot-ref obj 'value) #f)
     (unless lfo
-      (error <sxmml-reference-error> "no lfo define: " (slot-ref obj 'value)))
+      (errorf <sxmml-reference-error> "undefined LFO: ~a" (slot-ref obj 'value)))
     (let ([channel (slot-ref obj 'channel)])
       (when (or (not (memq channel '(#f A B)))
                 (and (eq? (slot-ref (sxmml-pmd-binary-environment) 'mode) 'fc88) (eq? channel 'B)))
-        (errorf <sxmml-value-error> "invalid lfo channel: ~a" channel))
+        (errorf <sxmml-value-error> "invalid LFO channel: ~a" channel))
       (let1 value (sxmml-pmd-lfo-values lfo)
         (u8vector-set! u8vec offset (if (or (eq? channel #f) (eq? channel 'A)) #xf2 #xbf))
         (u8vector-set! u8vec (+ offset 1) (car value))
@@ -535,7 +535,7 @@
         [switch (slot-ref obj 'value)])
     (when (or (and (not (eq? channel 'A)) (not (eq? channel 'B)) (not (eq? channel #f)))
               (and (eq? (slot-ref (sxmml-pmd-binary-environment) 'mode) 'fc88) (eq? channel 'B)))
-        (errorf <sxmml-value-error> "invalid lfo channel: ~a" channel))
+        (errorf <sxmml-value-error> "invalid LFO channel: ~a" channel))
     (u8vector-set! u8vec offset (if (or (eq? channel #f) (eq? channel 'A)) #xf1 #xbe))
     (u8vector-set! u8vec (+ offset 1) (if switch 1 0))
     (+ offset 2)))
@@ -543,7 +543,7 @@
 (define (%pmd-envelope-set! u8vec offset obj)
   (let1 envelope (hash-table-get (slot-ref (sxmml-environment) 'envelope) (slot-ref obj 'value) #f)
     (unless envelope
-      (error <sxmml-reference-error> "no envelope define: " (slot-ref obj 'value)))
+      (errorf <sxmml-reference-error> "undefined envelope: ~a" (slot-ref obj 'value)))
     (let1 value (sxmml-pmd-envelope-values envelope)
       ;; PMD3 は 4 値の書式だけを書ける
       (when (and (eq? (slot-ref (sxmml-pmd-binary-environment) 'mode) 'fc88) (> (length value) 4))
@@ -565,10 +565,10 @@
                (+ offset 6))))))
 
 (define (%pmd-pan-set! u8vec offset obj)
-  (%pmd-1byte-set! u8vec offset #xec (slot-ref obj 'value) 3 0))
+  (%pmd-1byte-set! u8vec offset #xec (slot-ref obj 'value) 3 0 "pan"))
 
 (define (%pmd-transpose-change-set! u8vec offset obj)
-  (%pmd-1byte-set! u8vec offset #xe7 (slot-ref obj 'value) 127 -128))
+  (%pmd-1byte-set! u8vec offset #xe7 (slot-ref obj 'value) 127 -128 "relative transpose"))
 
 (define (%pmd-fm-volume-change-set! u8vec offset obj)
   (let1 value (slot-ref obj 'value)
@@ -577,9 +577,9 @@
           [(= value -4)
            (%pmd-single-set! u8vec offset #xf3)]
           [(>= value 0)
-           (%pmd-1byte-set! u8vec offset #xe3 (slot-ref obj 'value) 127 0)]
+           (%pmd-1byte-set! u8vec offset #xe3 (slot-ref obj 'value) 127 0 "FM volume increase")]
           [else
-           (%pmd-1byte-set! u8vec offset #xe2 (* (slot-ref obj 'value) -1) 127 0)])))
+           (%pmd-1byte-set! u8vec offset #xe2 (* (slot-ref obj 'value) -1) 127 0 "FM volume decrease")])))
 
 (define (%pmd-ssg-volume-change-set! u8vec offset obj)
   (let1 value (slot-ref obj 'value)
@@ -588,9 +588,9 @@
           [(= value -1)
            (%pmd-single-set! u8vec offset #xf3)]
           [(>= value 0)
-           (%pmd-1byte-set! u8vec offset #xe3 (slot-ref obj 'value) 15 0)]
+           (%pmd-1byte-set! u8vec offset #xe3 (slot-ref obj 'value) 15 0 "SSG volume increase")]
           [else
-           (%pmd-1byte-set! u8vec offset #xe2 (* (slot-ref obj 'value) -1) 15 0)])))
+           (%pmd-1byte-set! u8vec offset #xe2 (* (slot-ref obj 'value) -1) 15 0 "SSG volume decrease")])))
 
 (define (%pmd-pcm-volume-change-set! u8vec offset obj)
   (let1 value (slot-ref obj 'value)
@@ -599,9 +599,9 @@
           [(= value -16)
            (%pmd-single-set! u8vec offset #xf3)]
           [(>= value 0)
-           (%pmd-1byte-set! u8vec offset #xe3 (slot-ref obj 'value) 255 0)]
+           (%pmd-1byte-set! u8vec offset #xe3 (slot-ref obj 'value) 255 0 "PCM volume increase")]
           [else
-           (%pmd-1byte-set! u8vec offset #xe2 (* (slot-ref obj 'value) -1) 255 0)])))
+           (%pmd-1byte-set! u8vec offset #xe2 (* (slot-ref obj 'value) -1) 255 0 "PCM volume decrease")])))
 
 ;; ポルタメントの音長は 1 バイトなので、音符のように分割できない。255 tick までとする
 (define (%pmd-portamento-set! u8vec offset obj)
@@ -609,7 +609,7 @@
         [end (%note-number->pmd-note (cdr (slot-ref obj 'value)))]
         [ticks (slot-ref obj 'ticks)])
     (unless (<= 1 ticks 255)
-      (errorf <sxmml-value-error> "portamento ticks out of range: ~a (1 - 255)" ticks))
+      (errorf <sxmml-value-error> "invalid portamento ticks: ~s (expected an integer from 1 to 255)" ticks))
     (u8vector-set! u8vec offset #xda)
     (u8vector-set! u8vec (+ offset 1) start)
     (u8vector-set! u8vec (+ offset 2) end)
@@ -637,23 +637,23 @@
       [(|8|) (data-set! 1 2 0 1)]
       [(|9|) (data-set! 1 2 24 1)]
       [else
-       (error <sxmml-value-error> "invalid voice parameter: " value)])))
+       (errorf <sxmml-value-error> "invalid SSG voice number: ~s (expected an integer from 0 to 9)" value)])))
 
 (define (%pmd-pcm-voice-set! u8vec offset obj)
   ;; sxmml.backend.pmd と同じく 0 から 255 までの整数に限り、数でない値は書かれた値を示す
   (let* ([name (slot-ref obj 'value)]
          [value (or (string->number (symbol->string name)) name)])
     (unless (and (exact-integer? value) (<= 0 value 255))
-      (error <sxmml-value-error> "invalid voice parameter: " value))
-    (%pmd-1byte-set! u8vec offset #xff value 255 0)))
+      (errorf <sxmml-value-error> "invalid PCM voice number: ~s (expected an integer from 0 to 255)" value))
+    (%pmd-1byte-set! u8vec offset #xff value 255 0 "PCM voice number")))
 
 (define (%pmd-noise-freq-set! u8vec offset obj)
-  (%pmd-1byte-set! u8vec offset #xee (slot-ref obj 'value) 31 0))
+  (%pmd-1byte-set! u8vec offset #xee (slot-ref obj 'value) 31 0 "noise frequency"))
 
 (define (%pmd-output-switch-set! u8vec offset obj)
   (let1 value (slot-ref obj 'value)
     (when (or (> value 3) (< value 1))
-      (errorf <sxmml-value-error> "value exceeds the range: ~a (~a - ~a): ~a" value 1 3 #xed))
+      (errorf <sxmml-value-error> "invalid output switch: ~s (expected an integer from 1 to 3)" value))
     (u8vector-set! u8vec offset #xed)
     (u8vector-set! u8vec (+ offset 1) (case value ([1] #x07) ([2] #x38) ([3] #x3f)))
     (+ offset 2)))
@@ -667,7 +667,7 @@
          [c (if (slot-ref obj 'cymbal) 4 0)]
          [h (if (slot-ref obj 'hihat) 8 0)]
          [i (if (slot-ref obj 'rimshot) 32 0)]
-         [cur (%pmd-1byte-set! u8vec offset #xeb (+ sw b s t c h i) 255 1)])
+         [cur (%pmd-1byte-set! u8vec offset #xeb (+ sw b s t c h i) 255 1 "rhythm instrument selection")])
     (if (slot-ref obj 'value)
       (%pmd-rest-set! u8vec cur (make <sxmml-mml-rest> :value #f :ticks (slot-ref obj 'ticks)))
       cur)))
@@ -680,12 +680,12 @@
   ;; 全体の音量は 0～63
   (define (whole-value value)
     (when (or (> value 63) (< value 0))
-      (error <sxmml-value-error> "invalid rhythm volume parameter: " value))
+      (errorf <sxmml-value-error> "invalid rhythm volume: ~s (expected an integer from 0 to 63)" value))
     value)
   ;; 楽器別の音量は楽器 * 32 + 音量の 1 バイトなので、符号化の前に 0～31 を検査する
   (define (instrument-value inst value)
     (unless (<= 0 value 31)
-      (errorf <sxmml-value-error> "rhythm volume out of range: ~a (0 - 31)" value))
+      (errorf <sxmml-value-error> "invalid rhythm instrument volume: ~s (expected an integer from 0 to 31)" value))
     (logior (ash inst 5) value))
   (let ([v (cons 0 (slot-ref obj 'value))]
         [b (cons 1 (slot-ref obj 'bass))]
@@ -708,7 +708,7 @@
 (define (%pmd-rhythm-volume-change-set! u8vec offset obj)
   (define (data-set! offset inst value)
     (when (or (> value 31) (< value -31))
-      (error <sxmml-value-error> "invalid rhythm volume parameter: " value))
+      (errorf <sxmml-value-error> "invalid relative rhythm volume: ~s (expected an integer from -31 to 31)" value))
     (u8vector-set! u8vec offset #xe5)
     (u8vector-set! u8vec (+ offset 1) inst)
     (u8vector-set! u8vec (+ offset 2) (logand value #xff))
@@ -732,7 +732,7 @@
   ;; パンは楽器 * 32 + 値の 1 バイト。値は 1（右）・2（左）・3（中央）で、符号化の前に検査する
   (define (data-set! offset inst value)
     (unless (<= 1 value 3)
-      (errorf <sxmml-value-error> "rhythm pan out of range: ~a (1 - 3)" value))
+      (errorf <sxmml-value-error> "invalid rhythm pan: ~s (expected an integer from 1 to 3)" value))
     (u8vector-set! u8vec offset #xe9)
     (u8vector-set! u8vec (+ offset 1) (logior (ash inst 5) value))
     (+ offset 2))
@@ -763,16 +763,16 @@
   (u8vector-set! u8vec offset cmd)
   (+ offset 1))
 
-(define-inline (%pmd-1byte-set! u8vec offset cmd value max min)
+(define-inline (%pmd-1byte-set! u8vec offset cmd value max min kind)
   (when (or (> value max) (< value min))
-    (errorf <sxmml-value-error> "value exceeds the range: ~a (~a - ~a): ~a" value min max cmd))
+    (errorf <sxmml-value-error> "invalid ~a: ~s (expected an integer from ~a to ~a)" kind value min max))
   (u8vector-set! u8vec offset cmd)
   (u8vector-set! u8vec (+ offset 1) (logand value #xff))
   (+ offset 2))
 
-(define-inline (%pmd-2bytes-set! u8vec offset cmd value max min)
+(define-inline (%pmd-2bytes-set! u8vec offset cmd value max min kind)
   (when (or (> value max) (< value min))
-    (errorf <sxmml-value-error> "value exceeds the range: ~a (~a - ~a): ~a" value min max cmd))
+    (errorf <sxmml-value-error> "invalid ~a: ~s (expected an integer from ~a to ~a)" kind value min max))
   (receive (lb hb) (%short->le-bytes value)
     (u8vector-set! u8vec offset cmd)
     (u8vector-set! u8vec (+ offset 1) lb)
@@ -787,7 +787,7 @@
 ;; o1c から o8b までを表す
 (define-inline (%note-number->pmd-note note)
   (unless (<= 12 note 107)
-    (errorf <sxmml-value-error> "note out of range: ~a (o1c - o8b)" (%note-number->name note)))
+    (errorf <sxmml-value-error> "invalid note: ~a (expected o1c - o8b)" (%note-number->name note)))
   (receive (octave notenum) (floor/ note 12)
     (+ (ash (- octave 1) 4) notenum)))
 

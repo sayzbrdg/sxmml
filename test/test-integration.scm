@@ -70,7 +70,7 @@
             (test* #"~mode は0回を回数の誤りとして終了値1で拒否し、既存の生成物を保つ"
                    '(1 #t "既存の生成物")
                    (append (status-and-message (sxlc-status "-m" mode "-o" output source)
-                                               #/repeat count must be a positive exact integer: +0/)
+                                               #/invalid repeat count: 0/)
                            (list (file->string output))))))
       )
     (remove-directory* workdir)))

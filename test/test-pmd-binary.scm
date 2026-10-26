@@ -86,11 +86,30 @@
       (sxmml-pmd-binary-output)))
   (unwind-protect
       (begin
+        (dolist [case '(("SSG" G 16 "invalid SSG volume: 16 (expected an integer from 0 to 15)")
+                        ("PCM" J 256 "invalid PCM volume: 256 (expected an integer from 0 to 255)"))]
+          (test* #"同じ命令コードでも~(car case)の音量範囲を示す"
+                 (test-error <sxmml-value-error> (cadddr case))
+                 (make-binary-data #"typed-~(car case)-volume" pmd-binary
+                                   `((mml ,(cadr case) ,#"v~(caddr case)c8")))))
+        (dolist [case '(("timer" <sxmml-mml-tempo-absolute> 251
+                         "invalid Timer-B: 251 (expected an integer from 0 to 250)")
+                        ("detune" <sxmml-mml-detune> 32768
+                         "invalid detune: 32768 (expected an integer from -32768 to 32767)")
+                        ("decrease" <sxmml-mml-volume-change> -128
+                         "invalid FM volume decrease: 128 (expected an integer from 0 to 127)"))]
+          (test* #"符号化の項目と単位を示す: ~(car case)"
+                 (test-error <sxmml-value-error> (cadddr case))
+                 (make-binary-data #"typed-~(car case)" pmd-binary
+                                   `((sxmml-ir-register!
+                                      (list (make ,(cadr case) :value ,(caddr case))
+                                            (make <sxmml-mml-note> :value 48 :ticks 12)) 'A)) #f)))
+
         (test* "公開pmd-binary出力の範囲違反は値エラーになる"
-               (test-error <sxmml-value-error> #/value exceeds the range/)
+               (test-error <sxmml-value-error> "invalid FM volume: 128 (expected an integer from 0 to 127)")
                (make-binary-data "typed-volume" pmd-binary '((mml A "v128c"))))
         (test* "公開pmd-binary出力の未定義音色は参照エラーになる"
-               (test-error <sxmml-reference-error> #/no instrument define/)
+               (test-error <sxmml-reference-error> #/undefined voice/)
                (make-binary-data "typed-reference" pmd-binary '((mml A "@{UNKNOWN}c"))))
 
         (test* "通常トラックの直接IR入力で2個目のLを拒否する"
@@ -344,7 +363,7 @@
                    '(1 #t #f)
                    (list (car result)
                          (boolean (any (string->regexp
-                                        (regexp-quote #"note out of range: ~(caddr case) (o1c - o8b)"))
+                                        (regexp-quote #"invalid note: ~(caddr case) (expected o1c - o8b)"))
                                        (cadr result)))
                          (file-exists? output)))))
         ;; ポルタメントの音長は 1 バイトなので、255 tick を超えると、音長と許される範囲を示して
@@ -360,11 +379,11 @@
                    '(1 #t #f)
                    (list (car result)
                          (boolean (any (string->regexp
-                                        (regexp-quote #"portamento ticks out of range: ~ticks (1 - 255)"))
+                                        (regexp-quote #"invalid portamento ticks: ~ticks (expected an integer from 1 to 255)"))
                                        (cadr result)))
                          (file-exists? output)))))
         ;; リズムの音量・パンの誤りは、綴りの正しいメッセージで失敗する (#57)
-        (dolist [case '(("volume" "V64 @b8" "rhythm volume") ("volume-change" ")b32 @b8" "rhythm volume"))]
+        (dolist [case '(("volume" "V64 @b8" "invalid rhythm volume: 64 (expected an integer from 0 to 63)") ("volume-change" ")b32 @b8" "invalid relative rhythm volume: 32 (expected an integer from -31 to 31)"))]
           (let* ([source (source-output (work-file #"rhythm-param-~(car case).sxl")
                                        `((rhythm L ,(cadr case))))]
                  [output (work-file #"rhythm-param-~(car case).m")]
@@ -373,16 +392,16 @@
                    '(1 #t #f)
                    (list (car result)
                          (boolean (any (string->regexp
-                                        (regexp-quote #"invalid ~(caddr case) parameter: "))
+                                        (regexp-quote (caddr case)))
                                        (cadr result)))
                          (file-exists? output)))))
         ;; リズムの楽器別の音量は 0 から 31、パンは 1（右）・2（左）・3（中央）で、範囲外は書いた値と
         ;; 範囲を示して失敗する。これまで音量は楽器のビットにはみ出して黙って誤った生成物になり、
         ;; パンは符号化した値を表示していた (#102)
-        (dolist [case '(("volume-32" "vb32 @b8" "rhythm volume out of range: 32 (0 - 31)")
-                        ("volume-40" "v{s}40 @s8" "rhythm volume out of range: 40 (0 - 31)")
-                        ("pan-0" "pb0 @b8" "rhythm pan out of range: 0 (1 - 3)")
-                        ("pan-4" "pb4 @b8" "rhythm pan out of range: 4 (1 - 3)"))]
+        (dolist [case '(("volume-32" "vb32 @b8" "invalid rhythm instrument volume: 32 (expected an integer from 0 to 31)")
+                        ("volume-40" "v{s}40 @s8" "invalid rhythm instrument volume: 40 (expected an integer from 0 to 31)")
+                        ("pan-0" "pb0 @b8" "invalid rhythm pan: 0 (expected an integer from 1 to 3)")
+                        ("pan-4" "pb4 @b8" "invalid rhythm pan: 4 (expected an integer from 1 to 3)"))]
           (let* ([source (source-output (work-file #"rhythm-range-~(car case).sxl")
                                        `((rhythm L ,(cadr case))))]
                  [output (work-file #"rhythm-range-~(car case).m")]
@@ -432,19 +451,19 @@
                           'generated))])
           (dolist [case `(("lfo-type" ,pmd-binary
                            ((define-lfo L1 sw (1 2 3 4)) (mml A "M{L1 A}c8"))
-                           "unsupported lfo type: sw in L1 (supported: default, triangle)")
+                           "unsupported LFO type: sw in L1 (supported: default, triangle)")
                           ("envelope-count" ,pmd-binary
                            ((define-envelope E1 (1 2 3)) (mml G "E{E1}c8"))
                            "invalid envelope values: E1 has 3 values (expected 4, 5 or 6)")
                           ("lfo-inexact" ,pmd-binary
                            ((define-lfo L1 (1 1.5 3 4)) (mml A "M{L1 A}c8"))
-                           "invalid lfo value: L1, value 2 is 1.5 (0 - 255)")
+                           "invalid LFO L1 value 2: 1.5 (expected an integer from 0 to 255)")
                           ("pmd3-lfo-b" ,pmd3-binary
                            ((define-lfo L1 (1 2 3 4)) (mml A "M{L1 B}c8"))
-                           "invalid lfo channel: B")
+                           "invalid LFO channel: B")
                           ("pmd3-lfo-switch-b" ,pmd3-binary
                            ((mml A "Mt{B}c8"))
-                           "invalid lfo channel: B")
+                           "invalid LFO channel: B")
                           ("pmd3-envelope-6" ,pmd3-binary
                            ((define-envelope E6 (1 2 3 4 5 6)) (mml G "E{E6}c8"))
                            "unsupported envelope values in PMD3: E6 has 6 values (expected 4)"))]
@@ -466,7 +485,7 @@
             (test* "pmd-binary の LFO の種類の誤りは、終了値 1 で生成物を作らない"
                    '(1 #t #f)
                    (list (car result)
-                         (boolean (any #/unsupported lfo type: sw in L1/ (cadr result)))
+                         (boolean (any #/unsupported LFO type: sw in L1/ (cadr result)))
                          (file-exists? output)))))
         ;; PCM の音色は 0 から 255 までの整数で、それ以外は書かれた値を示して失敗する (#58)
         (dolist [case '(("@256" "256") ("@{1.5}" "1.5") ("@{x}" "x"))]
@@ -478,7 +497,7 @@
                    '(1 #t #f)
                    (list (car result)
                          (boolean (any (string->regexp
-                                        #"invalid voice parameter: +~(regexp-quote (cadr case))$")
+                                        #"invalid PCM voice number: ~(regexp-quote (cadr case)) \\(expected an integer from 0 to 255\\)$")
                                        (cadr result)))
                          (file-exists? output)))))
         ;; SSG のミックスは 1 から 3 までで、範囲外は値と範囲を示して失敗する (#55)
@@ -491,7 +510,7 @@
                    '(1 #t #f)
                    (list (car result)
                          (boolean (any (string->regexp
-                                        (regexp-quote #"value exceeds the range: ~value (1 - 3): 237"))
+                                        (regexp-quote #"invalid output switch: ~value (expected an integer from 1 to 3)"))
                                        (cadr result)))
                          (file-exists? output)))))
         ;; 生成物は 65535 バイトまで、PMD4 の合計 tick は 65535 までとし、超えたら失敗する。

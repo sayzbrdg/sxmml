@@ -120,7 +120,7 @@
   (define (first-note-number-find)
     (let loop ([rest (sxmml-compile-mml! fir (make <sxmml-mml-context>))])
       (cond [(null? rest)
-             (error <sxmml-value-error> "no note data: " fir)]
+             (errorf <sxmml-value-error> "invalid mml-echo first note: ~s (expected MML containing a note)" fir)]
             [(is-a? (car rest) <sxmml-mml-rest>)
              (loop (cdr rest))]
             [(is-a? (car rest) <sxmml-mml-note>)
