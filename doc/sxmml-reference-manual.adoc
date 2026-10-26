@@ -1,6 +1,8 @@
 = sxmml MML 記述者向けリファレンス
 :toc: left
 
+既知の入力エラーは種類ごとに通知します。取得できるフォーム位置は、診断本文とは別の `    at ./song.sxl:行` の行へ表示します。値の式で起きた未定義変数などのGaucheエラーは包み直しません。
+
 本書は、sxmml の Scheme ソースに直接記述する機能を説明します。動作環境は Gauche 0.9.15 です。MML 文字列のコマンドは link:sxmml-mml-manual.adoc[MML コマンドマニュアル]、CLI は link:sxlc.1.md[sxlc マニュアル]を参照してください。
 
 `sxlc` で読み込む `.sxl` ファイルは Scheme ソースです。`mml` などの本文には Scheme の式を渡せますが、`define-metadata` などの定義形式は個別の制約を持ちます。link:../README.md#最初の変換[README の導入手順]で `sxlc` をインストールすると、以下の例は `sxlc -m pmd ファイル名` として実行できます。PMD モードでは A～F が FM、G～I が SSG、J が PCM、L がリズム用です。
@@ -13,7 +15,7 @@
 
 ソース内で生成モードを選びます。PMD4 向けには `pmd`、PMD3 向けには `pmd3` を指定します。実験的な機能として、PMD のバイナリを直接生成する `pmd-binary`・`pmd4-binary`（PMD4 向け）と `pmd3-binary`（PMD3 向け）も指定できます。生成物が MC.EXE の出力と同じであることは保証しません。`sxlc -m` を使用すればソース内の指定は不要です。両方を指定した場合は `sxlc -m` の指定が有効になり、ソース内の指定は `warning: ./song.sxl:1: sxmml-mode in source is ignored; mode is already set to PMD` のように位置を示す警告を表示して無視されます。このとき、ソース内のモード名は使われないので、`sxlc` で使えないモード名が書かれていても変換できます。
 
-モード名を書かない `(sxmml-mode)` は、`*** SXMML-FORM-ERROR: ./song.sxl:1: invalid sxmml-mode form: expected (sxmml-mode mode arg ...)` のように、その `sxmml-mode` の開始位置を示して変換の失敗になります。`sxlc -m` を使わない場合、未定義のモード名も、開始位置を示して変換の失敗になります。
+モード名を書かない `(sxmml-mode)` は、`*** SXMML-FORM-SYNTAX-ERROR: invalid sxmml-mode form: expected (sxmml-mode mode arg ...)` のように、その `sxmml-mode` の開始位置を示して変換の失敗になります。`sxlc -m` を使わない場合、未定義のモード名も、開始位置を示して変換の失敗になります。
 
 [source,scheme]
 ----
@@ -64,7 +66,7 @@
 
 二つの本文を指定した場合、最初の本文の後に脱出位置 `:`、次の本文の後に反復終了 `]回数` を登録します。
 
-回数は正の整数です。数のほかに、変数や `(+ 1 2)` のような式も書けます。正の整数でない回数（`0`、`-1`、`2.5`、`2.0` など）は、`*** SXMML-FORM-ERROR: ./song.sxl:3: invalid mml-repeat value: count is 0 (expected a positive integer)` のように、その `mml-repeat` の開始位置を示して変換の失敗になります。本文の括弧がないなどの書式の誤りも、`invalid mml-repeat form: ...` で、同じく開始位置を示して失敗します。
+回数は正の整数です。数のほかに、変数や `(+ 1 2)` のような式も書けます。正の整数でない回数（`0`、`-1`、`2.5`、`2.0` など）は、`*** SXMML-VALUE-ERROR: invalid mml-repeat value: count is 0 (expected a positive integer)` のように、その `mml-repeat` の開始位置を示して変換の失敗になります。本文の括弧がないなどの書式の誤りも、`invalid mml-repeat form: ...` で、同じく開始位置を示して失敗します。
 
 三つの節を指定する書式は、単一トラックでは `(mml-repeat トラック名 回数 (前半 ...) (後半 ...) (反復後 ...))`、複数トラックでは `(mml-repeat (トラック名 ...) 回数 (前半 ...) (後半 ...) (脱出トラック 反復後 ...))` です。複数トラック形の脱出トラックには一つの名前または名前のリストを指定します。脱出位置は指定したトラックの前半と後半の間に置き、三つ目の節の本文は反復が終わった後に置きます。反復後の本文は省略できます。
 
@@ -106,7 +108,7 @@
 
 指定した MML の各音符の長さを前半と後半に分け、後半に一つ前の音を再発音する記述へ加工します。続く休符にも前の音の再発音と音量変更を加えます。「最初の音」は最初の音符の後半に使う `"c"` のような音符文字列です。音量減少量は音符の後半に前の音を鳴らす際、休符時の減少量は休符で前の音を鳴らす際に使います。例えば `("g" 2 1)` と `"c8d8r8"` を指定すると、最初の `c8` の後半には `g`、次の `d8` の後半には `c`、休符の一部には `d` を配置します。トラック名は単一の登録済みトラック名を指定します。複数トラックを加工するには、トラックごとに `mml-echo` を呼びます。詳細は https://github.com/sayzbrdg/sxmml/issues/6[既知の課題 #6]を参照してください。
 
-括弧の中の値には、変数や式も書けます。二つの減少量は整数です。整数でない減少量（`1.5`、`2.0` など）は、`*** SXMML-FORM-ERROR: ./song.sxl:3: invalid mml-echo value: voldown is 1.5 (expected an integer)` のように、その `mml-echo` の開始位置を示して変換の失敗になります。括弧の中の値が 3 つでないなどの書式の誤りも、`invalid mml-echo form: ...` で、同じく開始位置を示して失敗します。
+括弧の中の値には、変数や式も書けます。二つの減少量は整数です。整数でない減少量（`1.5`、`2.0` など）は、`*** SXMML-VALUE-ERROR: invalid mml-echo value: voldown is 1.5 (expected an integer)` のように、その `mml-echo` の開始位置を示して変換の失敗になります。括弧の中の値が 3 つでないなどの書式の誤りも、`invalid mml-echo form: ...` で、同じく開始位置を示して失敗します。
 
 [source,scheme]
 ----
@@ -124,7 +126,7 @@
 (mml-delay G (6 2 1) "c8r8")
 ----
 
-正の整数でない間隔や整数でない減少量（`0`、`1.5`、`2.0` など）は、`*** SXMML-FORM-ERROR: ./song.sxl:3: invalid mml-delay value: ticks is 0 (expected a positive integer)` のように、その `mml-delay` の開始位置を示して変換の失敗になります。括弧の中の値が 3 つでないなどの書式の誤りも、`invalid mml-delay form: ...` で、同じく開始位置を示して失敗します。
+正の整数でない間隔や整数でない減少量（`0`、`1.5`、`2.0` など）は、`*** SXMML-VALUE-ERROR: invalid mml-delay value: ticks is 0 (expected a positive integer)` のように、その `mml-delay` の開始位置を示して変換の失敗になります。括弧の中の値が 3 つでないなどの書式の誤りも、`invalid mml-delay form: ...` で、同じく開始位置を示して失敗します。
 
 == 曲の設定と定義
 
@@ -154,7 +156,7 @@
 
 括弧の中に文字列だけを並べる `(define-metadata memo ("練習用" "2小節"))` は以前の書式で、非推奨です。今は文字列のリストとして受け付けますが、`warning: ./song.sxl:12: (define-metadata memo ("..." ...)) is deprecated; use (list "..." ...) or '("..." ...)` のように、書かれた位置を示す警告を表示します。`(list ...)` か `'(...)` に書き換えてください。括弧の中に式を混ぜると、以前の書式とはみなされず、式として評価されます。
 
-値のない `(define-metadata title)` などの書式の誤りや、値の式の誤り（未定義の変数など）は、`*** SXMML-FORM-ERROR: ./song.sxl:3: invalid define-metadata form: expected (define-metadata key value)` のように、その定義の開始位置を示して変換の失敗になります。
+値のない `(define-metadata title)` などの書式の誤りは、`*** SXMML-FORM-SYNTAX-ERROR: invalid define-metadata form: expected (define-metadata key value)` のように、その定義の開始位置を示して変換の失敗になります。
 
 `filename` は生成先の指定には使われず、指定すると警告を表示して無視されます。生成先は `sxlc` の `-o` で指定してください。
 
@@ -180,7 +182,7 @@
 (mml G "M{L2 A} c8")
 ----
 
-書式の誤り（値の括弧がない、2 つ以上ある、種類が単語でない、など）や、値の式の誤り（未定義の変数など）は、`*** SXMML-FORM-ERROR: ./song.sxl:3: invalid define-lfo form: expected (define-lfo id [type] (value ...))` のように、その定義の開始位置を示して変換の失敗になります。種類と、値の数や範囲は、生成先が検査します。
+書式の誤り（値の括弧がない、2 つ以上ある、種類が単語でない、など）は、`*** SXMML-FORM-SYNTAX-ERROR: invalid define-lfo form: expected (define-lfo id [type] (value ...))` のように、その定義の開始位置を示して変換の失敗になります。種類と、値の数や範囲は、生成先が検査します。
 
 プログラムから登録するときは、手続き `(sxmml-lfo-set! 名前 種類 値のリスト)` と `(sxmml-envelope-set! 名前 種類 値のリスト)` を使います。名前と種類はシンボルで指定します。`define-lfo`・`define-envelope` は、これらの手続きの呼び出しに展開されます。
 
@@ -220,7 +222,7 @@ FM 音色を定義します。OP1～OP4 には、`(AR DR SR RR SL TL KS ML DT)` 
 (mml A "@{lead}c8")
 ----
 
-定義の誤り（括弧の数や値の数の誤り、範囲外の値、未定義の変数など）は、`*** SXMML-FORM-ERROR: ./song.sxl:3: invalid voice value: @V1, operator(2), -1` のように、その `define-opn-voice` の開始位置を示して変換の失敗になります。
+定義の誤り（括弧の数や値の数の誤り、範囲外の値、未定義の変数など）は、`*** SXMML-VALUE-ERROR: invalid voice value: @V1, operator(2), -1` のように、その `define-opn-voice` の開始位置を示して変換の失敗になります。
 
 音色番号は生成先が決めます。PMD 向け生成では、定義した全ての音色に、名前の辞書順（文字コードの順）で 0 から番号を振ります。数値の名前も文字として並べるため、名前 `0`・`2`・`10` を定義すると、`@10` は `@1` として出力されます。音色定義と `@` の番号は対応するので、演奏の内容は変わりません。音色が 256 を超えると変換の失敗になります。
 

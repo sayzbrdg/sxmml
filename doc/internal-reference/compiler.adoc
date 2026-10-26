@@ -1,6 +1,8 @@
 = `sxmml.compiler` のコンパイル処理
 :toc: left
 
+PEGドライバのparse-errorはcompilerの境界でmml-syntax-errorへ変換し、元のPEG conditionは保持しません。明示的な理由とnear表記は維持します。既知のエラーには取得できるtrack-contextを添えます。非文字列引数はvalue-error、未定義トラックはreference-error、未知のGaucheエラーはそのまま通します。
+
 `sxmml.compiler` は五つの手続きと二つのマクロを公開します。通常 MML とリズム MML のパーサーは xref:mml.adoc[`sxmml.mml`]、登録先の状態は xref:environment.adoc[`sxmml.environment`] を参照してください。パーサー、generator、マクロの動作は Gauche 0.9.15 に従います。
 
 == 手続き

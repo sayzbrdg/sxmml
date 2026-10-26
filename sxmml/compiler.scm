@@ -34,6 +34,7 @@
   (use sxmml.classes)
   (use sxmml.environment)
   (use sxmml.mml)
+  (use sxmml.form)
   (export sxmml-compile-mml! sxmml-compile-rhythm! sxmml-compile-string! sxmml-compile-track-mml sxmml-compile-track-rhythm
           mml rhythm
           ))
@@ -50,30 +51,39 @@
   (sxmml-compile-string! (make-sxmml-rhythm-parser ctx) str ctx))
 
 (define (sxmml-compile-string! parser str ctx)
-  (unless (string? str)
-    (error "string is expected, but something else is given: " (slot-ref ctx 'track) str))
-  (guard (e [(is-a? e <parse-error>)
-             (let1 ch (slot-ref ctx 'track)
-               (match (list (slot-ref e 'type) (slot-ref e 'objects))
-                 [('fail-error (_ ('fail-message . (? string? message))))
-                  (errorf "sxmml syntax error: ~a on ~a track" message ch)]
-                 [_ (let1 rest (tree->string (slot-ref e 'rest))
-                      (errorf "sxmml syntax error, near \"~a\" on ~a track" rest ch))]))])
-    (values
-     ;(generator->lseq (peg-parser->generator parser (generator->lseq (string->generator str))))
-     (generator->list (peg-parser->generator parser (generator->lseq (string->generator str))))
-     ctx)))
+  (let* ([ch (slot-ref ctx 'track)]
+         [context (and ch (make-condition <sxmml-track-context> 'track-name ch))])
+    (guard (e [(condition-has-type? e <parse-error>)
+               (let1 message
+                   (match (list (slot-ref e 'type) (slot-ref e 'objects))
+                     [('fail-error (_ ('fail-message . (? string? reason))))
+                      (format #f "sxmml syntax error: ~a on ~a track" reason ch)]
+                     [_ (format #f "sxmml syntax error, near \"~a\" on ~a track"
+                                (tree->string (slot-ref e 'rest)) ch)])
+                 (raise (sxmml-error-with-context
+                         (make-condition <sxmml-mml-syntax-error> 'message message) context)))]
+              [(sxmml-error? e)
+               (raise (sxmml-error-with-context e context))])
+      (unless (string? str)
+        (error <sxmml-value-error> "string is expected, but something else is given: " ch str))
+      (values
+       (generator->list (peg-parser->generator parser (generator->lseq (string->generator str))))
+       ctx))))
 
 (define (sxmml-compile-track-mml track str)
   (let1 ctx (sxmml-track-get track)
     (unless ctx
-      (error "no defined track: " track))
+      (raise (sxmml-error-with-context
+              (make-condition <sxmml-reference-error> 'message (format #f "no defined track:  ~a" track))
+              (make-condition <sxmml-track-context> 'track-name track))))
     (sxmml-compile-mml! str ctx)))
 
 (define (sxmml-compile-track-rhythm track str)
   (let1 ctx (sxmml-track-get track)
     (unless ctx
-      (error "no defined track: " track))
+      (raise (sxmml-error-with-context
+              (make-condition <sxmml-reference-error> 'message (format #f "no defined track:  ~a" track))
+              (make-condition <sxmml-track-context> 'track-name track))))
     (sxmml-compile-rhythm! str ctx)))
 
 ;;

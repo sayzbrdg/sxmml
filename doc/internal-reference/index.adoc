@@ -3,7 +3,7 @@
 
 この索引は、sxmml を保守・改修する際に内部定義を名前から探すためのものです。動作環境は Gauche 0.9.15 です。内部の名前は MML 記述者向け API を示しません。公開機能の使い方は xref:../sxmml-reference-manual.adoc[MML 記述者向けリファレンス]、MML 文字列の記法は xref:../sxmml-mml-manual.adoc[MML コマンドマニュアル]を参照してください。
 
-モジュール直下の手続き 258 件、クラス 52 件、マクロ 12 件、合計 322 件を掲載します。実験的な `sxmml.backend.pmd-binary` は公開名 7 件だけを掲載し、内部定義は xref:pmd-binary.adoc[本文]に概要だけを記します。`sxmml.scm` は各モジュールを継承し、独自の直下定義はありません。`sxmml.backend.pmd-binary` の `initialize` を除き、各モジュールには `define-method` による定義はありません。局所関数と `sxlc.in` の直下定義は範囲外です。呼び出せない表（ハッシュ表やリスト）は対象外です。
+モジュール直下の手続き 265 件、クラス 58 件、マクロ 12 件、合計 335 件を掲載します。実験的な `sxmml.backend.pmd-binary` は公開名 7 件だけを掲載し、内部定義は xref:pmd-binary.adoc[本文]に概要だけを記します。`sxmml.scm` は各モジュールを継承し、独自の直下定義はありません。`sxmml.backend.pmd-binary` の `initialize` と `sxmml.form` の `report-additional-condition` のメソッドは、手続き件数へ重複計上しません。局所関数と `sxlc.in` の直下定義は範囲外です。呼び出せない表（ハッシュ表やリスト）は対象外です。
 
 識別子の命名と改名の判断は xref:naming-conventions.adoc[命名規約]を参照してください。
 
@@ -12,7 +12,7 @@
 [cols="2,3,1",options="header"]
 |===
 |モジュール |内容 |項目数
-|xref:classes.adoc[`sxmml.classes`] |環境・MML オブジェクト・音色のクラスとエラーの種類 |48
+|xref:classes.adoc[`sxmml.classes`] |環境・MML オブジェクト・音色のクラスとエラーの種類 |60
 |xref:mml.adoc[`sxmml.mml`] |通常・リズム MML の PEG パーサー |74
 |xref:environment.adoc[`sxmml.environment`] |環境と登録表 |26
 |xref:compiler.adoc[`sxmml.compiler`] |文字列の解析と登録マクロ |7
@@ -21,7 +21,7 @@
 |xref:repeat-tree.adoc[`sxmml.repeat-tree`] |局所反復木による列の圧縮 |33
 |xref:voice.adoc[`sxmml.voice`] |音色定義 |8
 |xref:util.adoc[`sxmml.util`] |BPM の補助計算 |1
-|xref:form.adoc[`sxmml.form`] |定義の誤りの位置 |7
+|xref:form.adoc[`sxmml.form`] |エラー文脈とフォーム位置 |8
 |xref:pmd.adoc[`sxmml.backend.pmd`] |PMD 向け生成 |70
 |xref:pmd-binary.adoc[`sxmml.backend.pmd-binary`] |PMD バイナリ生成（実験的・公開名のみ） |7
 |===
@@ -195,9 +195,9 @@
 |`%sxmml-optimize-repeat` |`sxmml.optimizer` |手続き・非公開 |xref:optimizer.adoc#ref-optimizer-internal-sxmml-optimize-repeat[項目へ]
 |`%sxmml-optimize-tree!` |`sxmml.optimizer` |手続き・非公開 |xref:optimizer.adoc#ref-optimizer-internal-sxmml-optimize-tree-bang[項目へ]
 |`%sxmml-pmdx-source-output` |`sxmml.backend.pmd` |手続き・非公開 |xref:pmd.adoc#ref-pmd-internal-sxmml-pmdx-source-output[項目へ]
-|`%track\->track-list` |`sxmml.processor` |手続き・非公開 |xref:processor.adoc#ref-processor-internal-track-to-track-list[項目へ]
 |`%track-output` |`sxmml.backend.pmd` |手続き・非公開 |xref:pmd.adoc#ref-pmd-internal-track-output[項目へ]
 |`%track-spec?` |`sxmml.processor` |手続き・非公開 |xref:processor.adoc#ref-processor-internal-track-spec-p[項目へ]
+|`%track\->track-list` |`sxmml.processor` |手続き・非公開 |xref:processor.adoc#ref-processor-internal-track-to-track-list[項目へ]
 |`%voice-alfb-form?` |`sxmml.voice` |手続き・非公開 |xref:voice.adoc#ref-voice-internal-voice-alfb-form-p[項目へ]
 |`%voice-operator-form?` |`sxmml.voice` |手続き・非公開 |xref:voice.adoc#ref-voice-internal-voice-operator-form-p[項目へ]
 |`%voice-values-check` |`sxmml.voice` |手続き・非公開 |xref:voice.adoc#ref-voice-internal-voice-values-check[項目へ]
@@ -210,7 +210,7 @@
 |`<sxmml-envelope>` |`sxmml.classes` |クラス・公開 |xref:classes.adoc#ref-classes-class-sxmml-envelope[項目へ]
 |`<sxmml-environment>` |`sxmml.classes` |クラス・公開 |xref:classes.adoc#ref-classes-class-sxmml-environment[項目へ]
 |`<sxmml-error>` |`sxmml.classes` |クラス・公開 |xref:classes.adoc#ref-classes-class-sxmml-error[項目へ]
-|`<sxmml-form-error>` |`sxmml.classes` |クラス・公開 |xref:classes.adoc#ref-classes-class-sxmml-form-error[項目へ]
+|`<sxmml-form-syntax-error>` |`sxmml.classes` |クラス・公開 |xref:classes.adoc#ref-classes-class-sxmml-form-syntax-error[項目へ]
 |`<sxmml-lfo>` |`sxmml.classes` |クラス・公開 |xref:classes.adoc#ref-classes-class-sxmml-lfo[項目へ]
 |`<sxmml-mml-context>` |`sxmml.classes` |クラス・公開 |xref:classes.adoc#ref-classes-class-sxmml-mml-context[項目へ]
 |`<sxmml-mml-detune>` |`sxmml.classes` |クラス・公開 |xref:classes.adoc#ref-classes-class-sxmml-mml-detune[項目へ]
@@ -231,6 +231,7 @@
 |`<sxmml-mml-repeat-end>` |`sxmml.classes` |クラス・公開 |xref:classes.adoc#ref-classes-class-sxmml-mml-repeat-end[項目へ]
 |`<sxmml-mml-repeat-start>` |`sxmml.classes` |クラス・公開 |xref:classes.adoc#ref-classes-class-sxmml-mml-repeat-start[項目へ]
 |`<sxmml-mml-rest>` |`sxmml.classes` |クラス・公開 |xref:classes.adoc#ref-classes-class-sxmml-mml-rest[項目へ]
+|`<sxmml-mml-syntax-error>` |`sxmml.classes` |クラス・公開 |xref:classes.adoc#ref-classes-class-sxmml-mml-syntax-error[項目へ]
 |`<sxmml-mml-tempo-absolute>` |`sxmml.classes` |クラス・公開 |xref:classes.adoc#ref-classes-class-sxmml-mml-tempo-absolute[項目へ]
 |`<sxmml-mml-tempo>` |`sxmml.classes` |クラス・公開 |xref:classes.adoc#ref-classes-class-sxmml-mml-tempo[項目へ]
 |`<sxmml-mml-tie>` |`sxmml.classes` |クラス・公開 |xref:classes.adoc#ref-classes-class-sxmml-mml-tie[項目へ]
@@ -247,11 +248,16 @@
 |`<sxmml-optimize-environment>` |`sxmml.classes` |クラス・公開 |xref:classes.adoc#ref-classes-class-sxmml-optimize-environment[項目へ]
 |`<sxmml-pmd-binary-environment>` |`sxmml.backend.pmd-binary` |クラス・公開 |xref:pmd-binary.adoc#ref-pmd-binary-class-sxmml-pmd-binary-environment[項目へ]
 |`<sxmml-pmd-track-environment>` |`sxmml.backend.pmd` |クラス・非公開 |xref:pmd.adoc#ref-pmd-class-sxmml-pmd-track-environment[項目へ]
+|`<sxmml-reference-error>` |`sxmml.classes` |クラス・公開 |xref:classes.adoc#ref-classes-class-sxmml-reference-error[項目へ]
 |`<sxmml-rhythm-emit>` |`sxmml.classes` |クラス・公開 |xref:classes.adoc#ref-classes-class-sxmml-rhythm-emit[項目へ]
 |`<sxmml-rhythm-pan>` |`sxmml.classes` |クラス・公開 |xref:classes.adoc#ref-classes-class-sxmml-rhythm-pan[項目へ]
 |`<sxmml-rhythm-volume-change>` |`sxmml.classes` |クラス・公開 |xref:classes.adoc#ref-classes-class-sxmml-rhythm-volume-change[項目へ]
 |`<sxmml-rhythm-volume>` |`sxmml.classes` |クラス・公開 |xref:classes.adoc#ref-classes-class-sxmml-rhythm-volume[項目へ]
 |`<sxmml-rhythm>` |`sxmml.classes` |クラス・公開 |xref:classes.adoc#ref-classes-class-sxmml-rhythm[項目へ]
+|`<sxmml-source-context>` |`sxmml.classes` |クラス・公開 |xref:classes.adoc#ref-classes-class-sxmml-source-context[項目へ]
+|`<sxmml-syntax-error>` |`sxmml.classes` |クラス・公開 |xref:classes.adoc#ref-classes-class-sxmml-syntax-error[項目へ]
+|`<sxmml-track-context>` |`sxmml.classes` |クラス・公開 |xref:classes.adoc#ref-classes-class-sxmml-track-context[項目へ]
+|`<sxmml-value-error>` |`sxmml.classes` |クラス・公開 |xref:classes.adoc#ref-classes-class-sxmml-value-error[項目へ]
 |`<sxmml-voice>` |`sxmml.classes` |クラス・公開 |xref:classes.adoc#ref-classes-class-sxmml-voice[項目へ]
 |`change-sign` |`sxmml.mml` |手続き・非公開 |xref:mml.adoc#ref-mml-change-sign[項目へ]
 |`concat-left` |`sxmml.repeat-tree` |手続き・公開 |xref:repeat-tree.adoc#ref-repeat-tree-concat-left[項目へ]
@@ -316,13 +322,12 @@
 |`sxmml-envelope-get` |`sxmml.environment` |手続き・公開 |xref:environment.adoc#ref-environment-sxmml-envelope-get[項目へ]
 |`sxmml-envelope-set!` |`sxmml.environment` |手続き・公開 |xref:environment.adoc#ref-environment-sxmml-envelope-set-bang[項目へ]
 |`sxmml-environment` |`sxmml.environment` |手続き・公開 |xref:environment.adoc#ref-environment-sxmml-environment[項目へ]
+|`sxmml-error-with-context` |`sxmml.form` |手続き・公開 |xref:form.adoc#ref-form-sxmml-error-with-context[項目へ]
 |`sxmml-error?` |`sxmml.classes` |手続き・公開 |xref:classes.adoc#ref-classes-sxmml-error-p[項目へ]
 |`sxmml-form-call` |`sxmml.form` |手続き・公開 |xref:form.adoc#ref-form-sxmml-form-call[項目へ]
 |`sxmml-form-error` |`sxmml.form` |手続き・公開 |xref:form.adoc#ref-form-sxmml-form-error[項目へ]
-|`sxmml-form-error-cause` |`sxmml.classes` |手続き・公開 |xref:classes.adoc#ref-classes-sxmml-form-error-cause[項目へ]
-|`sxmml-form-error-location` |`sxmml.classes` |手続き・公開 |xref:classes.adoc#ref-classes-sxmml-form-error-location[項目へ]
-|`sxmml-form-error?` |`sxmml.classes` |手続き・公開 |xref:classes.adoc#ref-classes-sxmml-form-error-p[項目へ]
 |`sxmml-form-location` |`sxmml.form` |手続き・公開 |xref:form.adoc#ref-form-sxmml-form-location[項目へ]
+|`sxmml-form-syntax-error?` |`sxmml.classes` |手続き・公開 |xref:classes.adoc#ref-classes-sxmml-form-syntax-error-p[項目へ]
 |`sxmml-form-warn` |`sxmml.form` |手続き・公開 |xref:form.adoc#ref-form-sxmml-form-warn[項目へ]
 |`sxmml-form-warn-at` |`sxmml.form` |手続き・公開 |xref:form.adoc#ref-form-sxmml-form-warn-at[項目へ]
 |`sxmml-form-wrap` |`sxmml.form` |手続き・公開 |xref:form.adoc#ref-form-sxmml-form-wrap[項目へ]
@@ -334,6 +339,7 @@
 |`sxmml-metadata-get` |`sxmml.environment` |手続き・公開 |xref:environment.adoc#ref-environment-sxmml-metadata-get[項目へ]
 |`sxmml-metadata-set!` |`sxmml.environment` |手続き・公開 |xref:environment.adoc#ref-environment-sxmml-metadata-set-bang[項目へ]
 |`sxmml-mml-context` |`sxmml.mml` |手続き・非公開 |xref:mml.adoc#ref-mml-sxmml-mml-context[項目へ]
+|`sxmml-mml-syntax-error?` |`sxmml.classes` |手続き・公開 |xref:classes.adoc#ref-classes-sxmml-mml-syntax-error-p[項目へ]
 |`sxmml-mode` |`sxmml.environment` |マクロ・公開 |xref:environment.adoc#ref-environment-sxmml-mode[項目へ]
 |`sxmml-mode-fixed` |`sxmml.environment` |手続き・公開 |xref:environment.adoc#ref-environment-sxmml-mode-fixed[項目へ]
 |`sxmml-opm-list\->register` |`sxmml.voice` |手続き・非公開 |xref:voice.adoc#ref-voice-sxmml-opm-list-to-register[項目へ]
@@ -351,16 +357,23 @@
 |`sxmml-pmd3-source-output` |`sxmml.backend.pmd` |手続き・公開 |xref:pmd.adoc#ref-pmd-sxmml-pmd3-source-output[項目へ]
 |`sxmml-pmd4-binary-output` |`sxmml.backend.pmd-binary` |手続き・公開 |xref:pmd-binary.adoc#ref-pmd-binary-sxmml-pmd4-binary-output[項目へ]
 |`sxmml-pmd4-source-output` |`sxmml.backend.pmd` |手続き・公開 |xref:pmd.adoc#ref-pmd-sxmml-pmd4-source-output[項目へ]
+|`sxmml-reference-error?` |`sxmml.classes` |手続き・公開 |xref:classes.adoc#ref-classes-sxmml-reference-error-p[項目へ]
 |`sxmml-resolution` |`sxmml.environment` |手続き・公開 |xref:environment.adoc#ref-environment-sxmml-resolution[項目へ]
 |`sxmml-resolution-get` |`sxmml.environment` |手続き・公開 |xref:environment.adoc#ref-environment-sxmml-resolution-get[項目へ]
 |`sxmml-resolution-set!` |`sxmml.environment` |手続き・公開 |xref:environment.adoc#ref-environment-sxmml-resolution-set-bang[項目へ]
+|`sxmml-source-context-location` |`sxmml.classes` |手続き・公開 |xref:classes.adoc#ref-classes-sxmml-source-context-location[項目へ]
+|`sxmml-source-context?` |`sxmml.classes` |手続き・公開 |xref:classes.adoc#ref-classes-sxmml-source-context-p[項目へ]
 |`sxmml-source-file` |`sxmml.environment` |手続き・公開 |xref:environment.adoc#ref-environment-sxmml-source-file[項目へ]
+|`sxmml-syntax-error?` |`sxmml.classes` |手続き・公開 |xref:classes.adoc#ref-classes-sxmml-syntax-error-p[項目へ]
 |`sxmml-track-clear!` |`sxmml.environment` |手続き・公開 |xref:environment.adoc#ref-environment-sxmml-track-clear-bang[項目へ]
+|`sxmml-track-context-track` |`sxmml.classes` |手続き・公開 |xref:classes.adoc#ref-classes-sxmml-track-context-track[項目へ]
+|`sxmml-track-context?` |`sxmml.classes` |手続き・公開 |xref:classes.adoc#ref-classes-sxmml-track-context-p[項目へ]
 |`sxmml-track-delete!` |`sxmml.environment` |手続き・公開 |xref:environment.adoc#ref-environment-sxmml-track-delete-bang[項目へ]
 |`sxmml-track-find` |`sxmml.environment` |手続き・公開 |xref:environment.adoc#ref-environment-sxmml-track-find[項目へ]
 |`sxmml-track-get` |`sxmml.environment` |手続き・公開 |xref:environment.adoc#ref-environment-sxmml-track-get[項目へ]
 |`sxmml-track-list` |`sxmml.environment` |手続き・公開 |xref:environment.adoc#ref-environment-sxmml-track-list[項目へ]
 |`sxmml-track-set!` |`sxmml.environment` |手続き・公開 |xref:environment.adoc#ref-environment-sxmml-track-set-bang[項目へ]
+|`sxmml-value-error?` |`sxmml.classes` |手続き・公開 |xref:classes.adoc#ref-classes-sxmml-value-error-p[項目へ]
 |===
 
 課題の現行内容・影響・対応状況は https://github.com/sayzbrdg/sxmml/issues[既知の課題（GitHub の issue）]を参照してください。

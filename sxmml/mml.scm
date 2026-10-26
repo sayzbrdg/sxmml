@@ -48,7 +48,7 @@
 (define-inline (rope->positive-number rope :optional (message "ticks must be a positive integer: "))
   (let1 num (rope->number rope)
     (unless (and (exact-integer? num) (positive? num))
-      (error message num))
+      (error <sxmml-mml-syntax-error> message num))
     num))
 (define-inline (rope->symbol rope)
   (string->symbol (rope->string rope)))
@@ -137,7 +137,10 @@
   ($let ([number $number]
          [$space]
          [dots $dots])
-        ($return (length->ticks (rope->number number) (length dots)))))
+        (let1 len (rope->number number)
+          (when (eqv? len 0)
+            (error <sxmml-mml-syntax-error> "invalid note length: 0 (expected an integer >= 1)"))
+          ($return (length->ticks len (length dots))))))
 (define (length->ticks len dots)
   (define (dots-calculate base dots)
     (let loop ([v base] [e base] [n dots])
@@ -147,7 +150,7 @@
              (let1 h (ash e -1)
                (loop (+ v h) h (- n 1)))]
             [else
-             (error "number of dots exceeded resolution range")])))
+             (error <sxmml-mml-syntax-error> "number of dots exceeded resolution range")])))
   (let ([res (sxmml-resolution-get)]
         [clen (or len (slot-ref (sxmml-mml-context) 'default-length))])
     (dots-calculate (/ (ash res 2) clen) dots)))
@@ -170,7 +173,12 @@
           ($return o))))
 
 ;; general command
-(define-inline $length (%make-mml-context-value-parser $number-parameter 'default-length rope->number))
+(define-inline $length
+  (%make-mml-context-value-parser $number-parameter 'default-length
+    (^[data] (let1 len (rope->number data)
+             (when (= len 0)
+               (error <sxmml-mml-syntax-error> "invalid note length: 0 (expected an integer >= 1)"))
+             len))))
 (hash-table-set! *note-command* #\l $length)
 (define-inline $octave (%make-mml-context-value-parser  $number-parameter 'current-octave rope->number))
 (hash-table-set! *note-command* #\o $octave)
@@ -220,9 +228,9 @@
   (%$return
    ;; 反復は同じ位置を何度も通り、戻り先を一つに決められないので、L は反復の外にだけ書ける
    (begin (unless (null? (slot-ref (sxmml-mml-context) 'repeat-stack))
-            (error "loop command cannot be used inside repeats"))
+            (error <sxmml-mml-syntax-error> "loop command cannot be used inside repeats"))
           (when (slot-ref (sxmml-mml-context) 'loop-exists)
-            (error "loop command can be used only once in a track"))
+            (error <sxmml-mml-syntax-error> "loop command can be used only once in a track"))
           (slot-set! (sxmml-mml-context) 'loop-exists #t)
           (let loop ([rest (slot-ref (sxmml-mml-context) 'current-ticks)]
                      [buf 0])
@@ -243,8 +251,8 @@
   (%$return
    ;; 反復の記録は [ で #f を積み、: でその位置の設定に置き換える。: は一つの反復に一つだけ
    (let1 stack (slot-ref (sxmml-mml-context) 'repeat-stack)
-     (cond [(null? stack) (error "break command cannot be used outside of repeats")]
-           [(car stack) (error "break command can be used only once in a repeat")])
+     (cond [(null? stack) (error <sxmml-mml-syntax-error> "break command cannot be used outside of repeats")]
+           [(car stack) (error <sxmml-mml-syntax-error> "break command can be used only once in a repeat")])
      (let1 ct (car (slot-ref (sxmml-mml-context) 'current-ticks))
        (set! (cdr ct) (car ct)))
      (slot-pop! (sxmml-mml-context) 'repeat-stack)
@@ -259,7 +267,7 @@
          [$space])
         ($return (begin
                    (when (null? (slot-ref (sxmml-mml-context) 'repeat-stack))
-                     (error "repeat end appeared before repeat start"))
+                     (error <sxmml-mml-syntax-error> "repeat end appeared before repeat start"))
                    (let* ([rc (rope->positive-number data "repeat count must be a positive exact integer: ")]
                           [ctx-values (slot-pop! (sxmml-mml-context) 'repeat-stack)]
                           [rt (slot-pop! (sxmml-mml-context) 'current-ticks)]

@@ -59,8 +59,19 @@
   ;; sxlc-status の結果から、終了値と、pattern に一致する標準エラー出力の行の有無を返す
   (define (status-and-message result pattern)
     (list (car result) (boolean (any pattern (cadr result)))))
+  (define (status-with-location result pattern location)
+    (list (car result) (boolean (any pattern (cadr result)))
+          (boolean (any (string->regexp (regexp-quote #"    at ~location")) (cadr result)))))
   (unwind-protect
       (begin
+        (let1 source (source-output "unknown-error" "(error \"user error\")")
+          (test* "未知のSchemeエラーはGaucheの見出しとスタックを維持する"
+                 '(1 #t #t #f)
+                 (let1 result (sxlc-status "-m" "pmd" source)
+                   (list (car result)
+                         (boolean (any #/\*\*\* ERROR: user error/ (cadr result)))
+                         (boolean (any #/Stack Trace:/ (cadr result)))
+                         (boolean (any #/\*\*\* SXMML-/ (cadr result)))))))
         ;; -c の後処理へ渡す生成名
         (dolist [name '("semi;name" "space name")]
           (test* #"-c receives \"~|name|.mml\" as one argument"
@@ -127,24 +138,24 @@
           (let1 source (source-output "voice-sxlc-location"
                                      (string-append "(mml G \"c8\")\n" (voice-text "(0 0)" "(-1 0 0 0 0 0 0 0 0)")))
             (test* "sxlc shows the location of a wrong voice"
-                   '(1 #t)
-                   (status-and-message (sxlc-status "-m" "pmd" "-o" (work-file "voice-sxlc-location.mml") source)
+                   '(1 #t #t)
+                   (status-with-location (sxlc-status "-m" "pmd" "-o" (work-file "voice-sxlc-location.mml") source)
                                        (string->regexp
-                                        (regexp-quote #"*** SXMML-FORM-ERROR: ~|source|:4: invalid voice value"))))))
+                                      (regexp-quote #"*** SXMML-VALUE-ERROR: invalid voice value")) #"~|source|:4"))))
         (dolist [def '((define-lfo lfo) (define-envelope envelope))]
           (let ([macro (car def)])
             (let1 source (source-output #"~|macro|-sxlc-location" #"(mml G \"c8\")\n(~macro X1)\n")
               (test* #"sxlc shows the location of a wrong ~macro"
-                     '(1 #t)
-                     (status-and-message (sxlc-status "-m" "pmd" "-o" (work-file #"~|macro|-sxlc-location.mml") source)
+                     '(1 #t #t)
+                     (status-with-location (sxlc-status "-m" "pmd" "-o" (work-file #"~|macro|-sxlc-location.mml") source)
                                          (string->regexp
-                                          (regexp-quote #"*** SXMML-FORM-ERROR: ~|source|:2: invalid ~macro form")))))))
+                                      (regexp-quote #"*** SXMML-FORM-SYNTAX-ERROR: invalid ~macro form")) #"~|source|:2")))))
         (let1 source (source-output "processor-sxlc-location" "(mml G \"c8\")\n(mml-delay G (0 2 1) \"c8r8\")\n")
           (test* "sxlc shows the location of a wrong mml-delay value"
-                 '(1 #t)
-                 (status-and-message (sxlc-status "-m" "pmd" "-o" (work-file "processor-sxlc-location.mml") source)
+                 '(1 #t #t)
+                 (status-with-location (sxlc-status "-m" "pmd" "-o" (work-file "processor-sxlc-location.mml") source)
                                      (string->regexp
-                                      (regexp-quote #"*** SXMML-FORM-ERROR: ~|source|:2: invalid mml-delay value: ticks is 0")))))
+                                      (regexp-quote #"*** SXMML-VALUE-ERROR: invalid mml-delay value: ticks is 0")) #"~|source|:2")))
         (let1 source (source-output "meta-sxlc-old" "(define-metadata memo (\"a\"))\n(mml G \"c8\")\n")
           (test* "sxlc warns about the old define-metadata form"
                  '(0 #t)
@@ -153,10 +164,10 @@
                                       (regexp-quote #"warning: ~|source|:1: (define-metadata memo")))))
         (let1 source (source-output "meta-sxlc-wrong" "(mml G \"c8\")\n(define-metadata title)\n")
           (test* "sxlc shows the location of a wrong define-metadata"
-                 '(1 #t)
-                 (status-and-message (sxlc-status "-m" "pmd" "-o" (work-file "meta-sxlc-wrong.mml") source)
+                 '(1 #t #t)
+                 (status-with-location (sxlc-status "-m" "pmd" "-o" (work-file "meta-sxlc-wrong.mml") source)
                                      (string->regexp
-                                      (regexp-quote #"*** SXMML-FORM-ERROR: ~|source|:2: invalid define-metadata form")))))
+                                      (regexp-quote #"*** SXMML-FORM-SYNTAX-ERROR: invalid define-metadata form")) #"~|source|:2")))
         ;; sxlc の -O 3 と -O 4 (#69)。標準出力の Optimize level の行と、生成物のトラック A の行
         (let1 converted (^[name text level]
                           (let1 lines (run-sxlc name `((mml A ,text)) "-m" "pmd" "-O" level)

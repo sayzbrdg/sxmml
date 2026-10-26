@@ -1,6 +1,8 @@
 = `sxmml.backend.pmd` の生成処理
 :toc: left
 
+既存の数値・定義形式の検査はvalue-error、未定義の音色・LFO・エンベロープはreference-error、重複Lはmml-syntax-errorです。音色数の上限は基底sxmml-errorで通知します。検査範囲や生成内容は変えません。
+
 `sxmml.backend.pmd` には、PMD 向け MML の生成に使う 70 の定義と、LFO・エンベロープの規則の 4 つの表（`%pmd-lfo-types`・`%pmd-lfo-ranges`・`%pmd-envelope-types`・`%pmd-envelope-ranges`）があります。公開名はモード選択と生成の手続きで、`%` で始まる手続き、トラック状態のクラスとパラメータは内部で使います。パラメータ、オブジェクト、文字コード変換、一時ファイル、ファイル名操作は Gauche 0.9.15 の動作に従います。
 
 生成系の `%pmd-...set!` 手続きは、特記しない限り `obj` を受けて現在の出力ポートへ PMD MML の文字列を書きます。名前の `set!` は文字列出力を含む内部の慣用名で、環境オブジェクトの slot を必ず変更するという意味ではありません。戻り値は生成側で使いません。必要なオブジェクト型と slot は xref:classes.adoc[クラス一覧]を参照してください。

@@ -1,5 +1,7 @@
 = `sxmml.util` の補助手続き
 
+BPM換算結果の既存の範囲違反はvalue-errorで通知します。計算自体のGaucheエラーを捕捉せず、新しい入力検査や受理範囲の変更は加えません。
+
 `sxmml.util` は `sxmml-bpm\->timer-b` を公開します。
 
 [[ref-util-sxmml-bpm-to-timer-b]]

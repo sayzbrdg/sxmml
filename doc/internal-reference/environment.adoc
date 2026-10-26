@@ -1,6 +1,8 @@
 = `sxmml.environment` の状態管理
 :toc: left
 
+解像度の既存の検査はvalue-error、独自マクロの形式違反はform-syntax-errorです。取得できるフォーム位置は既知のエラーだけへ独立したconditionとして添えます。値の式の未定義変数や引数個数など、Gauche由来の失敗は包み直しません。
+
 `sxmml.environment` には環境と登録表を操作する 26 の定義があり、そのうち 24 を公開します。パラメータ、マクロ、ハッシュ表の動作は Gauche 0.9.15 に従います。MML 記述者向けの使用例は xref:../sxmml-reference-manual.adoc[公開機能リファレンス]を参照してください。
 
 状態を保持する本体は xref:classes.adoc#ref-classes-class-sxmml-environment[`<sxmml-environment>`] です。`make-parameter` で作る束縛は手続きであり、引数なしで現在値を返し、値を一つ渡すと動的な現在値を変更して旧値を返します。表の設定手続きは、特記しない限り現在の環境オブジェクト内の slot または表を変更します。登録手続きの戻り値は呼び出し側では使用していません。`get` の未登録時の挙動は項目ごとに異なります。
@@ -20,14 +22,14 @@
 |[[ref-environment-internal-sxmml-mode-select]]`(%sxmml-mode-select location thunk)` |`sxmml-mode` の展開先。非公開 |`sxmml-mode-fixed` が偽なら `thunk` を呼ぶ。真なら呼ばず、`sxmml-form-warn-at` で `warning: 位置: sxmml-mode in source is ignored; mode is already set to モード名` を表示する |link:../../sxmml/environment.scm[environment.scm]
 |[[ref-environment-sxmml-metadata-get]]`(sxmml-metadata-get key)` |`metadata` 表から `key` を検索 |未登録なら `#f` |link:../../sxmml/environment.scm[environment.scm]
 |[[ref-environment-sxmml-metadata-set-bang]]`(sxmml-metadata-set! key value)` |`metadata` 表へ値を登録 |既存の同じ key を上書き |link:../../sxmml/environment.scm[environment.scm]
-|[[ref-environment-define-metadata]]`(define-metadata key value)` |`key` を小文字化した symbol にし、`value` を式として評価して登録するマクロ |括弧の中が 1 つ以上で全て文字列の旧書式 `(define-metadata key ("a" ...))` は、展開時に `sxmml-form-warn` で非推奨の警告を出し、文字列のリストとして登録する。値がない、引数が多いなどは `invalid define-metadata form` の `<sxmml-form-error>`。登録の呼び出しは `sxmml-form-wrap` で包むので、値の式の誤りにも定義の位置が付く。値の型は検査しない |link:../../sxmml/environment.scm[environment.scm]
+|[[ref-environment-define-metadata]]`(define-metadata key value)` |`key` を小文字化した symbol にし、`value` を式として評価して登録するマクロ |括弧の中が 1 つ以上で全て文字列の旧書式 `(define-metadata key ("a" ...))` は、展開時に `sxmml-form-warn` で非推奨の警告を出し、文字列のリストとして登録する。値がない、引数が多いなどは `invalid define-metadata form` の `<sxmml-form-error>`。登録の呼び出しは `sxmml-form-wrap` で包むので、既知の値の誤りにも定義の位置が付く。値の型は検査しない |link:../../sxmml/environment.scm[environment.scm]
 |===
 
 `sxmml-mode` の呼び出し先を選ぶ処理は、backend モジュールが読み込まれていることを前提とします。CLI とソースの双方でモードを指定した場合は CLI 側が優先されます。動作は link:../behavior-spec.md#入力と実行順[外部動作仕様]を参照してください。
 
 == LFO・エンベロープの登録
 
-`define-lfo` と `define-envelope` は、共通の `%define-lfo/envelope-expand` で展開し、実行時に対応する `set!` 手続きを呼びます。`type`（LFO・エンベロープの種類。波形の種類）はリテラルのシンボルで、省略すると `default` です。枠の中の値は式として評価し、`(list 値 …)` を登録します。形は展開時に検査し、誤りは xref:form.adoc[`sxmml.form`] の `sxmml-form-error` で定義の位置を付けて投げます。値の式の誤りも、`sxmml-form-call` が定義の位置を付けた `<sxmml-form-error>` にします。未登録 ID の取得は、`get` に既定値を渡していないためハッシュ表の検索エラーになります。
+`define-lfo` と `define-envelope` は、共通の `%define-lfo/envelope-expand` で展開し、実行時に対応する `set!` 手続きを呼びます。`type`（LFO・エンベロープの種類。波形の種類）はリテラルのシンボルで、省略すると `default` です。枠の中の値は式として評価し、`(list 値 …)` を登録します。形は展開時に検査し、誤りは xref:form.adoc[`sxmml.form`] の `sxmml-form-error` で定義の位置を付けて投げます。既知の入力エラーだけに `sxmml-form-call` が独立した位置conditionを添えます。値の式のGaucheエラーは包み直しません。未登録 ID の取得は、`get` に既定値を渡していないためハッシュ表の検索エラーになります。
 
 [cols="2,4,4,1",options="header"]
 |===

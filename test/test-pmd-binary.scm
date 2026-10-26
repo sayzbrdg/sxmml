@@ -86,11 +86,18 @@
       (sxmml-pmd-binary-output)))
   (unwind-protect
       (begin
+        (test* "公開pmd-binary出力の範囲違反は値エラーになる"
+               (test-error <sxmml-value-error> #/value exceeds the range/)
+               (make-binary-data "typed-volume" pmd-binary '((mml A "v128c"))))
+        (test* "公開pmd-binary出力の未定義音色は参照エラーになる"
+               (test-error <sxmml-reference-error> #/no instrument define/)
+               (make-binary-data "typed-reference" pmd-binary '((mml A "@{UNKNOWN}c"))))
+
         (test* "通常トラックの直接IR入力で2個目のLを拒否する"
-               (test-error <error> "loop command can be used only once in a track")
+               (test-error <sxmml-mml-syntax-error> "loop command can be used only once in a track")
                (multiple-loop-output 'G))
         (test* "リズムの直接IR入力で2個目のLを拒否する"
-               (test-error <error> "loop command can be used only once in a track")
+               (test-error <sxmml-mml-syntax-error> "loop command can be used only once in a track")
                (multiple-loop-output 'L))
         (test* "入力名なしのライブラリ利用では ./a.m を既定値として記録する"
                '("./a.m" "./a.m")
@@ -414,7 +421,7 @@
                  "00 ff 00 00 00 00 00 00 6d 00 35 00 36 00 37 00 38 00 39 00 3a 00 3b 00 00 00"
                  (section-hex (make-binary-data (car case) pmd-binary (cadr case)) 'voice)))
         (test* "pmd-binary はメタデータの memo の要素が文字列でなければ失敗する"
-               (test-error <error> "invalid metadata value: memo is (\"a\" 1) (expected a string or a list of strings)")
+               (test-error <sxmml-value-error> "invalid metadata value: memo is (\"a\" 1) (expected a string or a list of strings)")
                (make-binary-data "meta-memo-element" pmd-binary
                                 '((define-metadata memo (list "a" 1)) (mml A "c8"))))
         ;; LFO・エンベロープは -m pmd と同じ規則で検査する。PMD3 だけの検査は、チャンネル B と
