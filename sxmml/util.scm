@@ -36,5 +36,5 @@
   (let1 timerb (floor (- 256 (/ 208000 (* bpm (or res (sxmml-resolution-get))))))
     (when (or (< timerb 0)
               (> timerb 255))
-      (errorf <sxmml-value-error> "invalid Timer-B: ~s (expected an integer from 0 to 255)" timerb))
+      (errorf <sxmml-value-error> "invalid calculated Timer-B: ~s (from BPM ~s; expected an integer from 0 to 255)" timerb bpm))
     timerb))

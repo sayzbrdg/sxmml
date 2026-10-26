@@ -1,11 +1,11 @@
 = `sxmml.backend.pmd` の生成処理
 :toc: left
 
-数値検査は `invalid 項目: 値 (expected an integer from 下限 to 上限)` で説明し、参照エラーは `undefined voice/LFO/envelope: 名前` で示します。`%pmd-voice-number` のkindにはSSG/PCMの項目名を渡します。診断のために範囲・生成内容を変更しません。
+数値検査は `invalid 項目: 値 (expected an integer from 下限 to 上限)` で説明し、参照エラーは `undefined voice/LFO/envelope: 名前` で示します。`%pmd-voice-number` のkindにはSSG/PCMの項目名を渡します。音高は音名と許容音域で示し、ポルタメントは始点・終点を区別します。診断のために範囲・生成内容を変更しません。
 
 既存の数値・定義形式の検査はvalue-error、未定義の音色・LFO・エンベロープはreference-error、重複Lはmml-syntax-errorです。音色数の上限は基底sxmml-errorで通知します。検査範囲や生成内容は変えません。
 
-`sxmml.backend.pmd` には、PMD 向け MML の生成に使う 70 の定義と、LFO・エンベロープの規則の 4 つの表（`%pmd-lfo-types`・`%pmd-lfo-ranges`・`%pmd-envelope-types`・`%pmd-envelope-ranges`）があります。公開名はモード選択と生成の手続きで、`%` で始まる手続き、トラック状態のクラスとパラメータは内部で使います。パラメータ、オブジェクト、文字コード変換、一時ファイル、ファイル名操作は Gauche 0.9.15 の動作に従います。
+`sxmml.backend.pmd` には、PMD 向け MML の生成に使う 71 の定義と、LFO・エンベロープの規則の 4 つの表（`%pmd-lfo-types`・`%pmd-lfo-ranges`・`%pmd-envelope-types`・`%pmd-envelope-ranges`）があります。公開名はモード選択と生成の手続きで、`%` で始まる手続き、トラック状態のクラスとパラメータは内部で使います。パラメータ、オブジェクト、文字コード変換、一時ファイル、ファイル名操作は Gauche 0.9.15 の動作に従います。
 
 生成系の `%pmd-...set!` 手続きは、特記しない限り `obj` を受けて現在の出力ポートへ PMD MML の文字列を書きます。名前の `set!` は文字列出力を含む内部の慣用名で、環境オブジェクトの slot を必ず変更するという意味ではありません。戻り値は生成側で使いません。必要なオブジェクト型と slot は xref:classes.adoc[クラス一覧]を参照してください。
 
@@ -81,6 +81,7 @@ FM音色定義の出力ではAL・FB・DT、AR・DR・SR、RR・SL・ML、TL、K
 |書式 |入力と出力 |状態・失敗条件 |ソース
 |[[ref-pmd-internal-pmd-rest-output]]`(%pmd-rest-output obj)` |休符の `ticks` を `r` または `r%数` で書く |255 を超える長さは複数に分割。既定音長と一致すれば数値を省略 |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-internal-pmd-value-check]]`(%pmd-value-check kind value min max)` |出力値を検査する内部手続き |正確な整数で `min` 以上 `max` 以下なら元の値を返す。それ以外は項目名・値・許容範囲を示すエラー |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-internal-pmd-note-check]]`(%pmd-note-check note :optional (kind "note"))` |音高を検査して返す |12～107の正確な整数に限る。範囲外は音名と `o1c - o8b`、非整数は数値と整数の条件を示す。`kind` は通常音符・ポルタメント始点・終点の区別 |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-internal-pmd-note-output]]`(%pmd-note-output obj)` |音高をオクターブ指定と音名、長さで書く |トラック状態の `octave` を更新。255 超の長さは `&` で分割 |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-internal-pmd-fm-voice-output]]`(%pmd-fm-voice-output obj)` |登録済み FM 音色を `@番号` で書く |番号は `%pmd-fm-voice-number` で引く。ID が `voice` 表になければ `undefined voice` エラー |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-internal-pmd-fm-voice-number]]`(%pmd-fm-voice-number voice)` |音色オブジェクトの番号を返す |`%pmd-voice-numbers` の表を `id` で引く |link:../../sxmml/backend/pmd.scm[pmd.scm]
@@ -105,7 +106,7 @@ FM音色定義の出力ではAL・FB・DT、AR・DR・SR、RR・SL・ML、TL、K
 |[[ref-pmd-internal-pmd-fm-volume-change-output]]`(%pmd-fm-volume-change-output obj)` |FM 音量差を `)` / `(` または `%数` 付きで書く |幅 4 を短い表記にする |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-internal-pmd-ssg-volume-change-output]]`(%pmd-ssg-volume-change-output obj)` |SSG 音量差を `)` / `(` または `%数` 付きで書く |幅 1 を短い表記にする |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-internal-pmd-pcm-volume-change-output]]`(%pmd-pcm-volume-change-output obj)` |PCM 音量差を `)` / `(` または `%数` 付きで書く |幅 16 を短い表記にする |link:../../sxmml/backend/pmd.scm[pmd.scm]
-|[[ref-pmd-internal-pmd-portamento-output]]`(%pmd-portamento-output obj)` |開始・終了音と tick 長を波括弧形式で書く |トラック状態の `octave` を更新。音高対と `ticks` が必要 |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-internal-pmd-portamento-output]]`(%pmd-portamento-output obj)` |開始・終了音と tick 長を波括弧形式で書く |トラック状態の `octave` を更新。音高対と `ticks` が必要。範囲外の音は `portamento start note` / `portamento end note` で区別 |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-internal-pmd-ssg-voice-output]]`(%pmd-ssg-voice-output obj)` |数値 ID を `@数` で書く |`%pmd-voice-number` で 0～9 の整数に限る |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-internal-pmd-pcm-voice-output]]`(%pmd-pcm-voice-output obj)` |数値 ID を `@数` で書く |`%pmd-voice-number` で 0～255 の整数に限る |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-internal-pmd-voice-number]]`(%pmd-voice-number obj max kind)` |SSG・PCM の音色の値を数にする |0 から `max` までの整数を返す。整数でない数と数でない値は、書かれた値を含む 項目名付きの `invalid SSG voice number` または `invalid PCM voice number` エラー |link:../../sxmml/backend/pmd.scm[pmd.scm]

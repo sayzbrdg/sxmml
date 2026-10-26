@@ -381,6 +381,15 @@
     (errorf <sxmml-value-error> "invalid ~a: ~s (expected an integer from ~a to ~a)" kind value min max))
   value)
 
+(define (%pmd-note-check note :optional (kind "note"))
+  (unless (exact-integer? note)
+    (%pmd-value-check kind note 12 107))
+  (unless (<= 12 note 107)
+    (let1 named (%note-number->pmd-note note)
+      (errorf <sxmml-value-error> "invalid ~a: o~a~a (expected o1c - o8b)"
+              kind (car named) (cdr named))))
+  note)
+
 ;; PMD operator
 (define (%pmd-rest-output obj)
   (let recur ([ticks (slot-ref obj 'ticks)])
@@ -393,7 +402,7 @@
            (format #t "r%~d" ticks)])))
 
 (define (%pmd-note-output obj)
-  (let recur ([note (%note-number->pmd-note (%pmd-value-check "note" (slot-ref obj 'value) 12 107))]
+  (let recur ([note (%note-number->pmd-note (%pmd-note-check (slot-ref obj 'value)))]
               [ticks (slot-ref obj 'ticks)]
               [octave (slot-ref (sxmml-pmd-track-environment) 'octave)])
     (cond [(or (> (- (car note) octave) 1) (< (- (car note) octave) -1))
@@ -584,9 +593,9 @@
              (slot-set! (sxmml-pmd-track-environment) 'octave noteoct)
              (format #t "<")])))
   (let ([start (%note-number->pmd-note
-                (%pmd-value-check "portamento start" (car (slot-ref obj 'value)) 12 107))]
+                (%pmd-note-check (car (slot-ref obj 'value)) "portamento start note"))]
         [end (%note-number->pmd-note
-              (%pmd-value-check "portamento end" (cdr (slot-ref obj 'value)) 12 107))]
+              (%pmd-note-check (cdr (slot-ref obj 'value)) "portamento end note"))]
         [ticks (%pmd-value-check "portamento ticks" (slot-ref obj 'ticks) 1 255)])
     (octave-output (car start))
     (format #t "{~a" (cdr start))

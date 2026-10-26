@@ -383,7 +383,7 @@
                 (sxlc-status "-m" "pmd" "-o" (work-file "negative-note.mml")
                              (source-output "negative-note" "(mml A \"o1c<<b\")"))
                 (string->regexp
-                 (regexp-quote "invalid note: -1 (expected an integer from 12 to 107)"))))
+                 (regexp-quote "invalid note: o-1b (expected o1c - o8b)"))))
         ;; リズムのパンは 1（右）・2（左）・3（中央）で、範囲外は値と範囲を示して失敗する。
         ;; これまでは \#<undef>b のような壊れた MML を書いていた (#102)
         (test* "rhythm pans 1, 2 and 3 are output as right, left and center"
@@ -443,7 +443,7 @@
                '("A o8b%12")
                (pmd-ir-result "note-high" 'A (list (make <sxmml-mml-note> :value 107 :ticks 12))))
         (test* "通常音符の音域外を拒否する"
-               (range-message "note" 108 12 107)
+               "invalid note: o9c (expected o1c - o8b)"
                (pmd-ir-result "note-outside" 'A (list (make <sxmml-mml-note> :value 108 :ticks 12))))
         (let ([upper '(31 31 31 15 15 127 3 15 7 0 0 1)]
               [ir (range-ir (make <sxmml-mml-voice> :value 'tone) 'A)])
@@ -500,8 +500,12 @@
                (range-message "portamento ticks" 256 1 255)
                (pmd-ir-result "portamento-long" 'A
                               (list (make <sxmml-mml-portamento> :value '(12 . 107) :ticks 256))))
+        (test* "ポルタメントの始点音域外は音名で示す"
+               "invalid portamento start note: o0b (expected o1c - o8b)"
+               (pmd-ir-result "portamento-start" 'A
+                              (list (make <sxmml-mml-portamento> :value '(11 . 48) :ticks 12))))
         (test* "ポルタメントの終点音域外を拒否する"
-               (range-message "portamento end" 108 12 107)
+               "invalid portamento end note: o9c (expected o1c - o8b)"
                (pmd-ir-result "portamento-end" 'A
                               (list (make <sxmml-mml-portamento> :value '(48 . 108) :ticks 12))))
         (test* "整数でないゲートタイムを拒否する"

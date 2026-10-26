@@ -95,15 +95,37 @@
         (dolist [case '(("timer" <sxmml-mml-tempo-absolute> 251
                          "invalid Timer-B: 251 (expected an integer from 0 to 250)")
                         ("detune" <sxmml-mml-detune> 32768
-                         "invalid detune: 32768 (expected an integer from -32768 to 32767)")
-                        ("decrease" <sxmml-mml-volume-change> -128
-                         "invalid FM volume decrease: 128 (expected an integer from 0 to 127)"))]
+                         "invalid detune: 32768 (expected an integer from -32768 to 32767)"))]
           (test* #"符号化の項目と単位を示す: ~(car case)"
                  (test-error <sxmml-value-error> (cadddr case))
                  (make-binary-data #"typed-~(car case)" pmd-binary
                                    `((sxmml-ir-register!
                                       (list (make ,(cadr case) :value ,(caddr case))
                                             (make <sxmml-mml-note> :value 48 :ticks 12)) 'A)) #f)))
+
+        (test* "BPM換算後の出力上限超過は計算結果とBPMを示す"
+               (test-error <sxmml-value-error>
+                           "invalid calculated Timer-B: 251 (from BPM 2000; expected an integer from 0 to 250)")
+               (make-binary-data "calculated-timer" pmd-binary
+                                 '((sxmml-resolution-set! 24)
+                                   (sxmml-ir-register!
+                                    (list (make <sxmml-mml-tempo> :value 2000)
+                                          (make <sxmml-mml-note> :value 48 :ticks 12)) 'A)) #f))
+        (dolist [case '(("FM" A 127 "7f") ("SSG" G 15 "0f") ("PCM" J 255 "ff"))]
+          (let ([kind (car case)] [track (cadr case)] [limit (caddr case)])
+            (define (relative-data name value)
+              (make-binary-data name pmd-binary
+                                `((sxmml-ir-register!
+                                   (list (make <sxmml-mml-volume-change> :value ,value)
+                                         (make <sxmml-mml-note> :value 48 :ticks 12)) ',track)) #f))
+            (test* #"~|kind|相対音量の範囲外は符号付きの指定値と範囲を示す"
+                   (test-error <sxmml-value-error>
+                               (format "invalid ~a relative volume: ~a (expected an integer from ~a to ~a)"
+                                       kind (- (+ limit 1)) (- limit) limit))
+                   (relative-data #"relative-~|kind|-bad" (- (+ limit 1))))
+            (test* #"~|kind|相対音量の負側境界の符号化を維持する"
+                   (format "e2 ~a 30 0c 80" (cadddr case))
+                   (section-hex (relative-data #"relative-~|kind|-boundary" (- limit)) track))))
 
         (test* "公開pmd-binary出力の範囲違反は値エラーになる"
                (test-error <sxmml-value-error> "invalid FM volume: 128 (expected an integer from 0 to 127)")
@@ -350,11 +372,12 @@
                   " ")
                  (hex-bytes (make-binary-data "whole-pmd3" pmd3-binary forms))))
         ;; PMD の音高の 1 バイトで表せない音高は、範囲外の音高と許される範囲を示して失敗する。
-        (dolist [case '(("上側" "o8c>c" "o9c")
-                       ("上側" "o8b>e-" "o9e-")
-                       ("下側" "o1c<c" "o0c")
-                       ("下側" "o1c<<b" "o-1b")
-                       ("ポルタメントの終了音" "o8/{b >c}8" "o9c"))]
+        (dolist [case '(("上側" "o8c>c" "o9c" "note")
+                       ("上側" "o8b>e-" "o9e-" "note")
+                       ("下側" "o1c<c" "o0c" "note")
+                       ("下側" "o1c<<b" "o-1b" "note")
+                       ("ポルタメントの終了音" "o8/{b >c}8" "o9c" "portamento end note")
+                       ("ポルタメントの開始音" "o0/{b >c}8" "o0b" "portamento start note"))]
           (let* ([source (source-output (work-file #"note-range-~(caddr case).sxl")
                                        `((mml A ,(cadr case))))]
                  [output (work-file #"note-range-~(caddr case).m")]
@@ -363,7 +386,7 @@
                    '(1 #t #f)
                    (list (car result)
                          (boolean (any (string->regexp
-                                        (regexp-quote #"invalid note: ~(caddr case) (expected o1c - o8b)"))
+                                        (regexp-quote #"invalid ~(cadddr case): ~(caddr case) (expected o1c - o8b)"))
                                        (cadr result)))
                          (file-exists? output)))))
         ;; ポルタメントの音長は 1 バイトなので、255 tick を超えると、音長と許される範囲を示して

@@ -467,7 +467,13 @@
   (%pmd-1byte-set! u8vec offset #xfc (slot-ref obj 'value) 250 0 "Timer-B"))
 
 (define (%pmd-tempo-set! u8vec offset obj)
-  (%pmd-1byte-set! u8vec offset #xfc (sxmml-bpm->timer-b (slot-ref obj 'value)) 250 0 "Timer-B"))
+  (let* ([bpm (slot-ref obj 'value)]
+         [timerb (sxmml-bpm->timer-b bpm)])
+    (when (> timerb 250)
+      (errorf <sxmml-value-error>
+              "invalid calculated Timer-B: ~s (from BPM ~s; expected an integer from 0 to 250)"
+              timerb bpm))
+    (%pmd-1byte-set! u8vec offset #xfc timerb 250 0 "Timer-B")))
   ;; (when (or (> value 255) (< value 18))
   ;;   (errorf "value exceeds the range: ~a (~a - ~a): ~a" value 18 255 obj))
   ;; (u8vector-set! u8vec offset #xfc)
@@ -570,8 +576,16 @@
 (define (%pmd-transpose-change-set! u8vec offset obj)
   (%pmd-1byte-set! u8vec offset #xe7 (slot-ref obj 'value) 127 -128 "relative transpose"))
 
-(define (%pmd-fm-volume-change-set! u8vec offset obj)
+(define (%pmd-volume-change-value obj max kind)
   (let1 value (slot-ref obj 'value)
+    (when (or (> value max) (< value (- max)))
+      (errorf <sxmml-value-error>
+              "invalid ~a relative volume: ~s (expected an integer from ~a to ~a)"
+              kind value (- max) max))
+    value))
+
+(define (%pmd-fm-volume-change-set! u8vec offset obj)
+  (let1 value (%pmd-volume-change-value obj 127 "FM")
     (cond [(= value 4)
            (%pmd-single-set! u8vec offset #xf4)]
           [(= value -4)
@@ -582,7 +596,7 @@
            (%pmd-1byte-set! u8vec offset #xe2 (* (slot-ref obj 'value) -1) 127 0 "FM volume decrease")])))
 
 (define (%pmd-ssg-volume-change-set! u8vec offset obj)
-  (let1 value (slot-ref obj 'value)
+  (let1 value (%pmd-volume-change-value obj 15 "SSG")
     (cond [(= value 1)
            (%pmd-single-set! u8vec offset #xf4)]
           [(= value -1)
@@ -593,7 +607,7 @@
            (%pmd-1byte-set! u8vec offset #xe2 (* (slot-ref obj 'value) -1) 15 0 "SSG volume decrease")])))
 
 (define (%pmd-pcm-volume-change-set! u8vec offset obj)
-  (let1 value (slot-ref obj 'value)
+  (let1 value (%pmd-volume-change-value obj 255 "PCM")
     (cond [(= value 16)
            (%pmd-single-set! u8vec offset #xf4)]
           [(= value -16)
@@ -605,8 +619,8 @@
 
 ;; ポルタメントの音長は 1 バイトなので、音符のように分割できない。255 tick までとする
 (define (%pmd-portamento-set! u8vec offset obj)
-  (let ([start (%note-number->pmd-note (car (slot-ref obj 'value)))]
-        [end (%note-number->pmd-note (cdr (slot-ref obj 'value)))]
+  (let ([start (%note-number->pmd-note (car (slot-ref obj 'value)) "portamento start note")]
+        [end (%note-number->pmd-note (cdr (slot-ref obj 'value)) "portamento end note")]
         [ticks (slot-ref obj 'ticks)])
     (unless (<= 1 ticks 255)
       (errorf <sxmml-value-error> "invalid portamento ticks: ~s (expected an integer from 1 to 255)" ticks))
@@ -785,9 +799,9 @@
 ;; 音高は 12 * オクターブ + 音名 (0～11) なので、負の音高も floor/ でオクターブと音名に分ける。
 ;; PMD の音高の 1 バイトは、上位 4 ビットがオクターブ - 1、下位 4 ビットが音名で、
 ;; o1c から o8b までを表す
-(define-inline (%note-number->pmd-note note)
+(define-inline (%note-number->pmd-note note :optional (kind "note"))
   (unless (<= 12 note 107)
-    (errorf <sxmml-value-error> "invalid note: ~a (expected o1c - o8b)" (%note-number->name note)))
+    (errorf <sxmml-value-error> "invalid ~a: ~a (expected o1c - o8b)" kind (%note-number->name note)))
   (receive (octave notenum) (floor/ note 12)
     (+ (ash (- octave 1) 4) notenum)))
 

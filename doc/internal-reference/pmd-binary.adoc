@@ -1,7 +1,7 @@
 = `sxmml.backend.pmd-binary` の生成処理（実験的）
 :toc: left
 
-`%pmd-1byte-set!` と `%pmd-2bytes-set!` の引数は `(u8vec offset cmd value max min kind)` です。全22呼出しで、音源や指定内容を知る呼出し元からkindを渡し、範囲外の値は項目・指定値・範囲で説明します。命令コードや内部オブジェクトは診断に表示しません。相対音量の負側は変換済みの大きさを「減少量」として説明します。比較・符号化・範囲・戻り値は維持します。
+`%pmd-1byte-set!` と `%pmd-2bytes-set!` の引数は `(u8vec offset cmd value max min kind)` です。全22呼出しで、音源や指定内容を知る呼出し元からkindを渡し、範囲外の値は項目・指定値・範囲で説明します。命令コードや内部オブジェクトは診断に表示しません。相対音量は `%pmd-volume-change-value` で符号付きの指定値と範囲を示してから従来どおり符号化します。BPM由来のTimer-Bは計算結果と元のBPMを示します。音高は音名と許容音域を示し、ポルタメントの始点・終点を区別します。比較・符号化・範囲・戻り値は維持します。
 
 既存の数値・定義形式の検査はvalue-error、未定義の音色・LFO・エンベロープはreference-error、重複Lはmml-syntax-errorです。生成物サイズとトラック長の上限は基底sxmml-errorで通知します。I/Oや内部のGaucheエラーは包み直しません。
 
