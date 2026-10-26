@@ -45,10 +45,10 @@
 ;;;
 (define-inline (rope->number rope)
   (string->number (rope->string rope)))
-(define-inline (rope->positive-number rope :optional (message "ticks must be a positive integer: "))
+(define-inline (rope->positive-number rope :optional (message "invalid tick length: ~s (expected a positive exact integer)"))
   (let1 num (rope->number rope)
     (unless (and (exact-integer? num) (positive? num))
-      (error <sxmml-mml-syntax-error> message num))
+      (errorf <sxmml-mml-syntax-error> message num))
     num))
 (define-inline (rope->symbol rope)
   (string->symbol (rope->string rope)))
@@ -268,7 +268,7 @@
         ($return (begin
                    (when (null? (slot-ref (sxmml-mml-context) 'repeat-stack))
                      (error <sxmml-mml-syntax-error> "repeat end appeared before repeat start"))
-                   (let* ([rc (rope->positive-number data "repeat count must be a positive exact integer: ")]
+                   (let* ([rc (rope->positive-number data "invalid repeat count: ~s (expected a positive exact integer)")]
                           [ctx-values (slot-pop! (sxmml-mml-context) 'repeat-stack)]
                           [rt (slot-pop! (sxmml-mml-context) 'current-ticks)]
                           [ct (slot-ref (sxmml-mml-context) 'current-ticks)]
@@ -354,7 +354,7 @@
                   ($let ([cmd ($any)]
                          [$space])
                         (guard (e [(is-a? e <error>)
-                                   ($raise (format #f "unknown MML command \"~a\"" cmd))])
+                                   ($raise (format #f "unknown MML command: \"~a\"" cmd))])
                           (hash-table-get *note-command* cmd))))))
 
 ;; rhythm command
@@ -436,5 +436,5 @@
   ($seq $space ($let ([cmd ($any)]
                     [$space])
                    (guard (e [(is-a? e <error>)
-                              ($raise (format #f "unknown MML command \"~a\"" cmd))])
+                              ($raise (format #f "unknown MML command: \"~a\"" cmd))])
                      (hash-table-get *rhythm-command* cmd)))))

@@ -42,17 +42,17 @@
            (with-new-environment
             (^[] (eval `(define-opn-voice v (0 0) ,op10 ,op11 ,op0 ,op0) (interaction-environment))
                  (voice-value (sxmml-environment) 'v)))))
-  (dolist [case `(("a non-symbol voice id" "voice id must be a symbol: 0" (0 (0 0) ,@ops))
-                  ("an invalid al/fb" "invalid voice format: @v, al/fb, (0)" (v (0) ,@ops))
-                  ("an invalid operator" "invalid voice format: @v, operator(2), (0 0 0)"
+  (dolist [case `(("a non-symbol voice id" "invalid voice id: 0 (expected a symbol)" (0 (0 0) ,@ops))
+                  ("an invalid al/fb" "invalid voice @v al/fb: (0) (expected a list of 2 values)" (v (0) ,@ops))
+                  ("an invalid operator" "invalid voice @v operator(2): (0 0 0) (expected a list of 9 to 12 values)"
                    (v (0 0) ,op0 (0 0 0) ,op0 ,op0))
-                  ("a negative value" "invalid voice value: @v, operator(2), -1"
+                  ("a negative value" "invalid voice @v operator(2): -1 (expected a nonnegative exact integer)"
                    (v (0 0) ,op0 (-1 0 0 0 0 0 0 0 0) ,op0 ,op0))
-                  ("an inexact value" "invalid voice value: @v, operator(2), 1.5"
+                  ("an inexact value" "invalid voice @v operator(2): 1.5 (expected a nonnegative exact integer)"
                    (v (0 0) ,op0 (1.5 0 0 0 0 0 0 0 0) ,op0 ,op0))
-                  ("a non-number value" "invalid voice value: @v, operator(2), x"
+                  ("a non-number value" "invalid voice @v operator(2): x (expected a nonnegative exact integer)"
                    (v (0 0) ,op0 (x 0 0 0 0 0 0 0 0) ,op0 ,op0))
-                  ("a negative al/fb" "invalid voice value: @v, al/fb, -1" (v (0 -1) ,@ops)))]
+                  ("a negative al/fb" "invalid voice @v al/fb: -1 (expected a nonnegative exact integer)" (v (0 -1) ,@ops)))]
     (test* #"~(car case) fails" (test-error <sxmml-value-error> (cadr case))
            (with-new-environment (^[] (apply sxmml-opn-voice-set! (caddr case))))))
   ;; 同じ id の定義の判定は実行時に行う。前の環境で展開した定義も、実行した環境に登録する
@@ -103,16 +103,16 @@
                    (let1 v (slot-ref (cdr r) 'value) (list (car v) (cadr v)))))
           (let1 r (load-result "voice-wrong-operator" (voice-text "(0 0)" "(0 0 0)"))
             (test* "a wrong operator in begin fails with its location"
-                   (list #t #"invalid voice format: @V1, operator(2), (0 0 0)" #"~(car r):3" #t)
+                   (list #t #"invalid voice @V1 operator(2): (0 0 0) (expected a list of 9 to 12 values)" #"~(car r):3" #t)
                    (append (error-report r) (list (sxmml-form-syntax-error? (cdr r))))))
           ;; 要素の数の誤りは展開時に構文エラーとして通知する
-          (dolist [case `(("voice-wrong-alfb" "(0)" ,op0 "al/fb, (0)")
-                          ("voice-8-values" "(0 0)" "(0 0 0 0 0 0 0 0)" "operator(2), (0 0 0 0 0 0 0 0)")
+          (dolist [case `(("voice-wrong-alfb" "(0)" ,op0 "al/fb: (0) (expected a list of 2 values)")
+                          ("voice-8-values" "(0 0)" "(0 0 0 0 0 0 0 0)" "operator(2): (0 0 0 0 0 0 0 0) (expected a list of 9 to 12 values)")
                           ("voice-13-values" "(0 0)" "(0 0 0 0 0 0 0 0 0 0 0 0 0)"
-                           "operator(2), (0 0 0 0 0 0 0 0 0 0 0 0 0)"))]
+                           "operator(2): (0 0 0 0 0 0 0 0 0 0 0 0 0) (expected a list of 9 to 12 values)"))]
             (let1 r (load-result (car case) (voice-text (cadr case) (caddr case)))
               (test* #"a wrong number of values fails at expansion with its location: ~(car case)"
-                     (list #t #"invalid voice format: @V1, ~(cadddr case)" #"~(car r):3" #t)
+                     (list #t #"invalid voice @V1 ~(cadddr case)" #"~(car r):3" #t)
                      (append (error-report r) (list (sxmml-form-syntax-error? (cdr r)))))))
           (dolist [case `(("voice-three-operators" ,#"; voice\n(begin\n  (define-opn-voice V1 (0 0)\n    ~op0 ~op0 ~op0)\n  1)\n")
                           ("voice-variable-operator" ,(voice-text "(0 0)" "op")))]
@@ -122,7 +122,7 @@
                      (error-report r))))
           (let1 r (load-result "voice-wrong-value" (voice-text "(0 0)" "(-1 0 0 0 0 0 0 0 0)"))
             (test* "a wrong voice value fails with its location"
-                   (list #t #"invalid voice value: @V1, operator(2), -1" #"~(car r):3"
+                   (list #t #"invalid voice @V1 operator(2): -1 (expected a nonnegative exact integer)" #"~(car r):3"
                           #t)
                    (append (error-report r)
                            (list (sxmml-value-error? (cdr r))))))

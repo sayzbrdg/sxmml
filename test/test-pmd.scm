@@ -58,7 +58,7 @@
       (filter #/^(@\d|[A-JK] |R[01] )/
               (string-split (pmd-ir-text name track ir setup) "\r\n"))))
   (define (range-message kind value low high)
-    (format "invalid ~a value: ~s (expected integer ~a - ~a)" kind value low high))
+    (format "invalid ~a: ~s (expected an integer from ~a to ~a)" kind value low high))
   (define (range-ir obj track)
     (list obj (if (eq? track 'L)
                 (make <sxmml-rhythm-emit> :value #t :bass #t :ticks 12)
@@ -139,12 +139,19 @@
       (sxmml-pmd-source-output)))
   (unwind-protect
       (begin
+        (test* "未定義LFOを名前付きの参照エラーで通知する"
+               (test-error <sxmml-reference-error> "undefined LFO: UNKNOWN")
+               (pmd-text "undefined-lfo" '((mml A "M{UNKNOWN A}c8")) pmd-source #f))
+        (test* "未定義envelopeを名前付きの参照エラーで通知する"
+               (test-error <sxmml-reference-error> "undefined envelope: UNKNOWN")
+               (pmd-text "undefined-envelope" '((mml G "E{UNKNOWN}c8")) pmd-source #f))
+
         (test* "公開pmd-source出力の範囲違反は値エラーになる"
-               (test-error <sxmml-value-error> #/invalid FM volume value: 128/)
+               (test-error <sxmml-value-error> #/invalid FM volume: 128/)
                (pmd-ir-text "typed-volume" 'A
                             (range-ir (make <sxmml-mml-volume> :value 128) 'A)))
         (test* "公開pmd-source出力の未定義音色は参照エラーになる"
-               (test-error <sxmml-reference-error> #/no instrument define/)
+               (test-error <sxmml-reference-error> #/undefined voice/)
                (pmd-ir-text "typed-reference" 'A
                             (range-ir (make <sxmml-mml-voice> :value 'UNKNOWN) 'A)))
         (test* "音色数の上限違反は基底sxmml-errorになる"
@@ -275,15 +282,15 @@
         (let ([lfo (^[def channel] `(,def (mml G ,#"M{L1 ~channel}c8")))]
               [envelope (^[def] `(,def (mml G "E{E1}c8")))])
           (dolist [case `(("lfo-type" ,(lfo '(define-lfo L1 sw (1 2 3 4)) "A")
-                           "unsupported lfo type: sw in L1 (supported: default, triangle)")
+                           "unsupported LFO type: sw in L1 (supported: default, triangle)")
                           ("envelope-type" ,(envelope '(define-envelope E1 sw (1 2 3 4)))
                            "unsupported envelope type: sw in E1 (supported: default)")
                           ("unused-type" ((define-lfo L2 sw (1 2 3 4)) (mml G "c8"))
                            "G l%12o4c")
                           ("lfo-count" ,(lfo '(define-lfo L1 (1 2 3)) "A")
-                           "invalid lfo values: L1 has 3 values (expected 4)")
+                           "invalid LFO values: L1 has 3 values (expected 4)")
                           ("lfo-count-1" ,(lfo '(define-lfo L1 (1)) "A")
-                           "invalid lfo values: L1 has 1 value (expected 4)")
+                           "invalid LFO values: L1 has 1 value (expected 4)")
                           ("envelope-count-3" ,(envelope '(define-envelope E1 (1 2 3)))
                            "invalid envelope values: E1 has 3 values (expected 4, 5 or 6)")
                           ("envelope-count-7" ,(envelope '(define-envelope E1 (1 2 3 4 5 6 7)))
@@ -291,17 +298,17 @@
                           ("envelope-5" ,(envelope '(define-envelope E1 (1 2 3 4 5)))
                            "G l%12E1,2,3,4,5o4c")
                           ("lfo-inexact" ,(lfo '(define-lfo L1 (1 1.5 3 4)) "A")
-                           "invalid lfo value: L1, value 2 is 1.5 (0 - 255)")
+                           "invalid LFO L1 value 2: 1.5 (expected an integer from 0 to 255)")
                           ("lfo-string" ,(lfo '(define-lfo L1 (1 2 "x" 4)) "A")
-                           "invalid lfo value: L1, value 3 is \"x\" (-128 - 127)")
+                           "invalid LFO L1 value 3: \"x\" (expected an integer from -128 to 127)")
                           ("lfo-list" ,(lfo '(define-lfo L1 (1 2 3 (list 1 2))) "A")
-                           "invalid lfo value: L1, value 4 is (1 2) (0 - 255)")
+                           "invalid LFO L1 value 4: (1 2) (expected an integer from 0 to 255)")
                           ("lfo-range" ,(lfo '(define-lfo L1 (1 256 3 4)) "A")
-                           "invalid lfo value: L1, value 2 is 256 (0 - 255)")
+                           "invalid LFO L1 value 2: 256 (expected an integer from 0 to 255)")
                           ("envelope-range-1" ,(envelope '(define-envelope E1 (1 16 3 4)))
-                           "invalid envelope value: E1, value 2 is 16 (-15 - 15)")
+                           "invalid envelope E1 value 2: 16 (expected an integer from -15 to 15)")
                           ("envelope-range-2" ,(envelope '(define-envelope E1 (32 2 3 4 5)))
-                           "invalid envelope value: E1, value 1 is 32 (0 - 31)")
+                           "invalid envelope E1 value 1: 32 (expected an integer from 0 to 31)")
                           ("lfo-bounds" ,(lfo '(define-lfo L1 (0 255 -128 127)) "A")
                            "G l%12M0,255,-128,127o4c")
                           ;; 各値の範囲の両端は通る
@@ -322,10 +329,10 @@
                           ("envelope-6-max" ,(envelope '(define-envelope E1 (31 31 31 15 15 15)))
                            "G l%12E31,31,31,15,15,15o4c")
                           ("lfo-channel" ,(lfo '(define-lfo L1 (1 2 3 4)) "C")
-                           "invalid lfo channel: C")
+                           "invalid LFO channel: C")
                           ;; LFO の切り替えのチャンネルの誤りも、定義と同じメッセージにする
                           ("lfo-switch-channel" ((mml G "Mt{C}c8"))
-                           "invalid lfo channel: C"))]
+                           "invalid LFO channel: C"))]
             (test* #"PMD checks LFO and envelope definitions: ~(car case)"
                    (caddr case)
                    (pmd-g-result (car case) (cadr case))))
@@ -376,7 +383,7 @@
                 (sxlc-status "-m" "pmd" "-o" (work-file "negative-note.mml")
                              (source-output "negative-note" "(mml A \"o1c<<b\")"))
                 (string->regexp
-                 (regexp-quote "invalid note value: -1 (expected integer 12 - 107)"))))
+                 (regexp-quote "invalid note: o-1b (expected o1c - o8b)"))))
         ;; リズムのパンは 1（右）・2（左）・3（中央）で、範囲外は値と範囲を示して失敗する。
         ;; これまでは \#<undef>b のような壊れた MML を書いていた (#102)
         (test* "rhythm pans 1, 2 and 3 are output as right, left and center"
@@ -384,7 +391,7 @@
                (pmd-r0-result "rhythm-pan" '((rhythm L "pb1@b8pb2@b8pb3@b8"))))
         (dolist [value '(0 4)]
           (test* #"a rhythm pan out of range fails: ~value"
-                 #"rhythm pan out of range: ~value (1 - 3)"
+                 #"invalid rhythm pan: ~value (expected an integer from 1 to 3)"
                  (pmd-r0-result #"rhythm-pan-~value" `((rhythm L ,#"pb~|value|@b8")))))
         ;; 楽器別の音量は有効範囲の値をそのまま出力する
         (test* "a rhythm instrument volume within range is output"
@@ -413,7 +420,7 @@
            ("パン" A ,<sxmml-mml-pan> 3 4 "pan" 0 3 "A p3o4c%12")
            ("出力選択" G ,<sxmml-mml-output-switch> 1 0 "output switch" 1 3 "G P1o4c%12")
            ("ノイズ周波数" G ,<sxmml-mml-noise-frequency> 31 32 "noise frequency" 0 31 "G w31o4c%12")
-           ("Timer-B" A ,<sxmml-mml-tempo-absolute> 255 256 "timerb" 0 255 "A T255o4c%12")))
+           ("Timer-B" A ,<sxmml-mml-tempo-absolute> 255 256 "Timer-B" 0 255 "A T255o4c%12")))
         (test* "SSGのパンもコマンド共通の範囲で出力する"
                '("G p0o4c%12")
                (pmd-ir-result "ssg-pan" 'G (range-ir (make <sxmml-mml-pan> :value 0) 'G)))
@@ -436,7 +443,7 @@
                '("A o8b%12")
                (pmd-ir-result "note-high" 'A (list (make <sxmml-mml-note> :value 107 :ticks 12))))
         (test* "通常音符の音域外を拒否する"
-               (range-message "note" 108 12 107)
+               "invalid note: o9c (expected o1c - o8b)"
                (pmd-ir-result "note-outside" 'A (list (make <sxmml-mml-note> :value 108 :ticks 12))))
         (let ([upper '(31 31 31 15 15 127 3 15 7 0 0 1)]
               [ir (range-ir (make <sxmml-mml-voice> :value 'tone) 'A)])
@@ -493,8 +500,12 @@
                (range-message "portamento ticks" 256 1 255)
                (pmd-ir-result "portamento-long" 'A
                               (list (make <sxmml-mml-portamento> :value '(12 . 107) :ticks 256))))
+        (test* "ポルタメントの始点音域外は音名で示す"
+               "invalid portamento start note: o0b (expected o1c - o8b)"
+               (pmd-ir-result "portamento-start" 'A
+                              (list (make <sxmml-mml-portamento> :value '(11 . 48) :ticks 12))))
         (test* "ポルタメントの終点音域外を拒否する"
-               (range-message "portamento end" 108 12 107)
+               "invalid portamento end note: o9c (expected o1c - o8b)"
                (pmd-ir-result "portamento-end" 'A
                               (list (make <sxmml-mml-portamento> :value '(48 . 108) :ticks 12))))
         (test* "整数でないゲートタイムを拒否する"
@@ -514,7 +525,7 @@
                    '(1 #t)
                    (status-and-message (sxlc-status "-m" "pmd" "-o" (work-file "voice-invalid.mml") source)
                                        (string->regexp
-                                        #"invalid voice parameter: +~(regexp-quote (cadr case))$")))))
+                                        #"invalid ~(if (equal? (car case) \"J\") \"PCM\" \"SSG\") voice number: ~(regexp-quote (cadr case)) \\(expected an integer from 0 to ~(if (equal? (car case) \"J\") 255 9)\\)$")))))
       )
     (remove-directory* workdir)))
 

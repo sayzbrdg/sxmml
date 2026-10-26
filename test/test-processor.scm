@@ -135,7 +135,7 @@
                              (sxmml-error? e) (sxmml-source-context? e)))))
           (let1 r (load-error "processor-delay-track" (in-begin "(mml-delay X (6 2 1) \"c8r8\")"))
             (test* "an undefined track of mml-delay fails with its location"
-                   (list #t #"no defined track:  X" #"~(car r):3" 'reference)
+                   (list #t #"undefined track: X" #"~(car r):3" 'reference)
                    (error-report r)))
           )
       )

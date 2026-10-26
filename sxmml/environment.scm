@@ -53,7 +53,7 @@
   (slot-ref (sxmml-environment) 'resolution))
 (define (sxmml-resolution-set! resolution)
   (unless (and (integer? resolution) (positive? resolution))
-    (error <sxmml-value-error> "resolution must be positive integer, but got:" resolution))
+    (errorf <sxmml-value-error> "invalid resolution: ~s (expected a positive integer)" resolution))
   (slot-set! (sxmml-environment) 'resolution resolution))
 
 (define sxmml-resolution sxmml-resolution-set!)

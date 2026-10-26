@@ -18,13 +18,13 @@
       (define-track L)
       (if rhythm? (rhythm L text) (mml G text))))
   (test* "通常MMLの未知のxを報告する"
-         (test-error <sxmml-mml-syntax-error> "sxmml syntax error: unknown MML command \"x\" on G track")
+         (test-error <sxmml-mml-syntax-error> "unknown MML command: \"x\"")
          (compile #f "c8x"))
   (test* "リズムMMLの未知のxを報告する"
-         (test-error <sxmml-mml-syntax-error> "sxmml syntax error: unknown MML command \"x\" on L track")
+         (test-error <sxmml-mml-syntax-error> "unknown MML command: \"x\"")
          (compile #t "@b8x"))
   (test* "登録済みリズム命令のtickエラーを維持する"
-         (test-error <sxmml-mml-syntax-error> "ticks must be a positive integer:  0")
+         (test-error <sxmml-mml-syntax-error> "invalid tick length: 0 (expected a positive exact integer)")
          (compile #t "@b%0")))
 
 ;; 反復回数は正の正確な整数。1回の反復の意味と、脱出位置の状態も確認する (#106)
@@ -43,14 +43,14 @@
                   (#t "[@b8@s8]0") (#t "[@b8:@s8]0")
                   (#t "[@b8@s8]{0}") (#t "[@b8:@s8]000"))]
     (test* #"反復回数0を回数の誤りとして拒否する: ~(cadr case)"
-           (test-error <sxmml-mml-syntax-error> #/^repeat count must be a positive exact integer: +0$/)
+           (test-error <sxmml-mml-syntax-error> "invalid repeat count: 0 (expected a positive exact integer)")
            (begin (compile (car case) (cadr case)) 'accepted)))
   (dolist [rhythm? '(#f #t)]
     (test* #"開始命令のない反復終端を拒否する: リズム ~rhythm?"
            (test-error <sxmml-mml-syntax-error> "repeat end appeared before repeat start")
            (compile rhythm? "]1")))
   (test* "tickの誤りは従来の文言で通知する"
-         (test-error <sxmml-mml-syntax-error> "ticks must be a positive integer:  0")
+         (test-error <sxmml-mml-syntax-error> "invalid tick length: 0 (expected a positive exact integer)")
          (compile #f "c%0"))
   ;; 音符の値は octave * 12 + 音名 + 移調。a=57、b=59、o5K$2 の a=71・c=62。
   ;; 通常の4分音符は24 tick、l8では12 tick。脱出ありの2回は a b a の72 tick。

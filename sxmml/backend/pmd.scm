@@ -378,8 +378,17 @@
 ;; 出力する値だけを、項目ごとの両端を含む範囲で検査する
 (define (%pmd-value-check kind value min max)
   (unless (and (exact-integer? value) (<= min value max))
-    (errorf <sxmml-value-error> "invalid ~a value: ~s (expected integer ~a - ~a)" kind value min max))
+    (errorf <sxmml-value-error> "invalid ~a: ~s (expected an integer from ~a to ~a)" kind value min max))
   value)
+
+(define (%pmd-note-check note :optional (kind "note"))
+  (unless (exact-integer? note)
+    (%pmd-value-check kind note 12 107))
+  (unless (<= 12 note 107)
+    (let1 named (%note-number->pmd-note note)
+      (errorf <sxmml-value-error> "invalid ~a: o~a~a (expected o1c - o8b)"
+              kind (car named) (cdr named))))
+  note)
 
 ;; PMD operator
 (define (%pmd-rest-output obj)
@@ -393,7 +402,7 @@
            (format #t "r%~d" ticks)])))
 
 (define (%pmd-note-output obj)
-  (let recur ([note (%note-number->pmd-note (%pmd-value-check "note" (slot-ref obj 'value) 12 107))]
+  (let recur ([note (%note-number->pmd-note (%pmd-note-check (slot-ref obj 'value)))]
               [ticks (slot-ref obj 'ticks)]
               [octave (slot-ref (sxmml-pmd-track-environment) 'octave)])
     (cond [(or (> (- (car note) octave) 1) (< (- (car note) octave) -1))
@@ -416,7 +425,7 @@
 (define (%pmd-fm-voice-output obj)
   (let1 inst (hash-table-get (slot-ref (sxmml-environment) 'voice) (slot-ref obj 'value) #f)
     (unless inst
-      (error <sxmml-reference-error> "no instrument define: " (slot-ref obj 'value)))
+      (errorf <sxmml-reference-error> "undefined voice: ~a" (slot-ref obj 'value)))
     (format #t "@~d" (%pmd-fm-voice-number inst))))
 
 (define (%pmd-fm-voice-number voice)
@@ -435,7 +444,7 @@
   (format #t "V~d" (%pmd-value-check "PCM volume" (slot-ref obj 'value) 0 255)))
 
 (define (%pmd-tempo-absolute-output obj)
-  (format #t "T~d" (%pmd-value-check "timerb" (slot-ref obj 'value) 0 255)))
+  (format #t "T~d" (%pmd-value-check "Timer-B" (slot-ref obj 'value) 0 255)))
 
 (define (%pmd-tempo-output obj)
   (format #t "T~d" (sxmml-bpm->timer-b (slot-ref obj 'value))))
@@ -464,10 +473,10 @@
 (define (%pmd-lfo-output obj)
   (let1 lfo (hash-table-get (slot-ref (sxmml-environment) 'lfo) (slot-ref obj 'value) #f)
     (unless lfo
-      (error <sxmml-reference-error> "no lfo define: " (slot-ref obj 'value)))
+      (errorf <sxmml-reference-error> "undefined LFO: ~a" (slot-ref obj 'value)))
     (let ([channel (slot-ref obj 'channel)])
       (unless (memq channel '(#f A B))
-        (errorf <sxmml-value-error> "invalid lfo channel: ~a" channel))
+        (errorf <sxmml-value-error> "invalid LFO channel: ~a" channel))
       (let1 value (sxmml-pmd-lfo-values lfo)
         (display "M")
         (when (eq? channel 'B)
@@ -478,7 +487,7 @@
   (let ([channel (slot-ref obj 'channel)]
         [switch (slot-ref obj 'value)])
     (unless (memq channel '(#f A B))
-      (errorf <sxmml-value-error> "invalid lfo channel: ~a" channel))
+      (errorf <sxmml-value-error> "invalid LFO channel: ~a" channel))
     (display "*")
       (when (eq? channel 'B)
         (display "B"))
@@ -487,7 +496,7 @@
 (define (%pmd-envelope-output obj)
   (let1 envelope (hash-table-get (slot-ref (sxmml-environment) 'envelope) (slot-ref obj 'value) #f)
     (unless envelope
-      (error <sxmml-reference-error> "no envelope define: " (slot-ref obj 'value)))
+      (errorf <sxmml-reference-error> "undefined envelope: ~a" (slot-ref obj 'value)))
     (let1 value (sxmml-pmd-envelope-values envelope)
       ;; 書式は値の数で決まるので、5 値 (6 値の書式の 6 つ目を省いた形) も値をそのまま書く
       (format #t "E~d,~d,~d,~d" (car value) (cadr value) (caddr value) (cadddr value))
@@ -506,7 +515,7 @@
 
 ;; LFO の定義を検査し、値のリストを返す
 (define (sxmml-pmd-lfo-values lfo)
-  (%pmd-definition-values "lfo" lfo %pmd-lfo-types %pmd-lfo-ranges "4"))
+  (%pmd-definition-values "LFO" lfo %pmd-lfo-types %pmd-lfo-ranges "4"))
 
 ;; エンベロープの定義を検査し、値のリストを返す
 (define (sxmml-pmd-envelope-values envelope)
@@ -527,9 +536,7 @@
                 kind id (length value) (if (= (length value) 1) "" "s") expected))
       (for-each (^[v r i]
                   (unless (and (exact-integer? v) (<= (car r) v (cadr r)))
-                    (errorf <sxmml-value-error> (if (number? v)
-                              "invalid ~a value: ~a, value ~a is ~a (~a - ~a)"
-                              "invalid ~a value: ~a, value ~a is ~s (~a - ~a)")
+                    (errorf <sxmml-value-error> "invalid ~a ~a value ~a: ~s (expected an integer from ~a to ~a)"
                             kind id i v (car r) (cadr r))))
                 value (cdr range) (iota (length value) 1))
       value)))
@@ -586,9 +593,9 @@
              (slot-set! (sxmml-pmd-track-environment) 'octave noteoct)
              (format #t "<")])))
   (let ([start (%note-number->pmd-note
-                (%pmd-value-check "portamento start" (car (slot-ref obj 'value)) 12 107))]
+                (%pmd-note-check (car (slot-ref obj 'value)) "portamento start note"))]
         [end (%note-number->pmd-note
-              (%pmd-value-check "portamento end" (cdr (slot-ref obj 'value)) 12 107))]
+              (%pmd-note-check (cdr (slot-ref obj 'value)) "portamento end note"))]
         [ticks (%pmd-value-check "portamento ticks" (slot-ref obj 'ticks) 1 255)])
     (octave-output (car start))
     (format #t "{~a" (cdr start))
@@ -596,18 +603,18 @@
     (format #t "~a}%~d" (cdr end) ticks)))
 
 (define (%pmd-ssg-voice-output obj)
-  (format #t "@~d" (%pmd-voice-number obj 9)))
+  (format #t "@~d" (%pmd-voice-number obj 9 "SSG voice number")))
 
 (define (%pmd-pcm-voice-output obj)
-  (format #t "@~d" (%pmd-voice-number obj 255)))
+  (format #t "@~d" (%pmd-voice-number obj 255 "PCM voice number")))
 
 ;; SSG・PCM の音色の値は PMD の @ の数値としてそのまま出力するので、0 から max までの
 ;; 整数に限る。数でない値は、エラーに書かれた値を示す
-(define (%pmd-voice-number obj max)
+(define (%pmd-voice-number obj max kind)
   (let* ([name (slot-ref obj 'value)]
          [value (or (string->number (symbol->string name)) name)])
     (unless (and (exact-integer? value) (<= 0 value max))
-      (error <sxmml-value-error> "invalid voice parameter: " value))
+      (errorf <sxmml-value-error> "invalid ~a: ~s (expected an integer from 0 to ~a)" kind value max))
     value))
 
 (define (%pmd-noise-freq-output obj)
@@ -655,7 +662,7 @@
       [(2) #\l]
       [(3) #\m]
       [(#f) #f]
-      [else (errorf <sxmml-value-error> "rhythm pan out of range: ~a (1 - 3)" num)]))
+      [else (errorf <sxmml-value-error> "invalid rhythm pan: ~s (expected an integer from 1 to 3)" num)]))
   (let ([b (if-let1 a (n->c (slot-ref obj 'bass)) (format "\\~ab" a) "")]
         [s (if-let1 a (n->c (slot-ref obj 'snare)) (format "\\~as" a) "")]
         [t (if-let1 a (n->c (slot-ref obj 'tom)) (format "\\~at" a) "")]

@@ -57,15 +57,15 @@
                (let1 message
                    (match (list (slot-ref e 'type) (slot-ref e 'objects))
                      [('fail-error (_ ('fail-message . (? string? reason))))
-                      (format #f "sxmml syntax error: ~a on ~a track" reason ch)]
-                     [_ (format #f "sxmml syntax error, near \"~a\" on ~a track"
-                                (tree->string (slot-ref e 'rest)) ch)])
+                      reason]
+                     [_ (format #f "invalid MML syntax near ~s"
+                                (tree->string (slot-ref e 'rest)))])
                  (raise (sxmml-error-with-context
                          (make-condition <sxmml-mml-syntax-error> 'message message) context)))]
               [(sxmml-error? e)
                (raise (sxmml-error-with-context e context))])
       (unless (string? str)
-        (error <sxmml-value-error> "string is expected, but something else is given: " ch str))
+        (errorf <sxmml-value-error> "invalid MML input: ~s (expected a string)" str))
       (values
        (generator->list (peg-parser->generator parser (generator->lseq (string->generator str))))
        ctx))))
@@ -74,7 +74,7 @@
   (let1 ctx (sxmml-track-get track)
     (unless ctx
       (raise (sxmml-error-with-context
-              (make-condition <sxmml-reference-error> 'message (format #f "no defined track:  ~a" track))
+              (make-condition <sxmml-reference-error> 'message (format #f "undefined track: ~a" track))
               (make-condition <sxmml-track-context> 'track-name track))))
     (sxmml-compile-mml! str ctx)))
 
@@ -82,7 +82,7 @@
   (let1 ctx (sxmml-track-get track)
     (unless ctx
       (raise (sxmml-error-with-context
-              (make-condition <sxmml-reference-error> 'message (format #f "no defined track:  ~a" track))
+              (make-condition <sxmml-reference-error> 'message (format #f "undefined track: ~a" track))
               (make-condition <sxmml-track-context> 'track-name track))))
     (sxmml-compile-rhythm! str ctx)))
 

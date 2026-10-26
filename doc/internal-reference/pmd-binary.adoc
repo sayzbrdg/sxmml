@@ -1,6 +1,8 @@
 = `sxmml.backend.pmd-binary` の生成処理（実験的）
 :toc: left
 
+`%pmd-1byte-set!` と `%pmd-2bytes-set!` の引数は `(u8vec offset cmd value max min kind)` です。全22呼出しで、音源や指定内容を知る呼出し元からkindを渡し、範囲外の値は項目・指定値・範囲で説明します。命令コードや内部オブジェクトは診断に表示しません。相対音量は `%pmd-volume-change-value` で符号付きの指定値と範囲を示してから従来どおり符号化します。BPM由来のTimer-Bは計算結果と元のBPMを示します。音高は音名と許容音域を示し、ポルタメントの始点・終点を区別します。比較・符号化・範囲・戻り値は維持します。
+
 既存の数値・定義形式の検査はvalue-error、未定義の音色・LFO・エンベロープはreference-error、重複Lはmml-syntax-errorです。生成物サイズとトラック長の上限は基底sxmml-errorで通知します。I/Oや内部のGaucheエラーは包み直しません。
 
 `sxmml.backend.pmd-binary` は、外部コンパイラ（MC.EXE）を介さずに PMD のバイナリ（`.m`）を直接生成する実験的なバックエンドです。生成物が MC.EXE の出力と同じであることは保証しません（`sxmml.backend.pmd` の出力を MC.EXE でコンパイルした結果と一致するとは限りません）。正式機能とするかどうかは https://github.com/sayzbrdg/sxmml/issues/54[issue #54] で判断します。
@@ -52,7 +54,7 @@
 . 音色表は、使用した FM 音色ごとに、音色番号 1 バイトと音色データ 25 バイトを並べます。PMD4 向けでは `0x00 0xff` で終わり、PMD3 向けでは終端を置きません。
 . PMD4 向けでは、最後にメタ情報を置きます。`ppzfile`・`ppsfile`・`pcmfile`・`title`・`composer`・`arranger`・`memo`（0 件以上）の順に、CP932 の NUL 終端文字列を並べ、それぞれへの位置の表を `0x00 0x00` で終えます。値は `sxmml.backend.pmd` の `sxmml-pmd-metadata-value` で、`-m pmd` と同じ規則で検査します。`memo` 以外の定義のない項目は、空文字列になります。`memo` は要素の数だけ書き、定義がないときと空のリストのときは書きません（位置の表にも項目を置きません）。
 
-PMD3 向け（`fc88`）では、メタ情報と R トラックの 12 バイトを置かず、LFO のチャンネル `B`（`invalid lfo channel`）と 5 値・6 値のエンベロープ（`unsupported envelope values in PMD3`）を失敗とします。LFO・エンベロープの種類と値は、`sxmml.backend.pmd` の `sxmml-pmd-lfo-values`・`sxmml-pmd-envelope-values` で、`-m pmd` と同じ規則で検査します。
+PMD3 向け（`fc88`）では、メタ情報と R トラックの 12 バイトを置かず、LFO のチャンネル `B`（`invalid LFO channel`）と 5 値・6 値のエンベロープ（`unsupported envelope values in PMD3`）を失敗とします。LFO・エンベロープの種類と値は、`sxmml.backend.pmd` の `sxmml-pmd-lfo-values`・`sxmml-pmd-envelope-values` で、`-m pmd` と同じ規則で検査します。
 
 == PMD4 と PMD3 の違い（MC.EXE の生成物から）
 
