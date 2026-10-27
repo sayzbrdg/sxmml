@@ -14,6 +14,18 @@
 (use file.util)
 (use test.helpers)
 
+(for-each
+ (^[dt2 expected]
+   (test* (format "OPMのDT2=~aをD7～D6に配置する" dt2)
+          (list 0 0 0 0 expected 0)
+          ((with-module sxmml.voice sxmml-opm-list->register)
+           (list 0 0 0 0 0 0 0 0 0 dt2 0 0))))
+ '(0 1 2 3) '(#x00 #x40 #x80 #xc0))
+(test* "OPMの最大値でDT2とSRおよび他のフィールドを保持する"
+       '(#x7f #x7f #xdf #x9f #xdf #xff)
+       ((with-module sxmml.voice sxmml-opm-list->register)
+        '(31 31 31 15 15 127 3 15 7 3 15 1)))
+
 ;; 音色の登録 (#27)
 ;; sxmml-opn-voice-set! は実行時に検査して登録し、define-opn-voice はその呼び出しに展開する
 (let* ([op0 '(0 0 0 0 0 0 0 0 0)]

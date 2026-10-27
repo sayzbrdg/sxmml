@@ -53,7 +53,7 @@
            tl
            (logior (ash ks 6) ar)
            (logior (ash ams 7) dr)
-           (logior (ash dt2 5) sr)
+           (logior (ash dt2 6) sr)
            (logior (ash sl 4) rr))]))
 
 (define (%4op-voice-shape form id openum)
