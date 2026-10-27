@@ -449,7 +449,9 @@
               [ir (range-ir (make <sxmml-mml-voice> :value 'tone) 'A)])
           (define (voice-result name alfb op :optional (used? #t))
             (pmd-ir-result name 'A (if used? ir (cdr ir))
-                           (^[] (sxmml-opn-voice-set! 'tone alfb op op op op))))
+                           (^[] (hash-table-put! (slot-ref (sxmml-environment) 'voice) 'tone
+                                                (make <sxmml-opn-voice> :id 'tone
+                                                      :value (cons alfb (make-list 4 op)))))))
           (test* "FM音色の出力パラメータ上限を受理する"
                  (append '("@000 007 007")
                          (make-list 4 " 031 031 031 015 015 127 003 015 007 001")
@@ -470,6 +472,21 @@
                     case))
            '(("AL" -1 8 7) ("AR" 0 32 31) ("RR" 3 16 15) ("TL" 5 128 127)
              ("KS" 6 4 3) ("DT" 8 8 7) ("AMS" 11 2 1)))
+          (test* "手作り音色の負のDTは出力時に正規化せず拒否する"
+                 (range-message "FM voice DT" -1 0 7)
+                 (voice-result "raw-negative-dt" '(0 0) '(0 0 0 0 0 0 0 0 -1 0 0 0)))
+          (test* "手作り音色の非出力項目DT2とSEGを追加検査しない"
+                 '("@000 000 000" "A @0o4c%12")
+                 (voice-result "raw-ignored-fields" '(0 0) '(0 0 0 0 0 0 0 0 0 4 16 0)))
+          (let1 registered-lines
+              (^[dt] (filter #/^(@\d| \d)/
+                             (string-split
+                              (pmd-ir-text #"registered-dt-~dt" 'A ir
+                                           (^[] (let1 op (list 0 0 0 0 0 0 0 0 dt)
+                                                  (sxmml-opn-voice-set! 'tone '(0 0) op op op op))))
+                              "\r\n")))
+            (test* "負数表記と非負表記のDTは同じ音色行を出力する"
+                   #t (equal? (registered-lines -1) (registered-lines 5))))
           (test* "出力しないFM音色の上限は追加検査しない"
                  '("A o4c%12")
                  (voice-result "voice-unused" '(8 7) upper #f)))

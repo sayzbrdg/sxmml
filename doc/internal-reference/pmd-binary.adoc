@@ -11,6 +11,8 @@
 
 実験的な機能であるため、このページでは公開名 7 件だけを項目として記載します。`%` で始まる内部手続きは、群ごとの概要とバイナリの配置の概要に留めます。既知の欠陥は、ラベル `pmd-binary` の付いた link:https://github.com/sayzbrdg/sxmml/issues?q=is%3Aissue%20is%3Aopen%20label%3Apmd-binary%20label%3Abug[開いている不具合の issue] を参照してください。パラメータ、オブジェクト、文字コード変換、一時ファイル、ファイル名操作は Gauche 0.9.15 の動作に従います。
 
+FM音色表へ書く直前に `%opn-voice-form->register-data form id` が使用音色の出力項目を検査します。AL・FB・DT=0～7、AR・DR・SR=0～31、RR・SL・ML=0～15、TL=0～127、KS=0～3、AMS=0～1の正確な整数に限り、不正なら音色名・演算子番号・項目名・指定値・範囲を示すvalue-errorとします。DTの負数正規化は共通登録の責務であり、直接渡された負のDTは拒否します。DT2・SEGと未使用の手作り音色は新しい出力時検査の対象に加えません。検査後のbit結合と生成バイトは維持します。
+
 == 公開名
 
 [cols="2,4,4,1",options="header"]

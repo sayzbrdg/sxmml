@@ -339,7 +339,10 @@
         (fold (^[value offset]
                 (%size-check (+ track-start-pos offset 26))
                 (u8vector-set! t13u8vec offset (%pmd-fm-voice-number value))
-                (u8vector-copy! t13u8vec (+ offset 1) (list->u8vector (%opn-voice-form->register-data (slot-ref value 'value))))
+                (u8vector-copy! t13u8vec (+ offset 1)
+                                (list->u8vector
+                                 (%opn-voice-form->register-data (slot-ref value 'value)
+                                                                 (slot-ref value 'id))))
                 (+ offset 26))
               0
               (sort (filter (cut hash-table-exists? (slot-ref (sxmml-pmd-binary-environment) 'used-fm-voices) <>)
@@ -822,23 +825,29 @@
                              [(10) "b-"]
                              [(11) "b"]))))
 
-(define (%opn-voice-form->register-data form)
-  (define (operator->register opform)
+(define (%opn-voice-form->register-data form id)
+  (define (check value name high :optional (openum #f))
+    (unless (and (exact-integer? value) (<= 0 value high))
+      (errorf <sxmml-value-error>
+              "invalid voice @~a~a ~a: ~s (expected an integer from 0 to ~a)"
+              id (if openum (format #f " operator(~a)" openum) "") name value high))
+    value)
+  (define (operator->register opform openum)
     (match opform
       [(ar dr sr rr sl tl ks ml dt dt2 seg ams)
-       (list (logior (ash dt 4) ml)
-             tl
-             (logior (ash ks 6) ar)
-             (logior (ash ams 7) dr)
-             sr
-             (logior (ash sl 4) rr))]))
+       (list (logior (ash (check dt 'DT 7 openum) 4) (check ml 'ML 15 openum))
+             (check tl 'TL 127 openum)
+             (logior (ash (check ks 'KS 3 openum) 6) (check ar 'AR 31 openum))
+             (logior (ash (check ams 'AMS 1 openum) 7) (check dr 'DR 31 openum))
+             (check sr 'SR 31 openum)
+             (logior (ash (check sl 'SL 15 openum) 4) (check rr 'RR 15 openum)))]))
   (match form
     [((al fb) op1 op2 op3 op4)
-     (sxmml-opmn-operator-zip (operator->register op1)
-                              (operator->register op2)
-                              (operator->register op3)
-                              (operator->register op4)
-                              (logior (ash fb 3) al))]))
+     (sxmml-opmn-operator-zip (operator->register op1 1)
+                              (operator->register op2 2)
+                              (operator->register op3 3)
+                              (operator->register op4 4)
+                              (logior (ash (check fb 'FB 7) 3) (check al 'AL 7)))]))
 
 ;; CLI が設定した出力先を使い、ライブラリからの利用時だけ既定値を補う。
 (define (%output-file-get)
