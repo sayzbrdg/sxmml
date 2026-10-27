@@ -71,6 +71,26 @@
             (file->string-list out) (file->string-list err))))
   (unwind-protect
       (begin
+        (let* ([op0 "(0 0 0 0 0 0 0 0 0)"]
+               [defs #"(define-opn-voice TONE (0 0) ~op0 ~op0 ~op0 ~op0)\n(define-lfo MOD triangle (1 2 3 4))\n(define-envelope ENV default (1 2 3 4))\n(define-metadata TITLE \"name test\")\n(define-track A)\n"]
+               [normal (source-output "names-comparison" #"~defs(mml A \"@{TONE}M{MOD A}E{ENV}c8\")\n")]
+               [normal-out (work-file "names-normal.mml")]
+               [generated-out (work-file "names-generated.mml")]
+               [a (sxlc-status "-m" "pmd" "-o" normal-out normal)]
+               [generated (source-output "names-comparison"
+                            #"(define-syntax generated-defs (syntax-rules () [(_) (begin ~defs)]))\n(generated-defs)\n(mml A \"@{TONE}M{MOD A}E{ENV}c8\")\n")]
+               [b (sxlc-status "-m" "pmd" "-o" generated-out generated)])
+          (test* "利用者マクロの定義をMMLから参照して通常の記述と同じ内容を生成する"
+                 '(0 0 () () #t)
+                 (list (car a) (car b) (cadr a) (cadr b)
+                       (and (file-exists? normal-out) (file-exists? generated-out)
+                            (equal? (file->string normal-out :encoding "shift_jis")
+                                    (file->string generated-out :encoding "shift_jis"))))))
+        (let* ([source (source-output "numeric-track" "; track\n(define-track 0)\n")]
+               [r (sxlc-report "-m" "pmd" source)])
+          (test* "数値トラック名の診断は位置付きで内部表現やスタックトレースを出さない"
+                 (list 1 '() (list #"sxlc: error: ~|source|:2: invalid define-track name: 0 (expected a symbol)"))
+                 r))
         (dolist [case '(("track-report" ("-m" "pmd") "(mml G \"c8?\")"
                          "sxlc: error: unknown MML command: \"?\" on G track")
                         ("value-report" ("-m" "pmd") "(mml A \"v128c\")"

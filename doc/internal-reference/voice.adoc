@@ -15,7 +15,7 @@
 |[[ref-voice-internal-voice-values-check]]`(%voice-values-check values ranges id place)` |項目別の範囲を検査して正規化した新しい値列を返す |`ranges` は `(項目 下限 上限)` の列。非整数・範囲外は項目と条件を示すvalue-error。DTの負数だけを `4 + abs(DT)` に直し、他の値と入力リストは変更しない。`place` はAL/FBでは `#f`、演算子では `operator(n)` |link:../../sxmml/voice.scm[voice.scm]
 |[[ref-voice-internal-voice-alfb-form-p]]`(%voice-alfb-form? x)` |`(al fb)` の枠の形の規則 |正しいリストで 2 要素なら真。マクロと `sxmml-opn-voice-set!` が使う |link:../../sxmml/voice.scm[voice.scm]
 |[[ref-voice-internal-voice-operator-form-p]]`(%voice-operator-form? x)` |演算子の枠の形の規則 |正しいリストで 9～12 要素なら真。マクロと `sxmml-opn-voice-set!` が使う |link:../../sxmml/voice.scm[voice.scm]
-|[[ref-voice-define-opn-voice]]`(define-opn-voice id (al fb) op1 op2 op3 op4)` |音色 ID、アルゴリズム・フィードバック、四演算子の値列を受けるマクロ |展開時に形を検査し、誤りは `sxmml-form-error` で投げる（枠の数・枠がリストでない場合は `invalid define-opn-voice form`、要素の数は `invalid voice` と必要な形式）。ID をシンボルにし、`sxmml-form-wrap` で `(sxmml-form-call 位置 (lambda () (sxmml-opn-voice-set! 'id (list al fb) (list 要素 …) …)))` に展開する。枠の中の要素は式として評価する。登録と同じ ID の判定、値の検査は実行時に行い、その誤りにもフォームの位置が付く |link:../../sxmml/voice.scm[voice.scm]
+|[[ref-voice-define-opn-voice]]`(define-opn-voice id (al fb) op1 op2 op3 op4)` |音色 ID、アルゴリズム・フィードバック、四演算子の値列を受けるマクロ |展開時に形を検査し、誤りは `sxmml-form-error` で投げる（枠の数・枠がリストでない場合は `invalid define-opn-voice form`、要素の数は `invalid voice` と必要な形式）。ID を共通手続きで検査してシンボルにし、`sxmml-form-wrap` で `(sxmml-form-call 位置 (lambda () (sxmml-opn-voice-set! 'id (list al fb) (list 要素 …) …)))` に展開する。枠の中の要素は式として評価する。登録と同じ ID の判定、値の検査は実行時に行い、その誤りにもフォームの位置が付く |link:../../sxmml/voice.scm[voice.scm]
 |===
 
 `sxmml-opm-list->register` は、五番目の値で `DT2` をD7～D6、`SR` をD4～D0へ配置し、D5は0とします。将来のOPM対応に向けて非公開手続きとして維持し、現行のPMD出力には接続しません。
@@ -25,6 +25,8 @@
 非公開の `%voice-alfb-ranges` と `%voice-operator-ranges` は登録時の範囲規則の表です。AL/FB=0～7、AR/DR/SR=0～31、RR/SL/ML=0～15、TL=0～127、KS=0～3、DT=−3～7、DT2=0～3、SEG=0～15、AMS=0～1とします。表は呼び出せないため索引の手続き件数には加えません。
 
 未使用定義も登録時に検査し、すべて成功してから音色表を更新します。DT=−1/−2/−3は5/6/7へ直し、既存の0～7は変更しません。バックエンドには正規化済みの値を渡しますが、手作りIRに対する出力側の検査も維持します。
+
+`define-opn-voice` の名前は `sxmml-form-name->symbol` でsymbol／identifier・数値から正規化し、空・空白・波括弧を含む名前をフォーム構文エラーとして拒否します。登録手続きの直接利用は従来どおりsymbolを受け、MMLの名前の文字制限は追加しません。展開時の名前の診断にはidentifierの表示文字列ではなく元の名前を使います。
 
 == 音色登録例
 

@@ -91,7 +91,10 @@
 (define-syntax define-metadata
   (er-macro-transformer
     (^[form rename id=?]
-      (define (keysym key) (string->symbol (string-downcase (x->string key))))
+      (define (keysym key)
+        (unless (identifier? key)
+          (sxmml-form-error form "invalid define-metadata key: ~s (expected a symbol)" (unwrap-syntax key)))
+        (string->symbol (string-downcase (symbol->string (identifier->symbol key)))))
       (define (old-form? x) (and (pair? x) (list? x) (every string? x)))
       (match form
         [(_ key (? old-form? strings))
@@ -139,13 +142,15 @@
 ;; リテラルのシンボルとする。形は展開時に検査し、誤りと既知の値の誤りには定義の位置を付ける
 (define (%define-lfo/envelope-expand form rename name set-proc)
   (define (expand id type exprs)
-    (let1 idsym (string->symbol (x->string id))
+    (let1 idsym (sxmml-form-name->symbol form name id)
+      (unless (identifier? type)
+        (sxmml-form-error form "invalid ~a type: ~s (expected a symbol)" name (unwrap-syntax type)))
       (sxmml-form-wrap form rename
         (quasirename rename
           `(,(rename set-proc) ',idsym ',type (list ,@exprs))))))
   (match form
     [(_ id (? list? exprs)) (expand id 'default exprs)]
-    [(_ id (? symbol? type) (? list? exprs)) (expand id type exprs)]
+    [(_ id (? (^[x] (not (list? x))) type) (? list? exprs)) (expand id type exprs)]
     [_ (sxmml-form-error form "invalid ~a form: expected (~a id [type] (value ...))" name name)]))
 
 ;;
@@ -177,6 +182,8 @@
   (er-macro-transformer
     (^[form rename id=?]
       (define (build-track-registration track param)
+        (unless (identifier? track)
+          (sxmml-form-error form "invalid define-track name: ~s (expected a symbol)" (unwrap-syntax track)))
         (quasirename rename
           `(sxmml-track-set! ',track ,@param)))
       (define (build-part track params)

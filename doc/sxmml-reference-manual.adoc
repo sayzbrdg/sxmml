@@ -7,6 +7,16 @@
 
 `sxlc` で読み込む `.sxl` ファイルは Scheme ソースです。`mml` などの本文には Scheme の式を渡せますが、`define-metadata` などの定義形式は個別の制約を持ちます。link:../README.md#最初の変換[README の導入手順]で `sxlc` をインストールすると、以下の例は `sxlc -m pmd ファイル名` として実行できます。PMD モードでは A～F が FM、G～I が SSG、J が PCM、L がリズム用です。
 
+== 定義の名前・種類・キー
+
+`define-opn-voice`・`define-lfo`・`define-envelope` の名前は、シンボルまたは数値として書きます。数値名は `0` を `@0`、`1.5` を `@{1.5}` のようにMMLから参照するための名前へ直します。名前は空にできず、空白・波括弧を含められません。文字列・真偽値・リストは名前として受け付けません。
+
+LFO・エンベロープの種類、`define-metadata` のキー、`define-track` の各トラック名はシンボルとして書き、数値も受け付けません。キーは従来どおり小文字へそろえます。種類・キー・トラック名には、MMLの定義名用の文字制限を適用しません。
+
+これらの位置は式として評価しません。利用者の `syntax-rules` から名前等を生成した場合も、書かれた名前のシンボルで登録します。種類とトラック名は検査後のquoteでシンボルにし、定義名とキーは展開時に正規化します。値の位置の式は従来どおり評価します。登録手続きを直接使う場合は、MMLの名前制限を追加しません。
+
+名前等の規則への違反は、`invalid define-lfo name: "L1" (expected a symbol or number)` や `invalid define-track name: 0 (expected a symbol)` のように、対象・指定値・必要な条件を示すフォーム構文エラーになります。
+
 == モードとトラック
 
 === `sxmml-mode`
@@ -182,7 +192,7 @@
 (mml G "M{L2 A} c8")
 ----
 
-書式の誤り（値の括弧がない、2 つ以上ある、種類が単語でない、など）は、`sxlc: error: /home/user/song.sxl:行: invalid define-lfo form: expected (define-lfo id [type] (value ...))` のように、その定義の開始位置を示して変換の失敗になります。種類と、値の数や範囲は、生成先が検査します。
+書式の誤り（値の括弧がない、2 つ以上ある、など）は、`sxlc: error: /home/user/song.sxl:行: invalid define-lfo form: expected (define-lfo id [type] (value ...))` のように、その定義の開始位置を示して変換の失敗になります。種類の位置がシンボルでなければ `invalid define-lfo type: 1 (expected a symbol)` のように失敗します。対応する種類と、値の数や範囲は、生成先が検査します。
 
 プログラムから登録するときは、手続き `(sxmml-lfo-set! 名前 種類 値のリスト)` と `(sxmml-envelope-set! 名前 種類 値のリスト)` を使います。名前と種類はシンボルで指定します。`define-lfo`・`define-envelope` は、これらの手続きの呼び出しに展開されます。
 

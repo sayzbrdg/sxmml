@@ -29,6 +29,8 @@
 
 == LFO・エンベロープの登録
 
+定義名は `sxmml-form-name->symbol` でsymbol／identifier・数値からMML用の名前へ正規化します。種類は `identifier?` で検査し、quoteによって登録時にはsymbolになります。メタデータキーはsymbol／identifierだけを受け、元のsymbolの名前を小文字へそろえます。トラック名もsymbol／identifierを検査してquoteし、複数形式では全要素を検査します。登録手続きや、種類・キー・トラック名へMML定義名の文字制限は追加しません。
+
 `define-lfo` と `define-envelope` は、共通の `%define-lfo/envelope-expand` で展開し、実行時に対応する `set!` 手続きを呼びます。`type`（LFO・エンベロープの種類。波形の種類）はリテラルのシンボルで、省略すると `default` です。枠の中の値は式として評価し、`(list 値 …)` を登録します。形は展開時に検査し、誤りは xref:form.adoc[`sxmml.form`] の `sxmml-form-error` で定義の位置を付けて投げます。既知の入力エラーだけに `sxmml-form-call` が独立した位置conditionを添えます。値の式のGaucheエラーは包み直しません。未登録 ID の取得は、`get` に既定値を渡していないためハッシュ表の検索エラーになります。
 
 [cols="2,4,4,1",options="header"]
@@ -40,7 +42,7 @@
 |[[ref-environment-sxmml-envelope-get]]`(sxmml-envelope-get id)` |ID でエンベロープを検索 |登録済み `<sxmml-envelope>` を返す。未登録なら検索エラー |link:../../sxmml/environment.scm[environment.scm]
 |[[ref-environment-sxmml-envelope-set-bang]]`(sxmml-envelope-set! id type data)` |エンベロープオブジェクトを作り登録 |`envelope` 表の `id` を上書き |link:../../sxmml/environment.scm[environment.scm]
 |[[ref-environment-define-envelope]]`(define-envelope id [type] (value ...))` |エンベロープの ID、種類、値の列を指定するマクロ |`sxmml-envelope-set!` を呼ぶ式に展開。形が合わなければ `invalid define-envelope form` の `<sxmml-form-syntax-error>` |link:../../sxmml/environment.scm[environment.scm]
-|[[ref-environment-internal-define-lfo-envelope-expand]]`(%define-lfo/envelope-expand form rename name set-proc)` |2 つのマクロの共通の展開 |`(_ id (value ...))` と `(_ id type (value ...))`（`type` はシンボル）だけを受け、`sxmml-form-wrap` で `(sxmml-form-call 位置 (lambda () (set-proc 'id 'type (list value ...))))` を返す。それ以外は `invalid <name> form: expected (<name> id [type] (value ...))` |link:../../sxmml/environment.scm[environment.scm]
+|[[ref-environment-internal-define-lfo-envelope-expand]]`(%define-lfo/envelope-expand form rename name set-proc)` |2 つのマクロの共通の展開 |`(_ id (value ...))` と `(_ id type (value ...))`（`type` はsymbol／identifier）だけを受け、`sxmml-form-wrap` で `(sxmml-form-call 位置 (lambda () (set-proc 'id 'type (list value ...))))` を返す。枠の違反は `invalid <name> form: expected (<name> id [type] (value ...))`、名前・種類の違反は項目・指定値・条件を示すform-syntax-error |link:../../sxmml/environment.scm[environment.scm]
 |===
 
 == トラック表と登録済みオブジェクト

@@ -30,7 +30,8 @@
 (define-module sxmml.form
   (use util.match)
   (use sxmml.classes)
-  (export sxmml-form-location sxmml-form-error sxmml-form-warn sxmml-form-warn-at sxmml-form-call sxmml-form-wrap sxmml-error-with-context))
+  (export sxmml-form-location sxmml-form-error sxmml-form-warn sxmml-form-warn-at sxmml-form-call sxmml-form-wrap sxmml-error-with-context
+          sxmml-form-name->symbol))
 (select-module sxmml.form)
 
 ;; フォームの開始位置を "ファイル:行" で返す。わからなければ #f
@@ -52,6 +53,18 @@
     (raise (sxmml-error-with-context
             (make-condition <sxmml-form-syntax-error> 'message (apply format #f fmt args))
             (and location (make-condition <sxmml-source-context> 'source-location location))))))
+
+(define (sxmml-form-name->symbol form macro-name name)
+  (let* ([sym (cond [(identifier? name) (identifier->symbol name)]
+                    [(number? name) (string->symbol (number->string name))]
+                    [else (sxmml-form-error form "invalid ~a name: ~s (expected a symbol or number)"
+                                           macro-name (unwrap-syntax name))])]
+         [text (symbol->string sym)])
+    (unless (and (> (string-length text) 0)
+                 (every (^[c] (not (char-set-contains? #[\s{}] c))) (string->list text)))
+      (sxmml-form-error form "invalid ~a name: ~s (expected a non-empty name without whitespace or braces)"
+                       macro-name sym))
+    (string->symbol text)))
 
 ;; #80単独でも、Gaucheの標準報告にフォーム位置を表示する。
 (define-method report-additional-condition ((context <sxmml-source-context>) out)
