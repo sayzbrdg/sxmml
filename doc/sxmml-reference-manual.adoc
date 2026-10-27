@@ -223,7 +223,7 @@ FM 音色を定義します。OP1～OP4 には、`(AR DR SR RR SL TL KS ML DT)` 
 |AMS |0～1
 |===
 
-DTの−1・−2・−3は、それぞれ5・6・7へ直して登録します。既存の0～7は4を含めてそのまま保持します。AMSは演算子ごとのAM有効指定です。範囲の根拠は link:https://www.quarter-dev.info/archives/yamaha/YM2608_Applicatin_Manual.pdf[Yamaha YM2608資料]の10・26・31ページと、link:https://www.quarter-dev.info/archives/yamaha/YM2151.pdf[YM2151資料]の2-5ページです。
+DTの−1・−2・−3は、それぞれ5・6・7へ直して登録します。既存の0～7は4を含めてそのまま保持します。AMSは演算子ごとのAM有効指定です。
 
 括弧の中の値は式として評価されます。数値のほかに、変数や計算式も書けます。括弧の中にシンボルを書くと、変数の参照になります。括弧そのものは書式の一部なので、括弧の代わりに変数や `(list …)` は書けません。
 
