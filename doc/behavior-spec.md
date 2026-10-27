@@ -6,7 +6,7 @@
 
 `sxlc` は入力ファイル名を一つだけ受け付ける。そのファイルを Gauche の `load` で読み込み、ソース中の Scheme 式を評価する。入力ファイルの拡張子は制限しない。オプションは入力ファイル名より前に書く。入力ファイル名より後ろに引数があると、ソースを読み込む前に `unexpected argument after the source file: 引数` と使用法を表示し、終了値 2 で終了する。後ろの引数が `-` で始まる場合は、`options must be placed before the source file` も表示する。`-` で始まる入力ファイル名は `--` の後に書く。ソースは MML の文字列だけでなく、Scheme 式と `mml` / `rhythm`、定義・設定マクロを含められる。
 
-処理順は、オプションを読む → `-m` があればモードを選ぶ → 入力ファイルを読み込む → 出力形式の設定を確認する → `-O` の水準と出力先を設定する → 生成する → 出力名・処理モード・最適化水準を表示する → トラックの tick 数を表示する → `-c` があれば後処理を起動する、である。入力ファイルの読み込み中にエラーが起きれば、出力形式の確認より先にそのエラーが出る。`-m pmd` がなくても、ソース中の `(sxmml-mode pmd)` で PMD モードを選べる。両方を指定すると `-m` の指定が有効になり、ソース中の `sxmml-mode` は無視される。このとき標準エラー出力に `warning: ./song.sxl:1: sxmml-mode in source is ignored; mode is already set to モード名` のように、その `sxmml-mode` の位置を示す警告を表示する。無視する `sxmml-mode` のモード名と引数は評価しないので、未定義のモード名が書かれていても変換は失敗しない。
+処理順は、オプションを読む → `-m` があればモードを選ぶ → 入力ファイルを読み込む → 出力形式の設定を確認する → `-O` の水準と出力先を設定する → 生成する → 出力名・処理モード・最適化水準を表示する → トラックの tick 数を表示する → `-c` があれば後処理を起動する、である。入力ファイルの読み込み中にエラーが起きれば、出力形式の確認より先にそのエラーが出る。`-m pmd` がなくても、ソース中の `(sxmml-mode pmd)` で PMD モードを選べる。両方を指定すると `-m` の指定が有効になり、ソース中の `sxmml-mode` は無視される。このとき標準エラー出力に `warning: /home/user/song.sxl:1: sxmml-mode in source is ignored; mode is already set to モード名` のように、その `sxmml-mode` の位置を示す警告を表示する。無視する `sxmml-mode` のモード名と引数は評価しないので、未定義のモード名が書かれていても変換は失敗しない。
 
 PMD4 向けには `pmd`、PMD3 向けには `pmd3` を指定する。実験的なモードとして、PMD のバイナリを直接生成する `pmd-binary`・`pmd4-binary`（PMD4 向け）と `pmd3-binary`（PMD3 向け）がある。ソース内でモードを選ぶ場合、`sxlc` は起動時に利用可能なバックエンドを読み込む。各モードの出力差は「PMD 向け生成物」と「PMD バイナリ生成物（実験的）」に示す。
 
@@ -27,7 +27,7 @@ PMD4 向けには `pmd`、PMD3 向けには `pmd3` を指定する。実験的�
 
 ## MML ソースに記述できる内容
 
-`mml TRACK EXPR ...` は、Scheme 式を評価し、得られた値を MML 文字列に組み立てて通常 MML として登録する。`rhythm TRACK EXPR ...` は同様にリズム MML として登録する。両者とも単一の登録済みトラック名、または登録済みトラック名のリストを指定できる。式の値がリストなら要素を順に文字列化できる。入力がトラックの構文に合わなければ変換は失敗する。ソース中の定義・設定として `define-track`、`sxmml-resolution`、`define-metadata`、`define-lfo`、`define-envelope`、`define-opn-voice`、`sxmml-mode` がある。`define-metadata` の値は式として評価する。括弧の中に文字列だけを並べる旧書式 `(define-metadata memo ("a" "b"))` は、文字列のリストとして受け付け、標準エラー出力に `warning: ./song.sxl:12: (define-metadata memo ("..." ...)) is deprecated; use (list "..." ...) or '("..." ...)` のように位置を示す警告を表示する。警告は変換の成否に影響しない。定義形式と PMD 向け生成物への反映は[MML 記述者向けリファレンス](sxmml-reference-manual.adoc)を参照する。
+`mml TRACK EXPR ...` は、Scheme 式を評価し、得られた値を MML 文字列に組み立てて通常 MML として登録する。`rhythm TRACK EXPR ...` は同様にリズム MML として登録する。両者とも単一の登録済みトラック名、または登録済みトラック名のリストを指定できる。式の値がリストなら要素を順に文字列化できる。入力がトラックの構文に合わなければ変換は失敗する。ソース中の定義・設定として `define-track`、`sxmml-resolution`、`define-metadata`、`define-lfo`、`define-envelope`、`define-opn-voice`、`sxmml-mode` がある。`define-metadata` の値は式として評価する。括弧の中に文字列だけを並べる旧書式 `(define-metadata memo ("a" "b"))` は、文字列のリストとして受け付け、標準エラー出力に `warning: /home/user/song.sxl:12: (define-metadata memo ("..." ...)) is deprecated; use (list "..." ...) or '("..." ...)` のように位置を示す警告を表示する。警告は変換の成否に影響しない。定義形式と PMD 向け生成物への反映は[MML 記述者向けリファレンス](sxmml-reference-manual.adoc)を参照する。
 
 通常 MML では、`c d e f g a b` の音符、`r` の休符、`/` のポルタメント、音長・音高の `l o > < q &`、音量・定位の `v v* ) ( p`、移調・テンポ等の `K K$ K* t T D`、制御・定義参照の `L [ : ] @ E M Mt Mf w P` を使える。音符と休符には分母指定、`%` による tick 指定、付点、`&` による長さの加算がある。解像度の既定値は 24、音長の既定の分母は 4、オクターブの初期値は 4。`(mml G "c8r8")` は既定の解像度で合計 24 tick となる。個々のコマンドの効果は対象トラックと生成モードにも依存する。
 
