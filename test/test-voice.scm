@@ -138,6 +138,44 @@
       (with-output-to-file source (^[] (display text)))))
   (unwind-protect
       (begin
+        (let ([op0 "(0 0 0 0 0 0 0 0 0)"])
+          (define (named-voice label text)
+            (let1 source (source-output label text)
+              (parameterize ([sxmml-environment (make <sxmml-environment>)])
+                (guard (e [else (cons source e)])
+                  (load source)
+                  (cons source (slot-ref (sxmml-environment) 'voice))))))
+          (define (voice-with-name r id)
+            (and (hash-table? (cdr r)) (hash-table-get (cdr r) id #f)))
+          (let* ([r (named-voice "voice-generated-name"
+                     #"(let ([level 3])\n (define-syntax inner-voice (syntax-rules () [(_) (define-opn-voice FIXED (level 0) ~op0 ~op0 ~op0 ~op0)]))\n (define-syntax outer-voice (syntax-rules () [(_) (inner-voice)]))\n (outer-voice))\n")]
+                 [v (voice-with-name r 'FIXED)])
+            (test* "利用者マクロの固定音色名をsymbolにして値の式のスコープを保つ"
+                   '(FIXED (3 0))
+                   (and v (list (slot-ref v 'id) (car (slot-ref v 'value))))))
+          (let* ([r (named-voice "voice-decimal-name"
+                     #"(define-opn-voice 1.5 (0 0) ~op0 ~op0 ~op0 ~op0)\n")]
+                 [v (voice-with-name r '|1.5|)])
+            (test* "小数の音色名も従来どおりsymbolにする" '|1.5| (and v (slot-ref v 'id))))
+          (dolist [case '(("\"V1\"" "a symbol or number") ("#t" "a symbol or number")
+                          ("(a b)" "a symbol or number") ("||" "a non-empty name without whitespace or braces")
+                          ("|a b|" "a non-empty name without whitespace or braces")
+                          ("|a{b}|" "a non-empty name without whitespace or braces"))]
+            (let* ([name (car case)]
+                   [r (named-voice #"voice-name-~name"
+                        #"; voice\n(begin\n (define-opn-voice ~name (0 0) ~op0 ~op0 ~op0 ~op0)\n 1)\n")]
+                   [e (cdr r)] [shown (format #f "~s" (read-from-string name))])
+              (test* #"不正な音色名を位置付きで拒否する: ~name"
+                     (list #t #"invalid define-opn-voice name: ~shown (expected ~(cadr case))" #"~(car r):3")
+                     (if (sxmml-error? e)
+                       (list (sxmml-form-syntax-error? e) (condition-message e)
+                             (and (sxmml-source-context? e) (sxmml-source-context-location e)))
+                       '(registered)))))
+          (test* "音色の直接登録にはMMLの定義名制限を追加しない"
+                 '|a b|
+                 (parameterize ([sxmml-environment (make <sxmml-environment>)])
+                   (apply sxmml-opn-voice-set! '|a b| '(0 0) (make-list 4 (make-list 9 0)))
+                   (slot-ref (hash-table-get (slot-ref (sxmml-environment) 'voice) '|a b|) 'id))))
         ;; define-opn-voice の枠の中の要素は式として評価する。定義の誤りは、展開時でも
         ;; 実行時でも、フォームの開始位置を独立したconditionとして付ける (#28)
         (let* ([op0 "(0 0 0 0 0 0 0 0 0)"]

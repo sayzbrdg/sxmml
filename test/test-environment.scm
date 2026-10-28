@@ -22,6 +22,113 @@
       (with-output-to-file source (^[] (display text)))))
   (unwind-protect
       (begin
+        (let ()
+          (define (named-load label text table)
+            (let1 source (source-output label text)
+              (parameterize ([sxmml-environment (make <sxmml-environment>)])
+                (let ([result #f])
+                  (let1 warnings
+                      (call-with-output-string
+                       (^p (with-error-to-port p
+                             (^[] (set! result
+                                       (guard (e [else e])
+                                         (load source)
+                                         (slot-ref (sxmml-environment) table)))))))
+                    (list source result warnings))))))
+          (define (named-object r id)
+            (and (hash-table? (cadr r)) (hash-table-get (cadr r) id #f)))
+          (define (lfo-report r id)
+            (and-let1 obj (named-object r id)
+              (list (slot-ref obj 'id) (slot-ref obj 'type) (slot-ref obj 'value))))
+          (define (name-error macro value expected)
+            #"invalid ~|macro| name: ~|value| (expected ~|expected|)")
+          (dolist [case '((define-lfo lfo triangle) (define-envelope envelope default))]
+            (let* ([macro (car case)] [table (cadr case)] [type (caddr case)]
+                   [r (named-load #"~|macro|-generated"
+                        #"(let ([depth 7])\n (define-syntax inner-name (syntax-rules () [(_) (~|macro| FIXED ~|type| (1 2 depth 4))]))\n (define-syntax outer-name (syntax-rules () [(_) (inner-name)]))\n (outer-name))\n" table)])
+              (test* #"利用者マクロから~|macro|の固定名と種類を登録する"
+                     (list 'FIXED type '(1 2 7 4)) (lfo-report r 'FIXED))
+              (test* #"~|macro|の数値名0をsymbolで登録する"
+                     '(|0| default (1 2 3 4))
+                     (lfo-report (named-load #"~|macro|-number" #"(~|macro| 0 (1 2 3 4))\n" table) '|0|))))
+          (dolist [case `((define-lfo lfo "\"L1\"" #f "a symbol or number")
+                          (define-envelope envelope "#t" #f "a symbol or number")
+                          (define-lfo lfo "|a b|" #f "a non-empty name without whitespace or braces")
+                          (define-envelope envelope "|a{b}|" #f "a non-empty name without whitespace or braces")
+                          (define-lfo lfo "L1" "\"triangle\"" "a symbol"))]
+            (let* ([macro (car case)] [table (cadr case)] [name (caddr case)]
+                   [type (list-ref case 3)] [expected (list-ref case 4)]
+                   [type-text (or type "")]
+                   [r (named-load #"~|macro|-invalid-~|name|"
+                        #"; name\n(begin\n (~|macro| ~|name| ~|type-text| (1 2 3 4))\n 1)\n" table)]
+                   [e (cadr r)]
+                   [shown (format #f "~s" (read-from-string (or type name)))])
+              (test* #"~|macro|の不正な名前または種類を位置付きで拒否する: ~|name| ~|type|"
+                     (list #t (if type
+                                #"invalid ~|macro| type: ~|shown| (expected ~|expected|)"
+                                (name-error macro shown expected)) #"~(car r):3")
+                     (if (sxmml-error? e)
+                       (list (sxmml-form-syntax-error? e) (condition-message e)
+                             (and (sxmml-source-context? e) (sxmml-source-context-location e)))
+                       '(registered)))))
+          (let1 r (named-load "key-generated"
+                    "(define-syntax generated-title (syntax-rules () [(_) (define-metadata TITLE \"song\")]))\n(generated-title)\n" 'metadata)
+            (test* "利用者マクロのメタデータキーを小文字のsymbolにする"
+                   "song" (named-object r 'title)))
+          (let1 r (named-load "key-old-generated"
+                    "; memo\n(define-syntax generated-memo (syntax-rules () [(_) (define-metadata MEMO (\"a\"))]))\n(generated-memo)\n" 'metadata)
+            (test* "利用者マクロの旧メタデータ書式も正規化したキーで一度警告する"
+                   (list '("a") (list #"warning: ~(car r):3: (define-metadata memo (\"...\" ...)) is deprecated; use (list \"...\" ...) or '(\"...\" ...)"))
+                   (list (named-object r 'memo)
+                         (filter #/^warning:/ (string-split (caddr r) "\n")))))
+          (dolist [key '("0" "\"title\"" "#t" "(a b)")]
+            (let* ([r (named-load #"key-invalid-~|key|"
+                        #"; key\n(begin\n (define-metadata ~|key| \"song\")\n 1)\n" 'metadata)]
+                   [e (cadr r)])
+              (test* #"不正なメタデータキーを位置付きで拒否する: ~|key|"
+                     (list #t #"invalid define-metadata key: ~|key| (expected a symbol)" #"~(car r):3")
+                     (if (sxmml-error? e)
+                       (list (sxmml-form-syntax-error? e) (condition-message e)
+                             (and (sxmml-source-context? e) (sxmml-source-context-location e)))
+                       '(registered)))))
+          (let* ([r (named-load "track-generated"
+                     "(define-syntax generated-track (syntax-rules () [(_) (define-track FIXED)]))\n(generated-track)\n" 'track)]
+                 [ctx (named-object r 'FIXED)])
+            (test* "利用者マクロの単一トラック名と既定partはsymbolになる"
+                   '(FIXED FIXED)
+                   (and ctx (list (slot-ref ctx 'track) (slot-ref ctx 'part)))))
+          (let* ([r (named-load "tracks-generated"
+                     "(define recorded-order '())\n(define-syntax generated-tracks (syntax-rules () [(_) (define-track (FIRST SECOND) :part (let1 exists (boolean (sxmml-track-get 'SECOND)) (set! recorded-order (cons exists recorded-order)) (if exists 'FIRST 'SECOND)))]))\n(generated-tracks)\n" 'track)]
+                 [first (named-object r 'FIRST)] [second (named-object r 'SECOND)])
+            (test* "利用者マクロの複数トラック名とパラメータの評価順を維持する"
+                   '(FIRST SECOND FIRST SECOND (#f #t))
+                   (and first second
+                        (list (slot-ref first 'track) (slot-ref second 'track)
+                              (slot-ref first 'part) (slot-ref second 'part)
+                              (reverse (eval 'recorded-order (interaction-environment)))))))
+          (dolist [case '(("0" "0") ("\"G\"" "\"G\"") ("(G 0)" "0"))]
+            (let* ([name (car case)] [r (named-load #"track-invalid-~|name|"
+                                        #"; track\n(begin\n (define-track ~|name|)\n 1)\n" 'track)]
+                   [e (cadr r)])
+              (test* #"不正なトラック名を位置付きで拒否する: ~|name|"
+                     (list #t #"invalid define-track name: ~(cadr case) (expected a symbol)" #"~(car r):3")
+                     (if (sxmml-error? e)
+                       (list (sxmml-form-syntax-error? e) (condition-message e)
+                             (and (sxmml-source-context? e) (sxmml-source-context-location e)))
+                       '(registered)))))
+          (let* ([r (named-load "track-space" "(define-track |a b|)\n" 'track)]
+                 [ctx (named-object r '|a b|)])
+            (test* "トラック名にはMML用定義名の文字制限を適用しない"
+                   '|a b| (and ctx (slot-ref ctx 'track))))
+          (test* "直接のLFO・エンベロープ登録とメタデータ設定は名前制限を追加しない"
+                 '(|a b| |a b| "song")
+                 (parameterize ([sxmml-environment (make <sxmml-environment>)])
+                   (sxmml-lfo-set! '|a b| 'default '(1 2 3 4))
+                   (sxmml-envelope-set! '|a b| 'default '(1 2 3 4))
+                   (sxmml-metadata-set! '|a b| "song")
+                   (list (slot-ref (sxmml-lfo-get '|a b|) 'id)
+                         (slot-ref (sxmml-envelope-get '|a b|) 'id)
+                         (sxmml-metadata-get '|a b|)))))
         (test* "解像度0は値エラーになる"
                (test-error <sxmml-value-error> "invalid resolution: 0 (expected a positive integer)")
                (parameterize ([sxmml-environment (make <sxmml-environment>)])
@@ -64,7 +171,9 @@
                             ("non-symbol-type" " 1 (1 2)") ("too-many" " sw (1 2) 3"))]
               (let1 r (load-result #"~|macro|-~(car case)" #"; def\n(begin\n  (~macro X1~(cadr case))\n  1)\n")
                 (test* #"a wrong ~macro form fails with its location: ~(car case)"
-                       (list #t #"~form-message" #"~(car r):3" #t)
+                       (list #t (if (equal? (car case) "non-symbol-type")
+                                     #"invalid ~macro type: 1 (expected a symbol)"
+                                     form-message) #"~(car r):3" #t)
                        (let1 e (cdr r)
                          (list (sxmml-form-syntax-error? e) (condition-message e)
                                (sxmml-source-context-location e) (sxmml-form-syntax-error? e))))))

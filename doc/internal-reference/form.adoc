@@ -1,7 +1,7 @@
 = `sxmml.form` のエラー文脈とフォーム位置
 :toc: left
 
-`sxmml.form` の直下の手続きは8件で、7件を公開します。別に `report-additional-condition` のメソッドを1件定義します。`sxmml` 自体はこのモジュールを `extend` しません。定義・設定・加工マクロとcompilerが使い、エラーの意味は xref:classes.adoc#ref-classes-class-sxmml-error[エラーの分類]に従います。
+`sxmml.form` の直下の手続きは9件で、8件を公開します。別に `report-additional-condition` のメソッドを1件定義します。`sxmml` 自体はこのモジュールを `extend` しません。定義・設定・加工マクロとcompilerが使い、エラーの意味は xref:classes.adoc#ref-classes-class-sxmml-error[エラーの分類]に従います。
 
 フォーム位置は既存の「ファイル:行」文字列です。既知のエラーにだけ `<sxmml-source-context>` として添え、診断本文へ埋め込みません。トラックは別の `<sxmml-track-context>` なので、先に付いた別の情報を隠しません。同種の文脈が既にあれば内側のものを残します。
 
@@ -10,6 +10,7 @@
 |名前・書式 |役割 |戻り値・副作用・失敗条件 |ソース
 |[[ref-form-sxmml-form-location]]`(sxmml-form-location form)` |フォームの位置を取得 |`debug-source-info` が位置を持つ場合は「ファイル:行」、それ以外は `#f` |link:../../sxmml/form.scm[form.scm]
 |[[ref-form-sxmml-error-with-context]]`(sxmml-error-with-context e context)` |既知のエラーへ文脈を添える |`e` がsxmml-error、文脈が取得済みで同種の文脈がまだなければ `make-compound-condition` で合成。それ以外は同じ `e` を返す。元のconditionは変更しない |link:../../sxmml/form.scm[form.scm]
+|[[ref-form-sxmml-form-name-to-symbol]]`(sxmml-form-name\->symbol form macro-name name)` |MML用の定義名の正規化と検査 |symbol／identifierまたは数値をinterned symbolへ直す。空・空白・波括弧を含む名前や不正な型は、マクロ名・指定値・必要な条件を示すform-syntax-error。種類・キー・トラック名には使わない |link:../../sxmml/form.scm[form.scm]
 |[[ref-form-sxmml-form-error]]`(sxmml-form-error form fmt arg ...)` |独自マクロの形式違反を通知 |本文をmessageとするform-syntax-errorに、取得できるフォーム位置だけを添えて送出する |link:../../sxmml/form.scm[form.scm]
 |[[ref-form-sxmml-form-warn]]`(sxmml-form-warn form fmt arg ...)` |展開時の警告 |位置を取得して `sxmml-form-warn-at` を呼ぶ。既存の警告文は維持する |link:../../sxmml/form.scm[form.scm]
 |[[ref-form-sxmml-form-warn-at]]`(sxmml-form-warn-at location fmt arg ...)` |位置付き警告の表示 |`warning: 位置: 本文` を標準エラーへ表示。位置がなければ本文だけ |link:../../sxmml/form.scm[form.scm]

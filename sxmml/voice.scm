@@ -122,12 +122,12 @@
          (unless (and (list? ops) (= (length ops) 4) (every list? (cons alfb ops)))
            (form-error))
          (unless (%voice-alfb-form? alfb)
-           (sxmml-form-error form "invalid voice @~a al/fb: ~s (expected a list of 2 values)" id alfb))
+           (sxmml-form-error form "invalid voice @~a al/fb: ~s (expected a list of 2 values)" (unwrap-syntax id) alfb))
          (for-each (^[op openum]
                      (unless (%voice-operator-form? op)
-                       (sxmml-form-error form "invalid voice @~a operator(~a): ~s (expected a list of 9 to 12 values)" id openum op)))
+                       (sxmml-form-error form "invalid voice @~a operator(~a): ~s (expected a list of 9 to 12 values)" (unwrap-syntax id) openum op)))
                    ops '(1 2 3 4))
-         (let1 idsym (string->symbol (x->string id))
+         (let1 idsym (sxmml-form-name->symbol form "define-opn-voice" id)
            (sxmml-form-wrap form rename
              (quasirename rename
                `(sxmml-opn-voice-set! ',idsym (list ,@alfb)
