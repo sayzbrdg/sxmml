@@ -56,7 +56,7 @@
 |[[ref-environment-sxmml-track-set-bang]]`(sxmml-track-set! track . params)` |`:part` などの初期化引数から context を作る |`track` 表の同名項目を上書き。不正な初期化引数は `make` で失敗 |link:../../sxmml/environment.scm[environment.scm]
 |[[ref-environment-sxmml-track-delete-bang]]`(sxmml-track-delete! track)` |指定したトラックを削除 |`track` 表からその key を削除 |link:../../sxmml/environment.scm[environment.scm]
 |[[ref-environment-sxmml-track-clear-bang]]`(sxmml-track-clear!)` |トラック表を全件削除 |引数なしで `track` 表を空にする。一件だけ削除する場合は `sxmml-track-delete!` を使う |link:../../sxmml/environment.scm[environment.scm]
-|[[ref-environment-sxmml-track-list]]`(sxmml-track-list)` |現在の登録名を列挙 |key のリストを返す。順序は保証しない |link:../../sxmml/environment.scm[environment.scm]
+|[[ref-environment-sxmml-track-list]]`(sxmml-track-list)` |現在の登録名を列挙 |key のリストを返す。定義順・名前順を含め順序は保証しない。順序が処理結果に影響する場合は利用側で必要な順序に並べ替える |link:../../sxmml/environment.scm[environment.scm]
 |[[ref-environment-sxmml-track-find]]`(sxmml-track-find part)` |`part` slot が一致する最初のトラック名を探す |見つからなければ `#f` |link:../../sxmml/environment.scm[environment.scm]
 |[[ref-environment-sxmml-ir-register-bang]]`(sxmml-ir-register! ir track)` |sxmml IR の列を登録 |登録済みなら context の `compiled-data` を更新。未登録なら更新しない |link:../../sxmml/environment.scm[environment.scm]
 |[[ref-environment-define-track]]`(define-track track param ...)` / `(define-track (track ...) param ...)` |一つまたは複数のトラックを設定するマクロ |`sxmml-track-set!` 呼び出しへ展開。複数トラック形は非空リストに一致する。`(define-track ())` は `define-track requires at least one track name` のエラー |link:../../sxmml/environment.scm[environment.scm]
