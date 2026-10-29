@@ -215,11 +215,11 @@
         [(_ () param ...)
          (sxmml-form-error form "define-track requires at least one track name")]
         [(_ (track ..1) param ...)
-         (let check-params ([rest param])
-           (when (pair? rest)
-             (when (eq? (car rest) :part)
-               (sxmml-form-error form "invalid define-track form: :part requires a single track"))
-             (when (pair? (cdr rest)) (check-params (cddr rest)))))
+         (when (any (^[kv] (eq? (car kv) :part))
+                    (slices param 2))
+           (sxmml-form-error
+            form
+            "invalid define-track form: :part requires a single track"))
          (quasirename rename
            `(begin
               ,@(fold (^[t r] (cons (build-track-registration t param) r))
