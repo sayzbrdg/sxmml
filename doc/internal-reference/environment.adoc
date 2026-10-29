@@ -3,7 +3,7 @@
 
 解像度の既存の検査はvalue-error、独自マクロの形式違反はform-syntax-errorです。取得できるフォーム位置は既知のエラーだけへ独立したconditionとして添えます。値の式の未定義変数や引数個数など、Gauche由来の失敗は包み直しません。
 
-`sxmml.environment` には環境と登録表を操作する 26 の定義があり、そのうち 24 を公開します。パラメータ、マクロ、ハッシュ表の動作は Gauche 0.9.15 に従います。MML 記述者向けの使用例は xref:../sxmml-reference-manual.adoc[公開機能リファレンス]を参照してください。
+`sxmml.environment` には環境と登録表を操作する 28 の定義があり、そのうち 26 を公開します。パラメータ、マクロ、ハッシュ表の動作は Gauche 0.9.15 に従います。MML 記述者向けの使用例は xref:../sxmml-reference-manual.adoc[公開機能リファレンス]を参照してください。
 
 状態を保持する本体は xref:classes.adoc#ref-classes-class-sxmml-environment[`<sxmml-environment>`] です。`make-parameter` で作る束縛は手続きであり、引数なしで現在値を返し、値を一つ渡すと動的な現在値を変更して旧値を返します。表の設定手続きは、特記しない限り現在の環境オブジェクト内の slot または表を変更します。登録手続きの戻り値は呼び出し側では使用していません。`get` の未登録時の挙動は項目ごとに異なります。
 
@@ -47,20 +47,24 @@
 
 == トラック表と登録済みオブジェクト
 
-各トラックは xref:classes.adoc#ref-classes-class-sxmml-mml-context[`<sxmml-mml-context>`] に格納されます。`track` と `part` は別の slot です。トラック名をリストで指定する `define-track` は複数の context を作り、`:part` 未指定なら各トラック名を part に設定します。
+各トラックは xref:classes.adoc#ref-classes-class-sxmml-mml-context[`<sxmml-mml-context>`] に格納されます。名前→contextの表とcontextのpartを対応情報の本体とし、partは`eq?`で比較します。登録のpart省略時はトラック名を使い、自身以外の所有者がいないことを表の走査で確認します。未登録contextのクラス既定値は`#f`のままです。
 
 [cols="2,4,4,1",options="header"]
 |===
 |名前・書式 |引数と役割 |結果・副作用・失敗条件 |ソース
 |[[ref-environment-sxmml-track-get]]`(sxmml-track-get track)` |名前でトラックを検索 |未登録なら `#f` |link:../../sxmml/environment.scm[environment.scm]
-|[[ref-environment-sxmml-track-set-bang]]`(sxmml-track-set! track . params)` |`:part` などの初期化引数から context を作る |`track` 表の同名項目を上書き。不正な初期化引数は `make` で失敗 |link:../../sxmml/environment.scm[environment.scm]
+|[[ref-environment-sxmml-track-set-bang]]`(sxmml-track-set! track . params)` |`:part` などの初期化引数から context を作る |part省略時はtrack。自身以外が使用中のpartは`invalid track <名前> part: <値> (already assigned to track <所有者>)`のvalue-error。検査後に新contextで同名項目を置換し、設定・MML・旧partは引き継がない。不正な初期化引数は`make`で失敗 |link:../../sxmml/environment.scm[environment.scm]
+|[[ref-environment-sxmml-track-rename-bang]]`(sxmml-track-rename! old-name new-name)` |symbolの登録名を変更 |同じcontextのtrackと表のキーを変更し、part・設定・IR・全コンパイル状態を保持。未登録元はreference-error、登録済み先（同名も含む）・名前の型違反はvalue-error。検査失敗時は既存状態を変更しない。戻り値は規定しない |link:../../sxmml/environment.scm[environment.scm]
 |[[ref-environment-sxmml-track-delete-bang]]`(sxmml-track-delete! track)` |指定したトラックを削除 |`track` 表からその key を削除 |link:../../sxmml/environment.scm[environment.scm]
 |[[ref-environment-sxmml-track-clear-bang]]`(sxmml-track-clear!)` |トラック表を全件削除 |引数なしで `track` 表を空にする。一件だけ削除する場合は `sxmml-track-delete!` を使う |link:../../sxmml/environment.scm[environment.scm]
 |[[ref-environment-sxmml-track-list]]`(sxmml-track-list)` |現在の登録名を列挙 |key のリストを返す。定義順・名前順を含め順序は保証しない。順序が処理結果に影響する場合は利用側で必要な順序に並べ替える |link:../../sxmml/environment.scm[environment.scm]
 |[[ref-environment-sxmml-track-find]]`(sxmml-track-find part)` |`part` slot が一致する最初のトラック名を探す |見つからなければ `#f` |link:../../sxmml/environment.scm[environment.scm]
 |[[ref-environment-sxmml-ir-register-bang]]`(sxmml-ir-register! ir track)` |sxmml IR の列を登録 |登録済みなら context の `compiled-data` を更新。未登録なら更新しない |link:../../sxmml/environment.scm[environment.scm]
-|[[ref-environment-define-track]]`(define-track track param ...)` / `(define-track (track ...) param ...)` |一つまたは複数のトラックを設定するマクロ |`sxmml-track-set!` 呼び出しへ展開。複数トラック形は非空リストに一致する。`(define-track ())` は `define-track requires at least one track name` のエラー |link:../../sxmml/environment.scm[environment.scm]
+|[[ref-environment-rename-track]]`(rename-track old-name new-name)` |登録名を変更するマクロ |名前をidentifier?で検査してquoteし、位置付きの`sxmml-track-rename!`呼出しへ展開。形式・名前の型違反はform-syntax-error。既知の実行時エラーにも取得できる位置を添える |link:../../sxmml/environment.scm[environment.scm]
+|[[ref-environment-define-track]]`(define-track track param ...)` / `(define-track (track ...) param ...)` |一つまたは複数のトラックを設定するマクロ |位置付きの`sxmml-track-set!`呼出しへ展開。part既定値は登録手続きで設定する。複数形式の`:part`は登録前に`invalid define-track form: :part requires a single track`のform-syntax-error。非空リストの従来の逐次評価順を維持し、後続失敗時も先行成功分は残す。空リストの既存診断は維持 |link:../../sxmml/environment.scm[environment.scm]
 |===
+
+直接のcontext・登録表編集は許容し、検索時の重複拒否は追加しません。一対一対応を崩した状態では、候補の選択と、それに依存する生成物の再現性を保証しません。削除・全消去でpartは再利用可能になります。
 
 `sxmml-track-clear!` は引数なしでトラック表を全件削除します。次の例では `G` と `H` の両方を削除します。
 

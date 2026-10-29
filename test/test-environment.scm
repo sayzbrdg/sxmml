@@ -98,7 +98,7 @@
                    '(FIXED FIXED)
                    (and ctx (list (slot-ref ctx 'track) (slot-ref ctx 'part)))))
           (let* ([r (named-load "tracks-generated"
-                     "(define recorded-order '())\n(define-syntax generated-tracks (syntax-rules () [(_) (define-track (FIRST SECOND) :part (let1 exists (boolean (sxmml-track-get 'SECOND)) (set! recorded-order (cons exists recorded-order)) (if exists 'FIRST 'SECOND)))]))\n(generated-tracks)\n" 'track)]
+                     "(define recorded-order '())\n(define-syntax generated-tracks (syntax-rules () [(_) (define-track (FIRST SECOND) :volume-delta (let1 exists (boolean (sxmml-track-get 'SECOND)) (set! recorded-order (cons exists recorded-order)) (if exists 1 2)))]))\n(generated-tracks)\n" 'track)]
                  [first (named-object r 'FIRST)] [second (named-object r 'SECOND)])
             (test* "利用者マクロの複数トラック名とパラメータの評価順を維持する"
                    '(FIRST SECOND FIRST SECOND (#f #t))
@@ -129,6 +129,182 @@
                    (list (slot-ref (sxmml-lfo-get '|a b|) 'id)
                          (slot-ref (sxmml-envelope-get '|a b|) 'id)
                          (sxmml-metadata-get '|a b|)))))
+        (let ()
+          (define (with-tracks thunk)
+            (parameterize ([sxmml-environment (make <sxmml-environment>)]) (thunk)))
+          (define (caught thunk) (guard (e [else e]) (thunk) #f))
+          (define (track-load label text)
+            (let1 source (source-output label text)
+              (with-tracks
+               (^[] (list source (caught (^[] (load source))) (sxmml-environment))))))
+          (define (loaded-track r name)
+            (hash-table-get (slot-ref (caddr r) 'track) name #f))
+          (define (diagnostic r predicate)
+            (let1 e (cadr r)
+              (and (sxmml-error? e)
+                   (list (predicate e) (condition-message e)
+                         (and (sxmml-source-context? e) (sxmml-source-context-location e))))))
+          (test* "単一トラックの明示partと設定を使用する"
+                 '(melody A 3)
+                 (let* ([r (track-load "track-part" "(define-track melody :part 'A :volume-delta 3)\n")]
+                        [ctx (loaded-track r 'melody)])
+                   (and ctx (map (cut slot-ref ctx <>) '(track part volume-delta)))))
+          (test* "登録手続きの既定partは名前と同じで未登録contextは変更しない"
+                 '(melody #f)
+                 (with-tracks
+                  (^[] (sxmml-track-set! 'melody)
+                    (list (slot-ref (sxmml-track-get 'melody) 'part)
+                          (slot-ref (make <sxmml-mml-context>) 'part)))))
+          (test* "登録手続きでは異なる名前とpartを明示できる"
+                 'A
+                 (with-tracks
+                  (^[] (sxmml-track-set! 'melody :part 'A)
+                    (slot-ref (sxmml-track-get 'melody) 'part))))
+          (test* "使用中partへの新規登録を拒否し既存contextとIRを保持する"
+                 '(#t "invalid track melody part: A (already assigned to track A)" #t #t #f)
+                 (with-tracks
+                  (^[] (sxmml-track-set! 'A :part 'A)
+                    (sxmml-ir-register! '(sample) 'A)
+                    (let* ([ctx (sxmml-track-get 'A)] [ir (slot-ref ctx 'compiled-data)]
+                           [e (caught (^[] (sxmml-track-set! 'melody :part 'A)))])
+                      (list (sxmml-value-error? e) (and (sxmml-error? e) (condition-message e))
+                            (eq? ctx (sxmml-track-get 'A)) (eq? ir (slot-ref ctx 'compiled-data))
+                            (sxmml-track-get 'melody))))))
+          (let1 r (track-load "track-part-conflict"
+                    "(define-track A)\n; duplicate\n(define-track melody :part 'A)\n")
+            (test* "マクロのpart重複に定義位置を付ける"
+                   (list #t "invalid track melody part: A (already assigned to track A)" #"~(car r):3")
+                   (diagnostic r sxmml-value-error?)))
+          (test* "同名同partの再定義は設定とMMLを引き継がない"
+                 '(#f A 1 ())
+                 (with-tracks
+                  (^[] (sxmml-track-set! 'A :part 'A :volume-delta 4)
+                    (sxmml-ir-register! '(sample) 'A)
+                    (let1 old (sxmml-track-get 'A)
+                      (sxmml-track-set! 'A)
+                      (let1 ctx (sxmml-track-get 'A)
+                        (cons (eq? old ctx) (map (cut slot-ref ctx <>) '(part volume-delta compiled-data))))))))
+          (test* "同名再定義で空きpartへ移り旧partを解放する"
+                 '(B #f melody)
+                 (with-tracks
+                  (^[] (sxmml-track-set! 'melody :part 'A)
+                    (sxmml-track-set! 'melody :part 'B)
+                    (list (slot-ref (sxmml-track-get 'melody) 'part)
+                          (sxmml-track-find 'A) (sxmml-track-find 'B)))))
+          (test* "使用中partへの再定義を拒否し元の対応とIRを保持する"
+                 '(#t #t #t A B)
+                 (with-tracks
+                  (^[] (sxmml-track-set! 'melody :part 'A)
+                    (sxmml-track-set! 'harmony :part 'B)
+                    (sxmml-ir-register! '(sample) 'melody)
+                    (let* ([ctx (sxmml-track-get 'melody)] [ir (slot-ref ctx 'compiled-data)]
+                           [e (caught (^[] (sxmml-track-set! 'melody :part 'B)))])
+                      (list (sxmml-value-error? e) (eq? ctx (sxmml-track-get 'melody))
+                            (eq? ir (slot-ref ctx 'compiled-data))
+                            (slot-ref ctx 'part) (slot-ref (sxmml-track-get 'harmony) 'part))))))
+          (test* "名前変更はcontextと全状態を保持し新名へMMLを追加できる"
+                 '(#t #f melody P #t #t 8 6)
+                 (with-tracks
+                  (^[] (sxmml-track-set! 'A :part 'P :volume-delta 4)
+                    (mml A "l8o5>c")
+                    (let* ([ctx (sxmml-track-get 'A)] [ir (slot-ref ctx 'compiled-data)]
+                           [slots '(part default-length volume-delta current-octave current-transpose
+                                    current-ticks total-ticks loop-ticks loop-exists compiled-data
+                                    repeat-stack ticks-statistics)]
+                           [state (map (cut slot-ref ctx <>) slots)])
+                      (sxmml-track-rename! 'A 'melody)
+                      (let1 preserved (equal? state (map (cut slot-ref ctx <>) slots))
+                        (mml melody "d")
+                        (list (eq? ctx (sxmml-track-get 'melody)) (sxmml-track-get 'A)
+                              (slot-ref ctx 'track) (slot-ref ctx 'part) preserved
+                              (eq? ir (car (slot-ref ctx 'compiled-data)))
+                              (slot-ref ctx 'default-length) (slot-ref ctx 'current-octave)))))))
+          (test* "利用者マクロで生成した名前をsymbolとして名前変更する"
+                 '(#f melody A)
+                 (let* ([r (track-load "rename-generated"
+                             "(define-track A)\n(define-syntax generated-rename (syntax-rules () [(_) (rename-track A melody)]))\n(generated-rename)\n")]
+                        [ctx (loaded-track r 'melody)])
+                   (and ctx (list (loaded-track r 'A) (slot-ref ctx 'track) (slot-ref ctx 'part)))))
+          (test* "登録済み変更先への名前変更は両contextを保持して拒否する"
+                 '(#t "invalid rename-track destination: B (already registered)" #t #t)
+                 (with-tracks
+                  (^[] (define-track (A B))
+                    (let* ([a (sxmml-track-get 'A)] [b (sxmml-track-get 'B)]
+                           [e (caught (^[] (sxmml-track-rename! 'A 'B)))])
+                      (list (sxmml-value-error? e) (and (sxmml-error? e) (condition-message e))
+                            (eq? a (sxmml-track-get 'A)) (eq? b (sxmml-track-get 'B)))))))
+          (test* "未登録の変更元は参照エラーになり登録表を変更しない"
+                 '(#t "undefined track: A" ())
+                 (with-tracks
+                  (^[] (let1 e (caught (^[] (sxmml-track-rename! 'A 'melody)))
+                    (list (sxmml-reference-error? e) (and (sxmml-error? e) (condition-message e))
+                          (sxmml-track-list))))))
+          (test* "同名への名前変更も登録済み変更先として拒否する"
+                 '(#t "invalid rename-track destination: A (already registered)" #t)
+                 (with-tracks
+                  (^[] (define-track A)
+                    (let* ([ctx (sxmml-track-get 'A)]
+                           [e (caught (^[] (sxmml-track-rename! 'A 'A)))])
+                      (list (sxmml-value-error? e) (and (sxmml-error? e) (condition-message e))
+                            (eq? ctx (sxmml-track-get 'A)))))))
+          (dolist [case '(("arity" "(rename-track A)" "invalid rename-track form: expected (rename-track old-name new-name)")
+                          ("source" "(rename-track 0 melody)" "invalid rename-track source: 0 (expected a symbol)")
+                          ("destination" "(rename-track A \"melody\")" "invalid rename-track destination: \"melody\" (expected a symbol)"))]
+            (let1 r (track-load #"rename-~(car case)" #"; rename\n(begin\n ~(cadr case)\n 1)\n")
+              (test* #"名前変更マクロの誤りを位置付きで拒否する: ~(car case)"
+                     (list #t (caddr case) #"~(car r):3")
+                     (diagnostic r sxmml-form-syntax-error?))))
+          (dolist [case '((0 melody "invalid rename-track source: 0 (expected a symbol)")
+                          (A "melody" "invalid rename-track destination: \"melody\" (expected a symbol)"))]
+            (test* #"名前変更手続きの名前の型を検査する: ~(car case)" '(#t #t ())
+                   (with-tracks
+                    (^[] (let1 e (caught (^[] (sxmml-track-rename! (car case) (cadr case))))
+                      (list (sxmml-value-error? e)
+                            (and (sxmml-error? e) (equal? (condition-message e) (caddr case)))
+                            (sxmml-track-list)))))))
+          (test* "削除したトラックのpartを別名で再利用できる"
+                 '(#f harmony)
+                 (with-tracks
+                  (^[] (sxmml-track-set! 'melody :part 'A)
+                    (sxmml-track-delete! 'melody)
+                    (sxmml-track-set! 'harmony :part 'A)
+                    (list (sxmml-track-get 'melody) (sxmml-track-find 'A)))))
+          (test* "全消去後に名前とpartを再利用できる"
+                 '(#f A #f)
+                 (with-tracks
+                  (^[] (sxmml-track-set! 'A :part 'P)
+                    (sxmml-track-set! 'B :part 'Q)
+                    (sxmml-track-clear!)
+                    (sxmml-track-set! 'A :part 'Q)
+                    (list (sxmml-track-get 'B) (sxmml-track-find 'Q) (sxmml-track-find 'P)))))
+          (test* "直接編集でpartが重複しても検索時に拒否しない"
+                 #t
+                 (with-tracks
+                  (^[] (define-track (A B))
+                    (slot-set! (sxmml-track-get 'B) 'part 'A)
+                    (boolean (memq (sxmml-track-find 'A) '(A B))))))
+          (test* "64組の異なるトラック名とpartを登録して検索できる"
+                 #t
+                 (with-tracks
+                  (^[] (let1 pairs (map (^n (cons (string->symbol #"track~|n|")
+                                                  (string->symbol #"part~|n|"))) (iota 64))
+                    (for-each (^p (sxmml-track-set! (car p) :part (cdr p))) pairs)
+                    (and (= 64 (length (sxmml-track-list)))
+                         (every (^p (eq? (car p) (sxmml-track-find (cdr p)))) pairs))))))
+          (let1 r (track-load "tracks-part"
+                    "; tracks\n(begin\n (define-track (A B) :part (error \"評価しない\"))\n 1)\n")
+            (test* "複数トラック形式のpart指定は登録前に構文エラーとする"
+                   (list (list #t "invalid define-track form: :part requires a single track" #"~(car r):3") 0)
+                   (list (diagnostic r sxmml-form-syntax-error?)
+                         (hash-table-num-entries (slot-ref (caddr r) 'track)))))
+          (test* "複数登録の後続失敗時も先行成功分と既存所有者を保持する"
+                 '(#t #t #f B)
+                 (with-tracks
+                  (^[] (sxmml-track-set! 'melody :part 'A)
+                    (let* ([ctx (sxmml-track-get 'melody)]
+                           [e (caught (^[] (eval '(define-track (A B)) (interaction-environment))))])
+                      (list (sxmml-value-error? e) (eq? ctx (sxmml-track-get 'melody))
+                            (sxmml-track-get 'A) (and-let1 b (sxmml-track-get 'B) (slot-ref b 'part))))))))
         (test* "解像度0は値エラーになる"
                (test-error <sxmml-value-error> "invalid resolution: 0 (expected a positive integer)")
                (parameterize ([sxmml-environment (make <sxmml-environment>)])

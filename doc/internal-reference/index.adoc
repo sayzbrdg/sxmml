@@ -3,7 +3,7 @@
 
 この索引は、sxmml を保守・改修する際に内部定義を名前から探すためのものです。動作環境は Gauche 0.9.15 です。内部の名前は MML 記述者向け API を示しません。公開機能の使い方は xref:../sxmml-reference-manual.adoc[MML 記述者向けリファレンス]、MML 文字列の記法は xref:../sxmml-mml-manual.adoc[MML コマンドマニュアル]を参照してください。
 
-モジュール直下の手続き 267 件、クラス 58 件、マクロ 12 件、合計 337 件を掲載します。実験的な `sxmml.backend.pmd-binary` は公開名 7 件だけを掲載し、内部定義は xref:pmd-binary.adoc[本文]に概要だけを記します。`sxmml.scm` は各モジュールを継承し、独自の直下定義はありません。`sxmml.backend.pmd-binary` の `initialize` と `sxmml.form` の `report-additional-condition` のメソッドは、手続き件数へ重複計上しません。局所関数と `sxlc.in` の直下定義は範囲外です。呼び出せない表（ハッシュ表やリスト）は対象外です。
+モジュール直下の手続き 268 件、クラス 58 件、マクロ 13 件、合計 339 件を掲載します。実験的な `sxmml.backend.pmd-binary` は公開名 7 件だけを掲載し、内部定義は xref:pmd-binary.adoc[本文]に概要だけを記します。`sxmml.scm` は各モジュールを継承し、独自の直下定義はありません。`sxmml.backend.pmd-binary` の `initialize` と `sxmml.form` の `report-additional-condition` のメソッドは、手続き件数へ重複計上しません。局所関数と `sxlc.in` の直下定義は範囲外です。呼び出せない表（ハッシュ表やリスト）は対象外です。
 
 識別子の命名と改名の判断は xref:naming-conventions.adoc[命名規約]を参照してください。
 
@@ -14,7 +14,7 @@
 |モジュール |内容 |項目数
 |xref:classes.adoc[`sxmml.classes`] |環境・MML オブジェクト・音色のクラスとエラーの種類 |60
 |xref:mml.adoc[`sxmml.mml`] |通常・リズム MML の PEG パーサー |74
-|xref:environment.adoc[`sxmml.environment`] |環境と登録表 |26
+|xref:environment.adoc[`sxmml.environment`] |環境と登録表 |28
 |xref:compiler.adoc[`sxmml.compiler`] |文字列の解析と登録マクロ |7
 |xref:processor.adoc[`sxmml.processor`] |反復・エコー・ディレイ |10
 |xref:optimizer.adoc[`sxmml.optimizer`] |オブジェクト列の最適化 |31
@@ -300,6 +300,7 @@
 |`pmd3-source` |`sxmml.backend.pmd` |手続き・公開 |xref:pmd.adoc#ref-pmd-pmd3-source[項目へ]
 |`pmd4-binary` |`sxmml.backend.pmd-binary` |手続き・公開 |xref:pmd-binary.adoc#ref-pmd-binary-pmd4-binary[項目へ]
 |`pmd4-source` |`sxmml.backend.pmd` |手続き・公開 |xref:pmd.adoc#ref-pmd-pmd4-source[項目へ]
+|`rename-track` |`sxmml.environment` |マクロ・公開 |xref:environment.adoc#ref-environment-rename-track[項目へ]
 |`repeat-body` |`sxmml.repeat-tree` |手続き・公開 |xref:repeat-tree.adoc#ref-repeat-tree-repeat-body[項目へ]
 |`repeat-count` |`sxmml.repeat-tree` |手続き・公開 |xref:repeat-tree.adoc#ref-repeat-tree-repeat-count[項目へ]
 |`repeat-tree-compress` |`sxmml.repeat-tree` |手続き・公開 |xref:repeat-tree.adoc#ref-repeat-tree-repeat-tree-compress[項目へ]
@@ -374,6 +375,7 @@
 |`sxmml-track-find` |`sxmml.environment` |手続き・公開 |xref:environment.adoc#ref-environment-sxmml-track-find[項目へ]
 |`sxmml-track-get` |`sxmml.environment` |手続き・公開 |xref:environment.adoc#ref-environment-sxmml-track-get[項目へ]
 |`sxmml-track-list` |`sxmml.environment` |手続き・公開 |xref:environment.adoc#ref-environment-sxmml-track-list[項目へ]
+|`sxmml-track-rename!` |`sxmml.environment` |手続き・公開 |xref:environment.adoc#ref-environment-sxmml-track-rename-bang[項目へ]
 |`sxmml-track-set!` |`sxmml.environment` |手続き・公開 |xref:environment.adoc#ref-environment-sxmml-track-set-bang[項目へ]
 |`sxmml-value-error?` |`sxmml.classes` |手続き・公開 |xref:classes.adoc#ref-classes-sxmml-value-error-p[項目へ]
 |===
