@@ -91,6 +91,26 @@
           (test* "数値トラック名の診断は位置付きで内部表現やスタックトレースを出さない"
                  (list 1 '() (list #"sxlc: error: ~|source|:2: invalid define-track name: 0 (expected a symbol)"))
                  r))
+        (let* ([normal (source-output "rename-comparison" "(mml A \"l8o5cd\")\n")]
+               [normal-out (work-file "rename-normal.mml")]
+               [renamed-out (work-file "rename-renamed.mml")]
+               [a (sxlc-status "-m" "pmd" "-o" normal-out normal)]
+               [renamed (source-output "rename-comparison"
+                          "(mml A \"l8o5c\")\n(rename-track A melody)\n(mml melody \"d\")\n")]
+               [b (sxlc-report "-m" "pmd" "-o" renamed-out renamed)])
+          (test* "名前変更前後のMMLを同じpartへ出力しCLIは新名を表示する"
+                 '(0 0 () () #t #t #f)
+                 (list (car a) (car b) (cadr a) (caddr b)
+                       (and (file-exists? normal-out) (file-exists? renamed-out)
+                            (equal? (file->string normal-out :encoding "shift_jis")
+                                    (file->string renamed-out :encoding "shift_jis")))
+                       (boolean (any #/^Track melody:/ (cadr b)))
+                       (boolean (any #/^Track A:/ (cadr b))))))
+        (let* ([source (source-output "rename-conflict" "; rename\n(rename-track A B)\n")]
+               [r (sxlc-report "-m" "pmd" source)])
+          (test* "名前変更の重複は位置付き診断と終了値1だけで報告する"
+                 (list 1 '() (list #"sxlc: error: ~|source|:2: invalid rename-track destination: B (already registered)"))
+                 r))
         (dolist [case '(("track-report" ("-m" "pmd") "(mml G \"c8?\")"
                          "sxlc: error: unknown MML command: \"?\" on G track")
                         ("value-report" ("-m" "pmd") "(mml A \"v128c\")"

@@ -37,7 +37,7 @@
           define-lfo sxmml-lfo-get sxmml-lfo-set!
           define-envelope sxmml-envelope-get sxmml-envelope-set!
           define-track sxmml-track-get sxmml-track-set! sxmml-track-delete! sxmml-track-clear!
-          sxmml-track-list sxmml-track-find sxmml-ir-register!
+          rename-track sxmml-track-rename! sxmml-track-list sxmml-track-find sxmml-ir-register!
           ))
 (select-module sxmml.environment)
 
@@ -160,8 +160,32 @@
 (define (sxmml-track-get track)
   (hash-table-get (slot-ref (sxmml-environment) 'track) track #f))
 (define (sxmml-track-set! track . params)
-  (hash-table-set! (slot-ref (sxmml-environment) 'track) track
-                   (apply make <sxmml-mml-context> :track track params)))
+  (let* ([tracks (slot-ref (sxmml-environment) 'track)]
+         [ctx (apply make <sxmml-mml-context> :track track
+                     :part (get-keyword :part params track) params)]
+         [part (slot-ref ctx 'part)]
+         [owner (hash-table-find tracks
+                  (^[name other]
+                    (and (not (eq? name track)) (eq? (slot-ref other 'part) part)
+                         (cons name other))))])
+    (when owner
+      (errorf <sxmml-value-error> "invalid track ~s part: ~s (already assigned to track ~s)"
+              track part (car owner)))
+    (hash-table-set! tracks track ctx)))
+(define (sxmml-track-rename! old-name new-name)
+  (unless (symbol? old-name)
+    (errorf <sxmml-value-error> "invalid rename-track source: ~s (expected a symbol)" old-name))
+  (unless (symbol? new-name)
+    (errorf <sxmml-value-error> "invalid rename-track destination: ~s (expected a symbol)" new-name))
+  (let* ([tracks (slot-ref (sxmml-environment) 'track)]
+         [ctx (sxmml-track-get old-name)])
+    (unless ctx
+      (errorf <sxmml-reference-error> "undefined track: ~a" old-name))
+    (when (hash-table-exists? tracks new-name)
+      (errorf <sxmml-value-error> "invalid rename-track destination: ~s (already registered)" new-name))
+    (slot-set! ctx 'track new-name)
+    (hash-table-set! tracks new-name ctx)
+    (hash-table-delete! tracks old-name)))
 (define (sxmml-track-delete! track)
   (hash-table-delete! (slot-ref (sxmml-environment) 'track) track))
 (define (sxmml-track-clear!)
@@ -184,21 +208,37 @@
       (define (build-track-registration track param)
         (unless (identifier? track)
           (sxmml-form-error form "invalid define-track name: ~s (expected a symbol)" (unwrap-syntax track)))
-        (quasirename rename
-          `(sxmml-track-set! ',track ,@param)))
-      (define (build-part track params)
-        (if (find (^[p] (eq? p 'part)) params)
-          params
-          (cons* :part `',track params)))
+        (sxmml-form-wrap form rename
+          (quasirename rename
+            `(sxmml-track-set! ',track ,@param))))
       (match form
         [(_ () param ...)
          (sxmml-form-error form "define-track requires at least one track name")]
         [(_ (track ..1) param ...)
+         (when (any (^[kv] (eq? (car kv) :part))
+                    (slices param 2))
+           (sxmml-form-error
+            form
+            "invalid define-track form: :part requires a single track"))
          (quasirename rename
            `(begin
-              ,@(fold (^[t r] (cons (build-track-registration t (build-part t param)) r))
+              ,@(fold (^[t r] (cons (build-track-registration t param) r))
                       ()
                       track)))]
         [(_ track param ...)
-         (build-track-registration track (build-part track param))]
+         (build-track-registration track param)]
         ))))
+
+(define-syntax rename-track
+  (er-macro-transformer
+    (^[form rename id=?]
+      (match form
+        [(_ old-name new-name)
+         (unless (identifier? old-name)
+           (sxmml-form-error form "invalid rename-track source: ~s (expected a symbol)" (unwrap-syntax old-name)))
+         (unless (identifier? new-name)
+           (sxmml-form-error form "invalid rename-track destination: ~s (expected a symbol)" (unwrap-syntax new-name)))
+         (sxmml-form-wrap form rename
+           (quasirename rename
+             `(sxmml-track-rename! ',old-name ',new-name)))]
+        [_ (sxmml-form-error form "invalid rename-track form: expected (rename-track old-name new-name)")]))))

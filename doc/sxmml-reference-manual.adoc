@@ -37,7 +37,13 @@ LFO・エンベロープの種類、`define-metadata` のキー、`define-track`
 
 書式: `(define-track トラック名 [設定 ...])`、`(define-track (トラック名 ...) [設定 ...])`
 
-一つまたは複数のトラックを登録します。`mml` と `rhythm` で使う名前は登録済みである必要があります。`設定` には `:volume-delta 数値` を指定でき、通常 MML の `)` と `(` の変化幅になります。省略時の幅は 1 です。PMD モードを選ぶと A～J と L が登録されるため、通常は個別登録を要しません。別名のトラックを登録しても、その名前が PMD 向け生成対象になるとは限りません。モードを選ばずに `define-track` だけを記しても、`sxlc` の生成にはバックエンドの選択が必要です。
+一つまたは複数のトラックを登録します。`mml` と `rhythm` で使う名前は登録済みである必要があります。`設定` には `:volume-delta 数値` を指定でき、通常 MML の `)` と `(` の変化幅になります。省略時の幅は 1 です。PMD モードを選ぶと A～J と L が登録されるため、通常は個別登録を要しません。モードを選ばずに `define-track` だけを記しても、`sxlc` の生成にはバックエンドの選択が必要です。
+
+トラック名と、バックエンドで使うpartは独立しています。partを省略するとトラック名と同じpartになります。単一トラックでは、partが空いていれば `(define-track melody :part 'A)` のように異なる名前を対応させられます。手続き `(sxmml-track-set! 'melody :part 'A)` も同じ規則です。別トラックが使用中のpartへの登録は、`invalid track melody part: A (already assigned to track A)` のような値エラーになります。モードが登録した既定トラックを別名で使う場合は、次の `rename-track` を使います。
+
+同名の再定義では新しいcontextを作り、以前の設定・登録済みMML・partを引き継ぎません。part省略時は再定義した名前を使います。空いている別partへ再定義すると旧partは解放されます。検査に失敗した登録手続きは、以前の登録を変更しません。
+
+複数トラック形式では各名前と同じpartを使います。`:part`を指定すると、登録前に `invalid define-track form: :part requires a single track` のフォーム構文エラーになります。登録は従来の順序で逐次実行し、後の登録が失敗しても先に成功した登録は残します。
 
 手続き `(sxmml-track-list)` は、現在登録されているトラック名のリストを返します。戻り値の順序は保証しません。順序が処理結果に影響する場合は、利用側で必要な順序に並べ替えてください。
 
@@ -46,6 +52,26 @@ LFO・エンベロープの種類、`define-metadata` のキー、`define-track`
 (define-track (G H))
 (mml (G H) "c8")
 ----
+
+=== `rename-track`
+
+書式: `(rename-track 変更元名 変更先名)`
+
+登録名を変更し、同じcontextを使い続けます。part、設定、登録済みMML、既定音長・オクターブ・移調、tick集計、ループ・反復状態を保持します。名前はシンボルとして書き、評価しません。手続き `(sxmml-track-rename! 'A 'melody)` ではシンボルを渡します。戻り値は規定しません。
+
+[source,scheme]
+----
+(sxmml-mode pmd)
+(mml A "l8o5c")
+(rename-track A melody)
+(mml melody "d")
+----
+
+この例はpart Aへ両方のMMLを出力します。変更後は旧名Aを使えません。変更元が未登録なら `undefined track: A` の参照エラー、変更先が登録済みなら `invalid rename-track destination: melody (already registered)` の値エラーになります。同名への変更も拒否します。検査に失敗しても既存の登録・context・MMLを変更しません。マクロ経由の既知のエラーには、取得できるフォーム位置を付けます。
+
+名前変更後に `(define-track melody)` と再定義すると、partはmelodyになり、以前の状態は引き継ぎません。part Aを使う新しい定義にする場合は `:part 'A` を明示します。
+
+contextや登録表を直接編集することもできますが、一対一対応を崩した状態では、part検索で選ばれるトラックと、それに依存する生成物の再現性を保証しません。
 
 == MML の登録と加工
 
