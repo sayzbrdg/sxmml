@@ -1,7 +1,7 @@
 = `sxmml.optimizer` のオブジェクト列最適化
 :toc: left
 
-`sxmml.optimizer` は三十四の手続きとクラス（record 型）二つを定義し、`sxmml-optimize-tree` を公開します。入力は登録済みトラックの `compiled-data` にある sxmml IR の列です。戻り値は平坦化されたオブジェクトのリストで、第 1 段階は元オブジェクトを変更せず、第 2 段階には休符の `ticks` を更新する処理があります。意味保持の判定原則は link:../verification.md#q-01-音楽的な意味の保持[検証方針]を参照してください。
+`sxmml.optimizer` は四十七の手続きとクラス（record 型）三つを定義し、`sxmml-optimize-tree` を公開します。入力は登録済みトラックの `compiled-data` にある sxmml IR の列です。戻り値は平坦化されたオブジェクトのリストで、第 1 段階は元オブジェクトを変更せず、第 2 段階には休符の `ticks` を更新する処理があります。意味保持の判定原則は link:../verification.md#q-01-音楽的な意味の保持[検証方針]を参照してください。
 
 `sxmml-optimize-tree` は先にトラックの `total-ticks` と `loop-ticks` を設定します。`:optimize #f` は無操作オブジェクトを除いて平坦化、真値は第 1 段階、`:full` は第 1 段階に加えて第 2 段階を適用します。`:repeat` は第 2 段階の後に、既存のリピートをひとまとめにして命令列を反復で圧縮し、`:repeat-expand` は展開後の長さが 256 以下の既存のリピートを展開してから圧縮します。圧縮は xref:repeat-tree.adoc[`sxmml.repeat-tree`] を使い、回数 2〜255、制御費用は `[ ]` が 2、`[ : ]` が 3、窓幅は `:repeat` が 256、`:repeat-expand` が 1024 です。展開すると反復の周期が延びるので、`:repeat-expand` は窓幅を広げます。回数の上限 255 と入れ子の上限 32 は PMD の局所ループの範囲です。最適化の目的は、コンパイル後のオブジェクトリストに連結されたオブジェクト数の削減です。バックエンドの最終文字列長は評価基準に含めません。オブジェクトとハッシュ表は Gauche 0.9.15 の動作に従います。
 
@@ -21,9 +21,23 @@
 |[[ref-optimizer-internal-ir-to-setting-effects]]`(%ir\->setting-effects obj position)` |IR を設定単位の効果へ分ける |効果のリスト、または単純な設定として扱わない IR なら `#f`。リズムは全体と楽器別を分け、LFO は種類と生のチャンネル値を鍵とする |link:../../sxmml/optimizer.scm[optimizer.scm]
 |[[ref-optimizer-internal-compose-setting-effects]]`(%compose-setting-effects earlier later)` |同じ設定の先行効果 G と後続効果 F を F(G(x)) に合成する |後続が絶対指定なら後続を残す。後続が相対指定なら値を加算し、先行の種類・元 IR・位置を保持。後続が `#f` なら先行を返す |link:../../sxmml/optimizer.scm[optimizer.scm]
 |[[ref-optimizer-internal-setting-effects-to-ir]]`(%setting-effects\->ir table)` |効果表を寄与位置順の IR 列にする |新しい IR のリストを返す。同じ種類の隣接するリズム設定はまとめる。元 IR は変更しない |link:../../sxmml/optimizer.scm[optimizer.scm]
-|[[ref-optimizer-internal-sxmml-optimize-2nd-pass-bang]]`(%sxmml-optimize-2nd-pass! lis)` |第 2 段階。反復を考慮して重複設定を省略し、隣接する休符を結合。LFO の定義・切り替えはチャンネルごとに重複を判定する |新しいリストを返す。結合先の休符の `ticks` を更新。反復構造が不整合なら内部処理で失敗し得る |link:../../sxmml/optimizer.scm[optimizer.scm]
-|[[ref-optimizer-internal-channel-ref]]`(%channel-ref alist channel default)` |チャンネルごとの連想リストから値を引く |`channel` の値を返す。なければ `default` を返す |link:../../sxmml/optimizer.scm[optimizer.scm]
-|[[ref-optimizer-internal-make-repeat-end-context]]`(%make-repeat-end-context lis)` |反復終了までの状態指定を先読み |`<sxmml-optimize-2nd-pass-context>` を返す。終了記号前に MML が終われば `MML terminated before repeat end` エラー |link:../../sxmml/optimizer.scm[optimizer.scm]
+|[[ref-optimizer-internal-sxmml-optimize-2nd-pass-bang]]`(%sxmml-optimize-2nd-pass! lis)` |第 2 段階。平坦な IR を構造化し、状態追跡による再指定の削除、平坦化、隣接休符の結合を行う |新しいリストを返す。休符の結合では元 IR の `ticks` を更新。第 1 段階の変換は不要。構造の不整合は `%repeat-structure` のエラー |link:../../sxmml/optimizer.scm[optimizer.scm]
+|[[ref-optimizer-class-state-effect]]`<state-effect>` +
+[[ref-optimizer-internal-make-state-effect]]`(%make-state-effect relative? value)` +
+[[ref-optimizer-internal-state-effect-p]]`(%state-effect? obj)` +
+[[ref-optimizer-internal-state-effect-relative-p]]`(%state-effect-relative? effect)` +
+[[ref-optimizer-internal-state-effect-value]]`(%state-effect-value effect)` |設定への効果（record 型）。相対変化かどうかと値を保持し、表に項目がなければ変化なし |フィールドは変更できない。相対変化は通常音量だけに使用 |link:../../sxmml/optimizer.scm[optimizer.scm]
+|[[ref-optimizer-internal-state-object-key]]`(%state-object-key obj)` |追跡する設定の鍵を求める |通常音量・音色・ゲートタイム・パン・デチューン・エンベロープは対応するクラス。相対音量は絶対音量と同じ鍵。LFO の選択・切替は種類と生のチャンネルの対。それ以外は `#f` |link:../../sxmml/optimizer.scm[optimizer.scm]
+|[[ref-optimizer-internal-state-set]]`(%state-set state key value)` |連想リストの鍵を置き換える |新しい連想リストを返し、元の表は変更しない。既知値 `#f` も保持 |link:../../sxmml/optimizer.scm[optimizer.scm]
+|[[ref-optimizer-internal-state-effects-compose]]`(%state-effects-compose earlier later)` |先行 G と後続 F の効果表を F(G(x)) に合成する |新しい効果表を返す。絶対指定は上書き、後続が相対変化なら先行の絶対値または差分へ加算 |link:../../sxmml/optimizer.scm[optimizer.scm]
+|[[ref-optimizer-internal-state-effects-power]]`(%state-effects-power effects count)` |非負整数 `count` 回の効果を求める |0 回なら変化なし、正の回数の絶対指定は同じ値、相対変化は差分と回数の積。周回を展開しない |link:../../sxmml/optimizer.scm[optimizer.scm]
+|[[ref-optimizer-internal-state-effects-apply]]`(%state-effects-apply state effects)` |入口状態に効果を適用する |出口状態の連想リストを返す。相対変化で入口値が不明なら不明を維持。元の表は変更しない |link:../../sxmml/optimizer.scm[optimizer.scm]
+|[[ref-optimizer-internal-state-join]]`(%state-join left right)` |経路ごとの状態を合わせる |両側に同じ既知値がある鍵だけを残す。入力表は変更しない |link:../../sxmml/optimizer.scm[optimizer.scm]
+|[[ref-optimizer-internal-state-region-effects]]`(%state-region-effects items cache)` |領域の各命令・反復の効果を実行順に合成する |効果表を返す。入れ子の反復は要約を再利用し、作業用 `cache` を更新する場合がある |link:../../sxmml/optimizer.scm[optimizer.scm]
+|[[ref-optimizer-internal-state-repeat-effects]]`(%state-repeat-effects block cache)` |反復全体の効果を求める |最後は脱出前だけを実行する効果表を返し、元のブロックを鍵に `cache` へ保存。回数はコンパイラが保証する正の正確な整数を前提とする |link:../../sxmml/optimizer.scm[optimizer.scm]
+|[[ref-optimizer-internal-state-optimize-repeat]]`(%state-optimize-repeat block state cache)` |全周回に共通する入口で本文を最適化する |新しいブロックと出口状態の 2 値。出口は外側の入口と反復全体の要約から求める。1 回の反復の脱出後は保持し、出口状態へ反映しない |link:../../sxmml/optimizer.scm[optimizer.scm]
+|[[ref-optimizer-internal-state-optimize-region]]`(%state-optimize-region items state cache)` |領域の再指定を削除し、状態を追跡する |新しい要素列と出口状態の 2 値。反復・L では入口を合流し、同値と分かる絶対指定だけを削除。入力の状態表は変更しない |link:../../sxmml/optimizer.scm[optimizer.scm]
+|[[ref-optimizer-internal-state-merge-rests-bang]]`(%state-merge-rests! lis)` |平坦化後の隣接休符を結合する |新しいリストを返し、結合先の休符の `ticks` を更新する |link:../../sxmml/optimizer.scm[optimizer.scm]
 |[[ref-optimizer-internal-sxmml-optimize-repeat]]`(%sxmml-optimize-repeat lis expand?)` |`:repeat`・`:repeat-expand` の圧縮。第 2 段階の後の `lis` をブロックに組み立て、`expand?` なら小さいブロックを展開し、`%repeat-compress` で圧縮する |平坦な新しいリストを返す。`%repeat-check` が出力と入力の不一致を見つければ `repeat optimization changed the expanded objects` エラー。リピートの組み立ての誤りは `%repeat-structure` のエラー |link:../../sxmml/optimizer.scm[optimizer.scm]
 |[[ref-optimizer-class-repeat-block]]`<repeat-block>` +
 [[ref-optimizer-internal-make-repeat-block]]`(%make-repeat-block start front break back end)` +
@@ -53,6 +67,16 @@
 リズム全体音量と楽器別音量を区別し、楽器別音量・パンは `bass`、`snare`、`tom`、`cymbal`、`hihat`、`rimshot` ごとに合成します。例えば `)bs2 vs9` は bass の相対差分 2 と snare の絶対値 9 になり、元の複数楽器指定の形には拘束されません。リズムの音量差 IR に全体音量の `value` がある場合は、単純な設定として合成せず境界として残します。
 
 音符・休符・ポルタメント・リズム発音と消音、`L`、反復開始・脱出・終了、タイなどの単純な設定でない命令を境界とします。未知の IR も拒否せず境界として残し、境界を越えて設定を合成しません。NOP は除去します。出力順は寄与位置で決め、ハッシュ表の列挙順に依存しません。作業表と再構成中の IR は局所的に変更しますが、登録済み IR は変更しません。公開クラス `<sxmml-optimize-environment>` は維持しますが、第 1 段階の作業表には使用しません。第 2 段階以降の処理と入力変更の範囲は、この修正では変更していません。
+
+== 第 2 段階の状態追跡
+
+第 2 段階は通常音量・音色・ゲートタイム・パン・デチューン・エンベロープ・LFO 定義指定・LFO スイッチの 8 系統を追跡します。状態は既知の鍵だけを持つ連想リストとし、項目がなければ不明です。LFO の既知値 `#f` と不明、チャンネル省略と `A` を区別します。バックエンドの初期値は仮定しません。相対音量命令自体は残し、値が不明なら数値加算をせず不明を維持します。設定命令の合成や並べ替えはしません。
+
+効果の要約は、変化なし・絶対指定・相対変化を表し、入口の状態とは別の情報です。脱出前の効果を F、脱出後を B、一周の効果を P=B∘F とすると、反復 n 回の効果は F∘P^(n−1) です。効果の累乗は絶対指定の維持または差分の乗算で求め、回数分の展開はしません。入れ子の要約は呼出しごとの作業用ハッシュ表で再利用します。
+
+本文の最適化には、初回の状態 S と P(S) に共通する既知値を使います。この効果の範囲では、ここで一致する値は後続周回でも一致し、異なる値は不明とすれば全周回を含められます。1 回の反復には戻り経路がないので S だけを使います。出口は共通の入口ではなく、反復全体の要約を外側の S に適用して求めます。例えば `v8[v*1c8]3v9d8` では本文入口は不明でも出口は11と分かり、続く `v9` を残します。脱出地点の初回状態の保存・復元では代用しません。
+
+L より前を一度実行した状態と、L から末尾までの効果で一周した状態を合わせて、L 以後を最適化します。`p1Lp1c8p2d8` では初回1と次周2が異なるので、L 直後の `p1` を残します。制御記号と回数は保持し、到達不能な命令を削除する新しい処理やリズム系の状態追跡は追加しません。公開クラス `<sxmml-optimize-2nd-pass-context>` は維持しますが、新しい処理には使用しません。
 
 == 最適化例
 
