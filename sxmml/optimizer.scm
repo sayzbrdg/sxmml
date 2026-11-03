@@ -28,6 +28,7 @@
 
 (define-module sxmml.optimizer
   (use gauche.record)
+  (use srfi.1)
   (use sxmml.classes)
   (use sxmml.environment)
   (use sxmml.mml)
@@ -158,158 +159,145 @@
 
 ;;
 ;; 第2パス
-(define (%sxmml-optimize-2nd-pass! lis)
-  (define (skip?! ctx rctx obj slot pslot)
-    (cond [(and (null? rctx)  (equal? (slot-ref obj 'value) (slot-ref ctx slot)))
-           #t]                          ; outer repeat
-          [(and (slot-ref ctx pslot) (equal? (slot-ref obj 'value) (slot-ref ctx slot)))
-           #t]
-          [(and (not (null? rctx))
-                (equal? (slot-ref obj 'value) (slot-ref ctx slot))
-                (equal? (slot-ref obj 'value) (slot-ref (car rctx) slot)))
-           #t]
+(define-record-type <state-effect>
+  (%make-state-effect relative? value)
+  %state-effect?
+  (relative? %state-effect-relative?)
+  (value %state-effect-value))
+
+(define (%state-object-key obj)
+  (cond [(is-a? obj <sxmml-mml-volume-change>) <sxmml-mml-volume>]
+        [(is-a? obj <sxmml-mml-lfo-switch>)
+         (cons <sxmml-mml-lfo-switch> (slot-ref obj 'channel))]
+        [(is-a? obj <sxmml-mml-lfo>)
+         (cons <sxmml-mml-lfo> (slot-ref obj 'channel))]
+        [else
+         (find (^[class] (is-a? obj class))
+               (list <sxmml-mml-volume> <sxmml-mml-voice> <sxmml-mml-gate-time>
+                     <sxmml-mml-pan> <sxmml-mml-detune> <sxmml-mml-envelope>))]))
+
+(define (%state-set state key value)
+  (acons key value (alist-delete key state equal?)))
+
+(define (%state-effects-compose earlier later)
+  (fold (^[entry result]
+          (let* ([key (car entry)] [effect (cdr entry)] [previous (assoc key result)])
+            (%state-set result key
+                        (if (and (%state-effect-relative? effect) previous)
+                          (%make-state-effect (%state-effect-relative? (cdr previous))
+                                              (+ (%state-effect-value (cdr previous))
+                                                 (%state-effect-value effect)))
+                          effect))))
+        earlier later))
+
+(define (%state-effects-power effects count)
+  (if (zero? count)
+    ()
+    (map (^[entry]
+           (cons (car entry)
+                 (if (%state-effect-relative? (cdr entry))
+                   (%make-state-effect #t (* count (%state-effect-value (cdr entry))))
+                   (cdr entry))))
+         effects)))
+
+(define (%state-effects-apply state effects)
+  (fold (^[entry result]
+          (let ([key (car entry)] [effect (cdr entry)])
+            (if (%state-effect-relative? effect)
+              (if-let1 known (assoc key result)
+                (%state-set result key (+ (cdr known) (%state-effect-value effect)))
+                result)
+              (%state-set result key (%state-effect-value effect)))))
+        state effects))
+
+(define (%state-join left right)
+  (filter (^[entry]
+            (and-let* ([other (assoc (car entry) right)])
+              (equal? (cdr entry) (cdr other))))
+          left))
+
+(define (%state-region-effects items cache)
+  (fold (^[item effects]
+          (%state-effects-compose
+           effects
+           (if (%repeat-block? item)
+             (%state-repeat-effects item cache)
+             (if-let1 key (%state-object-key item)
+               (list (cons key (%make-state-effect (is-a? item <sxmml-mml-volume-change>)
+                                                  (slot-ref item 'value))))
+               ()))))
+        () items))
+
+(define (%state-repeat-effects block cache)
+  (or (hash-table-get cache block #f)
+      (let* ([front (%state-region-effects (%repeat-block-front block) cache)]
+             [count (slot-ref (%repeat-block-end block) 'value)]
+             [effects (if (= count 1)
+                        front
+                        (%state-effects-compose
+                         (%state-effects-power
+                          (%state-effects-compose
+                           front (%state-region-effects (or (%repeat-block-back block) ()) cache))
+                          (- count 1))
+                         front))])
+        (hash-table-set! cache block effects)
+        effects)))
+
+(define (%state-optimize-repeat block state cache)
+  (let* ([front (%repeat-block-front block)] [back (%repeat-block-back block)]
+         [count (slot-ref (%repeat-block-end block) 'value)]
+         [entry (if (= count 1)
+                  state
+                  (%state-join
+                   state
+                   (%state-effects-apply
+                    state (%state-effects-compose (%state-region-effects front cache)
+                                                  (%state-region-effects (or back ()) cache)))))])
+    (receive (new-front middle) (%state-optimize-region front entry cache)
+      (receive (new-back ignored)
+          (if (and back (> count 1))
+            (%state-optimize-region back middle cache)
+            (values back middle))
+        (values (%make-repeat-block (%repeat-block-start block) new-front
+                                    (%repeat-block-break block) new-back (%repeat-block-end block))
+                (%state-effects-apply state (%state-repeat-effects block cache)))))))
+
+(define (%state-optimize-region items state cache)
+  (let loop ([rest items] [state state] [result ()])
+    (cond [(null? rest) (values (reverse! result) state)]
+          [(%repeat-block? (car rest))
+           (receive (block outgoing) (%state-optimize-repeat (car rest) state cache)
+             (loop (cdr rest) outgoing (cons block result)))]
+          [(is-a? (car rest) <sxmml-mml-loop>)
+           (let1 entry (%state-join state (%state-effects-apply state (%state-region-effects (cdr rest) cache)))
+             (receive (tail outgoing) (%state-optimize-region (cdr rest) entry cache)
+               (values (append (reverse! result) (cons (car rest) tail)) outgoing)))]
           [else
-           (slot-set! ctx slot (slot-ref obj 'value))
-           (slot-set! ctx pslot #t)
-           #f]))
-  ;; skip?! の LFO 版。LFO の状態はチャンネルごとの連想リストで持ち、
-  ;; 置いたチャンネルをリストで持つ。文脈は複製されるので、リストは作り直す
-  (define (lfo-skip?! ctx rctx obj slot pslot default)
-    (let* ([channel (slot-ref obj 'channel)]
-           [value (slot-ref obj 'value)]
-           [same? (equal? value (%channel-ref (slot-ref ctx slot) channel default))])
-      (cond [(and (null? rctx) same?)
-             #t]                        ; outer repeat
-            [(and (memq channel (slot-ref ctx pslot)) same?)
-             #t]
-            [(and (not (null? rctx))
-                  same?
-                  (equal? value (%channel-ref (slot-ref (car rctx) slot) channel default)))
-             #t]
-            [else
-             (slot-set! ctx slot (acons channel value (slot-ref ctx slot)))
-             (slot-set! ctx pslot (cons channel (slot-ref ctx pslot)))
-             #f])))
-  (define (placed-init! ctx)
-    (for-each (^s (slot-set! ctx s #f))
-              '(voice-placed volume-placed gate-time-placed pan-placed detune-placed
-                              envelope-placed))
-    (for-each (^s (slot-set! ctx s ()))
-              '(lfo-placed-channels lfo-switch-placed-channels))
-    ctx)
-  (define (ctx-copy ctx)
-    (let1 new (make <sxmml-optimize-2nd-pass-context>)
-      (for-each (^s (slot-set! new s (slot-ref ctx s)))
-                (map slot-definition-name (class-slots <sxmml-optimize-2nd-pass-context>)))
-      new))
-  (let loop ([rest lis]
-             [ctx (make <sxmml-optimize-2nd-pass-context>)]
-             [rctx ()]
-             [sctx ()]
-             [result ()])
-    (cond [(null? rest)
-           (reverse result)]
-          [(is-a? (car rest) <sxmml-mml-repeat-break>)
-           (loop (cdr rest) ctx rctx (cons (ctx-copy ctx) sctx) (cons (car rest) result))]
-          [(is-a? (car rest) <sxmml-mml-repeat-end>)
-           (if (car sctx)
-             (loop (cdr rest) (car sctx) (cdr rctx) (cdr sctx) (cons (car rest) result))
-             (loop (cdr rest) ctx (cdr rctx) (cdr sctx) (cons (car rest) result)))]
-          [(is-a? (car rest) <sxmml-mml-repeat-start>)
-           (loop (cdr rest) (placed-init! ctx) (cons (%make-repeat-end-context (cdr rest)) rctx) (cons #f sctx) (cons (car rest) result))]
-          [(is-a? (car rest) <sxmml-mml-voice>)
-           (if (skip?! ctx rctx (car rest) 'voice 'voice-placed)
-             (loop (cdr rest) ctx rctx sctx result)
-             (loop (cdr rest) ctx rctx sctx (cons (car rest) result)))]
-          [(is-a? (car rest) <sxmml-mml-volume>)
-           (if (skip?! ctx rctx (car rest) 'volume 'volume-placed)
-             (loop (cdr rest) ctx rctx sctx result)
-             (loop (cdr rest) ctx rctx sctx (cons (car rest) result)))]
-          [(is-a? (car rest) <sxmml-mml-volume-change>)
-           (slot-set! ctx 'volume (+ (slot-ref ctx 'volume) (slot-ref (car rest) 'value)))
-           (loop (cdr rest) ctx rctx sctx (cons (car rest) result))]
-          [(is-a? (car rest) <sxmml-mml-gate-time>)
-           (if (skip?! ctx rctx (car rest) 'gate-time 'gate-time-placed)
-             (loop (cdr rest) ctx rctx sctx result)
-             (loop (cdr rest) ctx rctx sctx (cons (car rest) result)))]
-          [(is-a? (car rest) <sxmml-mml-pan>)
-           (if (skip?! ctx rctx (car rest) 'pan 'pan-placed)
-             (loop (cdr rest) ctx rctx sctx result)
-             (loop (cdr rest) ctx rctx sctx (cons (car rest) result)))]
-          [(is-a? (car rest) <sxmml-mml-detune>)
-           (if (skip?! ctx rctx (car rest) 'detune 'detune-placed)
-             (loop (cdr rest) ctx rctx sctx result)
-             (loop (cdr rest) ctx rctx sctx (cons (car rest) result)))]
-          [(is-a? (car rest) <sxmml-mml-envelope>)
-           (if (skip?! ctx rctx (car rest) 'envelope 'envelope-placed)
-             (loop (cdr rest) ctx rctx sctx result)
-             (loop (cdr rest) ctx rctx sctx (cons (car rest) result)))]
-          [(is-a? (car rest) <sxmml-mml-lfo-switch>)
-           (if (lfo-skip?! ctx rctx (car rest) 'lfo-switch 'lfo-switch-placed-channels 'init)
-             (loop (cdr rest) ctx rctx sctx result)
-             (loop (cdr rest) ctx rctx sctx (cons (car rest) result)))]
-          [(is-a? (car rest) <sxmml-mml-lfo>)
-           (if (lfo-skip?! ctx rctx (car rest) 'lfo 'lfo-placed-channels #f)
-             (loop (cdr rest) ctx rctx sctx result)
-             (loop (cdr rest) ctx rctx sctx (cons (car rest) result)))]
-          [(and (is-a? (car rest) <sxmml-mml-rest>)
-                (not (null? (cdr rest)))
+           (let* ([obj (car rest)] [key (%state-object-key obj)]
+                  [known (and key (assoc key state))])
+             (cond [(not key) (loop (cdr rest) state (cons obj result))]
+                   [(is-a? obj <sxmml-mml-volume-change>)
+                    (loop (cdr rest)
+                          (if known (%state-set state key (+ (cdr known) (slot-ref obj 'value))) state)
+                          (cons obj result))]
+                   [(and known (equal? (cdr known) (slot-ref obj 'value)))
+                    (loop (cdr rest) state result)]
+                   [else
+                    (loop (cdr rest) (%state-set state key (slot-ref obj 'value)) (cons obj result))]))])))
+
+(define (%state-merge-rests! lis)
+  (let loop ([rest lis] [result ()])
+    (cond [(null? rest) (reverse! result)]
+          [(and (pair? (cdr rest)) (is-a? (car rest) <sxmml-mml-rest>)
                 (is-a? (cadr rest) <sxmml-mml-rest>))
-           (slot-set! (cadr rest) 'ticks (+ (slot-ref (car rest) 'ticks)
-                                            (slot-ref (cadr rest) 'ticks)))
-           (loop (cdr rest) ctx rctx sctx result)]
-          [else
-           (loop (cdr rest) ctx rctx sctx (cons (car rest) result))])))
+           (slot-set! (cadr rest) 'ticks (+ (slot-ref (car rest) 'ticks) (slot-ref (cadr rest) 'ticks)))
+           (loop (cdr rest) result)]
+          [else (loop (cdr rest) (cons (car rest) result))])))
 
-;; チャンネルごとの連想リスト alist から channel の値を返す。なければ default を返す
-(define (%channel-ref alist channel default)
-  (if-let1 p (assq channel alist)
-    (cdr p)
-    default))
-
-(define (%make-repeat-end-context lis)
-  (let loop ([rest lis]
-             [ctx (make <sxmml-optimize-2nd-pass-context>)])
-    (cond [(null? rest)
-           (error "MML terminated before repeat end")]
-          [(and (is-a? (car rest) <sxmml-mml-repeat-end>)
-                (= (slot-ref ctx 'repeat-depth) 0))
-           ctx]
-          [(is-a? (car rest) <sxmml-mml-repeat-end>)
-           (slot-set! ctx 'repeat-depth (- (slot-ref ctx 'repeat-depth) 1))
-           (loop (cdr rest) ctx)]
-          [(is-a? (car rest) <sxmml-mml-repeat-start>)
-           (slot-set! ctx 'repeat-depth (+ (slot-ref ctx 'repeat-depth) 1))
-           (loop (cdr rest) ctx)]
-          [(is-a? (car rest) <sxmml-mml-voice>)
-           (slot-set! ctx 'voice (slot-ref (car rest) 'value))
-           (loop (cdr rest) ctx)]
-          [(is-a? (car rest) <sxmml-mml-volume>)
-           (slot-set! ctx 'volume (slot-ref (car rest) 'value))
-           (loop (cdr rest) ctx)]
-          [(is-a? (car rest) <sxmml-mml-gate-time>)
-           (slot-set! ctx 'gate-time (slot-ref (car rest) 'value))
-           (loop (cdr rest) ctx)]
-          [(is-a? (car rest) <sxmml-mml-pan>)
-           (slot-set! ctx 'pan (slot-ref (car rest) 'value))
-           (loop (cdr rest) ctx)]
-          [(is-a? (car rest) <sxmml-mml-detune>)
-           (slot-set! ctx 'detune (slot-ref (car rest) 'value))
-           (loop (cdr rest) ctx)]
-          [(is-a? (car rest) <sxmml-mml-envelope>)
-           (slot-set! ctx 'envelope (slot-ref (car rest) 'value))
-           (loop (cdr rest) ctx)]
-          [(is-a? (car rest) <sxmml-mml-lfo-switch>)
-           (slot-set! ctx 'lfo-switch (acons (slot-ref (car rest) 'channel) (slot-ref (car rest) 'value)
-                                             (slot-ref ctx 'lfo-switch)))
-           (loop (cdr rest) ctx)]
-          [(is-a? (car rest) <sxmml-mml-lfo>)
-           (slot-set! ctx 'lfo (acons (slot-ref (car rest) 'channel) (slot-ref (car rest) 'value)
-                                      (slot-ref ctx 'lfo)))
-           (loop (cdr rest) ctx)]
-          [else
-           (loop (cdr rest) ctx)]
-          )))
+(define (%sxmml-optimize-2nd-pass! lis)
+  (receive (items outgoing)
+      (%state-optimize-region (%repeat-structure lis) () (make-hash-table eq-comparator))
+    (%state-merge-rests! (%repeat-flatten items))))
 
 ;;
 ;; repeat

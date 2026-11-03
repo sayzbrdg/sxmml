@@ -3,7 +3,7 @@
 
 この索引は、sxmml を保守・改修する際に内部定義を名前から探すためのものです。動作環境は Gauche 0.9.15 です。内部の名前は MML 記述者向け API を示しません。公開機能の使い方は xref:../sxmml-reference-manual.adoc[MML 記述者向けリファレンス]、MML 文字列の記法は xref:../sxmml-mml-manual.adoc[MML コマンドマニュアル]を参照してください。
 
-モジュール直下の手続き 272 件、クラス 59 件、マクロ 13 件、合計 344 件を掲載します。実験的な `sxmml.backend.pmd-binary` は公開名 7 件だけを掲載し、内部定義は xref:pmd-binary.adoc[本文]に概要だけを記します。`sxmml.scm` は各モジュールを継承し、独自の直下定義はありません。`sxmml.backend.pmd-binary` の `initialize` と `sxmml.form` の `report-additional-condition` のメソッドは、手続き件数へ重複計上しません。局所関数と `sxlc.in` の直下定義は範囲外です。呼び出せない表（ハッシュ表やリスト）は対象外です。
+モジュール直下の手続き 285 件、クラス 60 件、マクロ 13 件、合計 358 件を掲載します。実験的な `sxmml.backend.pmd-binary` は公開名 7 件だけを掲載し、内部定義は xref:pmd-binary.adoc[本文]に概要だけを記します。`sxmml.scm` は各モジュールを継承し、独自の直下定義はありません。`sxmml.backend.pmd-binary` の `initialize` と `sxmml.form` の `report-additional-condition` のメソッドは、手続き件数へ重複計上しません。局所関数と `sxlc.in` の直下定義は範囲外です。呼び出せない表（ハッシュ表やリスト）は対象外です。
 
 識別子の命名と改名の判断は xref:naming-conventions.adoc[命名規約]を参照してください。
 
@@ -17,7 +17,7 @@
 |xref:environment.adoc[`sxmml.environment`] |環境と登録表 |28
 |xref:compiler.adoc[`sxmml.compiler`] |文字列の解析と登録マクロ |7
 |xref:processor.adoc[`sxmml.processor`] |反復・エコー・ディレイ |10
-|xref:optimizer.adoc[`sxmml.optimizer`] |オブジェクト列の最適化 |36
+|xref:optimizer.adoc[`sxmml.optimizer`] |オブジェクト列の最適化 |50
 |xref:repeat-tree.adoc[`sxmml.repeat-tree`] |局所反復木による列の圧縮 |33
 |xref:voice.adoc[`sxmml.voice`] |音色定義 |8
 |xref:util.adoc[`sxmml.util`] |BPM の補助計算 |1
@@ -97,7 +97,6 @@
 |`$volume-up` |`sxmml.mml` |手続き・非公開 |xref:mml.adoc#ref-mml-parser-volume-up[項目へ]
 |`%$return` |`sxmml.mml` |マクロ・非公開 |xref:mml.adoc#ref-mml-internal-parser-return[項目へ]
 |`%4op-voice-shape` |`sxmml.voice` |手続き・非公開 |xref:voice.adoc#ref-voice-internal-4op-voice-shape[項目へ]
-|`%channel-ref` |`sxmml.optimizer` |手続き・非公開 |xref:optimizer.adoc#ref-optimizer-internal-channel-ref[項目へ]
 |`%check-input` |`sxmml.repeat-tree` |手続き・非公開 |xref:repeat-tree.adoc#ref-repeat-tree-internal-check-input[項目へ]
 |`%check-obsolete-metadata` |`sxmml.backend.pmd` |手続き・非公開 |xref:pmd.adoc#ref-pmd-internal-check-obsolete-metadata[項目へ]
 |`%compose-setting-effects` |`sxmml.optimizer` |手続き・非公開 |xref:optimizer.adoc#ref-optimizer-internal-compose-setting-effects[項目へ]
@@ -112,10 +111,10 @@
 |`%make-mml-value-parser` |`sxmml.mml` |手続き・非公開 |xref:mml.adoc#ref-mml-internal-make-mml-value-parser[項目へ]
 |`%make-note-length-parser` |`sxmml.mml` |手続き・非公開 |xref:mml.adoc#ref-mml-internal-make-note-length-parser[項目へ]
 |`%make-repeat-block` |`sxmml.optimizer` |手続き・非公開 |xref:optimizer.adoc#ref-optimizer-internal-make-repeat-block[項目へ]
-|`%make-repeat-end-context` |`sxmml.optimizer` |手続き・非公開 |xref:optimizer.adoc#ref-optimizer-internal-make-repeat-end-context[項目へ]
 |`%make-repeat-tree-settings` |`sxmml.repeat-tree` |手続き・非公開 |xref:repeat-tree.adoc#ref-repeat-tree-internal-make-repeat-tree-settings[項目へ]
 |`%make-rhythm-command-parser` |`sxmml.mml` |手続き・非公開 |xref:mml.adoc#ref-mml-internal-make-rhythm-command-parser[項目へ]
 |`%make-setting-effect` |`sxmml.optimizer` |手続き・非公開 |xref:optimizer.adoc#ref-optimizer-internal-make-setting-effect[項目へ]
+|`%make-state-effect` |`sxmml.optimizer` |手続き・非公開 |xref:optimizer.adoc#ref-optimizer-internal-make-state-effect[項目へ]
 |`%message\->located-message` |`sxmml.form` |手続き・非公開 |xref:form.adoc#ref-form-internal-message-to-located-message[項目へ]
 |`%mml-repeat-end-format` |`sxmml.processor` |手続き・非公開 |xref:processor.adoc#ref-processor-internal-mml-repeat-end-format[項目へ]
 |`%most-frequent-ticks-find` |`sxmml.backend.pmd` |手続き・非公開 |xref:pmd.adoc#ref-pmd-internal-most-frequent-ticks-find[項目へ]
@@ -200,6 +199,20 @@
 |`%setting-effect?` |`sxmml.optimizer` |手続き・非公開 |xref:optimizer.adoc#ref-optimizer-internal-setting-effect-p[項目へ]
 |`%setting-effects\->ir` |`sxmml.optimizer` |手続き・非公開 |xref:optimizer.adoc#ref-optimizer-internal-setting-effects-to-ir[項目へ]
 |`%ssg-track-output` |`sxmml.backend.pmd` |手続き・非公開 |xref:pmd.adoc#ref-pmd-internal-ssg-track-output[項目へ]
+|`%state-effect-relative?` |`sxmml.optimizer` |手続き・非公開 |xref:optimizer.adoc#ref-optimizer-internal-state-effect-relative-p[項目へ]
+|`%state-effect-value` |`sxmml.optimizer` |手続き・非公開 |xref:optimizer.adoc#ref-optimizer-internal-state-effect-value[項目へ]
+|`%state-effect?` |`sxmml.optimizer` |手続き・非公開 |xref:optimizer.adoc#ref-optimizer-internal-state-effect-p[項目へ]
+|`%state-effects-apply` |`sxmml.optimizer` |手続き・非公開 |xref:optimizer.adoc#ref-optimizer-internal-state-effects-apply[項目へ]
+|`%state-effects-compose` |`sxmml.optimizer` |手続き・非公開 |xref:optimizer.adoc#ref-optimizer-internal-state-effects-compose[項目へ]
+|`%state-effects-power` |`sxmml.optimizer` |手続き・非公開 |xref:optimizer.adoc#ref-optimizer-internal-state-effects-power[項目へ]
+|`%state-join` |`sxmml.optimizer` |手続き・非公開 |xref:optimizer.adoc#ref-optimizer-internal-state-join[項目へ]
+|`%state-merge-rests!` |`sxmml.optimizer` |手続き・非公開 |xref:optimizer.adoc#ref-optimizer-internal-state-merge-rests-bang[項目へ]
+|`%state-object-key` |`sxmml.optimizer` |手続き・非公開 |xref:optimizer.adoc#ref-optimizer-internal-state-object-key[項目へ]
+|`%state-optimize-region` |`sxmml.optimizer` |手続き・非公開 |xref:optimizer.adoc#ref-optimizer-internal-state-optimize-region[項目へ]
+|`%state-optimize-repeat` |`sxmml.optimizer` |手続き・非公開 |xref:optimizer.adoc#ref-optimizer-internal-state-optimize-repeat[項目へ]
+|`%state-region-effects` |`sxmml.optimizer` |手続き・非公開 |xref:optimizer.adoc#ref-optimizer-internal-state-region-effects[項目へ]
+|`%state-repeat-effects` |`sxmml.optimizer` |手続き・非公開 |xref:optimizer.adoc#ref-optimizer-internal-state-repeat-effects[項目へ]
+|`%state-set` |`sxmml.optimizer` |手続き・非公開 |xref:optimizer.adoc#ref-optimizer-internal-state-set[項目へ]
 |`%sxmml-mode-select` |`sxmml.environment` |手続き・非公開 |xref:environment.adoc#ref-environment-internal-sxmml-mode-select[項目へ]
 |`%sxmml-optimize-2nd-pass!` |`sxmml.optimizer` |手続き・非公開 |xref:optimizer.adoc#ref-optimizer-internal-sxmml-optimize-2nd-pass-bang[項目へ]
 |`%sxmml-optimize-repeat` |`sxmml.optimizer` |手続き・非公開 |xref:optimizer.adoc#ref-optimizer-internal-sxmml-optimize-repeat[項目へ]
@@ -218,6 +231,7 @@
 |`<repeat-tree-settings>` |`sxmml.repeat-tree` |クラス・非公開 |xref:repeat-tree.adoc#ref-repeat-tree-class-repeat-tree-settings[項目へ]
 |`<repeat>` |`sxmml.repeat-tree` |クラス・非公開 |xref:repeat-tree.adoc#ref-repeat-tree-class-repeat[項目へ]
 |`<setting-effect>` |`sxmml.optimizer` |クラス・非公開 |xref:optimizer.adoc#ref-optimizer-class-setting-effect[項目へ]
+|`<state-effect>` |`sxmml.optimizer` |クラス・非公開 |xref:optimizer.adoc#ref-optimizer-class-state-effect[項目へ]
 |`<sxmml-envelope>` |`sxmml.classes` |クラス・公開 |xref:classes.adoc#ref-classes-class-sxmml-envelope[項目へ]
 |`<sxmml-environment>` |`sxmml.classes` |クラス・公開 |xref:classes.adoc#ref-classes-class-sxmml-environment[項目へ]
 |`<sxmml-error>` |`sxmml.classes` |クラス・公開 |xref:classes.adoc#ref-classes-class-sxmml-error[項目へ]
