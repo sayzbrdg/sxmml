@@ -66,109 +66,95 @@
                      (recur (cdr rest) (cons (car rest) objs))])))]
           )))
 
-(define (%sxmml-optimize-tree! mmlenv)
+(define-record-type <setting-effect>
+  (%make-setting-effect key relative? value origin position)
+  %setting-effect?
+  (key %setting-effect-key)
+  (relative? %setting-effect-relative?)
+  (value %setting-effect-value)
+  (origin %setting-effect-origin)
+  (position %setting-effect-position))
+
+(define (%ir->setting-effects obj position)
+  (define (effect key relative? value)
+    (%make-setting-effect key relative? value obj position))
+  (let1 class (class-of obj)
+    (cond [(eq? class <sxmml-mml-volume-change>)
+           (list (effect <sxmml-mml-volume> #t (slot-ref obj 'value)))]
+          [(eq? class <sxmml-mml-transpose-change>)
+           (list (effect <sxmml-mml-transpose> #t (slot-ref obj 'value)))]
+          [(memq class (list <sxmml-mml-tempo> <sxmml-mml-tempo-absolute>))
+           (list (effect 'tempo #f (slot-ref obj 'value)))]
+          [(memq class (list <sxmml-mml-lfo> <sxmml-mml-lfo-switch>))
+           (list (effect (cons class (slot-ref obj 'channel)) #f (slot-ref obj 'value)))]
+          [(memq class (list <sxmml-rhythm-volume> <sxmml-rhythm-volume-change> <sxmml-rhythm-pan>))
+           (let1 relative? (eq? class <sxmml-rhythm-volume-change>)
+             (and (not (and relative? (slot-ref obj 'value)))
+                  (filter-map (^[slot] (let1 value (slot-ref obj slot)
+                                       (and value
+                                            (effect (cons (if relative? <sxmml-rhythm-volume> class) slot)
+                                                    relative? value))))
+                              '(value bass snare tom cymbal hihat rimshot))))]
+          [(memq class (list <sxmml-mml-volume> <sxmml-mml-transpose> <sxmml-mml-voice>
+                             <sxmml-mml-gate-time> <sxmml-mml-pan> <sxmml-mml-detune>
+                             <sxmml-mml-envelope> <sxmml-mml-noise-frequency> <sxmml-mml-output-switch>))
+           (list (effect class #f (slot-ref obj 'value)))]
+          [else #f])))
+
+(define (%compose-setting-effects earlier later)
+  (cond [(not later) earlier]
+        [(not (%setting-effect-relative? later)) later]
+        [else
+         (%make-setting-effect (%setting-effect-key earlier)
+                               (%setting-effect-relative? earlier)
+                               (+ (%setting-effect-value earlier) (%setting-effect-value later))
+                               (%setting-effect-origin earlier)
+                               (%setting-effect-position earlier))]))
+
+(define (%setting-effects->ir table)
   (reverse!
-   (let* ([env (make <sxmml-optimize-environment>)]
-          [optobjs (let recur ([rest (slot-ref mmlenv 'compiled-data)]
-                               [objs ()])
-                     (cond [(null? rest)
-                            objs]
-                           [(pair? (car rest))
-                            (recur (cdr rest) (recur (car rest) objs))]
-                           [(any ($ is-a? (car rest) $) (list <sxmml-mml-volume-change>)) ; sum values
-                            (object-sum-update! env (car rest))
-                            (recur (cdr rest) objs)]
-                           [(any ($ is-a? (car rest) $) (list <sxmml-mml-note> <sxmml-mml-loop> <sxmml-mml-repeat-start>
-                                                              <sxmml-mml-repeat-end> <sxmml-mml-repeat-break>))
-                            (recur (cdr rest) (append (object-flush! env (car rest)) objs))]
-                           [(is-a? (car rest) <sxmml-mml-nop>)
-                            (recur (cdr rest) objs)]
-                           [(any ($ is-a? (car rest) $) (list <sxmml-rhythm-volume> <sxmml-rhythm-pan>)) ; rhythm update
-                            (object-rhythm-update! env (car rest))
-                            (recur (cdr rest) objs)]
-                           [(any ($ is-a? (car rest) $) (list <sxmml-rhythm-volume-change>)) ; rhythm sum values
-                            (object-rhythm-sum-update! env (car rest))
-                            (recur (cdr rest) objs)]
-                           [else                     ; replace data
-                            (object-set! env (car rest))
-                            (recur (cdr rest) objs)]
-                           ))])
-     (append (object-flush! env (eof-object)) optobjs))))
+   (fold (^[effect result]
+           (let* ([origin (%setting-effect-origin effect)]
+                  [class (class-of origin)]
+                  [value (%setting-effect-value effect)])
+             (cond [(memq class (list <sxmml-rhythm-volume> <sxmml-rhythm-volume-change> <sxmml-rhythm-pan>))
+                    (let* ([slot (cdr (%setting-effect-key effect))]
+                           [previous (and (pair? result) (eq? class (class-of (car result))))]
+                           [obj (if previous (car result) (make class))])
+                      (slot-set! obj slot value)
+                      (if previous result (cons obj result)))]
+                   [(is-a? origin <sxmml-mml-lfo>)
+                    (cons (make class :value value :channel (slot-ref origin 'channel)) result)]
+                   [else (cons (make class :value value) result)])))
+         ()
+         (sort (hash-table-values table)
+               (^[a b] (< (%setting-effect-position a) (%setting-effect-position b)))))))
 
-(define (object-sum-update! env obj)
-  (let ([class (class-of obj)]
-        [ht (slot-ref env 'inter-objects)]
-        [tm (slot-ref env 'objects-order)])
-    (if (hash-table-contains? ht class)
-      (hash-table-update! ht class (^o (slot-set! o 'value (+ (slot-ref o 'value) (slot-ref obj 'value))) o))
-      (begin
-        (hash-table-set! ht class obj)
-        (tree-map-put! tm (tree-map-num-entries tm) class)))))
-
-(define (object-flush! env obj)
-  (let ([class (class-of obj)]
-        [ht (slot-ref env 'inter-objects)]
-        [tm (slot-ref env 'objects-order)])
-    (when (and (hash-table-contains? ht <sxmml-mml-volume-change>)
-               (hash-table-contains? ht <sxmml-mml-volume>))
-      (let ([vol (hash-table-get ht <sxmml-mml-volume>)]
-            [volchg (hash-table-get ht <sxmml-mml-volume-change>)])
-        (slot-set! vol 'value (+ (slot-ref vol 'value) (slot-ref volchg 'value)))
-        (hash-table-delete! ht <sxmml-mml-volume-change>)))
-    (let1 objs (tree-map-fold tm
-                              (^[_ v r] (if-let1 obj (hash-table-get ht v #f)
-                                          (cons obj r)
-                                          r))
-                              ())
-      (hash-table-clear! ht)
-      (tree-map-clear! tm)
-      (if (eof-object? obj)
-        objs
-        (cons obj objs)))))
-
-(define (object-set! env obj)
-  (let ([key (%object-key obj)]
-        [ht (slot-ref env 'inter-objects)]
-        [tm (slot-ref env 'objects-order)])
-    (unless (hash-table-contains? ht key)
-      (tree-map-put! tm (tree-map-num-entries tm) key))
-    (hash-table-set! ht key obj)))
-
-;; 後の命令が置き換える命令の鍵。LFO の状態はチャンネルごとにあるので、
-;; LFO の命令はクラスとチャンネルの組を鍵とする。チャンネルの値の意味は
-;; バックエンドが決めるので、省略 (#f) と A も別の鍵とする
-(define (%object-key obj)
-  (if (is-a? obj <sxmml-mml-lfo>)
-    (cons (class-of obj) (slot-ref obj 'channel))
-    (class-of obj)))
-
-(define (object-rhythm-update! env obj)
-  (let ([class (class-of obj)]
-        [ht (slot-ref env 'inter-objects)]
-        [tm (slot-ref env 'objects-order)])
-    (if (hash-table-contains? ht class)
-      (hash-table-update! ht class (^o (for-each (^s (when (slot-ref obj s)
-                                                       (slot-set! o s (slot-ref obj s))))
-                                                 (map slot-definition-name (class-slots class)))
-                                       o))
-      (begin
-        (hash-table-set! ht class obj)
-        (tree-map-put! tm (tree-map-num-entries tm) class)))))
-
-(define (object-rhythm-sum-update! env obj)
-  (let ([class (class-of obj)]
-        [ht (slot-ref env 'inter-objects)]
-        [tm (slot-ref env 'objects-order)])
-    (if (hash-table-contains? ht class)
-      (hash-table-update! ht class (^o (for-each (^s (cond [(and (slot-ref o s) (slot-ref obj s))
-                                                            (slot-set! o s (+ (slot-ref o s) (slot-ref obj s)))]
-                                                           [(slot-ref obj s)
-                                                            (slot-set! o s (slot-ref obj s))]))
-                                                 (map slot-definition-name (class-slots class)))
-                                       o))
-      (begin
-        (hash-table-set! ht class obj)
-        (tree-map-put! tm (tree-map-num-entries tm) class)))))
+(define (%sxmml-optimize-tree! mmlenv)
+  (let* ([objects (let recur ([rest (slot-ref mmlenv 'compiled-data)] [result ()])
+                    (cond [(null? rest) result]
+                          [(pair? (car rest)) (recur (cdr rest) (recur (car rest) result))]
+                          [else (recur (cdr rest) (cons (car rest) result))]))]
+         [table (make-hash-table equal-comparator)])
+    (let loop ([rest objects] [position (length objects)] [result ()])
+      (cond [(null? rest) (append (%setting-effects->ir table) result)]
+            [(is-a? (car rest) <sxmml-mml-nop>)
+             (loop (cdr rest) (- position 1) result)]
+            [else
+             (let* ([obj (car rest)]
+                    [effects (%ir->setting-effects obj position)])
+               (if effects
+                 (begin
+                   (for-each (^[effect]
+                               (let1 key (%setting-effect-key effect)
+                                 (hash-table-set! table key
+                                                  (%compose-setting-effects effect
+                                                                            (hash-table-get table key #f)))))
+                             effects)
+                   (loop (cdr rest) (- position 1) result))
+                 (let1 suffix (%setting-effects->ir table)
+                   (hash-table-clear! table)
+                   (loop (cdr rest) (- position 1) (cons obj (append suffix result))))))]))))
 
 ;;
 ;; 第2パス

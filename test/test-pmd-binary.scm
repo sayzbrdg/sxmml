@@ -365,7 +365,7 @@
                     "36 00 3b 00 eb 01 0f 0c ff eb 01 0f 18 ff 6c 00 00 00 18 00 00 00 54 00 48 fe"))]
           (test* #"pmd-binary の命令列: ~(car case)"
                  (list-ref case 4)
-                 (section-hex (make-binary-data (cadr case) pmd-binary (caddr case)) (cadddr case))))
+                 (section-hex (make-binary-data (cadr case) pmd-binary (caddr case) #f) (cadddr case))))
         ;; ヘッダ、空のトラック、R トラックの末尾、音色表、メタ情報の配置を、ファイル全体で固定する。
         (let* ([forms '((define-opn-voice 0 (2 5)
                           (31 1 2 3 4 5 1 6 7) (30 8 9 10 11 12 2 13 1)

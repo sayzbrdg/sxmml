@@ -16,6 +16,73 @@
 (use file.util)
 (use test.helpers)
 
+(let ()
+  (define (compile rhythm? text)
+    (parameterize ([sxmml-environment (make <sxmml-environment>)])
+      (define-track G)
+      (define-track L)
+      (if rhythm? (rhythm L text) (mml G text))
+      (sxmml-optimize-tree (if rhythm? 'L 'G) :optimize #t)))
+  (define (values-at-notes objects absolute relative)
+    (reverse
+     (cdr
+      (fold (^[obj state]
+              (cond [(is-a? obj absolute) (cons (slot-ref obj 'value) (cdr state))]
+                    [(is-a? obj relative) (cons (+ (car state) (slot-ref obj 'value)) (cdr state))]
+                    [(is-a? obj <sxmml-mml-note>) (cons (car state) (cons (car state) (cdr state)))]
+                    [else state]))
+            '(0) objects))))
+  (define (volumes-at-emits objects instruments)
+    (reverse
+     (cdr
+      (fold (^[obj state]
+              (cond [(or (is-a? obj <sxmml-rhythm-volume>)
+                         (is-a? obj <sxmml-rhythm-volume-change>))
+                     (cons (map (^[instrument value]
+                                  (if-let1 specified (slot-ref obj instrument)
+                                    (if (is-a? obj <sxmml-rhythm-volume-change>)
+                                      (+ value specified) specified)
+                                    value))
+                                instruments (car state))
+                           (cdr state))]
+                    [(is-a? obj <sxmml-rhythm-emit>)
+                     (cons (car state) (cons (car state) (cdr state)))]
+                    [else state]))
+            (list (make-list (length instruments) 0)) objects))))
+  (test* "音量の絶対指定より前の差分を残さない" '(8 10 9)
+         (values-at-notes (compile #f "@0v8c8v*2e8v*-2@1v9g8")
+                         <sxmml-mml-volume> <sxmml-mml-volume-change>))
+  (test* "相対移調を指定順に累積する" '(3)
+         (values-at-notes (compile #f "K0K*1K*2c8")
+                         <sxmml-mml-transpose> <sxmml-mml-transpose-change>))
+  (test* "絶対移調より前の差分を残さない" '(2)
+         (values-at-notes (compile #f "K0K*1K2c8")
+                         <sxmml-mml-transpose> <sxmml-mml-transpose-change>))
+  (test* "楽器別音量の絶対指定より前の差分を残さない" '((9))
+         (volumes-at-emits (compile #t "vb8)b2vb9@b8") '(bass)))
+  (test* "最後のテンポ指定の形式と値を残す"
+         (list (list <sxmml-mml-tempo> 150))
+         (map (^o (list (class-of o) (slot-ref o 'value)))
+              (filter (^o (or (is-a? o <sxmml-mml-tempo>) (is-a? o <sxmml-mml-tempo-absolute>)))
+                      (compile #f "t120T200t150c8"))))
+  (test* "複数楽器の音量変更と個別の再指定を保つ" '((9 9 9) (11 9 9))
+         (volumes-at-emits (compile #t "vb9vs9vi9 @bsi )bs2 vs9 @bsi")
+                          '(bass snare rimshot)))
+  (test* "音符境界後の相対移調を累積する" '(2 5)
+         (values-at-notes (compile #f "K2c8K*1K*2d8")
+                         <sxmml-mml-transpose> <sxmml-mml-transpose-change>))
+  (test* "未知のIRを境界として前後の設定を残す"
+         (list (list <sxmml-mml-volume> 9) (list <sxmml-mml> 'opaque)
+               (list <sxmml-mml-volume-change> 2) (list <sxmml-mml-note> 0))
+         (parameterize ([sxmml-environment (make <sxmml-environment>)])
+           (define-track G)
+           (sxmml-ir-register! (list (make <sxmml-mml-volume> :value 9)
+                                     (make <sxmml-mml> :value 'opaque)
+                                     (make <sxmml-mml-volume-change> :value 2)
+                                     (make <sxmml-mml-note> :value 0 :ticks 12)) 'G)
+           (map (^o (list (class-of o) (slot-ref o 'value)))
+                (sxmml-optimize-tree 'G :optimize #t)))))
+
 ;; 命令列の圧縮で使う、既存のリピートのブロックへの組み立て (#69)
 (let* ([note (^[v] (make <sxmml-mml-note> :value v :ticks 24))]
        [c (note 0)] [d (note 2)] [e (note 4)]
