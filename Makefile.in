@@ -49,6 +49,7 @@ check : all
 	SXMML_SXLC=./sxlc $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/test/test-environment.scm" >> test.log
 	SXMML_SXLC=./sxlc $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/test/test-form.scm" >> test.log
 	SXMML_SXLC=./sxlc $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/test/test-mml.scm" >> test.log
+	SXMML_SXLC=./sxlc $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/test/test-ir-meaning.scm" >> test.log
 	SXMML_SXLC=./sxlc $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/test/test-optimizer.scm" >> test.log
 	SXMML_SXLC=./sxlc $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/test/test-pmd.scm" >> test.log
 	SXMML_SXLC=./sxlc $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/test/test-processor.scm" >> test.log
