@@ -102,7 +102,10 @@
     ("一巡が一致してもL全体は未判定"
      ((volume 8) (loop) (note 0 12) (volume 9))
      ((volume 8) (loop) (volume 8) (note 0 12) (volume 9))
-     (undecided (loop)))))
+     (undecided (loop)))
+    ("停止時刻より前の音符の欠落"
+     ((rest 24) (volume 8)) ((note 0 12))
+     (mismatch (note 1 presence #f #t)) 1)))
 
 (let1 shared (objects '((unsupported)))
   (test* "同一の未対応IRも読み飛ばさない"

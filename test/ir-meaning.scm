@@ -70,7 +70,7 @@
                       (loop (+ position 1) (+ steps 1) ticks volume stack notes #t)]
                      [else (finish (list 'unsupported-ir (+ position 1) (class-name class)))]))]))))
 
-(define (%note-difference before after left-stop right-stop)
+(define (%note-difference before after left-stop right-stop left-ticks right-ticks)
   (let loop ([left before] [right after] [index 1])
     (cond [(and (pair? left) (pair? right))
            (let compare-fields ([fields '(start-tick pitch ticks volume)]
@@ -78,8 +78,10 @@
              (cond [(null? fields) (loop (cdr left) (cdr right) (+ index 1))]
                    [(equal? (car a) (car b)) (compare-fields (cdr fields) (cdr a) (cdr b))]
                    [else (list 'note index (car fields) (car a) (car b))]))]
-          [(and (pair? left) (not right-stop)) (list 'note index 'presence #t #f)]
-          [(and (pair? right) (not left-stop)) (list 'note index 'presence #f #t)]
+          [(and (pair? left) (or (not right-stop) (< (caar left) right-ticks)))
+           (list 'note index 'presence #t #f)]
+          [(and (pair? right) (or (not left-stop) (< (caar right) left-ticks)))
+           (list 'note index 'presence #f #t)]
           [else #f])))
 
 (define (compare-ir-meaning before after :key (step-limit 100000))
@@ -87,7 +89,7 @@
       (%interpret-ir before step-limit)
     (receive (right-notes right-ticks right-volume right-stop right-loop?)
         (%interpret-ir after step-limit)
-      (cond [(%note-difference left-notes right-notes left-stop right-stop)
+      (cond [(%note-difference left-notes right-notes left-stop right-stop left-ticks right-ticks)
              => (^[difference] (values 'mismatch difference))]
             [(and (not left-stop) (not right-stop) (not (= left-ticks right-ticks)))
              (values 'mismatch (list 'end 'ticks left-ticks right-ticks))]
