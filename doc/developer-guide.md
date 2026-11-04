@@ -181,7 +181,7 @@ O4                       98 93.3%           9       0.03       0.61
 
 `next-phrase`の結果を全トラックで共有する1回の評価へ変更すると、評価回数の契約が変わる。評価回数と実行順は別々に確認する。
 
-現行の`mml`・`rhythm`・`define-track`の複数トラック形式は逆順に実行する。指定順への変更は[#26の改修方針](https://github.com/sayzbrdg/sxmml/issues/26#issuecomment-6565899202)として扱う。`mml-repeat`の回数式を終了直前に一度評価して対象トラックで共有する変更も、[#50の改修方針](https://github.com/sayzbrdg/sxmml/issues/50#issuecomment-6579448715)として区別する。実装時には、仕様変更として明示して既存動作・検証との対応を確認する。
+現行の`mml`・`rhythm`・`define-track`の複数トラック形式は逆順に実行する。指定順への変更は[#26の改修方針](https://github.com/sayzbrdg/sxmml/issues/26#issuecomment-6565899202)として扱う。`mml-repeat`は[#50の合意](https://github.com/sayzbrdg/sxmml/issues/50#issuecomment-6579448715)に従い、回数式を終了直前に一度評価して対象トラックで共有する。反復命令は`sxmml.command`でIRを直接生成し、文脈の集計と使用規則をパーサーと共用する。#26の実行順変更は未実装である。
 
 ### マクロの名前・種類・キー
 

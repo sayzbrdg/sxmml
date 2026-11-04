@@ -1,0 +1,75 @@
+= `sxmml.command` の共通コマンド処理
+:toc: left
+
+公開16手続きと内部2手続きを定義します。`sxmml`からも公開手続きを利用できます。文脈の参照・更新とIR生成を担当し、文字列解析、PEG、登録環境のparameter、トラック検索・登録には依存しません。ソースはlink:../../sxmml/command.scm[command.scm]です。
+
+== 入力と結果の契約
+
+`ctx`は呼出し側が用意した`<sxmml-mml-context>`です。文字列やropeではなく解釈済みの値を受け取ります。オクターブ・移調量・音高・変化記号は整数、音名の半音番号は0〜11、既定音長の分母は正の整数、付点数は0以上の整数を前提とします。音長計算の分母`#f`は文脈の既定音長を使います。分解能は正の整数を明示的に渡します。
+
+`ticks`は従来の音長解析が扱う正の数値です。整数性や出力可能範囲など、形式固有の検査はバックエンドに残します。前提外の引数を網羅的に検査するAPIではありません。既存の音長0・付点・L・反復の使用規則の検査を共通化しています。
+
+設定だけを更新する4手続きは`#f`を返し、NOPを作りません。計算手続きは数値を返します。IR生成手続きは新しいオブジェクトを返し、登録は行いません。
+
+== 文脈の設定・参照
+
+[cols="3,5",options="header"]
+|===
+|呼出し形 |結果と更新対象
+|[[ref-command-default-length-set]]`(sxmml-command-default-length-set! ctx denominator)` |`default-length`を更新して`#f`。分母0は`invalid note length: 0 (expected an integer >= 1)`の値エラー
+|[[ref-command-octave-set]]`(sxmml-command-octave-set! ctx octave)` |`current-octave`を更新して`#f`
+|[[ref-command-octave-shift]]`(sxmml-command-octave-shift! ctx delta)` |`current-octave`へオクターブ単位の差分を加え、`#f`
+|[[ref-command-note-transpose-set]]`(sxmml-command-note-transpose-set! ctx semitones)` |`K$`の`current-transpose`を半音単位で設定して`#f`。`K`・`K*`のIRとは別
+|[[ref-command-volume-up]]`(sxmml-command-volume-up ctx)` |`volume-delta`を参照し、同じ値の`<sxmml-mml-volume-change>`を返す。文脈は不変
+|[[ref-command-volume-down]]`(sxmml-command-volume-down ctx)` |`volume-delta`の符号を反転した相対音量IR。文脈は不変
+|[[ref-command-note-pitch]]`(sxmml-command-note-pitch ctx pitch-class accidental)` |`current-octave * 12 + pitch-class + accidental + current-transpose`を返す。文脈は不変
+|[[ref-command-note-length-to-ticks]]`(sxmml-command-note-length->ticks ctx resolution denominator dots)` |分解能と分母から音長を計算し付点分を加える。文脈は不変。分母0と、分解能で表せない付点は値エラー
+|===
+
+== 音符・休符・リズム
+
+以下は`current-ticks`の最内側の累計と、`ticks-statistics`の該当音長の出現回数を更新します。統計は生成したIRの音長ごとに1回を数え、反復回数で増やしません。
+
+[cols="3,5",options="header"]
+|===
+|呼出し形 |生成するIR
+|[[ref-command-note]]`(sxmml-command-note! ctx pitch ticks)` |確定した音高を`value`に持つ`<sxmml-mml-note>`
+|[[ref-command-rest]]`(sxmml-command-rest! ctx ticks)` |`value`が`#f`の`<sxmml-mml-rest>`。通常・リズムで共用
+|[[ref-command-portamento]]`(sxmml-command-portamento! ctx start-pitch end-pitch ticks)` |`value`が始点・終点のペアである`<sxmml-mml-portamento>`。音高を確定する時点は呼出し側が管理
+|[[ref-command-rhythm-on]]`(sxmml-command-rhythm-on! ctx instruments ticks)` |`value`が`#t`の`<sxmml-rhythm-emit>`。楽器symbolは`bass snare tom cymbal hihat rimshot`から選び、指定した楽器のslotを真にする
+|===
+
+リズムの休符も`:value #f`を明示します。従来のリズムパーサーでは未束縛だった値の変更であり、クラス定義や手作りIRの受理範囲は変えません。
+
+== 反復・ループ
+
+[cols="3,5",options="header"]
+|===
+|呼出し形 |生成するIRと文脈
+|[[ref-command-repeat-start]]`(sxmml-command-repeat-start! ctx)` |反復stackへ`#f`、tick集計stackへ新しい`(0 . 0)`を積み、開始IRを返す
+|[[ref-command-repeat-break]]`(sxmml-command-repeat-break! ctx)` |脱出位置のtickと既定音長・オクターブ・ノート移調を保存し、脱出IRを返す。反復外と同じ反復内の重複は値エラー
+|[[ref-command-repeat-end]]`(sxmml-command-repeat-end! ctx count)` |開始済みで回数が正の正確な整数であることを検査し、終了IRを返す。最終回の脱出を反映したtickを親へ加え、脱出があれば設定を復元。開始前は`repeat end appeared before repeat start`、不正な回数は`invalid repeat count: 値 (expected a positive exact integer)`
+|[[ref-command-loop]]`(sxmml-command-loop! ctx)` |`loop-exists`を真にし、現在tickをループ位置として記録してLのIRを返す。反復内と1トラック内の重複は値エラー
+|===
+
+検査の順序と既存の診断本文を維持します。直接利用時の既知の誤りは`<sxmml-value-error>`です。xref:mml.adoc[パーサー]経由では実行境界で同じ本文のMML構文エラーに変換し、xref:processor.adoc[`mml-repeat`]経由では値エラーにフォーム位置とトラック情報を添えます。未知のGauche例外はそのまま通します。
+
+== 内部手続き
+
+[cols="3,5",options="header"]
+|===
+|呼出し形 |役割
+|[[ref-command-record-ticks]]`(%record-ticks! ctx ticks)` |現在のtick累計と音長統計を更新する。戻り値は利用しない
+|[[ref-command-check-note-length]]`(%check-note-length denominator)` |分母0を計算・設定前に値エラーとする。戻り値は利用しない
+|===
+
+== 音長計算例
+
+検査C05と同じ、分解能48・分母8・付点1の計算です。
+
+[source,scheme]
+----
+(use sxmml)
+(sxmml-command-note-length->ticks (make <sxmml-mml-context>) 48 8 1)
+;; => 36
+----

@@ -67,7 +67,8 @@
       (unless (string? str)
         (errorf <sxmml-value-error> "invalid MML input: ~s (expected a string)" str))
       (values
-       (generator->list (peg-parser->generator parser (generator->lseq (string->generator str))))
+       (generator->list
+        (gfilter values (peg-parser->generator parser (generator->lseq (string->generator str)))))
        ctx))))
 
 (define (sxmml-compile-track-mml track str)

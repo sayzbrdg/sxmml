@@ -7,7 +7,7 @@ PEGドライバのparse-errorはcompilerの境界でmml-syntax-errorへ変換し
 
 == 手続き
 
-`sxmml-compile-string!` 系は MML を sxmml IR の列へコンパイルし、`ctx` と合わせて二つの値を返します。`ctx` の解析状態はパーサーによって更新されます。トラックへの登録はここでは行わず、`mml` / `rhythm` マクロが `sxmml-ir-register!` を呼びます。文字列以外の入力は明示的なエラー、PEG の `<parse-error>` はトラック文脈を添えた構文エラーとして投げ直します。
+`sxmml-compile-string!` 系は MML を sxmml IR の列へコンパイルし、`ctx` と合わせて二つの値を返します。`ctx` の解析状態はパーサーによって更新されます。generatorから収集するときに`gfilter`で`#f`を除き、IR列の追加走査は行いません。文脈命令だけの入力では、解析を最後まで行って空のIR列を返します。EOFは終端、`#f`はIRなしの解析結果として区別します。トラックへの登録はここでは行わず、`mml` / `rhythm` マクロが `sxmml-ir-register!` を呼びます。文字列以外の入力は明示的なエラー、PEG の `<parse-error>` はトラック文脈を添えた構文エラーとして投げ直します。
 
 PEG の失敗種別 `type` が `fail-error` で、失敗情報 `objects` がタグと単一の `(fail-message . 文字列)` の構造なら、その文字列を本文にし、トラック情報は別のconditionで添えます。たとえば `$raise` で伝えた未登録命令の理由は `unknown MML command: "x"` となります。タグの値や理由の文言には依存しません。それ以外は残りの入力を使う既存の `invalid MML syntax near "..."` の表記を使い、トラック文脈は別に保持します。
 

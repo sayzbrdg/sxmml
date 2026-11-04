@@ -30,6 +30,7 @@
   (use util.match)
   (use text.tree)
   (use sxmml.classes)
+  (use sxmml.command)
   (use sxmml.environment)
   (use sxmml.compiler)
   (use sxmml.form)
@@ -55,20 +56,22 @@
 (define-syntax mml-repeat
   (er-macro-transformer
     (^[form rename id=?]
-      ;; MML の文字列 (または文字列を返す式) cmd を、tracks の各トラックに登録する
-      (define (build-registration tracks cmd)
+      ;; 各トラックの文脈で共通コマンドを実行し、IRを登録する。
+      (define (build-registration tracks command . args)
         (map (^[t] (sxmml-form-wrap form rename
                      (quasirename rename
-                       `(sxmml-ir-register! (sxmml-compile-track-mml ',t ,cmd) ',t))))
+                       `(%repeat-command-register! ',t ,(rename command) ,@args))))
              tracks))
       ;; 脱出位置は breaks のトラックに置く。breaks が空なら置かない
       (define (expand tracks times body1 breaks body2 body3)
         `(,(rename 'begin)
-          ,@(build-registration tracks "[")
+          ,@(build-registration tracks 'sxmml-command-repeat-start!)
           ,@body1
-          ,@(build-registration breaks ":")
+          ,@(build-registration breaks 'sxmml-command-repeat-break!)
           ,@body2
-          ,@(build-registration tracks (quasirename rename `(%mml-repeat-end-format ,times)))
+          ,(quasirename rename
+             `(let ([count ,(sxmml-form-wrap form rename times)])
+                ,@(build-registration tracks 'sxmml-command-repeat-end! (rename 'count))))
           ,@body3))
       (match form
         ;; 1st format
@@ -86,10 +89,14 @@
          (expand (list track) times body1 (list track) body2 body3)]
         [_ (sxmml-form-error form "invalid mml-repeat form: expected (mml-repeat track count (body1 ...) [(body2 ...) [(body3 ...)]])")]))))
 
-;; 反復の終了の MML を、回数を検査して作る
-(define (%mml-repeat-end-format count)
-  (%processor-value-check "mml-repeat" "count" count %positive-integer? "a positive integer")
-  #"]~count")
+;; 文字列のコンパイルと同じトラック文脈を付け、生成したIRだけを登録する。
+(define (%repeat-command-register! track command . args)
+  (let* ([ctx (sxmml-track-get track)]
+         [context (make-condition <sxmml-track-context> 'track-name track)])
+    (guard (e [(sxmml-error? e) (raise (sxmml-error-with-context e context))])
+      (unless ctx
+        (errorf <sxmml-reference-error> "undefined track: ~a" track))
+      (sxmml-ir-register! (list (apply command ctx args)) track))))
 
 ;; 加工マクロ macro の値 name を検査する。誤りは、マクロと値の名前を示すエラーとする
 (define (%processor-value-check macro name value ok? expected)

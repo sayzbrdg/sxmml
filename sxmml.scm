@@ -27,6 +27,6 @@
 ;;; SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 (define-module sxmml
-  (extend sxmml.classes sxmml.mml sxmml.environment sxmml.voice
+  (extend sxmml.classes sxmml.command sxmml.mml sxmml.environment sxmml.voice
           sxmml.compiler sxmml.processor sxmml.optimizer sxmml.util))
 (select-module sxmml)

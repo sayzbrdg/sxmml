@@ -31,6 +31,7 @@
   (use parser.peg)
   (use text.tree)
   (use sxmml.classes)
+  (use sxmml.command)
   (use sxmml.environment)
   (export make-sxmml-mml-parser make-sxmml-rhythm-parser ;$note-commands
           ))
@@ -78,21 +79,23 @@
                           slots
                           data)])
           ($return (apply make class vals)))))
-(define (%make-mml-context-value-parser param slot proc)
+(define (%make-mml-context-value-parser param command proc)
   ($let ([data param]
          [$space])
-        (slot-set! (sxmml-mml-context) slot (proc data))
-        ($return (make <sxmml-mml-nop>))))
-(define (%make-mml-context-command-parser slot proc)
-  (%$return
-   (begin (slot-set! (sxmml-mml-context) slot (proc))
-          (make <sxmml-mml-nop>))))
+        ($return (command (sxmml-mml-context) (proc data)))))
 
-(define (make-sxmml-mml-parser env)
-  ($parameterize ([sxmml-mml-context env]) $note-commands))
+(define (%make-parser-with-context parser ctx)
+  (let1 bound-parser ($parameterize ([sxmml-mml-context ctx]) parser)
+    (^[seq]
+      (guard (e [(sxmml-value-error? e)
+                 (error <sxmml-mml-syntax-error> (condition-message e))])
+        (bound-parser seq)))))
 
-(define (make-sxmml-rhythm-parser env)
-  ($parameterize ([sxmml-mml-context env]) $rhythm-commands))
+(define (make-sxmml-mml-parser ctx)
+  (%make-parser-with-context $note-commands ctx))
+
+(define (make-sxmml-rhythm-parser ctx)
+  (%make-parser-with-context $rhythm-commands ctx))
 
 ;; general value
 (define-inline $space ($many_ ($. #[\s])))
@@ -109,51 +112,27 @@
 
 ;; note & rest
 (define-inline (%proc-note-number name accidentals)
-  (let ([different (fold (^[v r]
-                           (if (char=? v #\+) (+ r 1) (- r 1)))
-                         0
-                         accidentals)]
-        [octave (slot-ref (sxmml-mml-context) 'current-octave)]
-        [transpose (slot-ref (sxmml-mml-context) 'current-transpose)]
-        [note (case name
-                ([#\c] 0)
-                ([#\d] 2)
-                ([#\e] 4)
-                ([#\f] 5)
-                ([#\g] 7)
-                ([#\a] 9)
-                ([#\b] 11))])
-    (+ (* octave 12) note different transpose)))
+  (sxmml-command-note-pitch
+   (sxmml-mml-context)
+   (case name
+     [(#\c) 0] [(#\d) 2] [(#\e) 4] [(#\f) 5]
+     [(#\g) 7] [(#\a) 9] [(#\b) 11])
+   (fold (^[value result] (+ result (if (char=? value #\+) 1 -1)))
+         0 accidentals)))
 
 (define $note-name
   ($let ([name ($. #[a-gr])]
          [accidentals ($many ($. #[-+]))]
          [$space])
-        ($return (if (char=? name #\r)
-                   (make <sxmml-mml-rest> :value #f)
-                   (make <sxmml-mml-note> :value (%proc-note-number name accidentals))))))
+        ($return (and (not (char=? name #\r)) (%proc-note-number name accidentals)))))
 
 (define (%make-note-length-parser $number $dots)
   ($let ([number $number]
          [$space]
          [dots $dots])
-        (let1 len (rope->number number)
-          (when (eqv? len 0)
-            (error <sxmml-mml-syntax-error> "invalid note length: 0 (expected an integer >= 1)"))
-          ($return (length->ticks len (length dots))))))
-(define (length->ticks len dots)
-  (define (dots-calculate base dots)
-    (let loop ([v base] [e base] [n dots])
-      (cond [(zero? n)
-             v]
-            [(not (logbit? 0 e))
-             (let1 h (ash e -1)
-               (loop (+ v h) h (- n 1)))]
-            [else
-             (error <sxmml-mml-syntax-error> "number of dots exceeded resolution range")])))
-  (let ([res (sxmml-resolution-get)]
-        [clen (or len (slot-ref (sxmml-mml-context) 'default-length))])
-    (dots-calculate (/ (ash res 2) clen) dots)))
+        ($return (sxmml-command-note-length->ticks
+                  (sxmml-mml-context) (sxmml-resolution-get)
+                  (rope->number number) (length dots)))))
 
 (define-inline $note-length ($or (%make-note-length-parser $number ($many ($. #\.)))
                                 (%make-note-length-parser ($return #f) ($many1 ($. #\.)))))
@@ -163,32 +142,25 @@
                          [l ($many ($try ($seq ($. #\&) $space ($or $tick-length $note-length))))])
                         ($return (apply + f l))))
 (define $note
-  ($let ([o $note-name]
-         [t $duration]
+  ($let ([pitch $note-name]
+         [ticks $duration]
          [$space])
-        (let1 ct (car (slot-ref (sxmml-mml-context) 'current-ticks))
-          (set! (car ct) (+ t (car ct)))
-          (slot-set! o 'ticks t)
-          (hash-table-update! (slot-ref (sxmml-mml-context) 'ticks-statistics) t (cut + 1 <>) 0)
-          ($return o))))
+        ($return (if pitch
+                   (sxmml-command-note! (sxmml-mml-context) pitch ticks)
+                   (sxmml-command-rest! (sxmml-mml-context) ticks)))))
 
 ;; general command
 (define-inline $length
-  (%make-mml-context-value-parser $number-parameter 'default-length
-    (^[data] (let1 len (rope->number data)
-             (when (= len 0)
-               (error <sxmml-mml-syntax-error> "invalid note length: 0 (expected an integer >= 1)"))
-             len))))
+  (%make-mml-context-value-parser $number-parameter sxmml-command-default-length-set! rope->number))
 (hash-table-set! *note-command* #\l $length)
-(define-inline $octave (%make-mml-context-value-parser  $number-parameter 'current-octave rope->number))
+(define-inline $octave
+  (%make-mml-context-value-parser $number-parameter sxmml-command-octave-set! rope->number))
 (hash-table-set! *note-command* #\o $octave)
 (define-inline $octave-up
-  (%make-mml-context-command-parser 'current-octave
-                       (^[] (+ (slot-ref (sxmml-mml-context) 'current-octave) 1))))
+  (%$return (sxmml-command-octave-shift! (sxmml-mml-context) 1)))
 (hash-table-set! *note-command* #\> $octave-up)
 (define-inline $octave-down
-  (%make-mml-context-command-parser 'current-octave
-                       (^[] (- (slot-ref (sxmml-mml-context) 'current-octave) 1))))
+  (%$return (sxmml-command-octave-shift! (sxmml-mml-context) -1)))
 (hash-table-set! *note-command* #\< $octave-down)
 (define-inline $volume (%make-mml-value-parser $number-parameter <sxmml-mml-volume> rope->number))
 (define-inline $volume-change (%make-mml-value-parser $integer-parameter <sxmml-mml-volume-change> rope->number))
@@ -196,14 +168,10 @@
                                     ($seq ($. #\*) $volume-change)))
 (hash-table-set! *note-command* #\v $volume-command)
 (define $volume-up
-  (%$return
-   (make <sxmml-mml-volume-change>
-     :value (slot-ref (sxmml-mml-context) 'volume-delta))))
+  (%$return (sxmml-command-volume-up (sxmml-mml-context))))
 (hash-table-set! *note-command* #\) $volume-up)
 (define $volume-down
-  (%$return
-   (make <sxmml-mml-volume-change>
-     :value (change-sign (slot-ref (sxmml-mml-context) 'volume-delta)))))
+  (%$return (sxmml-command-volume-down (sxmml-mml-context))))
 (hash-table-set! *note-command* #\( $volume-down)
 (define-inline $pan (%make-mml-value-parser  $number-parameter <sxmml-mml-pan> rope->number))
 (hash-table-set! *note-command* #\p $pan)
@@ -212,7 +180,7 @@
 (define-inline $tie (%make-mml-command-parser <sxmml-mml-tie>))
 (hash-table-set! *note-command* #\& $tie)
 (define-inline $transpose (%make-mml-value-parser $integer-parameter <sxmml-mml-transpose> rope->number))
-(define-inline $transpose-env (%make-mml-context-value-parser $integer-parameter 'current-transpose rope->number))
+(define-inline $transpose-env (%make-mml-context-value-parser $integer-parameter sxmml-command-note-transpose-set! rope->number))
 (define-inline $transpose-change (%make-mml-value-parser $integer-parameter <sxmml-mml-transpose-change> rope->number))
 (define-inline $transpose-command ($or $transpose
                                        ($seq ($. #\$) $transpose-env)
@@ -225,62 +193,19 @@
 (define-inline $detune (%make-mml-value-parser $integer-parameter <sxmml-mml-detune> rope->number))
 (hash-table-set! *note-command* #\D $detune)
 (define $loop
-  (%$return
-   ;; 反復は同じ位置を何度も通り、戻り先を一つに決められないので、L は反復の外にだけ書ける
-   (begin (unless (null? (slot-ref (sxmml-mml-context) 'repeat-stack))
-            (error <sxmml-mml-syntax-error> "loop command cannot be used inside repeats"))
-          (when (slot-ref (sxmml-mml-context) 'loop-exists)
-            (error <sxmml-mml-syntax-error> "loop command can be used only once in a track"))
-          (slot-set! (sxmml-mml-context) 'loop-exists #t)
-          (let loop ([rest (slot-ref (sxmml-mml-context) 'current-ticks)]
-                     [buf 0])
-            (if (null? (cdr rest))
-              (set! (cdar rest) (+ (caar rest) buf))
-              (loop (cdr rest) (+ (caar rest) buf))))
-          (make <sxmml-mml-loop>))))
+  (%$return (sxmml-command-loop! (sxmml-mml-context))))
 (hash-table-set! *note-command* #\L $loop)
 
 (define $repeat-start
-  (%$return
-   (begin (slot-push! (sxmml-mml-context) 'repeat-stack #f)
-          (slot-set! (sxmml-mml-context) 'current-ticks
-                     (acons 0 0 (slot-ref (sxmml-mml-context) 'current-ticks)))
-          (make <sxmml-mml-repeat-start>))))
+  (%$return (sxmml-command-repeat-start! (sxmml-mml-context))))
 (hash-table-set! *note-command* #\[ $repeat-start)
 (define $repeat-break
-  (%$return
-   ;; 反復の記録は [ で #f を積み、: でその位置の設定に置き換える。: は一つの反復に一つだけ
-   (let1 stack (slot-ref (sxmml-mml-context) 'repeat-stack)
-     (cond [(null? stack) (error <sxmml-mml-syntax-error> "break command cannot be used outside of repeats")]
-           [(car stack) (error <sxmml-mml-syntax-error> "break command can be used only once in a repeat")])
-     (let1 ct (car (slot-ref (sxmml-mml-context) 'current-ticks))
-       (set! (cdr ct) (car ct)))
-     (slot-pop! (sxmml-mml-context) 'repeat-stack)
-     (slot-push! (sxmml-mml-context) 'repeat-stack
-                 (list (slot-ref (sxmml-mml-context) 'default-length)
-                       (slot-ref (sxmml-mml-context) 'current-octave)
-                       (slot-ref (sxmml-mml-context) 'current-transpose)))
-     (make <sxmml-mml-repeat-break>))))
+  (%$return (sxmml-command-repeat-break! (sxmml-mml-context))))
 (hash-table-set! *note-command* #\: $repeat-break)
 (define $repeat-end
   ($let ([data $number-parameter]
          [$space])
-        ($return (begin
-                   (when (null? (slot-ref (sxmml-mml-context) 'repeat-stack))
-                     (error <sxmml-mml-syntax-error> "repeat end appeared before repeat start"))
-                   (let* ([rc (rope->positive-number data "invalid repeat count: ~s (expected a positive exact integer)")]
-                          [ctx-values (slot-pop! (sxmml-mml-context) 'repeat-stack)]
-                          [rt (slot-pop! (sxmml-mml-context) 'current-ticks)]
-                          [ct (slot-ref (sxmml-mml-context) 'current-ticks)]
-                          [cr (- (* (car rt) rc) (if ctx-values
-                                                   (- (car rt) (cdr rt))
-                                                   0))])
-                     (set! (caar ct) (+ (caar ct) cr))
-                     (when ctx-values
-                       (slot-set! (sxmml-mml-context) 'default-length (car ctx-values))
-                       (slot-set! (sxmml-mml-context) 'current-octave (cadr ctx-values))
-                       (slot-set! (sxmml-mml-context) 'current-transpose (caddr ctx-values)))
-                     (make <sxmml-mml-repeat-end> :value rc))))))
+        ($return (sxmml-command-repeat-end! (sxmml-mml-context) (rope->number data)))))
 (hash-table-set! *note-command* #\] $repeat-end)
 
 ;; with parameter(ex. voice etc...)
@@ -337,11 +262,8 @@
             [a2 ($many ($. #[-+]))]
             [($seq $space ($. #\}) $space)]
             [t $duration])
-           (hash-table-update! (slot-ref (sxmml-mml-context) 'ticks-statistics) t (cut + 1 <>) 0)
-           (let ([nn2 (%proc-note-number n2 a2)]
-                 [ct (car (slot-ref (sxmml-mml-context) 'current-ticks))])
-             (set! (car ct) (+ t (car ct)))
-             ($return (make <sxmml-mml-portamento> :value (cons nn1 nn2) :ticks t)))))))
+           ($return (sxmml-command-portamento!
+                     (sxmml-mml-context) nn1 (%proc-note-number n2 a2) t))))))
 (hash-table-set! *note-command* #\/ $portamento)
 
 (define-inline $noise-frequency (%make-mml-value-parser $number-parameter <sxmml-mml-noise-frequency> rope->number))
@@ -366,31 +288,24 @@
         (let ([args (%rhythm-types->initargs types (proc data))])
           ($return (apply make class args)))))
 
+(define (%rhythm-type->symbol type)
+  (case type
+    [(#\b) 'bass] [(#\s) 'snare] [(#\t) 'tom]
+    [(#\c) 'cymbal] [(#\h) 'hihat] [(#\i) 'rimshot]))
+
 (define-inline (%rhythm-types->initargs types val)
-  (fold (^[t r]
-          (cons* (case t
-                   ([#\b] :bass)
-                   ([#\s] :snare)
-                   ([#\t] :tom)
-                   ([#\c] :cymbal)
-                   ([#\h] :hihat)
-                   ([#\i] :rimshot))
-                 val
-                 r))
-        ()
-        types))
+  (fold (^[type result]
+          (cons* (make-keyword (%rhythm-type->symbol type)) val result))
+        () types))
 
 (define-inline $rhythm-type ($or ($between ($seq ($. #\{) $space) ($many1 ($. #[bstchi])) ($seq $space ($. #\})))
                                  ($many1 ($. #[bstchi]))))
 (define $rhythm-on
   ($let ([types $rhythm-type]
          [$space]
-         [t $duration])
-        (let ([args (%rhythm-types->initargs types #t)]
-              [ct (car (slot-ref (sxmml-mml-context) 'current-ticks))])
-          (set! (car ct) (+ t (car ct)))
-          (hash-table-update! (slot-ref (sxmml-mml-context) 'ticks-statistics) t (cut + 1 <>) 0)
-          ($return (apply make <sxmml-rhythm-emit> :value #t :ticks t args)))))
+         [ticks $duration])
+        ($return (sxmml-command-rhythm-on!
+                  (sxmml-mml-context) (map %rhythm-type->symbol types) ticks))))
 (hash-table-set! *rhythm-command* #\@ $rhythm-on)
 (define $rhythm-off
   ($let ([types $rhythm-type]
@@ -399,11 +314,8 @@
           ($return (apply make <sxmml-rhythm-emit> :value #f args)))))
 (hash-table-set! *rhythm-command* #\! $rhythm-off)
 (define $rhythm-rest
-  ($let ([t ($seq $duration)])
-        (let1 ct (car (slot-ref (sxmml-mml-context) 'current-ticks))
-          (set! (car ct) (+ t (car ct)))
-          (hash-table-update! (slot-ref (sxmml-mml-context) 'ticks-statistics) t (cut + 1 <>) 0)
-          ($return (make <sxmml-mml-rest> :ticks t)))))
+  ($let ([ticks $duration])
+        ($return (sxmml-command-rest! (sxmml-mml-context) ticks))))
 (hash-table-set! *rhythm-command* #\r $rhythm-rest)
 (define $rhythm-volume
   ($let ([param $number]
