@@ -70,7 +70,7 @@
           ,@(build-registration breaks 'sxmml-command-repeat-break!)
           ,@body2
           ,(quasirename rename
-             `(let ([count ,times])
+             `(let ([count ,(sxmml-form-wrap form rename times)])
                 ,@(build-registration tracks 'sxmml-command-repeat-end! (rename 'count))))
           ,@body3))
       (match form
