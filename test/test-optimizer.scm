@@ -15,7 +15,34 @@
 (use gauche.process)
 (use file.util)
 (use test.helpers)
+(use test.ir-meaning)
 (use srfi.1)
+
+(let ()
+  (define (note pitch) (make <sxmml-mml-note> :value pitch :ticks 12))
+  (define (volume value) (make <sxmml-mml-volume> :value value))
+  (define (change value) (make <sxmml-mml-volume-change> :value value))
+  (define (start) (make <sxmml-mml-repeat-start>))
+  (define (end count) (make <sxmml-mml-repeat-end> :value count))
+  (for-each
+    (^[case]
+      (let* ([build (caddr case)]
+             [before (build)]
+             [after (parameterize ([sxmml-environment (make <sxmml-environment>)])
+                      (define-track G)
+                      (sxmml-ir-register! (build) 'G)
+                      (sxmml-optimize-tree 'G :optimize (cadr case)))])
+        (test* (car case) '(match #f)
+               (call-with-values (^[] (compare-ir-meaning before after)) list))))
+    (list
+      (list "第1段階の音量指定順の意味保持" #t
+            (^[] (list (volume 8) (note 0) (change 2) (note 4) (change -2) (volume 9) (note 7))))
+      (list "第2段階の反復と相対音量の意味保持" :full
+            (^[] (list (volume 8) (start) (change 1) (note 0) (end 3) (volume 9) (note 2))))
+      (list "反復圧縮の意味保持" :repeat
+            (^[] (list (note 0) (note 2) (note 0) (note 2) (note 0) (note 2))))
+      (list "既存反復の展開と再圧縮の意味保持" :repeat-expand
+            (^[] (list (start) (note 0) (note 0) (note 0) (note 0) (end 2)))))))
 
 (let ()
   (define (compile rhythm? text)
