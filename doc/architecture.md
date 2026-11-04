@@ -13,7 +13,9 @@ flowchart LR
     B --> E[環境・トラック登録]
     S --> C[Scheme 式と公開マクロ]
     C --> P[MML / リズム解析]
-    P --> O[中間オブジェクト列]
+    P --> H[共通コマンド処理]
+    C --> H
+    H --> O[中間オブジェクト列]
     O --> E
     E --> Z[最適化]
     Z --> G[PMD バックエンド]
@@ -32,9 +34,10 @@ flowchart LR
 | [`sxmml.scm`](../sxmml.scm) | 基本モジュール群を `extend` して `sxmml` を構成 | PMD バックエンド（`backend/pmd.scm`・`backend/pmd-binary.scm`）は継承対象に含まれない |
 | [`sxmml/classes.scm`](../sxmml/classes.scm) | 環境、トラック文脈、解析結果、最適化文脈、音色等のクラスと、エラーの種類（`<sxmml-error>` の分類と独立した位置・トラックの文脈condition） | 他モジュールが共有するオブジェクトの形を定義 |
 | [`sxmml/environment.scm`](../sxmml/environment.scm) | 環境・ファイル名のパラメータ、トラック・メタデータ・LFO・エンベロープの登録と参照 | 環境内の表とトラック文脈を更新 |
-| [`sxmml/mml.scm`](../sxmml/mml.scm) | 通常 MML とリズム MML の PEG パーサー、コマンドから中間オブジェクトへの変換 | トラック文脈を参照・更新し、解析結果を作る |
+| [`sxmml/command.scm`](../sxmml/command.scm) | 明示的な文脈の更新・音高と音長の計算・IR生成とtick集計 | 解釈済みの値を受け、IR・`#f`・数値を返す。PEG・登録環境には依存しない |
+| [`sxmml/mml.scm`](../sxmml/mml.scm) | 通常 MML とリズム MML の PEG パーサー、コマンドから中間オブジェクトへの変換 | 文脈をparameterで束縛し、共通手続きへ明示的に渡す。既知の値エラーはMML構文エラーにする |
 | [`sxmml/compiler.scm`](../sxmml/compiler.scm) | Scheme 式の結果を MML 文字列にし、パーサーを起動して解析結果を登録 | `mml` / `rhythm` マクロ、文字列、トラック文脈、中間オブジェクト列 |
-| [`sxmml/processor.scm`](../sxmml/processor.scm) | `mml-repeat`、`mml-echo`、`mml-delay` による解析結果の加工・登録 | コンパイラと環境を使用。書式と既知の差は[公開マクロ](sxmml-reference-manual.adoc)を参照 |
+| [`sxmml/processor.scm`](../sxmml/processor.scm) | `mml-repeat`、`mml-echo`、`mml-delay` による解析結果の加工・登録 | 反復は共通コマンド層でIRを直接構築し、echo・delayはコンパイラの結果を加工。書式と既知の差は[公開マクロ](sxmml-reference-manual.adoc)を参照 |
 | [`sxmml/voice.scm`](../sxmml/voice.scm) | FM 音色の定義データを整形し環境に登録 | `define-opn-voice` と環境内の音色表 |
 | [`sxmml/optimizer.scm`](../sxmml/optimizer.scm) | トラックごとの登録済みオブジェクトを列に整え、指定水準に応じてまとめる・省く | `sxmml-optimize-tree` は列を返し、トラックの合計 tick 等も設定。水準 `3` 以上は `sxmml.repeat-tree` を使う |
 | [`sxmml/repeat-tree.scm`](../sxmml/repeat-tree.scm) | 同値比較できる要素の列を、展開すると元の列になる最小費用の局所反復木に圧縮する | sxmml のクラスに依存しない。`sxmml.optimizer` が使用。`sxmml` の継承対象に含まれない |
@@ -49,7 +52,7 @@ flowchart LR
 
 1. `sxlc.in` の `main` は引数から入力パス、モード、最適化水準を取得する。指定されたモード手続きの呼び出し後にソースを `load` し、環境の `backend` を呼ぶ。`-m` を指定した場合は `sxmml-mode-fixed` を真にしてソースを読み込むため、ソース中の `sxmml-mode` は無視され、CLI のモードが有効になる。
 2. `sxmml/backend/pmd.scm` の `pmd`・`pmd3` は、環境の `backend` と `mode`、既定の出力先の拡張子（`output-extension` slot に `"mml"`）を設定し、トラックを登録する。`environment.scm` の `sxmml-environment` などのパラメータと環境オブジェクトに変換中の状態が置かれる。
-3. `compiler.scm` の `mml` / `rhythm` は Scheme 式の結果を `write-tree` で文字列化する。`mml.scm` のパーサーが通常 MML またはリズム MML を中間オブジェクト列に変換し、トラック文脈の音長・音高・tick 等も更新する。結果はトラックの `compiled-data` に登録される。`processor.scm` の `mml-repeat`・`mml-echo`・`mml-delay` はこの登録経路を利用し、オブジェクト列を加工する。
+3. `compiler.scm` の `mml` / `rhythm` は Scheme 式の結果を `write-tree` で文字列化する。`mml.scm`のパーサーは値を解析し、`command.scm`の共通手続きで文脈更新・IR生成・集計を行う。IRを生成しない命令は`#f`を返し、compilerが収集時に除く。結果はトラックの `compiled-data` に登録される。`processor.scm`の`mml-repeat`は反復IRを共通手続きで直接作って登録し、反復命令の文字列化・再解析を行わない。`mml-echo`・`mml-delay`はコンパイル結果を加工して登録する。
 4. `backend/pmd.scm` の通常トラック処理 `%track-output` とリズムトラック処理 `%pmd-rhythm-track-output` は、それぞれ `optimizer.scm` の `sxmml-optimize-tree` を呼ぶ。水準 `0` は登録列を平坦化し、水準 `1` は近接する設定オブジェクトをまとめ、水準 `2` は追加の状態比較と連続休符の結合を行う。水準 `3` 以上はさらに、`repeat-tree.scm` の圧縮器で命令列を反復（`[ ]`・`[ : ]`）に圧縮する。水準 `3` は既存のリピートをひとまとめにし、水準 `4` 以上は小さい既存のリピートを展開してから圧縮する。これらはコンパイル後のオブジェクト数を減らす処理であり、最終文字列長を評価基準にはしない。水準別の比較は[検証方針](verification.md#r-03-オブジェクト数の削減)を参照する。
 5. PMD バックエンドはオブジェクト型ごとの出力手続きを呼び、メタデータ・音色・トラックの文字列を一時ファイルに CP932 で書いて生成先へ移す（`backend/pmd.scm` の `%pmd-source-output`）。その後 CLI がトラック情報を表示し、`-c` があれば外部コマンドを実行する（`sxlc.in` の `main`）。`main` はオプション解析・モード選択、変換、後処理の段階ごとにエラーを捕捉し、使用法の誤りを終了値 2、変換の失敗を 1、後処理の失敗を 3 として終了する。
 
@@ -75,7 +78,7 @@ Scheme ソースは `load` で Gauche のコードとして実行される（`sx
 
 | 変更の例 | 最初に追う箇所 | 影響を確認する箇所・観測結果 |
 | --- | --- | --- |
-| 通常・リズム MML の構文、音長 | `mml.scm` のパーサーと tick 更新、`classes.scm` の文脈 | `compiler.scm` の解析・登録、`optimizer.scm` の列、`backend/pmd.scm` の生成結果。通常・リズム双方の境界入力を確認 |
+| 通常・リズム MML の構文、音長 | `mml.scm`のパーサー、`command.scm`の計算・文脈更新、`classes.scm`の文脈 | `compiler.scm` の解析・登録、`optimizer.scm` の列、`backend/pmd.scm` の生成結果。通常・リズム双方の境界入力を確認 |
 | Scheme からのオブジェクト加工 | `processor.scm` のマクロと変換関数、`compiler.scm` の登録 | トラックの `compiled-data` と `current-ticks`、最適化前後の列、生成結果。`mml-repeat` 等の既知の差も参照 |
 | 最適化条件 | `optimizer.scm` の各水準と状態管理 | トラックの合計 tick、最適化前後の列、PMD 生成結果。[Q-01 の比較方法](verification.md#q-01-音楽的な意味の保持)を使う |
 | モード指定・生成先 | `sxlc.in` の引数・読み込み順・出力先の決定（`%output-file-resolve`、`%output-file-check`）、`<sxmml-environment>` の `output`・`output-extension` slot、`backend/pmd.scm` のモード手続き | CLI 表示、実際の生成パス、`-c` に渡す引数が一致すること |

@@ -36,4 +36,19 @@
        '(#t G)
        (guard (e [else (list (sxmml-value-error? e) (sxmml-track-context-track e))])
          (sxmml-compile-string! ($. #\a) 123 (make <sxmml-mml-context> :track 'G))))
+(test* "G01 通常MMLの空IRと解析の継続"
+       '(() ((<sxmml-mml-note> 60 12) (<sxmml-mml-note> 62 6)) ((18 . 0)) 16)
+       (let* ([ctx (make <sxmml-mml-context>)]
+              [empty (sxmml-compile-mml! "l8o5" ctx)]
+              [ir (sxmml-compile-mml! "cl16d" ctx)])
+         (list empty
+               (map (^[o] (list (class-name (class-of o)) (slot-ref o 'value) (slot-ref o 'ticks))) ir)
+               (slot-ref ctx 'current-ticks) (slot-ref ctx 'default-length))))
+(test* "G02 リズムMMLの解析の継続"
+       '((<sxmml-rhythm-emit> <sxmml-mml-rest>) #t 12 #f 6 ((18 . 0)) 16)
+       (let* ([ctx (make <sxmml-mml-context>)] [ir (sxmml-compile-rhythm! "l8@bl16r" ctx)])
+         (list (map (compose class-name class-of) ir)
+               (slot-ref (car ir) 'bass) (slot-ref (car ir) 'ticks)
+               (slot-ref (cadr ir) 'value) (slot-ref (cadr ir) 'ticks)
+               (slot-ref ctx 'current-ticks) (slot-ref ctx 'default-length))))
 (test-end :exit-on-failure #t)

@@ -97,7 +97,6 @@ export する構築手続きは、原則として `make-sxmml-対象` とする�
 例：
 
 * `sxmml-pmd-voice-number-table-compute`：音色番号の割り当てを求める。
-* `%mml-repeat-end-format`：反復回数を埋め込み、MML の反復終端表記を整形する。
 
 `compile`、`optimize` など、処理内容を表す動詞も使用する。一般の生成処理は、Scheme の Generator と区別し、構築・変換・算出などの役割に応じて命名する。
 

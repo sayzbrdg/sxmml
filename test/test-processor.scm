@@ -92,12 +92,45 @@
                    (slot-ref (find (cut is-a? <> <sxmml-mml-repeat-end>)
                                    (sxmml-optimize-tree 'G :optimize #f))
                              'value)))
+          (test* "R01 回数式を終了直前に一度評価し本文のスコープを保つ"
+                 '((front back count after) (2 2) (((48 . 0)) ((48 . 0))))
+                 (let1 source (source-output "repeat-count-once"
+                                "(define %repeat-events '())\n(mml-repeat (A B)\n  (begin (set! %repeat-events (append %repeat-events '(count))) %repeat-count)\n  ((define %repeat-count 1)\n   (set! %repeat-events (append %repeat-events '(front)))\n   (mml (A B) \"c8\"))\n  ((set! %repeat-count 2)\n   (set! %repeat-events (append %repeat-events '(back)))\n   (mml (A B) \"d8\"))\n  (() (set! %repeat-events (append %repeat-events '(after)))\n      (set! %repeat-count 3)))\n")
+                   (parameterize ([sxmml-environment (make <sxmml-environment>)])
+                     (pmd-source)
+                     (load source)
+                     (list (eval '%repeat-events (interaction-environment))
+                           (map (^[track]
+                                  (slot-ref (find (cut is-a? <> <sxmml-mml-repeat-end>)
+                                                  (sxmml-optimize-tree track :optimize #f)) 'value))
+                                '(A B))
+                           (map (^[track] (slot-ref (sxmml-track-get track) 'current-ticks)) '(A B))))))
+          (test* "R02 反復の生成識別子は利用者の束縛に捕捉されない"
+                 '((<sxmml-mml-repeat-start>) (<sxmml-mml-note> 48 12) (<sxmml-mml-repeat-end> 2))
+                 (let1 source (source-output "repeat-hygiene"
+                                "(let ((ctx 7) (count 2)\n      (sxmml-command-repeat-start! #f)\n      (sxmml-command-repeat-break! #f)\n      (sxmml-command-repeat-end! #f)\n      (sxmml-ir-register! #f))\n  (mml-repeat G count ((mml G (if (= ctx 7) \"c8\" \"d8\")))))\n")
+                   (parameterize ([sxmml-environment (make <sxmml-environment>)])
+                     (pmd-source)
+                     (load source)
+                     (map (^[ir]
+                            (cons (class-name (class-of ir))
+                                  (cond [(is-a? ir <sxmml-mml-note>)
+                                         (list (slot-ref ir 'value) (slot-ref ir 'ticks))]
+                                        [(is-a? ir <sxmml-mml-repeat-end>) (list (slot-ref ir 'value))]
+                                        [else '()])))
+                          (sxmml-optimize-tree 'G :optimize #f)))))
+          (let1 r (load-error "repeat-undefined-track" (in-begin "(mml-repeat X 2 ())"))
+            (test* "R03 未登録トラックにフォーム位置とトラック情報を付ける"
+                   (list #t "undefined track: X" #"~(car r):3" 'X)
+                   (let1 e (cdr r)
+                     (list (sxmml-reference-error? e) (condition-message e)
+                           (sxmml-source-context-location e) (sxmml-track-context-track e)))))
           ;; 値の誤りは実行時の値エラーとして通知する
-          (dolist [case '(("repeat-zero" "(mml-repeat G 0 ((mml G \"c\")))" "mml-repeat value: count is 0 (expected a positive integer)")
-                          ("repeat-negative" "(mml-repeat G -1 ((mml G \"c\")))" "mml-repeat value: count is -1 (expected a positive integer)")
-                          ("repeat-fraction" "(mml-repeat G 2.5 ((mml G \"c\")) ((mml G \"d\")))" "mml-repeat value: count is 2.5 (expected a positive integer)")
-                          ("repeat-inexact" "(mml-repeat (A B) 2.0 ((mml (A B) \"c\")))" "mml-repeat value: count is 2.0 (expected a positive integer)")
-                          ("repeat-string" "(mml-repeat G \"2\" ((mml G \"c\")))" "mml-repeat value: count is \"2\" (expected a positive integer)")
+          (dolist [case '(("repeat-zero" "(mml-repeat G 0 ((mml G \"c\")))" "repeat count: 0 (expected a positive exact integer)")
+                          ("repeat-negative" "(mml-repeat G -1 ((mml G \"c\")))" "repeat count: -1 (expected a positive exact integer)")
+                          ("repeat-fraction" "(mml-repeat G 2.5 ((mml G \"c\")) ((mml G \"d\")))" "repeat count: 2.5 (expected a positive exact integer)")
+                          ("repeat-inexact" "(mml-repeat (A B) 2.0 ((mml (A B) \"c\")))" "repeat count: 2.0 (expected a positive exact integer)")
+                          ("repeat-string" "(mml-repeat G \"2\" ((mml G \"c\")))" "repeat count: \"2\" (expected a positive exact integer)")
                           ("delay-ticks" "(mml-delay G (0 2 1) \"c8r8\")" "mml-delay value: ticks is 0 (expected a positive integer)")
                           ("delay-inexact-ticks" "(mml-delay (A B) (6.0 2 1) \"c8r8\")" "mml-delay value: ticks is 6.0 (expected a positive integer)")
                           ("delay-voldown" "(mml-delay G (6 1.5 1) \"c8r8\")" "mml-delay value: voldown is 1.5 (expected an integer)")
