@@ -222,9 +222,7 @@
             "invalid define-track form: :part requires a single track"))
          (quasirename rename
            `(begin
-              ,@(fold (^[t r] (cons (build-track-registration t param) r))
-                      ()
-                      track)))]
+              ,@(map (cut build-track-registration <> param) track)))]
         [(_ track param ...)
          (build-track-registration track param)]
         ))))

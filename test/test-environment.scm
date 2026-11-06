@@ -100,8 +100,8 @@
           (let* ([r (named-load "tracks-generated"
                      "(define recorded-order '())\n(define-syntax generated-tracks (syntax-rules () [(_) (define-track (FIRST SECOND) :volume-delta (let1 exists (boolean (sxmml-track-get 'SECOND)) (set! recorded-order (cons exists recorded-order)) (if exists 1 2)))]))\n(generated-tracks)\n" 'track)]
                  [first (named-object r 'FIRST)] [second (named-object r 'SECOND)])
-            (test* "利用者マクロの複数トラック名とパラメータの評価順を維持する"
-                   '(FIRST SECOND FIRST SECOND (#f #t))
+            (test* "利用者マクロの複数トラック名を保ちパラメータを指定順に評価する"
+                   '(FIRST SECOND FIRST SECOND (#f #f))
                    (and first second
                         (list (slot-ref first 'track) (slot-ref second 'track)
                               (slot-ref first 'part) (slot-ref second 'part)
@@ -302,7 +302,7 @@
                  (with-tracks
                   (^[] (sxmml-track-set! 'melody :part 'A)
                     (let* ([ctx (sxmml-track-get 'melody)]
-                           [e (caught (^[] (eval '(define-track (A B)) (interaction-environment))))])
+                           [e (caught (^[] (eval '(define-track (B A)) (interaction-environment))))])
                       (list (sxmml-value-error? e) (eq? ctx (sxmml-track-get 'melody))
                             (sxmml-track-get 'A) (and-let1 b (sxmml-track-get 'B) (slot-ref b 'part))))))))
         (test* "解像度0は値エラーになる"

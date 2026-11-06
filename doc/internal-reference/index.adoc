@@ -3,7 +3,7 @@
 
 この索引は、sxmml を保守・改修する際に内部定義を名前から探すためのものです。動作環境は Gauche 0.9.15 です。内部の名前は MML 記述者向け API を示しません。公開機能の使い方は xref:../sxmml-reference-manual.adoc[MML 記述者向けリファレンス]、MML 文字列の記法は xref:../sxmml-mml-manual.adoc[MML コマンドマニュアル]を参照してください。
 
-モジュール直下の手続き 303 件、クラス 60 件、マクロ 13 件、合計 376 件を掲載します。実験的な `sxmml.backend.pmd-binary` は公開名 7 件だけを掲載し、内部定義は xref:pmd-binary.adoc[本文]に概要だけを記します。`sxmml.scm` は各モジュールを継承し、独自の直下定義はありません。`sxmml.backend.pmd-binary` の `initialize` と `sxmml.form` の `report-additional-condition` のメソッドは、手続き件数へ重複計上しません。局所関数と `sxlc.in` の直下定義は範囲外です。呼び出せない表（ハッシュ表やリスト）は対象外です。
+モジュール直下の手続き 304 件、クラス 60 件、マクロ 13 件、合計 377 件を掲載します。実験的な `sxmml.backend.pmd-binary` は公開名 7 件だけを掲載し、内部定義は xref:pmd-binary.adoc[本文]に概要だけを記します。`sxmml.scm` は各モジュールを継承し、独自の直下定義はありません。`sxmml.backend.pmd-binary` の `initialize` と `sxmml.form` の `report-additional-condition` のメソッドは、手続き件数へ重複計上しません。局所関数と `sxlc.in` の直下定義は範囲外です。呼び出せない表（ハッシュ表やリスト）は対象外です。
 
 識別子の命名と改名の判断は xref:naming-conventions.adoc[命名規約]を参照してください。
 
@@ -16,7 +16,7 @@
 |xref:command.adoc[`sxmml.command`] |文脈更新・計算・IR生成の共通処理 |18
 |xref:mml.adoc[`sxmml.mml`] |通常・リズム MML の PEG パーサー |74
 |xref:environment.adoc[`sxmml.environment`] |環境と登録表 |28
-|xref:compiler.adoc[`sxmml.compiler`] |文字列の解析と登録マクロ |7
+|xref:compiler.adoc[`sxmml.compiler`] |文字列の解析と登録マクロ |8
 |xref:processor.adoc[`sxmml.processor`] |反復・エコー・ディレイ |10
 |xref:optimizer.adoc[`sxmml.optimizer`] |オブジェクト列の最適化 |50
 |xref:repeat-tree.adoc[`sxmml.repeat-tree`] |局所反復木による列の圧縮 |33
@@ -118,6 +118,7 @@
 |`%make-setting-effect` |`sxmml.optimizer` |手続き・非公開 |xref:optimizer.adoc#ref-optimizer-internal-make-setting-effect[項目へ]
 |`%make-state-effect` |`sxmml.optimizer` |手続き・非公開 |xref:optimizer.adoc#ref-optimizer-internal-make-state-effect[項目へ]
 |`%message\->located-message` |`sxmml.form` |手続き・非公開 |xref:form.adoc#ref-form-internal-message-to-located-message[項目へ]
+|`%mml-form-expand` |`sxmml.compiler` |手続き・非公開 |xref:compiler.adoc#ref-compiler-internal-mml-form-expand[項目へ]
 |`%most-frequent-ticks-find` |`sxmml.backend.pmd` |手続き・非公開 |xref:pmd.adoc#ref-pmd-internal-most-frequent-ticks-find[項目へ]
 |`%note-number\->pmd-note` |`sxmml.backend.pmd` |手続き・非公開 |xref:pmd.adoc#ref-pmd-internal-note-number-to-pmd-note[項目へ]
 |`%output-file-get` |`sxmml.backend.pmd` |手続き・非公開 |xref:pmd.adoc#ref-pmd-internal-output-file-get[項目へ]
