@@ -61,7 +61,7 @@
 |[[ref-environment-sxmml-track-find]]`(sxmml-track-find part)` |`part` slot が一致する最初のトラック名を探す |見つからなければ `#f` |link:../../sxmml/environment.scm[environment.scm]
 |[[ref-environment-sxmml-ir-register-bang]]`(sxmml-ir-register! ir track)` |sxmml IR の列を登録 |登録済みなら context の `compiled-data` を更新。未登録なら更新しない |link:../../sxmml/environment.scm[environment.scm]
 |[[ref-environment-rename-track]]`(rename-track old-name new-name)` |登録名を変更するマクロ |名前をidentifier?で検査してquoteし、位置付きの`sxmml-track-rename!`呼出しへ展開。形式・名前の型違反はform-syntax-error。既知の実行時エラーにも取得できる位置を添える |link:../../sxmml/environment.scm[environment.scm]
-|[[ref-environment-define-track]]`(define-track track param ...)` / `(define-track (track ...) param ...)` |一つまたは複数のトラックを設定するマクロ |位置付きの`sxmml-track-set!`呼出しへ展開。part既定値は登録手続きで設定する。複数形式の`:part`は登録前に`invalid define-track form: :part requires a single track`のform-syntax-error。非空リストの従来の逐次評価順を維持し、後続失敗時も先行成功分は残す。空リストの既存診断は維持 |link:../../sxmml/environment.scm[environment.scm]
+|[[ref-environment-define-track]]`(define-track track param ...)` / `(define-track (track ...) param ...)` |一つまたは複数のトラックを設定するマクロ |位置付きの`sxmml-track-set!`呼出しへ展開。part既定値は登録手続きで設定する。複数形式の`:part`は登録前に`invalid define-track form: :part requires a single track`のform-syntax-error。非空リストの指定順で登録し、パラメータ式はトラックごとに評価する。後続失敗時も先行成功分は残す。空リストの既存診断は維持 |link:../../sxmml/environment.scm[environment.scm]
 |===
 
 直接のcontext・登録表編集は許容し、検索時の重複拒否は追加しません。一対一対応を崩した状態では、候補の選択と、それに依存する生成物の再現性を保証しません。削除・全消去でpartは再利用可能になります。

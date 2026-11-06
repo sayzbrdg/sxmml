@@ -7,7 +7,7 @@
 
 加工手続きはsxmml IR の列 `ir` を受け、新たな音符・音量変更オブジェクトを挿入した列を返します。音符や休符の `ticks` slot を変更する場合がありますが、コンテキストの `current-ticks` を再計算しません。戻り値を `sxmml-ir-register!` で登録するのはマクロ側です。
 
-マクロは xref:form.adoc[`sxmml.form`] を使い、`define-opn-voice` などの定義のマクロと同じ形にしています。書式（括弧の数と形）は展開時に検査し、誤りは `sxmml-form-error` で位置を付けて投げます。回数や値は式として評価し、加工手続きとxref:command.adoc[共通コマンド層]が実行時に検査します。登録の呼び出しは `sxmml-form-wrap` で包むので、既知の値・参照の誤りにだけ、マクロの開始位置を独立したconditionとして添えます。値の式の未定義変数はそのまま通します。ただし `mml-repeat` の本文は `begin` に直接並べるので、包みません。本文の中のエラーは、そのフォーム自身の扱いに従います。
+マクロは xref:form.adoc[`sxmml.form`] を使い、`define-opn-voice` などの定義のマクロと同じ形にしています。書式（括弧の数と形）は展開時に検査し、誤りは `sxmml-form-error` で位置を付けて投げます。回数や値は式として評価し、加工手続きとxref:command.adoc[共通コマンド層]が実行時に検査します。delayは共有値と本文の評価を含む展開全体を`sxmml-form-wrap`で包み、既知の誤りにマクロの開始位置を独立したconditionとして添えます。echoとrepeatの登録処理も既存の方式で位置を付けます。値の式の未定義変数はそのまま通します。ただし `mml-repeat` の本文は `begin` に直接並べるので、包みません。本文の中のエラーは、そのフォーム自身の扱いに従います。
 
 [cols="2,4,4,1",options="header"]
 |===
@@ -16,7 +16,7 @@
 |[[ref-processor-sxmml-ir-self-echo-bang]]`(sxmml-ir-self-echo! ir fir vol rep)` |最初の音を含む MML 文字列 `fir`、音量差 `vol`、休符部の差 `rep` を使って `ir` を加工 |`vol`・`rep` が正確な整数でなければ `invalid mml-echo value: voldown is 1.5 (expected an integer)` のように失敗する。各音符の長さを分けて前の音を再発音し、休符にも前の音を挿入する。`fir` に音符がなければ `invalid mml-echo first note` エラー |link:../../sxmml/processor.scm[processor.scm]
 |[[ref-processor-mml-echo]]`(mml-echo track (firstnote voldown restdown) body ...)` |単一トラックの本文をコンパイルし、`sxmml-ir-self-echo!` へ渡す。括弧の中の値は式として評価する |加工した列を登録。括弧が 3 要素のリストでなければ、展開時に `invalid mml-echo form`。トラック名リストを複数トラックとして扱う展開形は未実装 |link:../../sxmml/processor.scm[processor.scm]
 |[[ref-processor-sxmml-ir-self-delay-bang]]`(sxmml-ir-self-delay! ir tick vol rep)` |間隔 `tick`、音量差 `vol`、繰り返し差 `rep` を使う |`tick` が正の正確な整数、`vol`・`rep` が正確な整数でなければ、`invalid mml-delay value: ticks is 0 (expected a positive integer)` のように失敗する。直前に音符がある休符が `tick` より長いとき、休符を分割して直前の音を挿入する。先頭休符と `tick` 以下の休符はそのまま返す |link:../../sxmml/processor.scm[processor.scm]
-|[[ref-processor-mml-delay]]`(mml-delay track (ticks voldown restdown) body ...)` |括弧の中の値は式として評価する。単一トラックまたは非空リストを受け、空のリストは展開時に `invalid mml-delay form` とする |各トラックの本文をコンパイル・加工・登録する。値と本文はトラックごとに評価する。括弧が 3 要素のリストでなければ、展開時に `invalid mml-delay form`。未登録トラックは失敗 |link:../../sxmml/processor.scm[processor.scm]
+|[[ref-processor-mml-delay]]`(mml-delay track (ticks voldown restdown) body ...)` |括弧の中の値は式として評価する。単一トラックまたは非空リストを受け、空のリストは展開時に `invalid mml-delay form` とする |3値と本文の各式をそれぞれ一度評価し、MML文字列を一度作って`let`で共有する。共有式同士の固定評価順は保証しない。各トラックの文脈で指定順にコンパイル・加工・登録する。IRは共有しない。括弧が 3 要素のリストでなければ、展開時に `invalid mml-delay form`。未登録トラックは失敗 |link:../../sxmml/processor.scm[processor.scm]
 |[[ref-processor-internal-repeat-command-register]]`(%repeat-command-register! track command . args)` |トラックの文脈を探して共通手続きを実行し、IR一つのリストを登録 |未登録なら参照エラー。既知のエラーへトラック情報を添え、未知のGauche例外は通す。マクロ側がフォーム位置を添える |link:../../sxmml/processor.scm[processor.scm]
 |[[ref-processor-internal-processor-value-check]]`(%processor-value-check macro name value ok? expected)` |加工マクロの値を検査する |`(ok? value)` が偽なら、`invalid macro value: name is 値 (expected expected)` で失敗する。値は `write` の形で示す |link:../../sxmml/processor.scm[processor.scm]
 |[[ref-processor-internal-positive-integer-p]]`(%positive-integer? x)` |正の正確な整数かを判定する |`2.0` のような不正確数は偽 |link:../../sxmml/processor.scm[processor.scm]

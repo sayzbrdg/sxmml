@@ -3,7 +3,7 @@
 
 PEGドライバのparse-errorはcompilerの境界でmml-syntax-errorへ変換し、元のPEG conditionは保持しません。明示的な理由、または `invalid MML syntax near "..."` を本文に使います。トラックは本文へ埋め込みません。既知のエラーには取得できるtrack-contextを添えます。非文字列引数はvalue-error、未定義トラックはreference-error、未知のGaucheエラーはそのまま通します。
 
-`sxmml.compiler` は五つの手続きと二つのマクロを公開します。通常 MML とリズム MML のパーサーは xref:mml.adoc[`sxmml.mml`]、登録先の状態は xref:environment.adoc[`sxmml.environment`] を参照してください。パーサー、generator、マクロの動作は Gauche 0.9.15 に従います。
+`sxmml.compiler`は五つの手続きと二つのマクロを公開し、非公開の展開手続き一つを共用します。通常 MML とリズム MML のパーサーは xref:mml.adoc[`sxmml.mml`]、登録先の状態は xref:environment.adoc[`sxmml.environment`] を参照してください。パーサー、generator、マクロの動作は Gauche 0.9.15 に従います。
 
 == 手続き
 
@@ -18,12 +18,13 @@ PEG の失敗種別 `type` が `fail-error` で、失敗情報 `objects` がタ�
 |[[ref-compiler-sxmml-compile-rhythm-bang]]`(sxmml-compile-rhythm! str ctx)` |リズム MML 文字列と解析コンテキスト |`make-sxmml-rhythm-parser` を作って `sxmml-compile-string!` に渡す。二値を返す |link:../../sxmml/compiler.scm[compiler.scm]
 |[[ref-compiler-sxmml-compile-string-bang]]`(sxmml-compile-string! parser str ctx)` |PEG パーサー、文字列、コンテキスト |パーサーが生成したオブジェクトのリストと `ctx` を返す。`str` が文字列でなければエラー。解析失敗は上記の明示的な理由、または入力付近を示すトラック文脈付き構文エラー |link:../../sxmml/compiler.scm[compiler.scm]
 |[[ref-compiler-sxmml-compile-track-mml]]`(sxmml-compile-track-mml track str)` |登録済み `track` の context を検索して通常 MML を処理 |未登録トラックなら `undefined track` エラー。コンパイル結果の二値を返す |link:../../sxmml/compiler.scm[compiler.scm]
+|[[ref-compiler-internal-mml-form-expand]]`(%mml-form-expand form rename macro-name compile-name)` |元フォーム、ERマクロのrename、診断用マクロ名、コンパイル手続き名から展開式を作る非公開手続き |書式・トラック名を展開時に検査し、一度の文字列化と指定順の個別コンパイル・登録を行う式を返す。共有値の評価も含めて既知のエラーへフォーム位置を付ける。展開時に登録状態を参照しない |link:../../sxmml/compiler.scm[compiler.scm]
 |[[ref-compiler-sxmml-compile-track-rhythm]]`(sxmml-compile-track-rhythm track str)` |登録済み `track` の context を検索してリズム MML を処理 |未登録トラックなら `undefined track` エラー。コンパイル結果の二値を返す |link:../../sxmml/compiler.scm[compiler.scm]
 |===
 
 == ソース中で使うマクロ
 
-両マクロはトラック名一つ、または一つ以上のトラック名のリストを受けます。`body ...` の Scheme 式は実行時に評価され、`write-tree` で文字列へ組み立てられます。複数トラックを指定した場合、各トラックの登録式をそれぞれ生成するため、本文の副作用もトラックごとに発生し得ます。未登録トラック、文字列化できない値、MML 構文エラーは登録時に失敗します。マクロ形式の詳細と利用例は xref:../sxmml-reference-manual.adoc[公開機能リファレンス]を参照してください。
+両マクロはトラック名一つ、または一つ以上のトラック名のリストを受けます。`body ...` の Scheme 式は実行時に評価され、`write-tree` で文字列へ組み立てられます。本文の各式の評価と文字列化は一度だけ行い、`let`で共有します。その後、各トラックの解析文脈で、指定順にコンパイル・登録します。生成済みIRは共有しません。本文が空の形も受理します。共有する式同士の評価順はsxmml独自の保証にしません。名前は`identifier?`で検査してquoteでsymbol化します。不正な書式・空の対象リスト・不正な名前は、`invalid mml form: expected (mml track body ...) or (mml (track ...) body ...)`、`mml requires at least one track name`、`invalid mml track name: 0 (expected a symbol)`のような位置付きフォーム構文エラーです。`rhythm`も同じ構成です。未登録トラックとMML構文エラーは実行時に失敗し、フォーム位置と取得できるトラック情報を保持します。未知のGauche例外は包み直しません。マクロ形式の詳細と利用例は xref:../sxmml-reference-manual.adoc[公開機能リファレンス]を参照してください。
 
 [cols="2,4,4,1",options="header"]
 |===

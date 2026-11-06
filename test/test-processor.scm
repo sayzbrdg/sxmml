@@ -20,6 +20,13 @@
   (define (source-output name text)
     (rlet1 source (work-file #"~|name|.sxl")
       (with-output-to-file source (^[] (display text)))))
+  (define (delay-state track)
+    (let* ([ir (sxmml-optimize-tree track :optimize #f)]
+           [notes (filter (^o (and (is-a? o <sxmml-mml-note>)
+                                   (not (is-a? o <sxmml-mml-rest>)))) ir)])
+      (list (map (cut slot-ref <> 'value) notes)
+            (map (cut slot-ref <> 'ticks) notes)
+            (slot-ref (sxmml-track-get track) 'current-ticks))))
   (unwind-protect
       (begin
         ;; mml-repeat の回数と、mml-delay・mml-echo の括弧の中の値は式として評価し、
@@ -125,6 +132,38 @@
                    (let1 e (cdr r)
                      (list (sxmml-reference-error? e) (condition-message e)
                            (sxmml-source-context-location e) (sxmml-track-context-track e)))))
+          (test* "D01 delayの3値と本文を一度評価し各トラックで加工する"
+                 '(#(1 1 1 1) ((48 48) (12 6) ((24 . 0))) ((60 60 60 60) (24 6 6 6) ((48 . 0))))
+                 (parameterize ([sxmml-environment (make <sxmml-environment>)])
+                   (sxmml-track-set! 'A :default-length 8 :current-octave 4)
+                   (sxmml-track-set! 'B :default-length 4 :current-octave 5)
+                   (let* ([calls (make-vector 4 0)]
+                          [once (^[index value]
+                                  (vector-set! calls index (+ 1 (vector-ref calls index))) value)])
+                     (mml-delay (A B) ((once 0 6) (once 1 2) (once 2 1)) (once 3 "cr"))
+                     (list calls (delay-state 'A) (delay-state 'B)))))
+          (test* "D02 delayの利用者の束縛を保ち生成識別子を捕捉させない"
+                 '((48 48) (12 6) ((24 . 0)))
+                 (parameterize ([sxmml-environment (make <sxmml-environment>)])
+                   (sxmml-track-set! 'G)
+                   (let ([text "c8r8"] [ticks 6] [voldown 2] [restdown 1]
+                         [write-to-string #f] [list #f] [sxmml-compile-track-mml #f]
+                         [sxmml-ir-self-delay! #f] [sxmml-ir-register! #f])
+                     (mml-delay G (ticks voldown restdown) text))
+                   (delay-state 'G)))
+          (let1 r (load-error "delay-shared-value" (in-begin "(mml-delay (A B) ((error <sxmml-value-error> \"sample delay input\") 2 1) \"c8r8\")"))
+            (test* "D03 delayの共有値の既知エラーへフォーム位置を付ける"
+                   (list #t "sample delay input" #"~(car r):3" 'value)
+                   (error-report r)))
+          (test* "D04 delayは指定順で先行登録を終えてから後続で失敗する"
+                 '(#t "undefined track: X" #t X ((48 48) (12 6) ((24 . 0))))
+                 (let1 source (source-output "delay-partial" (in-begin "(mml-delay (A X) (6 2 1) \"c8r8\")"))
+                   (parameterize ([sxmml-environment (make <sxmml-environment>)])
+                     (sxmml-track-set! 'A)
+                     (let1 e (guard (e [else e]) (load source) #f)
+                       (list (sxmml-reference-error? e) (condition-message e)
+                             (equal? (sxmml-source-context-location e) #"~|source|:3")
+                             (sxmml-track-context-track e) (delay-state 'A))))))
           ;; 値の誤りは実行時の値エラーとして通知する
           (dolist [case '(("repeat-zero" "(mml-repeat G 0 ((mml G \"c\")))" "repeat count: 0 (expected a positive exact integer)")
                           ("repeat-negative" "(mml-repeat G -1 ((mml G \"c\")))" "repeat count: -1 (expected a positive exact integer)")

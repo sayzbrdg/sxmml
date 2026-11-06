@@ -91,34 +91,34 @@
 ;;  syntax
 ;;
 
+(define (%mml-form-expand form rename macro-name compile-name)
+  (define (build-registration track)
+    (unless (identifier? track)
+      (sxmml-form-error form "invalid ~a track name: ~s (expected a symbol)"
+                       macro-name (unwrap-syntax track)))
+    (quasirename rename
+      `(sxmml-ir-register! (,(rename compile-name) ',track text) ',track)))
+  (define (expand tracks body)
+    (sxmml-form-wrap form rename
+      (quasirename rename
+        `(let ([text (write-to-string (list ,@body) write-tree)])
+           ,@(map build-registration tracks)))))
+  (match form
+    [(_ () body ...)
+     (sxmml-form-error form "~a requires at least one track name" macro-name)]
+    [(_ (track ..1) body ...)
+     (expand track body)]
+    [(_ track body ...)
+     (expand (list track) body)]
+    [_ (sxmml-form-error form "invalid ~a form: expected (~a track body ...) or (~a (track ...) body ...)"
+                         macro-name macro-name macro-name)]))
+
 (define-syntax mml
   (er-macro-transformer
     (^[form rename id=?]
-      (define (build-registration track body)
-        (quasirename rename
-          `(sxmml-ir-register!
-            (sxmml-compile-track-mml ',track (write-to-string (list ,@body) write-tree)) ',track)))
-      (match form
-        [(_ (track ..1) body ...)
-         (quasirename rename
-           `(begin
-              ,@(fold (^[t r] (cons (build-registration t body) r)) () track)))]
-        [(_ track body ...)
-         (build-registration track body)]
-        ))))
+      (%mml-form-expand form rename 'mml 'sxmml-compile-track-mml))))
 
 (define-syntax rhythm
   (er-macro-transformer
     (^[form rename id=?]
-      (define (build-registration track body)
-        (quasirename rename
-          `(sxmml-ir-register!
-            (sxmml-compile-track-rhythm ',track (write-to-string (list ,@body) write-tree)) ',track)))
-      (match form
-        [(_ (track ..1) body ...)
-         (quasirename rename
-           `(begin
-              ,@(fold (^[t r] (cons (build-registration t body) r)) () track)))]
-        [(_ track body ...)
-         (build-registration track body)]
-        ))))
+      (%mml-form-expand form rename 'rhythm 'sxmml-compile-track-rhythm))))

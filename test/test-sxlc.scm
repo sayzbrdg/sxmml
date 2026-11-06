@@ -111,9 +111,11 @@
           (test* "名前変更の重複は位置付き診断と終了値1だけで報告する"
                  (list 1 '() (list #"sxlc: error: ~|source|:2: invalid rename-track destination: B (already registered)"))
                  r))
-        (dolist [case '(("track-report" ("-m" "pmd") "(mml G \"c8?\")"
-                         "sxlc: error: unknown MML command: \"?\" on G track")
-                        ("value-report" ("-m" "pmd") "(mml A \"v128c\")"
+        (let1 source (source-output "track-report" "(mml G \"c8?\")")
+          (test* "既知のエラーを文脈に応じた1行でstderrへ表示する: track-report"
+                 (list 1 '() (list #"sxlc: error: ~|source|:1: unknown MML command: \"?\" on G track"))
+                 (sxlc-report "-m" "pmd" source)))
+        (dolist [case '(("value-report" ("-m" "pmd") "(mml A \"v128c\")"
                          "sxlc: error: invalid FM volume: 128 (expected an integer from 0 to 127)")
                         ("both-report" ("-m" "pmd")
                          "(use sxmml.form) (raise (sxmml-error-with-context (sxmml-error-with-context (make-condition <sxmml-value-error> 'message \"sample error\") (make-condition <sxmml-track-context> 'track-name 'G)) (make-condition <sxmml-source-context> 'source-location \"inner.sxl:7\")))"
