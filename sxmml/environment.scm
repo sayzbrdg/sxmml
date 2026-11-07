@@ -60,6 +60,9 @@
 
 (define sxmml-resolution sxmml-resolution-set!)
 
+;; モードの登録情報はGaucheの実行環境で共有する。
+;; 登録情報の変更は、それを参照する楽曲環境にも及ぶ。
+;; 楽曲環境は選択結果だけを保持し、楽曲ごとの定義群の切替えは現在提供しない。
 (define %sxmml-modes (make-hash-table eq-comparator))
 
 (define (%mode-name-check name)
