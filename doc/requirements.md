@@ -30,7 +30,7 @@ R-03 の最適化は、コンパイル後のオブジェクトリストに連結
 | 要求 | 実装動作と関連仕様 | 要求との差・制約 | 実装状態 |
 | --- | --- | --- | --- |
 | R-01 | Scheme の `map` 等で作った MML 断片を `mml` に渡して音符を登録できる。[外部動作仕様](behavior-spec.md)。tick 指定はゼロ埋めした正の整数も受理し、0 は拒否する | `define-metadata` の旧書式（括弧の中に文字列だけを並べる形）は非推奨で、警告を出して受け付ける | Scheme 式による MML 記述を提供 |
-| R-02 | `mml-repeat`・`mml-echo`・`mml-delay` で MML オブジェクトを加工する。[公開マクロ](sxmml-reference-manual.adoc) | slot の直接編集では文脈値が同期しない場合がある。複数トラックのエコーは、トラックごとに `mml-echo` を呼ぶ。[issue #6](https://github.com/sayzbrdg/sxmml/issues/6) | 加工マクロを提供、複数トラックの `mml-echo` は未実装 |
+| R-02 | `mml-repeat`・`mml-echo`・`mml-delay` で MML オブジェクトを加工する。[公開マクロ](sxmml-reference-manual.adoc) | slot の直接編集では文脈値が同期しない場合がある。`mml-echo`は単一トラック限定とする。 | 加工マクロを提供 |
 | R-03 | 重複音量指定の削減と休符の結合を自動で行う。[比較例](verification.md#r-03-オブジェクト数の削減) | 削減効果は入力に応じて評価する。意味保持は Q-01 として別に判定する | 水準別の最適化処理を提供 |
 | R-04 | PMD モードで CP932 の `.mml` ファイルを生成する。実験的な PMD バイナリのモードで `.m` ファイルを生成する。[外部動作仕様](behavior-spec.md) | PMD バイナリは実験的であり、MC.EXE の出力と同じであることを保証しない。他形式は提供していない | PMD 向け生成と、実験的な PMD バイナリ生成を提供 |
 
