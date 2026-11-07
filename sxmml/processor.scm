@@ -126,15 +126,11 @@
       (slot-set! obj 'ticks (- t len))
       (list (build-vol rep) (build-prev prev len) obj (build-vol (* -1 (+ vol rep))))))
   (define (first-note-number-find)
-    (let loop ([rest (sxmml-compile-mml! fir (make <sxmml-mml-context>))])
-      (cond [(null? rest)
-             (errorf <sxmml-value-error> "invalid mml-echo first note: ~s (expected MML containing a note)" fir)]
-            [(is-a? (car rest) <sxmml-mml-rest>)
-             (loop (cdr rest))]
-            [(is-a? (car rest) <sxmml-mml-note>)
-             (slot-ref (car rest) 'value)]
-            [else
-             (loop (cdr rest))])))
+    (if-let1 note (find (^[obj] (and (not (is-a? obj <sxmml-mml-rest>))
+                                   (is-a? obj <sxmml-mml-note>)))
+                       (sxmml-compile-mml! fir (make <sxmml-mml-context>)))
+      (slot-ref note 'value)
+      (errorf <sxmml-value-error> "invalid mml-echo first note: ~s (expected MML containing a note)" fir)))
   (%processor-value-check "mml-echo" "voldown" vol exact-integer? "an integer")
   (%processor-value-check "mml-echo" "restdown" rep exact-integer? "an integer")
   (let loop ([rest ir]

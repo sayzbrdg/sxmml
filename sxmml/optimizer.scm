@@ -382,7 +382,7 @@
 (define %repeat-expand-window 1024)
 (define %repeat-expand-limit 256)
 
-;; 第 2 段階の後の列を、反復で圧縮する。既存のリピートはひとまとめ（原子）にし、
+;; 平坦なIR列を、反復で圧縮する。既存のリピートはひとまとめ（原子）にし、
 ;; その本文も同じように圧縮する。expand? なら、展開後の長さが %repeat-expand-limit
 ;; 以下の既存のリピートを先に展開し、窓幅 %repeat-expand-window で圧縮する
 (define (%sxmml-optimize-repeat lis expand?)
