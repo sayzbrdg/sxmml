@@ -36,16 +36,16 @@
                                 (with-output-to-file source (^[] (for-each write forms)))
                                 (parameterize ([sxmml-environment (make <sxmml-environment>)]
                                                [sxmml-source-file source])
-                                  (pmd-source)
+                                  (sxmml-mode-select! 'pmd-source)
                                   (load source)
-                                  ((slot-ref (sxmml-environment) 'backend))
+                                  ((slot-ref (sxmml-mode-get) 'backend))
                                   (filter #/^[A-L] / (string-split (file->string (slot-ref (sxmml-environment) 'output))
                                                                    "\r\n")))))]
                [load-error (^[name text]
                              (let1 source (source-output name text)
                                (parameterize ([sxmml-environment (make <sxmml-environment>)]
                                               [sxmml-source-file source])
-                                 (pmd-source)
+                                 (sxmml-mode-select! 'pmd-source)
                                  (guard (e [else (cons source e)])
                                    (load source)
                                    (cons source #f)))))]
@@ -94,7 +94,7 @@
           (test* "mml-repeat without a location takes an evaluated count"
                  2
                  (parameterize ([sxmml-environment (make <sxmml-environment>)])
-                   (pmd-source)
+                   (sxmml-mode-select! 'pmd-source)
                    (eval '(mml-repeat G (+ 1 1) ((mml G "c"))) (interaction-environment))
                    (slot-ref (find (cut is-a? <> <sxmml-mml-repeat-end>)
                                    (sxmml-optimize-tree 'G :optimize #f))
@@ -104,7 +104,7 @@
                  (let1 source (source-output "repeat-count-once"
                                 "(define %repeat-events '())\n(mml-repeat (A B)\n  (begin (set! %repeat-events (append %repeat-events '(count))) %repeat-count)\n  ((define %repeat-count 1)\n   (set! %repeat-events (append %repeat-events '(front)))\n   (mml (A B) \"c8\"))\n  ((set! %repeat-count 2)\n   (set! %repeat-events (append %repeat-events '(back)))\n   (mml (A B) \"d8\"))\n  (() (set! %repeat-events (append %repeat-events '(after)))\n      (set! %repeat-count 3)))\n")
                    (parameterize ([sxmml-environment (make <sxmml-environment>)])
-                     (pmd-source)
+                     (sxmml-mode-select! 'pmd-source)
                      (load source)
                      (list (eval '%repeat-events (interaction-environment))
                            (map (^[track]
@@ -117,7 +117,7 @@
                  (let1 source (source-output "repeat-hygiene"
                                 "(let ((ctx 7) (count 2)\n      (sxmml-command-repeat-start! #f)\n      (sxmml-command-repeat-break! #f)\n      (sxmml-command-repeat-end! #f)\n      (sxmml-ir-register! #f))\n  (mml-repeat G count ((mml G (if (= ctx 7) \"c8\" \"d8\")))))\n")
                    (parameterize ([sxmml-environment (make <sxmml-environment>)])
-                     (pmd-source)
+                     (sxmml-mode-select! 'pmd-source)
                      (load source)
                      (map (^[ir]
                             (cons (class-name (class-of ir))

@@ -41,7 +41,6 @@
                                 sxmml-pmd-metadata-value))
   (export <sxmml-pmd-binary-environment>
           sxmml-pmd3-binary-output sxmml-pmd4-binary-output sxmml-pmd-binary-output
-          pmd3-binary pmd4-binary pmd-binary
           ))
 (select-module sxmml.backend.pmd-binary)
 
@@ -71,20 +70,7 @@
 ;;;
 ;;; mode
 ;;;
-(define (pmd3-binary)
-  (slot-set! (sxmml-environment) 'backend sxmml-pmd3-binary-output)
-  (slot-set! (sxmml-environment) 'mode "pmd3-binary")
-  (%pmd-binary))
-(define (pmd4-binary)
-  (slot-set! (sxmml-environment) 'backend sxmml-pmd4-binary-output)
-  (slot-set! (sxmml-environment) 'mode "pmd4-binary")
-  (%pmd-binary))
-(define (pmd-binary)
-  (slot-set! (sxmml-environment) 'backend sxmml-pmd-binary-output)
-  (slot-set! (sxmml-environment) 'mode "pmd-binary")
-  (%pmd-binary))
-(define (%pmd-binary)
-  (slot-set! (sxmml-environment) 'output-extension "m")
+(define (%pmd-binary-setup)
   (define-track (A B C D E F) :volume-delta 4)
   (define-track (G H I L))
   (define-track J :volume-delta 16))
@@ -882,3 +868,12 @@
                 (slot-ref (sxmml-pmd-binary-environment) 'max-loop-ticks)))
     (slot-set! (sxmml-pmd-binary-environment) 'max-loop-ticks
                (slot-ref (sxmml-track-get track) 'loop-ticks))))
+
+(sxmml-mode-register!
+ (make <sxmml-mode> :name 'pmd-binary :aliases '(pmd4-binary)
+       :setup %pmd-binary-setup :backend sxmml-pmd-binary-output
+       :output-extension "m"))
+(sxmml-mode-register!
+ (make <sxmml-mode> :name 'pmd3-binary
+       :setup %pmd-binary-setup :backend sxmml-pmd3-binary-output
+       :output-extension "m"))

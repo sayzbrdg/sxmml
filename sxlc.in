@@ -42,7 +42,7 @@
          [cmd "c|command=s" #f]
          [output "o|output=s" #f]
          [wsl "w|wsl" #f]
-         [#f "l|list" => %backend-list-output]
+         [#f "l|list" => %mode-list-output]
          [#f "h|help" => (^[] (%usage 0))]
          [#f "v|version" => %version-output]
          . args)
@@ -70,7 +70,7 @@
             (%mode-select mode))
           (%convert (^[]
                       (load (sxmml-source-file))
-                      (unless (slot-ref (sxmml-environment) 'backend)
+                      (unless (sxmml-mode-get)
                         (error <sxmml-error> "backend is not specified by option or source file" ))
                       (slot-set! (sxmml-environment) 'optimize (cond [(>= optimize 4) :repeat-expand]
                                                                      [(= optimize 3) :repeat]
@@ -79,9 +79,9 @@
                                                                      [else #f]))))
           ;; 出力先は sxlc が決める。ソースが output slot を変更していても上書きする
           (slot-set! (sxmml-environment) 'output (%output-file-resolve output))
-          (%convert (slot-ref (sxmml-environment) 'backend))
+          (%convert (slot-ref (sxmml-mode-get) 'backend))
           (format #t "Translate: ~a => ~a\n" (sxmml-source-file) (slot-ref (sxmml-environment) 'output))
-          (format #t "Processing Mode: ~a\n" (slot-ref (sxmml-environment) 'mode))
+          (format #t "Processing Mode: ~a\n" (slot-ref (sxmml-mode-get) 'name))
           (format #t "Optimize level: ~d\n\n" optimize)
           (%ticks-information-output)
           (if cmd-args
@@ -107,7 +107,7 @@
 ;; バックエンドが既定値を設定する
 (define (%output-file-resolve output)
   (rlet1 file (cond [output (sys-normalize-pathname output :absolute #t)]
-                    [(slot-ref (sxmml-environment) 'output-extension)
+                    [(slot-ref (sxmml-mode-get) 'output-extension)
                      => (cut path-swap-extension (sxmml-source-file) <>)]
                     [else #f])
     (when file
@@ -119,11 +119,10 @@
   (when (and (file-exists? output) (file-exists? source) (file-eqv? output source))
     (%usage-error #"output file is the same as the source file: ~output")))
 
-;; -m で指定したモードを選ぶ。解決や呼び出しができない場合は使用法の誤りとする。
-;; モード指定の設計は #38 で見直す
 (define (%mode-select mode)
-  (guard (e [else (%usage-error (format #f "invalid mode: ~a: ~a" mode (%error-message e)))])
-    ((eval mode (interaction-environment)))))
+  (unless (sxmml-mode-find mode)
+    (%usage-error (format #f "undefined mode: ~a" mode)))
+  (%convert (^[] (sxmml-mode-select! mode))))
 
 ;; 後処理を実行し、終了値を返す。後処理が失敗した場合は標準エラー出力に通知して 3 を返す
 (define (%post-process cmd cmd-args wsl)
@@ -184,7 +183,7 @@
   (format #t "    ~12a Write the generated file to \"output\".\n" "-o output")
   (format #t "    ~12a Execute \"command\" as a post process.\n" "-c command")
   (format #t "    ~12a If used with the -c option, \"wslpath\" is used to convert to a Windows path.\n" "-w")
-  (format #t "    ~12a Print backend modules list.\n" "-l")
+  (format #t "    ~12a Print available modes.\n" "-l")
   (format #t "    ~12a Print version.\n" "-v")
   (format #t "    ~12a Print this message.\n" "-h")
   (newline)
@@ -195,9 +194,17 @@
           (slot-ref (find-gauche-package-description "sxmml") 'version))
   (exit 0))
 
-(define (%backend-list-output)
-  (format #t "sxmml available modules:\n\n")
-  (library-for-each 'sxmml.backend.* (^[m p] (format #t "  ~a:\n    \"~a\"\n" m p)))
+(define (%mode-list-output)
+  (format #t "sxmml available modes:\n\n")
+  (for-each (^[mode]
+              (format #t "  ~a" (slot-ref mode 'name))
+              (unless (null? (slot-ref mode 'aliases))
+                (format #t " (aliases: ~a)"
+                        (string-join (map symbol->string (slot-ref mode 'aliases)) ", ")))
+              (newline))
+            (sort (sxmml-mode-list)
+                  (^[a b] (string<? (symbol->string (slot-ref a 'name))
+                                   (symbol->string (slot-ref b 'name))))))
   (newline)
   (exit 0))
 

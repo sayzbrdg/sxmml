@@ -20,20 +20,24 @@
 
 `sxlc` は入力ファイル名を一つだけ受け付ける。そのファイルを Gauche の `load` で読み込み、ソース中の Scheme 式を評価する。入力ファイルの拡張子は制限しない。オプションは入力ファイル名より前に書く。入力ファイル名より後ろに引数があると、ソースを読み込む前に `unexpected argument after the source file: 引数` と使用法を表示し、終了値 2 で終了する。後ろの引数が `-` で始まる場合は、`options must be placed before the source file` も表示する。`-` で始まる入力ファイル名は `--` の後に書く。ソースは MML の文字列だけでなく、Scheme 式と `mml` / `rhythm`、定義・設定マクロを含められる。
 
-処理順は、オプションを読む → `-m` があればモードを選ぶ → 入力ファイルを読み込む → 出力形式の設定を確認する → `-O` の水準と出力先を設定する → 生成する → 出力名・処理モード・最適化水準を表示する → トラックの tick 数を表示する → `-c` があれば後処理を起動する、である。入力ファイルの読み込み中にエラーが起きれば、出力形式の確認より先にそのエラーが出る。`-m pmd` がなくても、ソース中の `(sxmml-mode pmd)` で PMD モードを選べる。両方を指定すると `-m` の指定が有効になり、ソース中の `sxmml-mode` は無視される。このとき標準エラー出力に `warning: /home/user/song.sxl:1: sxmml-mode in source is ignored; mode is already set to モード名` のように、その `sxmml-mode` の位置を示す警告を表示する。無視する `sxmml-mode` のモード名と引数は評価しないので、未定義のモード名が書かれていても変換は失敗しない。
+処理順は、オプションを読む → `-m` があればモードを選ぶ → 入力ファイルを読み込む → 出力形式の設定を確認する → `-O` の水準と出力先を設定する → 生成する → 出力名・処理モード・最適化水準を表示する → トラックの tick 数を表示する → `-c` があれば後処理を起動する、である。入力ファイルの読み込み中にエラーが起きれば、出力形式の確認より先にそのエラーが出る。`-m pmd` がなくても、ソース中の `(sxmml-mode pmd)` で PMD モードを選べる。両方を指定すると `-m` の指定が有効になり、ソース中の `sxmml-mode` は無視される。このとき標準エラー出力に `warning: /home/user/song.sxl:1: sxmml-mode in source is ignored; mode is already set to モード名` のように、その `sxmml-mode` の位置を示す警告を表示する。モード名は評価せず、無視する場合は検索もしない。書式は`(sxmml-mode 名前)`、名前はシンボルに限る。追加引数や名前の型違反はCLI指定時もフォーム構文エラーとなる。
 
 PMD4 向けには `pmd`、PMD3 向けには `pmd3` を指定する。実験的なモードとして、PMD のバイナリを直接生成する `pmd-binary`・`pmd4-binary`（PMD4 向け）と `pmd3-binary`（PMD3 向け）がある。ソース内でモードを選ぶ場合、`sxlc` は起動時に利用可能なバックエンドを読み込む。各モードの出力差は「PMD 向け生成物」と「PMD バイナリ生成物（実験的）」に示す。
+
+モードの登録表は共有し、楽曲環境には選択した`<sxmml-mode>`を保持する。登録時には初期設定せず、選択情報の更新後に初期設定する。同じモードの再選択でも実行する。未登録選択は状態を変更せず、初期設定失敗時には選択と成功済み変更を保持する。PMDの再選択では既定トラックのMMLを引き継がない。明示的な`sxmml-mode-select!`はCLI指定後も変更を行える。
+
+正規名は`pmd-source`・`pmd3-source`・`pmd-binary`・`pmd3-binary`。`pmd`・`pmd4-source`は`pmd-source`、`pmd3`は`pmd3-source`、`pmd4-binary`は`pmd-binary`の別名で、表示・警告は正規名を使う。未登録のCLI名は`undefined mode: 名前`とusageで終了値2、ソース中の未登録名・初期設定失敗は終了値1。既知のエラーと未知のGauche例外の報告方法は従来どおりである。
 
 ## CLI
 
 | オプション | 現行動作 |
 | --- | --- |
-| `-m MODE` / `--mode MODE` | 読み込み前に指定名のモード手続きを呼ぶ。未指定ならソース側でモード選択が必要 |
+| `-m MODE` / `--mode MODE` | 読み込み前に登録済みの正規名・別名から選択し、初期設定を実行する。未指定ならソース側でモード選択が必要 |
 | `-O N` / `--optimize N` | 整数を受け、既定値は 1。0 以下は通常の最適化なし、1 は第 1 段階、2 は第 1・第 2 段階、3 はさらに既存のリピートをひとまとめにして命令列を反復（`[ ]`・`[ : ]`）で圧縮し、4 以上は展開後の長さが 256 以下の既存のリピートを展開し、3 より広い範囲で圧縮する。3 以上は列の長さに応じて時間がかかり、4 以上は 3 よりさらにかかる。0 以下でも無操作の中間データは除かれる |
 | `-o FILE` / `--output FILE` | 生成物の出力先を指定する。相対パスは現在のディレクトリを基準に絶対パスにする。省略時は入力ファイル名の拡張子を、選んだモードの拡張子（PMD 向けは `.mml`、PMD バイナリは `.m`）に替えたパス。ソースの読み込み後に設定するため、ソースから出力先を変更することはできない。出力先が入力ファイルと同じファイル（書き方の違いやシンボリックリンク経由を含む）になる場合は、ソースを上書きせず `output file is the same as the source file: パス` と表示して終了値 2 で終了する。`-o` の指定はソースを読み込む前に、既定の出力先はソースの読み込み後・生成の前に検査する |
 | `-c COMMAND` / `--command COMMAND` | 生成後、指定コマンドの後ろに出力名を付けて起動する。`COMMAND` の引用・エスケープは指定する側が行う。`COMMAND` だけを引数に分割し、sxmml が追加する出力パスは分割せず末尾の一引数として渡す。空白や `;` を含む名前も一引数になる。`-w` を指定しない場合、後処理の標準出力と標準エラー出力は変換せずに `sxlc` の標準出力と標準エラー出力へそのまま出る。`COMMAND` の字句の誤り（閉じていない引用符など）は、変換の前に使用法の誤りとして検出する。後処理が 0 以外の終了値やシグナルで終了した場合は、標準エラー出力に `post process failed: exit status N` または `post process killed by signal N` と表示し、終了値 3 で終了する。変換は成功しているため生成物は残る。例えば `-c false` を指定すると `sxlc` は終了値 3 となる |
 | `-w` / `--wsl` | WSL から Windows のツールを後処理に使うための指定。`-c` と併用すると `wslpath -aw` で後処理に渡すパスを変換し、後処理の標準出力と標準エラー出力を CP932 として読み取って UTF-8 に変換し、`sxlc` の標準出力に表示する。CP932 として復号できないバイト列は置換文字に置き換え、失敗にはしない。外部コマンド `wslpath` が必要。`wslpath` が失敗した場合は `post process failed: wslpath:` で始まる通知を表示し、終了値 3 で終了する |
-| `-l` / `--list` | 実行環境で見つかる `sxmml.backend.*` モジュールを列挙する。表示件数は環境に依存する |
+| `-l` / `--list` | 登録済みモードを正規名順で表示し、別名を同じ行に登録順で表示する |
 | `-h` / `--help` | 使用法を表示して終了値 0 |
 | `-v` / `--version` | パッケージのバージョンを表示して終了値 0 |
 
@@ -96,7 +100,7 @@ PMD 向けの生成では、`-o` で指定した出力先、指定がなけれ�
 | `sxlc -m pmd /tmp/sxmml-examples/pmd-output/modes.sxl` | `PMD` | `;; mode: PMDver4.8` | CRLF |
 | `sxlc -m pmd3 /tmp/sxmml-examples/pmd-output/modes.sxl` | `PMD3` | `;; mode: PMDver3.3` | `0x1A` |
 
-`/tmp/sxmml-examples/pmd-output/source-mode.sxl` に `(sxmml-mode pmd3)` と `(mml G "c8")` を保存し、`sxlc -m pmd /tmp/sxmml-examples/pmd-output/source-mode.sxl` を実行すると、ソース中の指定は無視されて `Processing Mode: PMD` と表示され、生成物のモード行は `;; mode: PMDver4.8` となる。`-m` を省くと、ソース中の指定により `Processing Mode: PMD3`、`;; mode: PMDver3.3` となる。
+`/tmp/sxmml-examples/pmd-output/source-mode.sxl` に `(sxmml-mode pmd3)` と `(mml G "c8")` を保存し、`sxlc -m pmd /tmp/sxmml-examples/pmd-output/source-mode.sxl` を実行すると、ソース中の指定は無視されて `Processing Mode: pmd-source` と表示され、生成物のモード行は `;; mode: PMDver4.8` となる。`-m` を省くと、ソース中の指定により `Processing Mode: pmd3-source`、`;; mode: PMDver3.3` となる。
 
 `-O` の水準によって生成行は変わる。例えば、`-O 0` の `G l%12v8v8o4crr`、`-O 1` の `G l%12v8o4crr`、`-O 2` の `G l%12v8o4cr%24` となる入力がある。通常の最適化を避けるには `-O 0` を指定する。品質上の制約は [issue #8](https://github.com/sayzbrdg/sxmml/issues/8)を参照する。
 
@@ -165,7 +169,7 @@ FM・SSG・PCM の3区分で範囲が異なるものは分け、区分内の細�
 | --- | --- |
 | 0 | 成功。`-c` を指定した場合は後処理も成功 |
 | 1 | 変換の失敗。既知の入力エラーは `sxlc: error: [ファイル:行: ]本文[ on トラック track]` の形で標準エラー出力へ表示する。位置とトラックは取得できる文脈だけを使い、Gaucheの例外見出しやスタックトレースを付けない。未知のGaucheエラー、I/O、内部IR・最適化の整合性検査の失敗は、Gaucheの標準報告とスタックトレースを維持する |
-| 2 | 使用法の誤り。不正なオプションや引数、入力ファイル名なし、`-m` のモードを選べない、`-c` の字句の誤り、出力先が入力ファイルと同じ、入力ファイル名より後ろの引数。誤りの内容を標準エラー出力に、使用法を標準出力に表示する |
+| 2 | 使用法の誤り。不正なオプションや引数、入力ファイル名なし、`-m` に未登録のモード名を指定、`-c` の字句の誤り、出力先が入力ファイルと同じ、入力ファイル名より後ろの引数。誤りの内容を標準エラー出力に、使用法を標準出力に表示する |
 | 3 | 後処理の失敗。`-c` の後処理が 0 以外の終了値やシグナルで終了した、起動できなかった、`-w` の `wslpath` が失敗した |
 
 表中の Scheme 入力を試す場合は、それぞれ 1 行の `/tmp/sxmml-examples/invalid-input.sxl` に保存し、特記した条件以外は `sxlc -m pmd /tmp/sxmml-examples/invalid-input.sxl` を実行する。「モードを指定しない空ソース」は空ファイル、「未登録トラック」は `(mml G "c8r8")` だけを記したファイルを `-m` なしで読み込む。「入力ファイル名なし」は `sxlc` を実行する。
@@ -216,7 +220,7 @@ FM・SSG・PCM の3区分で範囲が異なるものは分け、区分内の細�
 
 ```console
 sxlc /tmp/sxmml-examples/melody-and-rhythm.sxl
-# => Processing Mode: PMD
+# => Processing Mode: pmd-source
 # => Optimize level: 1
 # => Track G: total: 24
 # => Track L: total: 24

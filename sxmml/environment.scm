@@ -32,6 +32,8 @@
   (use sxmml.classes)
   (use sxmml.form)
   (export sxmml-environment sxmml-source-file sxmml-mode sxmml-mode-fixed
+          sxmml-mode-register! sxmml-mode-find sxmml-mode-list
+          sxmml-mode-select! sxmml-mode-get sxmml-mode-selected?
           define-metadata sxmml-metadata-get sxmml-metadata-set!
           sxmml-resolution sxmml-resolution-get sxmml-resolution-set!
           define-lfo sxmml-lfo-get sxmml-lfo-set!
@@ -58,25 +60,73 @@
 
 (define sxmml-resolution sxmml-resolution-set!)
 
-;; モードの呼び出し (proc args ...) を thunk にして %sxmml-mode-select に渡す。引数は
-;; 式として評価する。モードが決まっているときは、モードも引数も評価しない。形は展開時に
-;; 検査する。形の誤り、無視するときの警告、モードの呼び出しの誤りには、このフォームの
-;; 位置を付ける
+(define %sxmml-modes (make-hash-table eq-comparator))
+
+(define (%mode-name-check name)
+  (unless (symbol? name)
+    (errorf <sxmml-value-error> "invalid mode name: ~s (expected a symbol)" name)))
+
+(define (sxmml-mode-register! mode)
+  (unless (is-a? mode <sxmml-mode>)
+    (errorf <sxmml-value-error> "invalid mode: ~s (expected a <sxmml-mode> instance)" mode))
+  (%mode-name-check (slot-ref mode 'name))
+  (let ([aliases (slot-ref mode 'aliases)]
+        [setup (slot-ref mode 'setup)]
+        [backend (slot-ref mode 'backend)]
+        [extension (slot-ref mode 'output-extension)])
+    (unless (and (list? aliases) (every symbol? aliases))
+      (errorf <sxmml-value-error> "invalid mode aliases: ~s (expected a list of symbols)" aliases))
+    (unless (or (not setup) (procedure? setup))
+      (errorf <sxmml-value-error> "invalid mode setup: ~s (expected a procedure or #f)" setup))
+    (unless (procedure? backend)
+      (errorf <sxmml-value-error> "invalid mode backend: ~s (expected a procedure)" backend))
+    (unless (or (not extension) (string? extension))
+      (errorf <sxmml-value-error> "invalid mode output extension: ~s (expected a string or #f)" extension))
+    (let1 names (cons (slot-ref mode 'name) aliases)
+      (for-each (^[name]
+                  (and-let1 owner (hash-table-get %sxmml-modes name #f)
+                    (errorf <sxmml-value-error> "invalid mode name: ~a (already registered for ~a)"
+                            name (slot-ref owner 'name))))
+                names)
+      (for-each (cut hash-table-set! %sxmml-modes <> mode) names))))
+
+(define (sxmml-mode-find name)
+  (%mode-name-check name)
+  (hash-table-get %sxmml-modes name #f))
+
+(define (sxmml-mode-list)
+  (delete-duplicates (hash-table-values %sxmml-modes) eq?))
+
+(define (sxmml-mode-get)
+  (slot-ref (sxmml-environment) 'mode))
+
+(define (sxmml-mode-selected? name)
+  (and-let1 mode (sxmml-mode-find name)
+    (eq? mode (sxmml-mode-get))))
+
+(define (sxmml-mode-select! name)
+  (let1 mode (or (sxmml-mode-find name)
+                (errorf <sxmml-reference-error> "undefined mode: ~a" name))
+    (slot-set! (sxmml-environment) 'mode mode)
+    (and-let1 setup (slot-ref mode 'setup) (setup))))
+
 (define-syntax sxmml-mode
   (er-macro-transformer
     (^[form rename id=?]
       (match form
-        [(_ proc args ...)
-         (quasirename rename
-           `(%sxmml-mode-select ,(sxmml-form-location form)
-                                (lambda () ,(sxmml-form-wrap form rename `(,proc ,@args)))))]
-        [_ (sxmml-form-error form "invalid sxmml-mode form: expected (sxmml-mode mode arg ...)")]))))
+        [(_ name)
+         (unless (identifier? name)
+           (sxmml-form-error form "invalid sxmml-mode name: ~s (expected a symbol)" (unwrap-syntax name)))
+         (sxmml-form-wrap form rename
+           (quasirename rename
+             `(%sxmml-mode-select ,(sxmml-form-location form) ',name)))]
+        [_ (sxmml-form-error form "invalid sxmml-mode form: expected (sxmml-mode mode)")]))))
 
-(define (%sxmml-mode-select location thunk)
+(define (%sxmml-mode-select location name)
   (if (sxmml-mode-fixed)
     (sxmml-form-warn-at location "sxmml-mode in source is ignored; mode is already set to ~a"
-                        (slot-ref (sxmml-environment) 'mode))
-    (thunk)))
+                        (slot-ref (sxmml-mode-get) 'name))
+    (sxmml-mode-select! name)))
 
 ;;
 ;;  metadata information

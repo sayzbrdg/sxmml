@@ -54,10 +54,10 @@
     (let1 source (source-output (work-file #"bytes-~|name|.sxl") forms)
       (parameterize ([sxmml-environment (make <sxmml-environment>)]
                      [sxmml-source-file source])
-        (mode)
+        (sxmml-mode-select! mode)
         (slot-set! (sxmml-environment) 'optimize level)
         (load source)
-        ((slot-ref (sxmml-environment) 'backend))
+        ((slot-ref (sxmml-mode-get) 'backend))
         (file->bytevector (slot-ref (sxmml-environment) 'output)))))
   (define (hex-bytes data :optional (start 0) (end (u8vector-length data)))
     (string-join (map (cut format "~2,'0x" <>) (u8vector->list data start end)) " "))
@@ -77,7 +77,7 @@
         (make <sxmml-mml-rest> :ticks 12)))
     (parameterize ([sxmml-environment (make <sxmml-environment>)]
                    [sxmml-source-file (work-file "direct-loop.sxl")])
-      (pmd-binary)
+      (sxmml-mode-select! 'pmd-binary)
       (slot-set! (sxmml-environment) 'output (work-file #"direct-loop-~|track|.m"))
       (slot-set! (sxmml-environment) 'optimize #f)
       (sxmml-ir-register! (list (event :bass) (make <sxmml-mml-loop>)
@@ -85,7 +85,7 @@
                                 (event :hihat)) track)
       (sxmml-pmd-binary-output)))
   (define (raw-voice-data name alfb op :optional (used? #t))
-    (make-binary-data name pmd-binary
+    (make-binary-data name 'pmd-binary
                       `((hash-table-put! (slot-ref (sxmml-environment) 'voice) 'tone
                                          (make <sxmml-opn-voice> :id 'tone
                                                :value ',(cons alfb (make-list 4 op))))
@@ -96,7 +96,7 @@
                         ("PCM" J 256 "invalid PCM volume: 256 (expected an integer from 0 to 255)"))]
           (test* #"同じ命令コードでも~(car case)の音量範囲を示す"
                  (test-error <sxmml-value-error> (cadddr case))
-                 (make-binary-data #"typed-~(car case)-volume" pmd-binary
+                 (make-binary-data #"typed-~(car case)-volume" 'pmd-binary
                                    `((mml ,(cadr case) ,#"v~(caddr case)c8")))))
         (dolist [case '(("timer" <sxmml-mml-tempo-absolute> 251
                          "invalid Timer-B: 251 (expected an integer from 0 to 250)")
@@ -104,7 +104,7 @@
                          "invalid detune: 32768 (expected an integer from -32768 to 32767)"))]
           (test* #"符号化の項目と単位を示す: ~(car case)"
                  (test-error <sxmml-value-error> (cadddr case))
-                 (make-binary-data #"typed-~(car case)" pmd-binary
+                 (make-binary-data #"typed-~(car case)" 'pmd-binary
                                    `((sxmml-ir-register!
                                       (list (make ,(cadr case) :value ,(caddr case))
                                             (make <sxmml-mml-note> :value 48 :ticks 12)) 'A)) #f)))
@@ -112,7 +112,7 @@
         (test* "BPM換算後の出力上限超過は計算結果とBPMを示す"
                (test-error <sxmml-value-error>
                            "invalid calculated Timer-B: 251 (from BPM 2000; expected an integer from 0 to 250)")
-               (make-binary-data "calculated-timer" pmd-binary
+               (make-binary-data "calculated-timer" 'pmd-binary
                                  '((sxmml-resolution-set! 24)
                                    (sxmml-ir-register!
                                     (list (make <sxmml-mml-tempo> :value 2000)
@@ -120,7 +120,7 @@
         (dolist [case '(("FM" A 127 "7f") ("SSG" G 15 "0f") ("PCM" J 255 "ff"))]
           (let ([kind (car case)] [track (cadr case)] [limit (caddr case)])
             (define (relative-data name value)
-              (make-binary-data name pmd-binary
+              (make-binary-data name 'pmd-binary
                                 `((sxmml-ir-register!
                                    (list (make <sxmml-mml-volume-change> :value ,value)
                                          (make <sxmml-mml-note> :value 48 :ticks 12)) ',track)) #f))
@@ -169,7 +169,7 @@
                                               '(0 0 0 0 0 0 0 0 0 4 16 0)) 'voice))
           (let1 registered-data
               (^[dt] (section-hex
-                      (make-binary-data #"registered-dt-~dt" pmd-binary
+                      (make-binary-data #"registered-dt-~dt" 'pmd-binary
                                         `((define-opn-voice tone (0 0)
                                             ,@(make-list 4 (list 0 0 0 0 0 0 0 0 dt)))
                                           (mml A "@{tone}o4c%12")) #f) 'voice))
@@ -182,10 +182,10 @@
 
         (test* "公開pmd-binary出力の範囲違反は値エラーになる"
                (test-error <sxmml-value-error> "invalid FM volume: 128 (expected an integer from 0 to 127)")
-               (make-binary-data "typed-volume" pmd-binary '((mml A "v128c"))))
+               (make-binary-data "typed-volume" 'pmd-binary '((mml A "v128c"))))
         (test* "公開pmd-binary出力の未定義音色は参照エラーになる"
                (test-error <sxmml-reference-error> #/undefined voice/)
-               (make-binary-data "typed-reference" pmd-binary '((mml A "@{UNKNOWN}c"))))
+               (make-binary-data "typed-reference" 'pmd-binary '((mml A "@{UNKNOWN}c"))))
 
         (test* "通常トラックの直接IR入力で2個目のLを拒否する"
                (test-error <sxmml-mml-syntax-error> "loop command can be used only once in a track")
@@ -197,7 +197,7 @@
                '("./a.m" "./a.m")
                (parameterize ([sxmml-environment (make <sxmml-environment>)]
                               [sxmml-source-file #f])
-                 (pmd-binary)
+                 (sxmml-mode-select! 'pmd-binary)
                  (list ((with-module sxmml.backend.pmd-binary %output-file-get))
                        (slot-ref (sxmml-environment) 'output))))
         (let1 source (source-output (work-file "library.sxl") '((mml G "c8")))
@@ -205,7 +205,7 @@
                  (list (work-file "library.m") #t)
                  (parameterize ([sxmml-environment (make <sxmml-environment>)]
                                 [sxmml-source-file source])
-                   (pmd-binary)
+                   (sxmml-mode-select! 'pmd-binary)
                    (load source)
                    (sxmml-pmd-binary-output)
                    (list (slot-ref (sxmml-environment) 'output)
@@ -365,7 +365,7 @@
                     "36 00 3b 00 eb 01 0f 0c ff eb 01 0f 18 ff 6c 00 00 00 18 00 00 00 54 00 48 fe"))]
           (test* #"pmd-binary の命令列: ~(car case)"
                  (list-ref case 4)
-                 (section-hex (make-binary-data (cadr case) pmd-binary (caddr case) #f) (cadddr case))))
+                 (section-hex (make-binary-data (cadr case) 'pmd-binary (caddr case) #f) (cadddr case))))
         ;; ヘッダ、空のトラック、R トラックの末尾、音色表、メタ情報の配置を、ファイル全体で固定する。
         (let* ([forms '((define-opn-voice 0 (2 5)
                           (31 1 2 3 4 5 1 6 7) (30 8 9 10 11 12 2 13 1)
@@ -392,7 +392,7 @@
                         ;; 各文字列の位置と 00 00
                         "54 00 55 00 56 00 57 00 5e 00 64 00 65 00 68 00 00 00")
                   " ")
-                 (hex-bytes (make-binary-data "whole-pmd4" pmd-binary forms)))
+                 (hex-bytes (make-binary-data "whole-pmd4" 'pmd-binary forms)))
           ;; リズムがなければ、R トラックにリズムのパターンを書かない。PMD4 の R トラックは末尾の
           ;; 12 バイトだけ、PMD3 は 0 バイトになる。次の4件は、従来 MC.EXE と照合した配置の期待値を
           ;; 基に、A・Cも1回にした。Aの f8 は1・0、Cは1・1で、位置と合計 tick 48は変わらない。
@@ -404,26 +404,26 @@
                             (3 ((define-metadata memo (list "memo1" "memo2" "memo3"))) "00 1a 00 2a 00 3a 00 47 00 54 00 55 00 56 00 57 00 58 00 59 00 5a 00 5b 00 67 00 f9 25 00 30 18 f7 25 00 32 18 f8 01 00 1b 00 80 f9 35 00 30 18 f7 35 00 32 18 f8 01 00 2b 00 80 f9 42 00 30 18 32 18 f8 01 01 3b 00 80 f9 4f 00 30 18 32 18 f8 01 01 48 00 80 80 80 80 80 80 80 80 30 00 00 00 00 00 00 00 81 00 48 fe 00 ff 00 00 00 00 00 00 6d 65 6d 6f 31 00 6d 65 6d 6f 32 00 6d 65 6d 6f 33 00 69 00 6a 00 6b 00 6c 00 6d 00 6e 00 6f 00 75 00 7b 00 00 00"))]
               (test* #"pmd-binary の生成物全体: リズムがなく、memo が ~(car case) 件"
                      (caddr case)
-                     (hex-bytes (make-binary-data #"whole-memo-~(car case)" pmd-binary
+                     (hex-bytes (make-binary-data #"whole-memo-~(car case)" 'pmd-binary
                                                  (append (cadr case) forms-no-rhythm))))))
           (test* "pmd3-binary はリズムがなければ R トラックに何も書かない"
                  ""
-                 (section-hex (make-binary-data "pmd3-no-rhythm" pmd3-binary '((mml A "c8"))) 'R))
+                 (section-hex (make-binary-data "pmd3-no-rhythm" 'pmd3-binary '((mml A "c8"))) 'R))
           ;; 次の 2 件は、同じ内容の MML を MC.EXE でコンパイルした生成物とバイトまで同じ (#65、#109)
           (test* "pmd-binary の生成物全体: ループのあるトラックとリズム"
                  "00 1a 00 20 00 26 00 27 00 28 00 29 00 2a 00 2b 00 2c 00 2d 00 2e 00 32 00 4c 00 30 60 f6 30 0c 80 37 0c f6 37 18 80 80 80 80 80 80 80 80 80 00 f6 01 80 36 00 3b 00 eb 01 0f 0c ff eb 01 0f 18 ff 6c 00 00 00 18 00 00 00 54 00 48 fe 00 ff 00 00 00 00 00 00 4e 00 4f 00 50 00 51 00 52 00 53 00 00 00"
-                 (hex-bytes (make-binary-data "whole-loop-rhythm" pmd-binary
+                 (hex-bytes (make-binary-data "whole-loop-rhythm" 'pmd-binary
                                              '((mml A "c1Lc8") (mml B "g8Lg4") (rhythm L "@b8L@b4")))))
           (test* "pmd-binary の生成物全体: ループのないリズム"
                  "00 1a 00 1b 00 1c 00 1d 00 1e 00 1f 00 20 00 21 00 22 00 23 00 24 00 26 00 47 00 80 80 80 80 80 80 80 80 80 80 00 80 28 00 e9 22 eb 01 0f 0c e9 23 eb 01 0f 0c e9 21 eb 01 0f 0c ff 24 00 00 00 00 00 00 00 4f 00 48 fe 00 ff 00 00 00 00 00 00 49 00 4a 00 4b 00 4c 00 4d 00 4e 00 00 00"
-                 (hex-bytes (make-binary-data "whole-rhythm-no-loop" pmd-binary
+                 (hex-bytes (make-binary-data "whole-rhythm-no-loop" 'pmd-binary
                                              '((rhythm L "pb2@b8pb3@b8pb1@b8")))))
           (test* "pmd3-binary の生成物全体: メタ情報・R トラックの末尾・音色表の終端を持たない"
                  (string-join
                   (list "00 1a 00 22 00 23 00 24 00 25 00 26 00 27 00 28 00 29 00 2a 00 2b 00 2c 00 2c 00"
                         tracks voice)
                   " ")
-                 (hex-bytes (make-binary-data "whole-pmd3" pmd3-binary forms))))
+                 (hex-bytes (make-binary-data "whole-pmd3" 'pmd3-binary forms))))
         ;; PMD の音高の 1 バイトで表せない音高は、範囲外の音高と許される範囲を示して失敗する。
         (dolist [case '(("上側" "o8c>c" "o9c" "note")
                        ("上側" "o8b>e-" "o9e-" "note")
@@ -507,17 +507,17 @@
                         ("meta-memo-empty" ((define-metadata memo '()) (mml A "c8"))))]
           (test* #"pmd-binary の空のメタ情報: ~(car case)"
                  "00 ff 00 00 00 00 00 00 35 00 36 00 37 00 38 00 39 00 3a 00 00 00"
-                 (section-hex (make-binary-data (car case) pmd-binary (cadr case)) 'voice)))
+                 (section-hex (make-binary-data (car case) 'pmd-binary (cadr case)) 'voice)))
         ;; memo が 1 件なら、6 項目の空文字列に続けて memo を 1 件書き、位置の表は 7 件。
         ;; 文字列 1 つの memo は、要素 1 つのリストと同じ (#109)
         (dolist [case '(("meta-memo-string" ((define-metadata memo "m") (mml A "c8")))
                         ("meta-memo-list" ((define-metadata memo (list "m")) (mml A "c8"))))]
           (test* #"pmd-binary の 1 件の memo: ~(car case)"
                  "00 ff 00 00 00 00 00 00 6d 00 35 00 36 00 37 00 38 00 39 00 3a 00 3b 00 00 00"
-                 (section-hex (make-binary-data (car case) pmd-binary (cadr case)) 'voice)))
+                 (section-hex (make-binary-data (car case) 'pmd-binary (cadr case)) 'voice)))
         (test* "pmd-binary はメタデータの memo の要素が文字列でなければ失敗する"
                (test-error <sxmml-value-error> "invalid metadata value: memo is (\"a\" 1) (expected a string or a list of strings)")
-               (make-binary-data "meta-memo-element" pmd-binary
+               (make-binary-data "meta-memo-element" 'pmd-binary
                                 '((define-metadata memo (list "a" 1)) (mml A "c8"))))
         ;; LFO・エンベロープは -m pmd と同じ規則で検査する。PMD3 だけの検査は、チャンネル B と
         ;; 5・6 値のエンベロープである (#28)
@@ -525,22 +525,22 @@
                         (guard (e [else (condition-message e)])
                           (make-binary-data name mode forms)
                           'generated))])
-          (dolist [case `(("lfo-type" ,pmd-binary
+          (dolist [case `(("lfo-type" pmd-binary
                            ((define-lfo L1 sw (1 2 3 4)) (mml A "M{L1 A}c8"))
                            "unsupported LFO type: sw in L1 (supported: default, triangle)")
-                          ("envelope-count" ,pmd-binary
+                          ("envelope-count" pmd-binary
                            ((define-envelope E1 (1 2 3)) (mml G "E{E1}c8"))
                            "invalid envelope values: E1 has 3 values (expected 4, 5 or 6)")
-                          ("lfo-inexact" ,pmd-binary
+                          ("lfo-inexact" pmd-binary
                            ((define-lfo L1 (1 1.5 3 4)) (mml A "M{L1 A}c8"))
                            "invalid LFO L1 value 2: 1.5 (expected an integer from 0 to 255)")
-                          ("pmd3-lfo-b" ,pmd3-binary
+                          ("pmd3-lfo-b" pmd3-binary
                            ((define-lfo L1 (1 2 3 4)) (mml A "M{L1 B}c8"))
                            "invalid LFO channel: B")
-                          ("pmd3-lfo-switch-b" ,pmd3-binary
+                          ("pmd3-lfo-switch-b" pmd3-binary
                            ((mml A "Mt{B}c8"))
                            "invalid LFO channel: B")
-                          ("pmd3-envelope-6" ,pmd3-binary
+                          ("pmd3-envelope-6" pmd3-binary
                            ((define-envelope E6 (1 2 3 4 5 6)) (mml G "E{E6}c8"))
                            "unsupported envelope values in PMD3: E6 has 6 values (expected 4)"))]
             (test* #"pmd-binary の LFO・エンベロープの検査: ~(car case)"
@@ -548,10 +548,10 @@
                    (caught #"check-~(car case)" (cadr case) (caddr case))))
 
           (test* "pmd-binary の LFO の triangle は default と同じバイト内容になる"
-                 (section-hex (make-binary-data "lfo-default" pmd-binary
+                 (section-hex (make-binary-data "lfo-default" 'pmd-binary
                                                '((define-lfo L1 (1 2 -3 4)) (mml A "M{L1 A}c8")))
                               'A)
-                 (section-hex (make-binary-data "lfo-triangle" pmd-binary
+                 (section-hex (make-binary-data "lfo-triangle" 'pmd-binary
                                                '((define-lfo L1 triangle (1 2 -3 4)) (mml A "M{L1 A}c8")))
                               'A))
           (let* ([source (source-output (work-file "check-cli.sxl")

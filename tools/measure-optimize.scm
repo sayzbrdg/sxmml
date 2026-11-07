@@ -45,7 +45,7 @@
   (let1 t0 (current-time)
     (parameterize ([sxmml-source-file source]
                    [sxmml-mode-fixed #t])
-      ((eval (string->symbol mode) (current-module)))
+      (sxmml-mode-select! (string->symbol mode))
       (load source)
       (slot-set! (sxmml-environment) 'optimize (read-from-string level))
       (eval `(begin (set! %repeat-window ,w) (set! %repeat-expand-window ,w)
@@ -61,7 +61,7 @@
               (find-module 'sxmml.optimizer))
         (slot-set! (sxmml-environment) 'output out)
         (let1 t1 (current-time)
-          ((slot-ref (sxmml-environment) 'backend))
+          ((slot-ref (sxmml-mode-get) 'backend))
           (let1 t2 (current-time)
             (with-output-to-file result
               (^[] (format #t "~d ~d ~a ~a\n" (file-size out) objects

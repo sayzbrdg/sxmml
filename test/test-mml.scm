@@ -123,7 +123,7 @@
 (let ()
   (define (compile rhythm? text)
     (parameterize ([sxmml-environment (make <sxmml-environment>)])
-      (pmd-source)
+      (sxmml-mode-select! 'pmd-source)
       (if rhythm? (rhythm L text) (mml G text))
       (sxmml-optimize-tree (if rhythm? 'L 'G) :optimize #f)
       (slot-ref (sxmml-track-get (if rhythm? 'L 'G)) 'total-ticks)))

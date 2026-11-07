@@ -50,25 +50,25 @@ flowchart LR
 
 ## 処理とデータの流れ
 
-1. `sxlc.in` の `main` は引数から入力パス、モード、最適化水準を取得する。指定されたモード手続きの呼び出し後にソースを `load` し、環境の `backend` を呼ぶ。`-m` を指定した場合は `sxmml-mode-fixed` を真にしてソースを読み込むため、ソース中の `sxmml-mode` は無視され、CLI のモードが有効になる。
-2. `sxmml/backend/pmd.scm` の `pmd`・`pmd3` は、環境の `backend` と `mode`、既定の出力先の拡張子（`output-extension` slot に `"mml"`）を設定し、トラックを登録する。`environment.scm` の `sxmml-environment` などのパラメータと環境オブジェクトに変換中の状態が置かれる。
+1. `sxlc.in`の`main`は引数から入力パス・モード・最適化水準を取得する。登録表から名前を解決してモードを選び、初期設定後にソースを`load`する。生成時には最終的なモード情報の`backend`を呼ぶ。`-m`指定中は`sxmml-mode-fixed`を真にしてソースの`sxmml-mode`を無視する。明示的な選択手続きは変更できる。
+2. バックエンドは読込み時に`<sxmml-mode>`を共有登録表へ登録する。情報は正規名・別名・初期設定・出力手続き・既定拡張子を持つ。`sxmml-mode-select!`は楽曲環境の`mode`を情報へ更新してから初期設定する。PMDの初期設定は既定トラックを登録する。
 3. `compiler.scm` の `mml` / `rhythm` は Scheme 式の結果を `write-tree` で文字列化する。`mml.scm`のパーサーは値を解析し、`command.scm`の共通手続きで文脈更新・IR生成・集計を行う。IRを生成しない命令は`#f`を返し、compilerが収集時に除く。結果はトラックの `compiled-data` に登録される。`processor.scm`の`mml-repeat`は反復IRを共通手続きで直接作って登録し、反復命令の文字列化・再解析を行わない。`mml-echo`・`mml-delay`はコンパイル結果を加工して登録する。
 4. `backend/pmd.scm` の通常トラック処理 `%track-output` とリズムトラック処理 `%pmd-rhythm-track-output` は、それぞれ `optimizer.scm` の `sxmml-optimize-tree` を呼ぶ。水準 `0` は登録列を平坦化し、水準 `1` は近接する設定オブジェクトをまとめ、水準 `2` は追加の状態比較と連続休符の結合を行う。水準 `3` 以上はさらに、`repeat-tree.scm` の圧縮器で命令列を反復（`[ ]`・`[ : ]`）に圧縮する。水準 `3` は既存のリピートをひとまとめにし、水準 `4` 以上は小さい既存のリピートを展開してから圧縮する。これらはコンパイル後のオブジェクト数を減らす処理であり、最終文字列長を評価基準にはしない。水準別の比較は[検証方針](verification.md#r-03-オブジェクト数の削減)を参照する。
 5. PMD バックエンドはオブジェクト型ごとの出力手続きを呼び、メタデータ・音色・トラックの文字列を一時ファイルに CP932 で書いて生成先へ移す（`backend/pmd.scm` の `%pmd-source-output`）。その後 CLI がトラック情報を表示し、`-c` があれば外部コマンドを実行する（`sxlc.in` の `main`）。`main` はオプション解析・モード選択、変換、後処理の段階ごとにエラーを捕捉し、使用法の誤りを終了値 2、変換の失敗を 1、後処理の失敗を 3 として終了する。
 
-PMD バイナリモード（`backend/pmd-binary.scm`、実験的）も同じ流れをたどる。モード手続き `pmd-binary`・`pmd4-binary`・`pmd3-binary` が `output-extension` に `"m"` を設定し、生成手続きはトラックごとに `sxmml-optimize-tree` を呼んで、オブジェクト型ごとに PMD の命令をバイト列へ書き込む。全トラックの後に音色表と（PMD4 向けでは）メタ情報を置き、ヘッダに各トラックの位置を記して、一時ファイルを生成先へ移す（`%pmd-binary-output`）。
+PMDバイナリモード（`backend/pmd-binary.scm`、実験的）も同じ登録・選択の流れを使い、拡張子はモード情報に`"m"`として保持する。生成手続きはトラックごとに`sxmml-optimize-tree`を呼び、オブジェクト型ごとにPMDの命令をバイト列へ書き込む。全トラックの後に音色表と（PMD4向けでは）メタ情報を置き、ヘッダに各トラックの位置を記して、一時ファイルを生成先へ移す。
 
-`classes.scm` は `<sxmml-environment>` と `<sxmml-mml-context>` などのデータ構造を定義する。`<sxmml-environment>` は解像度・各定義表・モード・バックエンドを持ち、各 `<sxmml-mml-context>` はトラック名、解析時の状態、登録列、tick 統計を持つ。解析結果の音符・休符は `value` と `ticks` を持ち、その他の slot はオブジェクト型ごとに異なる。Gauche のクラスと slot 操作は [Users’ Reference, 7 Object system](https://practical-scheme.net/vault/Gauche-0.9.15-refe.pdf)に従う。単一オブジェクトの slot 変更でトラック文脈の値も同期するとは限らない。slot を直接編集する場合は、関連する文脈値も更新する必要がある。文脈の構造は[トラック文脈](internal-reference/classes.adoc#ref-classes-class-sxmml-mml-context)を参照する。
+`classes.scm` は `<sxmml-environment>` と `<sxmml-mml-context>` などのデータ構造を定義する。`<sxmml-environment>`は解像度・各定義表・選択中のモード情報を持ち、各 `<sxmml-mml-context>` はトラック名、解析時の状態、登録列、tick 統計を持つ。解析結果の音符・休符は `value` と `ticks` を持ち、その他の slot はオブジェクト型ごとに異なる。Gauche のクラスと slot 操作は [Users’ Reference, 7 Object system](https://practical-scheme.net/vault/Gauche-0.9.15-refe.pdf)に従う。単一オブジェクトの slot 変更でトラック文脈の値も同期するとは限らない。slot を直接編集する場合は、関連する文脈値も更新する必要がある。文脈の構造は[トラック文脈](internal-reference/classes.adoc#ref-classes-class-sxmml-mml-context)を参照する。
 
 ## 公開境界と拡張点
 
-* Scheme ソース向けの入口は `sxmml` モジュールに継承された `mml`、`rhythm`、定義・加工マクロと、別モジュールの PMD モード手続きである。マクロの実際の書式・制約を確認する入口は `compiler.scm`、`processor.scm`、`environment.scm`、`voice.scm`。個々の定義は[内部リファレンス](internal-reference/index.adoc)を参照する。
-* バックエンドの接続点は、モード手続きが環境の `backend` slot に生成手続きを置き、CLI がそれを呼ぶ箇所である（`backend/pmd.scm` の `pmd-source`、`backend/pmd-binary.scm` の `pmd-binary` と `sxlc.in` の `main`）。`sxlc.in` の `%backend-list-output` は `sxmml.backend.*` を列挙し、`use-backend` が読み込む。 モード手続きは既定の出力先の拡張子を環境の `output-extension` slot に設定する。出力先の決定と、出力先が入力ファイルと同じでないかの検査は `sxlc.in` の `%output-file-resolve` が生成の前に行うため、バックエンドはこれらを扱わない。
+* Scheme ソース向けの入口は `sxmml` モジュールに継承された `mml`、`rhythm`、定義・加工マクロと、`sxmml-mode`およびモード登録・選択・照会の公開手続きである。マクロの実際の書式・制約を確認する入口は `compiler.scm`、`processor.scm`、`environment.scm`、`voice.scm`。個々の定義は[内部リファレンス](internal-reference/index.adoc)を参照する。
+* バックエンドの接続点は登録済みの`<sxmml-mode>`である。`use-backend`が`sxmml.backend.*`を読み込み、各モジュールが情報を登録する。`%mode-list-output`は登録情報を正規名順に列挙する。CLIは情報の`backend`・`output-extension`を参照する。出力先の決定と入力との同一性検査は`%output-file-resolve`が生成前に行う。
 * MML パーサーのコマンド登録は `mml.scm` の通常・リズム別の表、生成時の型別処理は `backend/pmd.scm` と `backend/pmd-binary.scm`（`%pmd-track-u8vector-set!`）の分岐にある。新しいコマンドの影響を調べる際には、オブジェクト型、解析、加工・最適化、生成の対応を追う。
 
 ## 外部依存と信頼境界
 
-Scheme ソースは `load` で Gauche のコードとして実行される（`sxlc.in` の `main`）。入力を単なる MML データとして隔離する仕組みはこの入口にはない。変換作業では入力元を信頼できるかを判断する必要がある。Gauche の `load` は [Users’ Reference, 6.22.1 Loading Scheme file](https://practical-scheme.net/vault/Gauche-0.9.15-refe.pdf)を参照する。`-m` は受け取った名前を `eval` で解決し、`-c` は外部プロセスを起動する（`sxlc.in` の `main`）。バックエンド列挙は実行環境で見つかる `sxmml.backend.*` に依存する。これらの入口は実行環境の権限・インストール状態に影響される。
+Scheme ソースは `load` で Gauche のコードとして実行される（`sxlc.in` の `main`）。入力を単なる MML データとして隔離する仕組みはこの入口にはない。変換作業では入力元を信頼できるかを判断する必要がある。Gauche の `load` は [Users’ Reference, 6.22.1 Loading Scheme file](https://practical-scheme.net/vault/Gauche-0.9.15-refe.pdf)を参照する。`-m`は登録済みの名前を検索し、`-c` は外部プロセスを起動する（`sxlc.in` の `main`）。バックエンドの読込みは実行環境で見つかる`sxmml.backend.*`に依存する。これらの入口は実行環境の権限・インストール状態に影響される。
 
 生成時は `backend/pmd.scm` の `%pmd-source-output` が Gauche の文字コード変換と一時ファイル・リネームを使う。利用する Gauche の機能は [Gauche 0.9.15 Users’ Reference の 9.5 Character code conversion、12.40 parser.peg、12.80 Lazy text construction、9.25 Parsing command-line options、High-level process interface](https://practical-scheme.net/vault/Gauche-0.9.15-refe.pdf)を参照する。
 
@@ -81,7 +81,7 @@ Scheme ソースは `load` で Gauche のコードとして実行される（`sx
 | 通常・リズム MML の構文、音長 | `mml.scm`のパーサー、`command.scm`の計算・文脈更新、`classes.scm`の文脈 | `compiler.scm` の解析・登録、`optimizer.scm` の列、`backend/pmd.scm` の生成結果。通常・リズム双方の境界入力を確認 |
 | Scheme からのオブジェクト加工 | `processor.scm` のマクロと変換関数、`compiler.scm` の登録 | トラックの `compiled-data` と `current-ticks`、最適化前後の列、生成結果。`mml-repeat` 等の既知の差も参照 |
 | 最適化条件 | `optimizer.scm` の各水準と状態管理 | トラックの合計 tick、最適化前後の列、PMD 生成結果。[Q-01 の比較方法](verification.md#q-01-音楽的な意味の保持)を使う |
-| モード指定・生成先 | `sxlc.in` の引数・読み込み順・出力先の決定（`%output-file-resolve`、`%output-file-check`）、`<sxmml-environment>` の `output`・`output-extension` slot、`backend/pmd.scm` のモード手続き | CLI 表示、実際の生成パス、`-c` に渡す引数が一致すること |
+| モード指定・生成先 | `sxlc.in`の選択・読込み順・出力先決定、共有モード登録表、楽曲環境の`mode`・`output`、モード情報の`backend`・`output-extension` | CLI表示、実際の生成パス、`-c`に渡す引数が一致すること |
 | PMD 向け出力 | `backend/pmd.scm` のメタデータ・音色・型別出力 | CP932 のファイル内容、出力パス、代表トラックとリズム |
 
 ## 制約

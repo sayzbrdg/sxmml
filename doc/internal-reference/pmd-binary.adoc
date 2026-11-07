@@ -1,6 +1,8 @@
 = `sxmml.backend.pmd-binary` の生成処理（実験的）
 :toc: left
 
+各モード情報はモジュール読込み時に登録し、初期設定は選択時だけに実行します。選択は`(sxmml-mode-select! 'pmd-binary)`、出力手続きは選択情報のbackendから取得します。旧選択手続きは廃止しました。
+
 `%pmd-1byte-set!` と `%pmd-2bytes-set!` の引数は `(u8vec offset cmd value max min kind)` です。全22呼出しで、音源や指定内容を知る呼出し元からkindを渡し、範囲外の値は項目・指定値・範囲で説明します。命令コードや内部オブジェクトは診断に表示しません。相対音量は `%pmd-volume-change-value` で符号付きの指定値と範囲を示してから従来どおり符号化します。BPM由来のTimer-Bは計算結果と元のBPMを示します。音高は音名と許容音域を示し、ポルタメントの始点・終点を区別します。比較・符号化・範囲・戻り値は維持します。
 
 既存の数値・定義形式の検査はvalue-error、未定義の音色・LFO・エンベロープはreference-error、重複Lはmml-syntax-errorです。生成物サイズとトラック長の上限は基底sxmml-errorで通知します。I/Oや内部のGaucheエラーは包み直しません。
@@ -9,7 +11,7 @@
 
 このモジュールは、PMD 4.8s のソースで命令コードの対応を確認し、MC.EXE の生成物の差分から形式を解析した独自実装です。処理の移植・翻訳はしていません。解析の経緯と謝辞は link:../../README.md#謝辞[README の謝辞]を参照してください。
 
-実験的な機能であるため、このページでは公開名 7 件だけを項目として記載します。`%` で始まる内部手続きは、群ごとの概要とバイナリの配置の概要に留めます。既知の欠陥は、ラベル `pmd-binary` の付いた link:https://github.com/sayzbrdg/sxmml/issues?q=is%3Aissue%20is%3Aopen%20label%3Apmd-binary%20label%3Abug[開いている不具合の issue] を参照してください。パラメータ、オブジェクト、文字コード変換、一時ファイル、ファイル名操作は Gauche 0.9.15 の動作に従います。
+実験的な機能であるため、このページでは公開名 4 件だけを項目として記載します。`%` で始まる内部手続きは、群ごとの概要とバイナリの配置の概要に留めます。既知の欠陥は、ラベル `pmd-binary` の付いた link:https://github.com/sayzbrdg/sxmml/issues?q=is%3Aissue%20is%3Aopen%20label%3Apmd-binary%20label%3Abug[開いている不具合の issue] を参照してください。パラメータ、オブジェクト、文字コード変換、一時ファイル、ファイル名操作は Gauche 0.9.15 の動作に従います。
 
 FM音色表へ書く直前に `%opn-voice-form->register-data form id` が使用音色の出力項目を検査します。AL・FB・DT=0～7、AR・DR・SR=0～31、RR・SL・ML=0～15、TL=0～127、KS=0～3、AMS=0～1の正確な整数に限り、不正なら音色名・演算子番号・項目名・指定値・範囲を示すvalue-errorとします。DTの負数正規化は共通登録の責務であり、直接渡された負のDTは拒否します。DT2・SEGと未使用の手作り音色は新しい出力時検査の対象に加えません。検査後のbit結合と生成バイトは維持します。
 
@@ -19,15 +21,12 @@ FM音色表へ書く直前に `%opn-voice-form->register-data form id` が使用
 |===
 |名前・書式 |役割・引数 |結果・状態・失敗条件 |ソース
 |[[ref-pmd-binary-class-sxmml-pmd-binary-environment]]`<sxmml-pmd-binary-environment>` |生成中のバイナリの状態クラス |`(make <sxmml-pmd-binary-environment> :offset 値 [:mode 値] [:head-length 値])`。slot は、現在の書き込み位置 `offset`、PMD3 向けを示す `mode`（`fc88` または `#f`）、26 バイトのヘッダ `head` とその長さ `head-length`、A～J・K・R の 12 トラックと、音色表・メタ情報に使う 13 個のバッファ `track` とその長さ `track-length`、最大の合計 tick `max-total-ticks`・loop tick `max-loop-ticks`、使用した FM 音色の表 `used-fm-voices`、作成時に `sxmml.backend.pmd` の `sxmml-pmd-voice-number-table-compute` で作る音色番号の表 `voice-numbers`。`initialize` メソッドが各バッファに 65600 バイトの `u8vector` を確保する |link:../../sxmml/backend/pmd-binary.scm[pmd-binary.scm]
-|[[ref-pmd-binary-pmd-binary]]`(pmd-binary)` |PMD4 向けのバイナリモードを選択 |環境の `backend` を `sxmml-pmd-binary-output`、`mode` を `"pmd-binary"`、`output-extension` を `"m"` に設定し、`pmd` と同じトラック（A～F の `volume-delta` は 4、J は 16）を登録 |link:../../sxmml/backend/pmd-binary.scm[pmd-binary.scm]
-|[[ref-pmd-binary-pmd3-binary]]`(pmd3-binary)` |PMD3 向けのバイナリモードを選択 |`backend` を `sxmml-pmd3-binary-output`、`mode` を `"pmd3-binary"` に設定する。その他は `pmd-binary` と同じ |link:../../sxmml/backend/pmd-binary.scm[pmd-binary.scm]
-|[[ref-pmd-binary-pmd4-binary]]`(pmd4-binary)` |PMD4 向けのバイナリモードを選択 |`backend` を `sxmml-pmd4-binary-output`、`mode` を `"pmd4-binary"` に設定する。その他は `pmd-binary` と同じ |link:../../sxmml/backend/pmd-binary.scm[pmd-binary.scm]
 |[[ref-pmd-binary-sxmml-pmd-binary-output]]`(sxmml-pmd-binary-output :optional (mode #f))` |モード引数を渡して生成 |`mode` が `fc88` なら PMD3 向け、それ以外は PMD4 向けとして共通の生成処理を実行し、現在の `<sxmml-environment>` を返す |link:../../sxmml/backend/pmd-binary.scm[pmd-binary.scm]
 |[[ref-pmd-binary-sxmml-pmd3-binary-output]]`(sxmml-pmd3-binary-output)` |PMD3 向け生成 |`fc88` を指定して共通の生成処理を実行する |link:../../sxmml/backend/pmd-binary.scm[pmd-binary.scm]
 |[[ref-pmd-binary-sxmml-pmd4-binary-output]]`(sxmml-pmd4-binary-output)` |PMD4 向け生成 |`#f` を指定して共通の生成処理を実行する |link:../../sxmml/backend/pmd-binary.scm[pmd-binary.scm]
 |===
 
-共通の生成処理は、A～F、G～I、J、L のトラックを `sxmml-track-find` で探します。登録されていないトラックがあると失敗します。生成手続きはモード手続きを呼ばずに使えますが、その場合はこれらのトラックを `define-track` で登録しておく必要があります。出力先は環境の `output` slot です。この slot が `#f` のときは、`sxmml-source-file` の拡張子を `.m` に替えたパスを使い、それもなければ `./a.m` を使います。使ったパスは `output` slot に設定します。`filename` メタデータが指定されていれば警告を表示し、生成先には使いません。生成物は出力先と同じディレクトリの一時ファイルに書いてから出力先へ改名するので、途中で失敗しても出力先の既存のファイルは変更しません。未定義の FM 音色・LFO・エンベロープの参照や、範囲外の値は失敗します。
+共通の生成処理は、A～F、G～I、J、L のトラックを `sxmml-track-find` で探します。登録されていないトラックがあると失敗します。生成手続きはモードを選択せずに使えますが、その場合はこれらのトラックを `define-track` で登録しておく必要があります。出力先は環境の `output` slot です。この slot が `#f` のときは、`sxmml-source-file` の拡張子を `.m` に替えたパスを使い、それもなければ `./a.m` を使います。使ったパスは `output` slot に設定します。`filename` メタデータが指定されていれば警告を表示し、生成先には使いません。生成物は出力先と同じディレクトリの一時ファイルに書いてから出力先へ改名するので、途中で失敗しても出力先の既存のファイルは変更しません。未定義の FM 音色・LFO・エンベロープの参照や、範囲外の値は失敗します。
 
 == 内部手続きの群
 

@@ -23,9 +23,30 @@ LFO・エンベロープの種類、`define-metadata` のキー、`define-track`
 
 書式: `(sxmml-mode モード名)`
 
-ソース内で生成モードを選びます。PMD4 向けには `pmd`、PMD3 向けには `pmd3` を指定します。実験的な機能として、PMD のバイナリを直接生成する `pmd-binary`・`pmd4-binary`（PMD4 向け）と `pmd3-binary`（PMD3 向け）も指定できます。生成物が MC.EXE の出力と同じであることは保証しません。`sxlc -m` を使用すればソース内の指定は不要です。両方を指定した場合は `sxlc -m` の指定が有効になり、ソース内の指定は `warning: /home/user/song.sxl:1: sxmml-mode in source is ignored; mode is already set to PMD` のように位置を示す警告を表示して無視されます。このとき、ソース内のモード名は使われないので、`sxlc` で使えないモード名が書かれていても変換できます。
+ソース内で登録済みの生成モードを選びます。名前は評価しないシンボルで、追加引数は受け付けません。正規名と別名は次のとおりです。
 
-モード名を書かない `(sxmml-mode)` は、`sxlc: error: /home/user/song.sxl:行: invalid sxmml-mode form: expected (sxmml-mode mode arg ...)` のように、その `sxmml-mode` の開始位置を示して変換の失敗になります。`sxlc -m` を使わない場合、未定義のモード名も、開始位置を示して変換の失敗になります。
+[cols="2,3",options="header"]
+|===
+|正規名 |別名
+|`pmd-source` |`pmd`、`pmd4-source`
+|`pmd3-source` |`pmd3`
+|`pmd-binary` |`pmd4-binary`
+|`pmd3-binary` |なし
+|===
+
+binaryの各モードは実験的機能です。生成物がMC.EXEの出力と同じであることは保証しません。利用可能なモードは`sxlc -l`で確認できます。
+
+`sxlc -m`を指定済みなら、正しい書式のマクロを位置付き警告`warning: /home/user/song.sxl:1: sxmml-mode in source is ignored; mode is already set to pmd-source`で無視します。名前は検索しないため、未登録名でも無視できます。書式と名前の型は展開時に検査します。
+
+名前の省略や追加引数は`invalid sxmml-mode form: expected (sxmml-mode mode)`、シンボル以外の名前は`invalid sxmml-mode name: 値 (expected a symbol)`です。選択時の未登録名は`undefined mode: 名前`です。いずれも取得できるフォーム位置を添えます。
+
+手続きからは`(sxmml-mode-select! 'pmd)`で選択します。これはCLI指定後でも有効です。`(sxmml-mode-get)`は選択中のモード情報、未選択なら`#f`を返します。`(sxmml-mode-find 'pmd)`は登録情報を探し、未登録なら`#f`です。`(sxmml-mode-selected? 'pmd)`は別名も解決して選択中か判定し、未登録・未選択なら`#f`を返します。分岐には通常のSchemeの`if`や`cond`を使えます。
+
+`(sxmml-mode-list)`は別名による重複のない登録情報のリストを返し、順序は未規定です。`(sxmml-mode-register! 情報)`は`<sxmml-mode>`を登録します。情報の項目と登録時の型検査はxref:internal-reference/environment.adoc[環境の内部リファレンス]を参照してください。
+
+同じモードや別名による再選択でも初期設定を実行します。PMDでは既定トラックを再登録するため、そのトラックの既存MMLは引き継ぎません。初期設定が失敗した場合は選択情報と成功済みの変更を保持します。未登録名の選択は既存状態を変更しません。
+
+旧`(pmd-source)`等の選択手続きは廃止しました。直接呼ぶコードは`(sxmml-mode-select! 'pmd-source)`へ移行してください。出力手続きは`(slot-ref (sxmml-mode-get) 'backend)`、正規名は`name`、既定の拡張子は`output-extension`から取得できます。初期設定を持たないモードでは、既存の`define-track`等でトラックを登録します。
 
 [source,scheme]
 ----

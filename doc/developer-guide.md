@@ -47,7 +47,7 @@ sxlc -m pmd -O 0 melody-and-rest.sxl
 cat melody-and-rest.mml
 ```
 
-この例では `Processing Mode: PMD`、`Optimize level: 0`、`Track G: total: 24` と表示し、生成物に `G l%12o4cr` を含む。日本語メタデータの符号化を確かめる手順は[配布・互換性](release-guide.md#符号化と生成物の確認)に示す。エラー・境界値の再現コマンドは[外部動作仕様](behavior-spec.md#失敗条件と境界値)を参照する。
+この例では `Processing Mode: pmd-source`、`Optimize level: 0`、`Track G: total: 24` と表示し、生成物に `G l%12o4cr` を含む。日本語メタデータの符号化を確かめる手順は[配布・互換性](release-guide.md#符号化と生成物の確認)に示す。エラー・境界値の再現コマンドは[外部動作仕様](behavior-spec.md#失敗条件と境界値)を参照する。
 
 ## テストの単独実行
 
@@ -197,7 +197,9 @@ O4                       98 93.3%           9       0.03       0.61
 
 ## 障害調査の入口
 
-`sxlc` がモード未指定で止まる場合は、CLI の `-m` またはソースの `sxmml-mode` と `backend` slot を確認する。構文エラーは入力付近とトラック名が出るため、`sxmml/mml.scm` と `sxmml/compiler.scm` を辿る。音色未定義は生成段階で起き得る。生成先は `sxlc` が `-o` の値（なければ `#f`）をソースの読み込み後に `<sxmml-environment>` の `output` slot へ設定し、`#f` の場合はバックエンドが既定値を設定する。エラーの条件と境界値は[外部動作仕様](behavior-spec.md#失敗条件と境界値)を参照する。
+モードは`<sxmml-mode>`の情報として登録し、`sxmml-mode-select!`で選択する。登録表は共有し、楽曲環境は選択した情報だけを保持する。旧選択手続きと楽曲環境の`backend`・`output-extension` slotsは廃止し、出力手続き・拡張子はモード情報から参照する。
+
+`sxlc` がモード未指定で止まる場合は、CLI の `-m` またはソースの `sxmml-mode` と、`sxmml-mode-get`が返すモード情報を確認する。構文エラーは入力付近とトラック名が出るため、`sxmml/mml.scm` と `sxmml/compiler.scm` を辿る。音色未定義は生成段階で起き得る。生成先は `sxlc` が `-o` の値（なければ `#f`）をソースの読み込み後に `<sxmml-environment>` の `output` slot へ設定し、`#f` の場合はバックエンドが既定値を設定する。エラーの条件と境界値は[外部動作仕様](behavior-spec.md#失敗条件と境界値)を参照する。
 
 改修対象の現在の問題、再現条件と期待する動作は [既知の課題（GitHub の issue）](https://github.com/sayzbrdg/sxmml/issues)から確認する。
 

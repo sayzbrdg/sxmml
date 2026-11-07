@@ -3,7 +3,7 @@
 
 解像度の既存の検査はvalue-error、独自マクロの形式違反はform-syntax-errorです。取得できるフォーム位置は既知のエラーだけへ独立したconditionとして添えます。値の式の未定義変数や引数個数など、Gauche由来の失敗は包み直しません。
 
-`sxmml.environment` には環境と登録表を操作する 28 の定義があり、そのうち 26 を公開します。パラメータ、マクロ、ハッシュ表の動作は Gauche 0.9.15 に従います。MML 記述者向けの使用例は xref:../sxmml-reference-manual.adoc[公開機能リファレンス]を参照してください。
+`sxmml.environment` には環境と登録表を操作する 35 の定義があり、そのうち 32 を公開します。パラメータ、マクロ、ハッシュ表の動作は Gauche 0.9.15 に従います。MML 記述者向けの使用例は xref:../sxmml-reference-manual.adoc[公開機能リファレンス]を参照してください。
 
 状態を保持する本体は xref:classes.adoc#ref-classes-class-sxmml-environment[`<sxmml-environment>`] です。`make-parameter` で作る束縛は手続きであり、引数なしで現在値を返し、値を一つ渡すと動的な現在値を変更して旧値を返します。表の設定手続きは、特記しない限り現在の環境オブジェクト内の slot または表を変更します。登録手続きの戻り値は呼び出し側では使用していません。`get` の未登録時の挙動は項目ごとに異なります。
 
@@ -17,15 +17,24 @@
 |[[ref-environment-sxmml-resolution-get]]`(sxmml-resolution-get)` |現在の解像度を得る |環境の `resolution` slot を返す。既定値 24 |link:../../sxmml/environment.scm[environment.scm]
 |[[ref-environment-sxmml-resolution-set-bang]]`(sxmml-resolution-set! resolution)` |四分音符あたりの正整数 tick 数を設定 |`resolution` slot を変更。整数でない値、0、負数は明示的にエラー |link:../../sxmml/environment.scm[environment.scm]
 |[[ref-environment-sxmml-resolution]]`(sxmml-resolution resolution)` |`sxmml-resolution-set!` の別名 |同じ値検査・状態変更を行う |link:../../sxmml/environment.scm[environment.scm]
-|[[ref-environment-sxmml-mode]]`(sxmml-mode proc args ...)` |モードの手続き `proc` を、式として評価した `args` で呼び出すマクロ |`(%sxmml-mode-select 位置 (lambda () (sxmml-form-call 位置 (lambda () (proc args ...)))))` に展開する（`sxmml-form-wrap` を使う）。`sxmml-mode-fixed` が偽なら実行時にモード手続きが環境を設定する。真なら `proc` も `args` も評価せず、標準エラー出力に位置付きの警告を表示する。`proc` がない形は展開時に `invalid sxmml-mode form` の `<sxmml-form-syntax-error>`。未定義の `proc` や引数の数の誤りは、Gaucheのエラーを包み直さず通す |link:../../sxmml/environment.scm[environment.scm]
+|[[ref-environment-sxmml-mode]]`(sxmml-mode name)` |名前を評価せずquoteするマクロ |identifier?で検査し、位置付きの`%sxmml-mode-select`呼出しへ展開。書式・名前の型違反はform-syntax-error。未登録選択はreference-error。既知の実行時エラーへ位置を添え、未知のGauche例外は通す |link:../../sxmml/environment.scm[environment.scm]
 |[[ref-environment-sxmml-mode-fixed]]`(sxmml-mode-fixed [flag])` |モード確定済みを示すパラメータ。初期値 `#f` |真の間は `sxmml-mode` を無視する。`sxlc` は `-m` 指定時に真にしてソースを読み込む |link:../../sxmml/environment.scm[environment.scm]
-|[[ref-environment-internal-sxmml-mode-select]]`(%sxmml-mode-select location thunk)` |`sxmml-mode` の展開先。非公開 |`sxmml-mode-fixed` が偽なら `thunk` を呼ぶ。真なら呼ばず、`sxmml-form-warn-at` で `warning: 位置: sxmml-mode in source is ignored; mode is already set to モード名` を表示する |link:../../sxmml/environment.scm[environment.scm]
+|[[ref-environment-sxmml-mode-register-bang]]`(sxmml-mode-register! mode)` |情報を共有表へ登録 |インスタンス・各項目の型・登録済み名との衝突を全件検査してから更新。失敗はvalue-error。初期設定は実行しない。戻り値は未規定 |link:../../sxmml/environment.scm[environment.scm]
+|[[ref-environment-sxmml-mode-find]]`(sxmml-mode-find name)` |正規名・別名から検索 |名前はsymbol。未登録は#f |link:../../sxmml/environment.scm[environment.scm]
+|[[ref-environment-sxmml-mode-list]]`(sxmml-mode-list)` |登録情報を列挙 |別名による重複なし。順序は未規定 |link:../../sxmml/environment.scm[environment.scm]
+|[[ref-environment-sxmml-mode-select-bang]]`(sxmml-mode-select! name)` |登録情報を選択 |未登録はreference-errorで状態を保持。選択情報更新後にsetupを実行し、再選択でも実行。失敗時の成功済み変更は保持。戻り値は未規定 |link:../../sxmml/environment.scm[environment.scm]
+|[[ref-environment-sxmml-mode-get]]`(sxmml-mode-get)` |現在の選択情報 |未選択なら#f |link:../../sxmml/environment.scm[environment.scm]
+|[[ref-environment-sxmml-mode-selected-p]]`(sxmml-mode-selected? name)` |別名も解決して選択中か判定 |未登録・未選択は#f。名前の型違反はvalue-error |link:../../sxmml/environment.scm[environment.scm]
+|[[ref-environment-internal-mode-name-check]]`(%mode-name-check name)` |非公開の名前検査 |symbol以外はinvalid mode nameのvalue-error |link:../../sxmml/environment.scm[environment.scm]
+|[[ref-environment-internal-sxmml-mode-select]]`(%sxmml-mode-select location name)` |マクロの非公開展開先 |CLI固定中は正規名による位置付き警告で無視。それ以外は`sxmml-mode-select!`を呼ぶ |link:../../sxmml/environment.scm[environment.scm]
 |[[ref-environment-sxmml-metadata-get]]`(sxmml-metadata-get key)` |`metadata` 表から `key` を検索 |未登録なら `#f` |link:../../sxmml/environment.scm[environment.scm]
 |[[ref-environment-sxmml-metadata-set-bang]]`(sxmml-metadata-set! key value)` |`metadata` 表へ値を登録 |既存の同じ key を上書き |link:../../sxmml/environment.scm[environment.scm]
 |[[ref-environment-define-metadata]]`(define-metadata key value)` |`key` を小文字化した symbol にし、`value` を式として評価して登録するマクロ |括弧の中が 1 つ以上で全て文字列の旧書式 `(define-metadata key ("a" ...))` は、展開時に `sxmml-form-warn` で非推奨の警告を出し、文字列のリストとして登録する。値がない、引数が多いなどは `invalid define-metadata form` の `<sxmml-form-syntax-error>`。登録の呼び出しは `sxmml-form-wrap` で包むので、既知の値の誤りにも定義の位置が付く。値の型は検査しない |link:../../sxmml/environment.scm[environment.scm]
 |===
 
-`sxmml-mode` の呼び出し先を選ぶ処理は、backend モジュールが読み込まれていることを前提とします。CLI とソースの双方でモードを指定した場合は CLI 側が優先されます。動作は link:../behavior-spec.md#入力と実行順[外部動作仕様]を参照してください。
+モード情報はbackendの読込み時に共有表`%sxmml-modes`へ登録し、楽曲環境は選択情報だけを保持します。`<sxmml-mode>`のnameはsymbol、aliasesはsymbolのリスト、setupは手続きまたは#f、backendは手続き、output-extensionは文字列または#fです。setupは引数なしで呼びます。必須項目の省略も登録時に値エラーとなり、手続きの引数個数は事前検査しません。型違反の本文は`invalid mode`・`invalid mode name`・`invalid mode aliases`・`invalid mode setup`・`invalid mode backend`・`invalid mode output extension`で値と期待型を示します。
+
+CLIとソースのマクロ双方で指定した場合はCLI側を優先し、明示的な選択手続きによる変更は認めます。通常の分岐構文でselected?を使えます。動作はlink:../behavior-spec.md#入力と実行順[外部動作仕様]を参照してください。
 
 == LFO・エンベロープの登録
 
