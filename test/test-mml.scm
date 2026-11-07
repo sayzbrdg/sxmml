@@ -10,6 +10,7 @@
 (use sxmml)
 (use sxmml.form)
 (use sxmml.backend.pmd)
+(use sxmml.backend.pmd-source)
 
 (let ()
   (define (compile rhythm? text)
@@ -35,10 +36,11 @@
       (define-track L)
       (if rhythm? (rhythm L text) (mml G text))
       (let* ([track (if rhythm? 'L 'G)]
-             [objects (sxmml-optimize-tree track :optimize #f)]
+             [objects (sxmml-ir-flatten (slot-ref (sxmml-track-get track) 'compiled-data))]
              [env (sxmml-track-get track)])
-        (list objects (map (cut slot-ref env <>)
-                           '(total-ticks default-length current-octave current-transpose))))))
+        (list objects (cons (caar (slot-ref env 'current-ticks))
+                            (map (cut slot-ref env <>)
+                                 '(default-length current-octave current-transpose)))))))
   (dolist [case '((#f "[ab]0") (#f "[a:b]0") (#f "[ab]{0}") (#f "[a:b]000")
                   (#t "[@b8@s8]0") (#t "[@b8:@s8]0")
                   (#t "[@b8@s8]{0}") (#t "[@b8:@s8]000"))]
@@ -125,8 +127,7 @@
     (parameterize ([sxmml-environment (make <sxmml-environment>)])
       (sxmml-mode-select! 'pmd-source)
       (if rhythm? (rhythm L text) (mml G text))
-      (sxmml-optimize-tree (if rhythm? 'L 'G) :optimize #f)
-      (slot-ref (sxmml-track-get (if rhythm? 'L 'G)) 'total-ticks)))
+      (caar (slot-ref (sxmml-track-get (if rhythm? 'L 'G)) 'current-ticks))))
   (dolist [case '((#f "c0") (#f "r0") (#f "l0") (#t "@b0") (#t "l0"))]
     (test* #"音長0を計算・登録前に拒否する: ~(cadr case)"
            (test-error <sxmml-mml-syntax-error>

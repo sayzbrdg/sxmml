@@ -24,8 +24,8 @@ PACKAGE   = sxmml
 TARGET    = sxlc
 MANPAGE   = sxlc.1
 SCMFILES  = sxmml.scm sxmml/classes.scm sxmml/environment.scm sxmml/voice.scm sxmml/command.scm sxmml/mml.scm \
-            sxmml/compiler.scm sxmml/processor.scm sxmml/optimizer.scm sxmml/repeat-tree.scm \
-            sxmml/util.scm sxmml/form.scm sxmml/backend/pmd.scm sxmml/backend/pmd-binary.scm
+            sxmml/output.scm sxmml/compiler.scm sxmml/processor.scm sxmml/optimizer.scm sxmml/repeat-tree.scm \
+            sxmml/util.scm sxmml/form.scm sxmml/backend/pmd.scm sxmml/backend/pmd-source.scm sxmml/backend/pmd-binary.scm
 
 GENERATED = $(MANPAGE)
 CONFIG_GENERATED = Makefile config.cache config.log config.status \
@@ -46,6 +46,7 @@ check : all
 	SXMML_SXLC=./sxlc $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/test/test-helpers.scm" > test.log
 	SXMML_SXLC=./sxlc $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/test/test-classes.scm" >> test.log
 	SXMML_SXLC=./sxlc $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/test/test-command.scm" >> test.log
+	SXMML_SXLC=./sxlc $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/test/test-output.scm" >> test.log
 	SXMML_SXLC=./sxlc $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/test/test-compiler.scm" >> test.log
 	SXMML_SXLC=./sxlc $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/test/test-environment.scm" >> test.log
 	SXMML_SXLC=./sxlc $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/test/test-form.scm" >> test.log

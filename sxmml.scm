@@ -28,5 +28,5 @@
 
 (define-module sxmml
   (extend sxmml.classes sxmml.command sxmml.mml sxmml.environment sxmml.voice
-          sxmml.compiler sxmml.processor sxmml.optimizer sxmml.util))
+          sxmml.output sxmml.compiler sxmml.processor sxmml.optimizer sxmml.util))
 (select-module sxmml)

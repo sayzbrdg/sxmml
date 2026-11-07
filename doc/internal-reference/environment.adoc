@@ -32,7 +32,7 @@
 |[[ref-environment-define-metadata]]`(define-metadata key value)` |`key` を小文字化した symbol にし、`value` を式として評価して登録するマクロ |括弧の中が 1 つ以上で全て文字列の旧書式 `(define-metadata key ("a" ...))` は、展開時に `sxmml-form-warn` で非推奨の警告を出し、文字列のリストとして登録する。値がない、引数が多いなどは `invalid define-metadata form` の `<sxmml-form-syntax-error>`。登録の呼び出しは `sxmml-form-wrap` で包むので、既知の値の誤りにも定義の位置が付く。値の型は検査しない |link:../../sxmml/environment.scm[environment.scm]
 |===
 
-モード情報はbackendの読込み時に共有表`%sxmml-modes`へ登録し、楽曲環境は選択情報だけを保持します。`<sxmml-mode>`のnameはsymbol、aliasesはsymbolのリスト、setupは手続きまたは#f、backendは手続き、output-extensionは文字列または#fです。setupは引数なしで呼びます。必須項目の省略も登録時に値エラーとなり、手続きの引数個数は事前検査しません。型違反の本文は`invalid mode`・`invalid mode name`・`invalid mode aliases`・`invalid mode setup`・`invalid mode backend`・`invalid mode output extension`で値と期待型を示します。
+モード情報はbackendの読込み時に共有表`%sxmml-modes`へ登録し、楽曲環境は選択情報だけを保持します。`<sxmml-mode>`のnameはsymbol、aliasesはsymbolのリスト、setupは手続きまたは#f、backendは手続き、output-extensionは文字列または#fです。setupは引数なし、backendは出力環境一つを渡して呼び、出力結果を受け取ります。登録環境のoptimize・output slotsは廃止し、出力の設定は xref:output.adoc[出力準備]へ分離しました。必須項目の省略も登録時に値エラーとなり、手続きの引数個数は事前検査しません。型違反の本文は`invalid mode`・`invalid mode name`・`invalid mode aliases`・`invalid mode setup`・`invalid mode backend`・`invalid mode output extension`で値と期待型を示します。
 
 CLIとソースのマクロ双方で指定した場合はCLI側を優先し、明示的な選択手続きによる変更は認めます。通常の分岐構文でselected?を使えます。動作はlink:../behavior-spec.md#入力と実行順[外部動作仕様]を参照してください。
 

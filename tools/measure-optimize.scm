@@ -21,6 +21,7 @@
 (use srfi.13)
 (use sxmml)
 (use sxmml.backend.pmd)
+(use sxmml.backend.pmd-source)
 (use sxmml.backend.pmd-binary)
 
 (define script (sys-normalize-pathname (current-load-path) :absolute #t))
@@ -30,7 +31,7 @@
 ;; "O4:E=64:W=128" を (水準の値の文字列 E W) にする
 (define (parse-config text)
   (let* ([parts (string-split text #\:)]
-         [level (assoc-ref '(("O2" . ":full") ("O3" . ":repeat") ("O4" . ":repeat-expand"))
+         [level (assoc-ref '(("O2" . "2") ("O3" . "3") ("O4" . "4"))
                            (car parts))]
          [values (map (^p (if-let1 m (#/^([EW])=([0-9]+)$/ p)
                             (cons (m 1) (string->number (m 2)))
@@ -47,21 +48,21 @@
                    [sxmml-mode-fixed #t])
       (sxmml-mode-select! (string->symbol mode))
       (load source)
-      (slot-set! (sxmml-environment) 'optimize (read-from-string level))
       (eval `(begin (set! %repeat-window ,w) (set! %repeat-expand-window ,w)
                     (set! %repeat-expand-limit ,e))
             (find-module 'sxmml.optimizer))
       ;; バックエンドは各トラックを一度ずつ最適化するので、その戻り値の長さを足し合わせる。
-      ;; 最適化はオブジェクトを書き換えるので、別に呼び直して数えない
+      ;; 件数のために最適化を呼び直さず、出力に使った最終列を数える
       (let ([out (build-path outdir (if (#/binary/ mode) "out.m" "out.mml"))]
             [objects 0]
-            [optimize (with-module sxmml.optimizer sxmml-optimize-tree)])
-        (eval `(set! sxmml-optimize-tree
+            [optimize (with-module sxmml.backend.pmd sxmml-pmd-ir-optimize)])
+        (eval `(set! sxmml-pmd-ir-optimize
                      ,(^ args (rlet1 lis (apply optimize args) (inc! objects (length lis)))))
-              (find-module 'sxmml.optimizer))
-        (slot-set! (sxmml-environment) 'output out)
+              (find-module 'sxmml.backend.pmd))
         (let1 t1 (current-time)
-          ((slot-ref (sxmml-mode-get) 'backend))
+          ((slot-ref (sxmml-mode-get) 'backend)
+           (make-sxmml-output-environment (sxmml-environment) :output out
+             :optimize (string->number level) :source source))
           (let1 t2 (current-time)
             (with-output-to-file result
               (^[] (format #t "~d ~d ~a ~a\n" (file-size out) objects

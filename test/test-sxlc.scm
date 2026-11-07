@@ -71,6 +71,29 @@
             (file->string-list out) (file->string-list err))))
   (unwind-protect
       (begin
+        (let* ([source (source-output "fileless"
+                         "(sxmml-mode-register! (make <sxmml-mode> :name 'test-fileless :backend (lambda (out) (format #t \"request: ~s\\n\" (slot-ref out 'optimize)) (make <sxmml-output-result> :output #f :track-names '(lead)))))\n(sxmml-mode test-fileless)\n(define-track (lead unused))\n(mml lead \"c8\")\n(mml unused \"c4\")\n")]
+               [r (sxlc-report "-O" "3" "-c" "false" source)])
+          (test* "C01 採用したトラックだけを表示する" '(#t #f)
+                 (map (^[pattern] (boolean (any pattern (cadr r))))
+                      (list #/^Track lead: total: 12$/ #/^Track unused:/)))
+          (test* "C02 ファイルなしの結果ではTranslateと後処理を省いて成功する"
+                 '(0 #f #f)
+                 (list (car r) (boolean (any #/^Translate:/ (cadr r)))
+                       (boolean (any #/^Post process:/ (cadr r)))))
+          (test* "C04 最適化の整数要求をそのまま渡す" #t
+                 (boolean (member "request: 3" (cadr r)))))
+        (let* ([actual (work-file "actual ; output.bin")]
+               [forms `((sxmml-mode-register!
+                         (make <sxmml-mode> :name 'test-actual
+                           :backend (lambda (out)
+                                      (with-output-to-file ,actual (lambda () (display "data")))
+                                      (make <sxmml-output-result> :output ,actual :track-names '()))))
+                        (sxmml-mode test-actual))]
+               [source (source-output "actual-result" (with-output-to-string (^[] (for-each write forms))))]
+               [r (sxlc-report "-o" (work-file "requested.bin") "-c" "printf '<%s>\\n'" source)])
+          (test* "C03 実際の出力先を表示し、後処理へ一引数で渡す" (list 0 actual actual)
+                 (cons (car r) (take (output-report (cadr r)) 2))))
         (let* ([op0 "(0 0 0 0 0 0 0 0 0)"]
                [defs #"(define-opn-voice TONE (0 0) ~op0 ~op0 ~op0 ~op0)\n(define-lfo MOD triangle (1 2 3 4))\n(define-envelope ENV default (1 2 3 4))\n(define-metadata TITLE \"name test\")\n(define-track A)\n"]
                [normal (source-output "names-comparison" #"~defs(mml A \"@{TONE}M{MOD A}E{ENV}c8\")\n")]
@@ -223,14 +246,7 @@
                  (list default default #f #t)
                  (append (run-output-check "default-out" '((mml G "c8")))
                          (list (file-exists? default)))))
-        (let ([slot-out (work-file "slot.mml")]
-              [default (work-file "slot-set.mml")])
-          (test* "the output slot set in source is overridden by sxlc"
-                 (list default default #f #t #f)
-                 (append (run-output-check "slot-set"
-                                           `((slot-set! (sxmml-environment) 'output ,slot-out)
-                                             (mml G "c8")))
-                         (list (file-exists? default) (file-exists? slot-out)))))
+
         (let* (
           [op0 "(0 0 0 0 0 0 0 0 0)"]
           [voice-text (^[alfb op2] #"; voice\n(begin\n  (define-opn-voice V1 ~alfb\n    ~op0 ~op2 ~op0 ~op0)\n  (define %test-after-voice 1))\n")]
@@ -478,14 +494,7 @@
                                              (cadr result)))
                                (file-exists? output)
                                (file-exists? (work-file "obsolete.m"))))))
-        (let* ([source (source-output (work-file "slot.sxl")
-                                    `((slot-set! (sxmml-environment) 'output ,(work-file "source-slot.m"))
-                                      (mml G "c8")))]
-               [output (work-file "slot.m")])
-          (test* "ソース中の output の変更より CLI の出力先決定を優先する"
-                 (list 0 output output #t #f)
-                 (append (output-report (run-sxlc source "-m" "pmd-binary" "-c" post-command))
-                         (list (file-exists? output) (file-exists? (work-file "source-slot.m"))))))
+
         (let* ([source (source-output (work-file "switch.sxl")
                                     '((sxmml-mode pmd) (sxmml-mode pmd-binary) (mml G "c8")))]
                [output (work-file "switch.m")])

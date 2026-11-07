@@ -10,10 +10,14 @@
 (use sxmml)
 (use sxmml.form)
 (use sxmml.backend.pmd)
+(use sxmml.backend.pmd-source)
 (use gauche.uvector)
 (use gauche.process)
 (use file.util)
 (use test.helpers)
+(define (test-level-number level)
+  (case level [(#f) 0] [(#t) 1] [(:full) 2] [(:repeat) 3] [(:repeat-expand) 4] [else level]))
+
 
 (let* ([sxlc-command (make-test-sxlc-command)]
        [workdir (sys-mkdtemp (build-path (temporary-directory) "sxmml-test"))])
@@ -52,13 +56,14 @@
   ;; level は最適化の水準。省略時は sxlc の既定の -O 1 と同じ最適化を使う。
   (define (make-binary-data name mode forms :optional (level #t))
     (let1 source (source-output (work-file #"bytes-~|name|.sxl") forms)
-      (parameterize ([sxmml-environment (make <sxmml-environment>)]
-                     [sxmml-source-file source])
+      (parameterize ([sxmml-environment (make <sxmml-environment>)])
         (sxmml-mode-select! mode)
-        (slot-set! (sxmml-environment) 'optimize level)
         (load source)
-        ((slot-ref (sxmml-mode-get) 'backend))
-        (file->bytevector (slot-ref (sxmml-environment) 'output)))))
+        (let1 result ((slot-ref (sxmml-mode-get) 'backend)
+                      (make-sxmml-output-environment (sxmml-environment)
+                        :output (path-swap-extension source "m")
+                        :optimize (test-level-number level) :source source))
+          (file->bytevector (slot-ref result 'output))))))
   (define (hex-bytes data :optional (start 0) (end (u8vector-length data)))
     (string-join (map (cut format "~2,'0x" <>) (u8vector->list data start end)) " "))
   (define (section-hex data name)
@@ -75,21 +80,52 @@
       (if (eq? track 'L)
         (make <sxmml-rhythm-emit> :value #t :ticks 12 instrument #t)
         (make <sxmml-mml-rest> :ticks 12)))
-    (parameterize ([sxmml-environment (make <sxmml-environment>)]
-                   [sxmml-source-file (work-file "direct-loop.sxl")])
+    (parameterize ([sxmml-environment (make <sxmml-environment>)])
       (sxmml-mode-select! 'pmd-binary)
-      (slot-set! (sxmml-environment) 'output (work-file #"direct-loop-~|track|.m"))
-      (slot-set! (sxmml-environment) 'optimize #f)
       (sxmml-ir-register! (list (event :bass) (make <sxmml-mml-loop>)
-                                (event :snare) (make <sxmml-mml-loop>)
-                                (event :hihat)) track)
-      (sxmml-pmd-binary-output)))
+                                (event :snare) (make <sxmml-mml-loop>) (event :hihat)) track)
+      (sxmml-pmd-binary-output
+       (make-sxmml-output-environment (sxmml-environment)
+         :output (work-file #"direct-loop-~|track|.m") :optimize 0))))
   (define (raw-voice-data name alfb op :optional (used? #t))
     (make-binary-data name 'pmd-binary
                       `((hash-table-put! (slot-ref (sxmml-environment) 'voice) 'tone
                                          (make <sxmml-opn-voice> :id 'tone
                                                :value ',(cons alfb (make-list 4 op))))
                         (mml A ,(if used? "@{tone}o4c%12" "o4c%12"))) #f))
+
+  (parameterize ([sxmml-environment (make <sxmml-environment>)])
+    (sxmml-mode-select! 'pmd-binary)
+    (sxmml-resolution-set! 48)
+    (define-metadata title "明示した環境")
+    (define-lfo effect (1 2 3 4))
+    (define-envelope shape (1 2 3 4))
+    (mml G "M{effect A}E{shape}v8t120c8")
+    (rename-track G lead)
+    (define-track unused)
+    (mml unused "r%70000")
+    (let* ([registered (sxmml-environment)]
+           [out (make-sxmml-output-environment registered
+                  :output (work-file "explicit.m") :optimize 2)]
+           [original (slot-ref (sxmml-track-get 'lead) 'compiled-data)]
+           [ctx (sxmml-track-get 'lead)])
+      (test* "出力先#fは補完せず値エラーにする"
+             (test-error <sxmml-value-error> "output file is not specified")
+             (sxmml-pmd-binary-output (make-sxmml-output-environment registered :output #f :optimize 0)))
+      (parameterize ([sxmml-environment (make <sxmml-environment>)]
+                     [sxmml-source-file "wrong-source.sxl"])
+        (let* ([result (sxmml-pmd-binary-output out)]
+               [first (file->bytevector (slot-ref result 'output))])
+          (test* "明示した出力環境から生成できる" #t (is-a? result <sxmml-output-result>))
+          (test* "採用した名前はpartではなく変更後のトラック名" '(#t #f #f)
+                 (let1 names (slot-ref result 'track-names)
+                   (map (^[name] (boolean (memq name names))) '(lead G unused))))
+          (sxmml-pmd-binary-output out)
+          (test* "同じ出力環境で同じ生成物を得て、登録IRを変更しない" '(#t #t 24)
+                 (list (equal? first (file->bytevector (slot-ref result 'output)))
+                       (eq? original (slot-ref ctx 'compiled-data))
+                       (slot-ref (find (^[o] (is-a? o <sxmml-mml-note>))
+                                       (sxmml-ir-flatten original)) 'ticks)))))))
   (unwind-protect
       (begin
         (dolist [case '(("SSG" G 16 "invalid SSG volume: 16 (expected an integer from 0 to 15)")
@@ -193,23 +229,24 @@
         (test* "リズムの直接IR入力で2個目のLを拒否する"
                (test-error <sxmml-mml-syntax-error> "loop command can be used only once in a track")
                (multiple-loop-output 'L))
-        (test* "入力名なしのライブラリ利用では ./a.m を既定値として記録する"
-               '("./a.m" "./a.m")
-               (parameterize ([sxmml-environment (make <sxmml-environment>)]
-                              [sxmml-source-file #f])
+        (test* "入力元なしでも明示した出力先を結果で返す"
+               (list (work-file "library-no-source.m") #t)
+               (parameterize ([sxmml-environment (make <sxmml-environment>)])
                  (sxmml-mode-select! 'pmd-binary)
-                 (list ((with-module sxmml.backend.pmd-binary %output-file-get))
-                       (slot-ref (sxmml-environment) 'output))))
+                 (let1 result (sxmml-pmd-binary-output
+                               (make-sxmml-output-environment (sxmml-environment)
+                                 :output (work-file "library-no-source.m") :optimize 1))
+                   (list (slot-ref result 'output) (file-exists? (slot-ref result 'output))))))
         (let1 source (source-output (work-file "library.sxl") '((mml G "c8")))
-          (test* "ライブラリから直接生成しても入力名に対応する .m を使う"
+          (test* "ライブラリから明示出力環境で直接生成する"
                  (list (work-file "library.m") #t)
-                 (parameterize ([sxmml-environment (make <sxmml-environment>)]
-                                [sxmml-source-file source])
+                 (parameterize ([sxmml-environment (make <sxmml-environment>)])
                    (sxmml-mode-select! 'pmd-binary)
                    (load source)
-                   (sxmml-pmd-binary-output)
-                   (list (slot-ref (sxmml-environment) 'output)
-                         (file-exists? (work-file "library.m"))))))
+                   (let1 result (sxmml-pmd-binary-output
+                                 (make-sxmml-output-environment (sxmml-environment)
+                                   :output (work-file "library.m") :optimize 1 :source source))
+                     (list (slot-ref result 'output) (file-exists? (slot-ref result 'output)))))))
         ;; 公開生成関数は、モード手続きを呼ばずにトラックを登録しても使える。
         (dolist [case (list (list "pmd-binary" sxmml-pmd-binary-output)
                            (list "pmd3-binary" sxmml-pmd3-binary-output)
@@ -223,8 +260,10 @@
                                   [sxmml-source-file source])
                      (define-track (A B C D E F G H I J L))
                      (load source)
-                     ((cadr case))
-                     (list (slot-ref (sxmml-environment) 'output) (file-exists? output))))))
+                     (let1 result ((cadr case)
+                                   (make-sxmml-output-environment (sxmml-environment)
+                                     :output output :optimize 1 :source source))
+                       (list (slot-ref result 'output) (file-exists? output)))))))
         (dolist [mode '("pmd-binary" "pmd3-binary" "pmd4-binary")]
           (let* ([source (source-output (work-file #"voices-~|mode|.sxl")
                                       `(,(voice-form 'z 3) ,(voice-form 'a 1)

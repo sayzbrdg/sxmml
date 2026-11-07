@@ -10,13 +10,55 @@
 (use sxmml)
 (use sxmml.form)
 (use sxmml.backend.pmd)
+(use sxmml.backend.pmd-source)
 (use sxmml.backend.pmd-binary)
 (use gauche.uvector)
 (use gauche.process)
 (use file.util)
 (use test.helpers)
+(define (test-level-number level)
+  (case level [(#f) 0] [(#t) 1] [(:full) 2] [(:repeat) 3] [(:repeat-expand) 4] [else level]))
+
 (use test.ir-meaning)
 (use srfi.1)
+(define (test-optimize-track track :key (optimize #t))
+  (sxmml-pmd-ir-optimize
+   (sxmml-ir-flatten (slot-ref (sxmml-track-get track) 'compiled-data))
+   (test-level-number optimize)))
+
+
+(let ()
+  (define (build)
+    (list (make <sxmml-mml-volume> :value 8)
+          (make <sxmml-mml-rest> :ticks 12)
+          (make <sxmml-mml-rest> :value #f :ticks 12)
+          (make <sxmml-mml-volume> :value 8)
+          (make <sxmml-mml-repeat-start>)
+          (make <sxmml-mml-note> :value 0 :ticks 12)
+          (make <sxmml-mml-repeat-end> :value 2)))
+  (define (snapshot ir)
+    (map (^[obj] (list (class-of obj)
+                      (if (slot-bound? obj 'value) (slot-ref obj 'value) 'unbound)
+                      (and (slot-exists? obj 'ticks) (slot-ref obj 'ticks)))) ir))
+  (for-each
+   (^[proc]
+     (let* ([ir (build)] [objects (list-copy ir)] [values (snapshot ir)])
+       (proc ir)
+       (test* (format #f "非破壊の公開最適化: ~a" proc) '(#t #t)
+              (list (equal? values (snapshot ir)) (every eq? objects ir)))))
+   (list sxmml-ir-optimize-local sxmml-ir-remove-redundant-settings sxmml-ir-merge-rests
+         sxmml-ir-compress-repeats sxmml-ir-optimize sxmml-ir-optimize-with-repeats
+         sxmml-ir-optimize-with-repeat-expansion))
+  (let1 ir (list (make <sxmml-mml-volume> :value 8)
+                (make <sxmml-mml-rest> :value #f :ticks 12)
+                (make <sxmml-mml-volume> :value 8)
+                (make <sxmml-mml-rest> :value #f :ticks 12))
+    (test* "R02 状態削除は単独で実行でき、休符を結合しない"
+           (list <sxmml-mml-volume> <sxmml-mml-rest> <sxmml-mml-rest>)
+           (map class-of (sxmml-ir-remove-redundant-settings ir)))
+    (test* "R08 基本組合せは状態削除の後で休符を結合する" '(8 24)
+           (map (^[o] (if (is-a? o <sxmml-mml-rest>) (slot-ref o 'ticks) (slot-ref o 'value)))
+                (sxmml-ir-optimize ir)))))
 
 (let ()
   (define (note pitch) (make <sxmml-mml-note> :value pitch :ticks 12))
@@ -28,20 +70,17 @@
     (^[case]
       (let* ([build (caddr case)]
              [before (build)]
-             [after (parameterize ([sxmml-environment (make <sxmml-environment>)])
-                      (define-track G)
-                      (sxmml-ir-register! (build) 'G)
-                      (sxmml-optimize-tree 'G :optimize (cadr case)))])
+             [after ((cadr case) (build))])
         (test* (car case) '(match #f)
                (call-with-values (^[] (compare-ir-meaning before after)) list))))
     (list
-      (list "第1段階の音量指定順の意味保持" #t
+      (list "第1段階の音量指定順の意味保持" sxmml-ir-optimize-local
             (^[] (list (volume 8) (note 0) (change 2) (note 4) (change -2) (volume 9) (note 7))))
-      (list "第2段階の反復と相対音量の意味保持" :full
+      (list "第2段階の反復と相対音量の意味保持" sxmml-ir-optimize
             (^[] (list (volume 8) (start) (change 1) (note 0) (end 3) (volume 9) (note 2))))
-      (list "反復圧縮の意味保持" :repeat
+      (list "反復圧縮の意味保持" sxmml-ir-optimize-with-repeats
             (^[] (list (note 0) (note 2) (note 0) (note 2) (note 0) (note 2))))
-      (list "既存反復の展開と再圧縮の意味保持" :repeat-expand
+      (list "既存反復の展開と再圧縮の意味保持" sxmml-ir-optimize-with-repeat-expansion
             (^[] (list (start) (note 0) (note 0) (note 0) (note 0) (end 2)))))))
 
 (let ()
@@ -50,7 +89,7 @@
       (define-track G)
       (define-track L)
       (if rhythm? (rhythm L text) (mml G text))
-      (sxmml-optimize-tree (if rhythm? 'L 'G) :optimize #t)))
+      (test-optimize-track (if rhythm? 'L 'G) :optimize #t)))
   (define (values-at-notes objects absolute relative)
     (reverse
      (cdr
@@ -109,15 +148,15 @@
                                      (make <sxmml-mml-volume-change> :value 2)
                                      (make <sxmml-mml-note> :value 0 :ticks 12)) 'G)
            (map (^o (list (class-of o) (slot-ref o 'value)))
-                (sxmml-optimize-tree 'G :optimize #t)))))
+                (test-optimize-track 'G :optimize #t)))))
 
 (let ()
   (define (optimize text)
     (parameterize ([sxmml-environment (make <sxmml-environment>)])
       (define-track G)
       (mml G text)
-      ((with-module sxmml.optimizer %sxmml-optimize-2nd-pass!)
-       (sxmml-optimize-tree 'G :optimize #f))))
+      (sxmml-ir-remove-redundant-settings
+       (test-optimize-track 'G :optimize #f))))
   (define (values-at-notes text absolute :optional (relative #f) (laps 1))
     (let1 objects ((with-module sxmml.optimizer %repeat-expansion)
                   ((with-module sxmml.optimizer %repeat-structure) (optimize text)))
@@ -165,7 +204,7 @@
   (test* "第2段階で脱出を含む1回の反復の出口を求める" '(2 3)
          (values-at-notes "p1[p2c8:p3d8]1p3e8" <sxmml-mml-pan>))
   (test* "第2段階で隣接休符の結合を維持する" '(24)
-         (map (^o (slot-ref o 'ticks)) (optimize "r8r8"))))
+         (map (^o (slot-ref o 'ticks)) (sxmml-ir-merge-rests (optimize "r8r8")))))
 
 ;; 命令列の圧縮で使う、既存のリピートのブロックへの組み立て (#69)
 (let* ([note (^[v] (make <sxmml-mml-note> :value v :ticks 24))]
@@ -238,14 +277,14 @@
   (define (optimized-line name level forms)
     (let1 source (work-file #"optimize-~|name|.sxl")
       (with-output-to-file source (^[] (for-each write forms)))
-      (parameterize ([sxmml-environment (make <sxmml-environment>)]
-                     [sxmml-source-file source])
+      (parameterize ([sxmml-environment (make <sxmml-environment>)])
         (sxmml-mode-select! 'pmd-source)
-        (slot-set! (sxmml-environment) 'optimize level)
         (load source)
-        ((slot-ref (sxmml-mode-get) 'backend))
-        (find #/^A / (string-split (file->string (slot-ref (sxmml-environment) 'output))
-                                   "\r\n")))))
+        (let1 result ((slot-ref (sxmml-mode-get) 'backend)
+                      (make-sxmml-output-environment (sxmml-environment)
+                        :output (path-swap-extension source "mml")
+                        :optimize (test-level-number level) :source source))
+          (find #/^A / (string-split (file->string (slot-ref result 'output)) "\r\n"))))))
   ;; forms を読み込み、トラック track を最適化の水準 level で最適化した列を返す
   (define (optimized-objects track level forms)
     (let1 source (work-file "optimize-objects.sxl")
@@ -254,7 +293,7 @@
                      [sxmml-source-file source])
         (sxmml-mode-select! 'pmd-source)
         (load source)
-        (sxmml-optimize-tree track :optimize level))))
+        (test-optimize-track track :optimize level))))
   (unwind-protect
       (begin
         ;; 最適化は、チャンネルの違う LFO の命令を互いに上書きしない (#64)。
@@ -336,7 +375,7 @@
                                         [(is-a? o <sxmml-mml-loop>) "L"]
                                         [else (string (string-ref "c d ef g a b" (slot-ref o 'value)))]))
                               lis)))]
-                [optimize-repeat (with-module sxmml.optimizer %sxmml-optimize-repeat)])
+                [optimize-repeat (lambda (ir expand?) (sxmml-ir-compress-repeats ir :expand-small expand?))])
             (dolist (case '(("cdefgab[dLe]2cdefgab" #f "cdefgab[dLe]2cdefgab")
                             ("[cdcdcdLcdcdcd]2" #f "[[cd]3L[cd]3]2")
                             ("[cdLcd]2" #t "[cdLcd]2")
@@ -352,7 +391,7 @@
                  [lis (list (make <sxmml-mml-repeat-start>) (make <sxmml-mml-note> :value 0 :ticks 24)
                             (break) (d) (break) (d) (break) (d) (break) (d)
                             (make <sxmml-mml-repeat-end> :value 2))]
-                 [optimize-repeat (with-module sxmml.optimizer %sxmml-optimize-repeat)])
+                 [optimize-repeat (lambda (ir expand?) (sxmml-ir-compress-repeats ir :expand-small expand?))])
             (dolist (expand? '(#f #t))
               (test* #"a second break stays out of generated loops (expand? ~expand?)" #t
                      (let1 result (optimize-repeat lis expand?)
@@ -424,13 +463,14 @@
   ;; level は最適化の水準。省略時は sxlc の既定の -O 1 と同じ最適化を使う。
   (define (make-binary-data name mode forms :optional (level #t))
     (let1 source (source-output (work-file #"bytes-~|name|.sxl") forms)
-      (parameterize ([sxmml-environment (make <sxmml-environment>)]
-                     [sxmml-source-file source])
+      (parameterize ([sxmml-environment (make <sxmml-environment>)])
         (sxmml-mode-select! mode)
-        (slot-set! (sxmml-environment) 'optimize level)
         (load source)
-        ((slot-ref (sxmml-mode-get) 'backend))
-        (file->bytevector (slot-ref (sxmml-environment) 'output)))))
+        (let1 result ((slot-ref (sxmml-mode-get) 'backend)
+                      (make-sxmml-output-environment (sxmml-environment)
+                        :output (path-swap-extension source "m")
+                        :optimize (test-level-number level) :source source))
+          (file->bytevector (slot-ref result 'output))))))
   (define (hex-bytes data :optional (start 0) (end (u8vector-length data)))
     (string-join (map (cut format "~2,'0x" <>) (u8vector->list data start end)) " "))
   (define (section-hex data name)

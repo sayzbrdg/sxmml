@@ -1,0 +1,72 @@
+= `sxmml.backend.pmd-source` の生成処理
+:toc: left
+
+PMD向けMML出力の55定義（手続き54件・クラス1件）を持ちます。モード情報は読込み時に登録し、初期トラック設定は選択時に共通setup!で実行します。定義の規則と最適化選択は xref:pmd.adoc[PMD共通処理]を使います。
+
+公開出力は出力環境一つを受け、出力結果を返します。A～J・Lに対応する出力トラックが必要です。出力中に現在の登録環境・モード・sxmml-source-fileを参照せず、入力を変更しません。作業用のトラック状態は明示引数、音色番号表・使用id表と定義参照は局所状態とクロージャで渡します。
+
+出力先#fは`<sxmml-value-error>`、本文`output file is not specified`で報告し、入力名から補完しません。出力先と同じディレクトリの一時ファイルへCP932で書き、成功後に改名します。失敗時は既存出力を保持し、一時ファイルを破棄します。入力元source=#fならヘッダーのfromだけを省き、改行・モード行・PMD3終端は維持します。
+
+本文全体を一つの文字列ポートへ出力し、FM音色指定の出力時に使用idを記録します。使用定義を番号順に書いた後で本文を出力し、使用音色収集のためのIR追加全件走査は行いません。最適化水準で音色省略の有無を分けません。
+
+[cols="2,4,4,1",options="header"]
+|===
+|名前・書式 |役割・引数 |結果・状態・失敗条件 |ソース
+|[[ref-pmd-source-class-sxmml-pmd-track-environment]]`<sxmml-pmd-track-environment>` |一トラックを出力する際の状態クラス |`(make <sxmml-pmd-track-environment> [:octave 値] [:mode 値])`。`octave` 初期値 255、`mode` 初期値 0。新規インスタンスを返し、作成時に既存状態は変えない |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
+|[[ref-pmd-source-sxmml-pmd3-source-output]]`(sxmml-pmd3-source-output env)` |PMD3向けの公開出力 |同じ入出力契約でPMD3の形式と終端0x1aを使用する |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
+|[[ref-pmd-source-sxmml-pmd4-source-output]]`(sxmml-pmd4-source-output env)` |PMD4向けの公開出力 |sxmml-pmd-source-outputと同じ形式・契約 |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
+|[[ref-pmd-source-sxmml-pmd-source-output]]`(sxmml-pmd-source-output env)` |PMD4向けの公開出力 |出力環境を受け、出力先と採用トラック名を持つ出力結果を返す。入力環境は変更しない |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
+|[[ref-pmd-source-internal-track-output]]`(%track-output env track part voice-proc! vol-set-proc! vol-change-proc!)` |通常トラックを最適化して出力 |出力環境・出力トラック・partと演算子のコールバックを受ける。octaveと既定音長は新しい局所状態へ保持 |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
+|[[ref-pmd-source-internal-fm-track-output]]`(%fm-track-output env track part voice-proc)` |FMトラックの出力 |明示した環境・トラックと音色出力用クロージャを使う |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
+|[[ref-pmd-source-internal-ssg-track-output]]`(%ssg-track-output env track part)` |SSGトラックの出力 |明示した環境・トラックを使い、既存の値の検査と出力順を保つ |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
+|[[ref-pmd-source-internal-pcm-track-output]]`(%pcm-track-output env track part)` |PCMトラックの出力 |明示した環境・トラックを使い、既存の値の検査と出力順を保つ |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
+|[[ref-pmd-source-internal-pmd-track-output]]`(%pmd-track-output state lis voiceproc volproc volcproc tempoproc lfoproc envelopeproc)` |平坦なIR列を順に出力 |トラック状態と定義参照用コールバックを明示引数で受ける。ループ有無と反復深さを再帰引数で保持 |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
+|[[ref-pmd-source-internal-pmd-rhythm-track-output]]`(%pmd-rhythm-track-output env track)` |リズムトラックの出力 |明示した出力環境の要求で最適化し、局所状態を定義・展開トラックへ渡す |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
+|[[ref-pmd-source-internal-pmd-rhythm-definition-track-output]]`(%pmd-rhythm-definition-track-output state has-loop? lis)` |R0・R1のリズム本文を出力 |明示した状態を使う。2個目のLは既存の構文エラーとし、R0からR1へ検査状態を引き継ぐ |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
+|[[ref-pmd-source-internal-pmd-rhythm-deploy-track-output]]`(%pmd-rhythm-deploy-track-output state track has-loop? lis)` |Kトラックのパターン呼出しを出力 |明示した出力トラックの解析時統計を使う |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
+|[[ref-pmd-source-internal-pmd-source-output]]`(%pmd-source-output env pmd3?)` |source出力の共通処理 |出力先#fは出力開始前に値エラー。文字列ポートへ全本文を生成して使用FM音色を集め、一時ファイルから生成先へ改名。出力結果を返す |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
+|[[ref-pmd-source-internal-pmd-source-head-output]]`(%pmd-source-head-output env pmd3?)` |入力元とPMDバージョンのヘッダー |source=#fではfrom部分だけを省く。明示された入力元のbasenameを使う |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
+|[[ref-pmd-source-internal-pmd-source-meta-output]]`(%pmd-source-meta-output env pmd3?)` |明示されたメタデータを出力 |共通検査を使用する。PMD3ではメタデータ行をコメントにする |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
+|[[ref-pmd-source-internal-pmd-source-voice-output]]`(%pmd-source-voice-output voices numbers used-voice-ids)` |使用FM音色だけを番号順に出力 |音色表・番号表・使用id表を明示引数で受け、各オペレータをfor-eachで出力する |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
+|[[ref-pmd-source-internal-pmd-value-check]]`(%pmd-value-check kind value min max)` |出力値を検査する内部手続き |正確な整数で `min` 以上 `max` 以下なら元の値を返す。それ以外は項目名・値・許容範囲を示すエラー |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
+|[[ref-pmd-source-internal-pmd-note-check]]`(%pmd-note-check note :optional (kind "note"))` |音高を検査して返す |12～107の正確な整数に限る。範囲外は音名と `o1c - o8b`、非整数は数値と整数の条件を示す。`kind` は通常音符・ポルタメント始点・終点の区別 |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
+|[[ref-pmd-source-internal-pmd-rest-output]]`(%pmd-rest-output state obj)` |休符の `ticks` を `r` または `r%数` で書く |255 を超える長さは複数に分割。既定音長と一致すれば数値を省略 |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
+|[[ref-pmd-source-internal-pmd-note-output]]`(%pmd-note-output state obj)` |音高をオクターブ指定と音名、長さで書く |トラック状態の `octave` を更新。255 超の長さは `&` で分割 |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
+|[[ref-pmd-source-internal-pmd-fm-voice-output]]`(%pmd-fm-voice-output voices numbers obj)` |FM音色指定を出力 |明示した音色表と番号表を参照。不在は既存の参照エラー |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
+|[[ref-pmd-source-internal-pmd-fm-voice-number]]`(%pmd-fm-voice-number numbers voice)` |FM音色の割当番号を取得 |明示した番号表からidを検索する |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
+|[[ref-pmd-source-internal-pmd-gate-time-output]]`(%pmd-gate-time-output obj)` |ゲート時間を `q数` で書く |`value` が必要 |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
+|[[ref-pmd-source-internal-pmd-fm-volume-output]]`(%pmd-fm-volume-output obj)` |FM 音量を `V数` で書く |`value` が必要 |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
+|[[ref-pmd-source-internal-pmd-ssg-volume-output]]`(%pmd-ssg-volume-output obj)` |SSG 音量を `v数` で書く |`value` が必要 |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
+|[[ref-pmd-source-internal-pmd-pcm-volume-output]]`(%pmd-pcm-volume-output obj)` |PCM 音量を `V数` で書く |`value` が必要 |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
+|[[ref-pmd-source-internal-pmd-tempo-absolute-output]]`(%pmd-tempo-absolute-output obj)` |絶対値を `T数` で書く |`value` が必要 |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
+|[[ref-pmd-source-internal-pmd-tempo-output]]`(%pmd-tempo-output env obj)` |BPMをTimer-Bへ換算して出力 |出力環境の分解能を換算手続きへ明示的に渡す |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
+|[[ref-pmd-source-internal-pmd-tie-output]]`(%pmd-tie-output obj)` |タイ記号 `&` を書く |`obj` の値を参照しない |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
+|[[ref-pmd-source-internal-pmd-detune-output]]`(%pmd-detune-output obj)` |デチューンを `D数` で書く |`value` が必要 |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
+|[[ref-pmd-source-internal-pmd-repeat-start-output]]`(%pmd-repeat-start-output obj)` |反復開始 `[` を書く |`obj` の値を参照しない |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
+|[[ref-pmd-source-internal-pmd-repeat-end-output]]`(%pmd-repeat-end-output obj)` |反復終了と回数 `]数` を書く |`value` を1～255で検査 |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
+|[[ref-pmd-source-internal-pmd-repeat-break-output]]`(%pmd-repeat-break-output obj)` |脱出位置 `:` を書く |`obj` の値を参照しない |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
+|[[ref-pmd-source-internal-pmd-loop-output]]`(%pmd-loop-output obj)` |ループ位置 `L` を書く |`obj` の値を参照しない |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
+|[[ref-pmd-source-internal-pmd-transpose-output]]`(%pmd-transpose-output obj)` |移調値を `_数` で書く |`value` が必要 |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
+|[[ref-pmd-source-internal-pmd-lfo-output]]`(%pmd-lfo-output env obj)` |LFO定義の指定を出力 |明示した出力環境のLFO表を参照し、既存の種類・値・チャンネルを検査 |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
+|[[ref-pmd-source-internal-pmd-lfo-switch-output]]`(%pmd-lfo-switch-output obj)` |LFO の ON/OFF を `*` または `*B` に続く 1/0 で書く |channel が A/B/`#f` 以外ならエラー |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
+|[[ref-pmd-source-internal-pmd-envelope-output]]`(%pmd-envelope-output env obj)` |エンベロープを出力 |明示した出力環境の定義表を参照して共通検査を行う |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
+|[[ref-pmd-source-internal-pmd-pan-output]]`(%pmd-pan-output obj)` |パンを `p数` で書く |`value` が必要 |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
+|[[ref-pmd-source-internal-pmd-transpose-change-output]]`(%pmd-transpose-change-output obj)` |相対移調を `__数` で書く |`value` が必要 |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
+|[[ref-pmd-source-internal-pmd-fm-volume-change-output]]`(%pmd-fm-volume-change-output obj)` |FM 音量差を `)` / `(` または `%数` 付きで書く |幅 4 を短い表記にする |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
+|[[ref-pmd-source-internal-pmd-ssg-volume-change-output]]`(%pmd-ssg-volume-change-output obj)` |SSG 音量差を `)` / `(` または `%数` 付きで書く |幅 1 を短い表記にする |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
+|[[ref-pmd-source-internal-pmd-pcm-volume-change-output]]`(%pmd-pcm-volume-change-output obj)` |PCM 音量差を `)` / `(` または `%数` 付きで書く |幅 16 を短い表記にする |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
+|[[ref-pmd-source-internal-pmd-portamento-output]]`(%pmd-portamento-output state obj)` |開始・終了音と tick 長を波括弧形式で書く |トラック状態の `octave` を更新。音高対と `ticks` が必要。範囲外の音は `portamento start note` / `portamento end note` で区別 |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
+|[[ref-pmd-source-internal-pmd-ssg-voice-output]]`(%pmd-ssg-voice-output obj)` |数値 ID を `@数` で書く |`%pmd-voice-number` で 0～9 の整数に限る |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
+|[[ref-pmd-source-internal-pmd-pcm-voice-output]]`(%pmd-pcm-voice-output obj)` |数値 ID を `@数` で書く |`%pmd-voice-number` で 0～255 の整数に限る |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
+|[[ref-pmd-source-internal-pmd-voice-number]]`(%pmd-voice-number obj max kind)` |SSG・PCM の音色の値を数にする |0 から `max` までの整数を返す。整数でない数と数でない値は、書かれた値を含む 項目名付きの `invalid SSG voice number` または `invalid PCM voice number` エラー |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
+|[[ref-pmd-source-internal-pmd-noise-freq-output]]`(%pmd-noise-freq-output obj)` |ノイズ周波数を `w数` で書く |`value` が必要 |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
+|[[ref-pmd-source-internal-pmd-output-switch-output]]`(%pmd-output-switch-output obj)` |出力切り替えを `P数` で書く |`value` が必要 |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
+|[[ref-pmd-source-internal-pmd-rhythm-emit-output]]`(%pmd-rhythm-emit-output state obj)` |選択楽器の発音または停止記号を出力 |発音時には `ticks` に対応する休符表記も追加する |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
+|[[ref-pmd-source-internal-pmd-rhythm-volume-output]]`(%pmd-rhythm-volume-output obj)` |全体値と楽器別の音量を出力 |設定済み slot だけを出す |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
+|[[ref-pmd-source-internal-pmd-rhythm-volume-change-output]]`(%pmd-rhythm-volume-change-output obj)` |楽器別の符号付き音量差を出力 |設定済み slot だけを出す |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
+|[[ref-pmd-source-internal-pmd-rhythm-pan-output]]`(%pmd-rhythm-pan-output obj)` |楽器別パンを出力 |1/2/3 または `#f`。それ以外の値は `invalid rhythm pan` で失敗する |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
+|[[ref-pmd-source-internal-note-number-to-pmd-note]]`(%note-number\->pmd-note note)` |半音番号をオクターブと音名の対に変換 |`floor/` で 12 分割し（負の音高も 0～11 の音名にする）、`c`、`c+` 等を返す。状態は変更しない |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
+|[[ref-pmd-source-internal-most-frequent-ticks-find]]`(%most-frequent-ticks-find track)` |解析時に最も多かった音長を求める |出力トラックのticks-statisticsからfind-maxで探す。空なら#f |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
+|===
+
+数値・定義形式の違反は値エラー、未定義の音色・LFO・エンベロープは参照エラー、重複LはMML構文エラーです。音色数の上限は基底sxmml-errorとし、既存の本文・範囲・優先順位を維持します。範囲は link:../behavior-spec.md#pmd-source-の出力値の検査[外部動作仕様]を参照してください。

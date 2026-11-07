@@ -51,7 +51,7 @@ export GAUCHE_LOAD_PATH="$stage_dir/share/sxmml${GAUCHE_LOAD_PATH:+:$GAUCHE_LOAD
 
 ## 符号化と生成物の確認
 
-現行 PMD バックエンドは `:encoding "cp932"` で出力する ([`sxmml/backend/pmd.scm`](../sxmml/backend/pmd.scm))。単なる ASCII の例は符号化の判定にならないため、日本語メタデータを含む入力で確かめる。次のコマンドは上記のインストール後、コピー内で実行する。
+現行 PMD バックエンドは `:encoding "cp932"` で出力する ([`sxmml/backend/pmd-source.scm`](../sxmml/backend/pmd-source.scm))。単なる ASCII の例は符号化の判定にならないため、日本語メタデータを含む入力で確かめる。次のコマンドは上記のインストール後、コピー内で実行する。
 
 ```console
 printf '%s\n' '(define-metadata title "曲")' '(mml G "c8")' > japanese-title.sxl
@@ -189,4 +189,4 @@ docker run --rm -v "$PWD:/work:ro" -v "$man_stage_dir:/out" pandoc/core:latest \
 
 ## 関連資料
 
-[`Makefile.in`](../Makefile.in)、[`configure`](../configure)、[`package.scm`](../package.scm)、[`sxlc.in`](../sxlc.in)、[`sxmml/backend/pmd.scm`](../sxmml/backend/pmd.scm)を参照する。Gauche の生成と文字コード変換は [Gauche 0.9.15 Users’ Reference, 9.8 gauche.configure、9.5 Character code conversion](https://practical-scheme.net/vault/Gauche-0.9.15-refe.pdf)を参照する。
+[`Makefile.in`](../Makefile.in)、[`configure`](../configure)、[`package.scm`](../package.scm)、[`sxlc.in`](../sxlc.in)、[`sxmml/backend/pmd-source.scm`](../sxmml/backend/pmd-source.scm)、共通規則の[`sxmml/backend/pmd.scm`](../sxmml/backend/pmd.scm)を参照する。Gauche の生成と文字コード変換は [Gauche 0.9.15 Users’ Reference, 9.8 gauche.configure、9.5 Character code conversion](https://practical-scheme.net/vault/Gauche-0.9.15-refe.pdf)を参照する。

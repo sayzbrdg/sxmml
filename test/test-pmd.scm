@@ -3,11 +3,15 @@
 ;;;
 
 (use gauche.test)
+(use srfi.13)
 
 (test-start "pmd-source")
 (use sxmml)
 (use sxmml.form)
 (use sxmml.backend.pmd)
+(use sxmml.backend.pmd-source)
+(test-module 'sxmml.backend.pmd)
+(test-module 'sxmml.backend.pmd-source)
 (use gauche.process)
 (use file.util)
 (use test.helpers)
@@ -31,28 +35,27 @@
     (file->string (work-file #"~|name|.mml")))
   ;; CLI を通さず、指定したモードと最適化設定で生成物を返す
   (define (pmd-text name forms mode optimize)
-    (let ([source (source-output name (with-output-to-string
-                                      (^[] (for-each write forms))))]
+    (let ([source (source-output name (with-output-to-string (^[] (for-each write forms))))]
           [output (work-file #"~|name|.mml")])
-      (parameterize ([sxmml-environment (make <sxmml-environment>)]
-                     [sxmml-source-file source])
+      (parameterize ([sxmml-environment (make <sxmml-environment>)])
         (sxmml-mode-select! mode)
-        (slot-set! (sxmml-environment) 'optimize optimize)
         (load source)
-        (slot-set! (sxmml-environment) 'output output)
-        ((slot-ref (sxmml-mode-get) 'backend))
+        ((slot-ref (sxmml-mode-get) 'backend)
+         (make-sxmml-output-environment (sxmml-environment) :output output
+           :optimize (case optimize [(#f) 0] [(#t) 1] [(:full) 2] [(:repeat) 3] [else 4])
+           :source source))
         (file->string output :encoding "cp932"))))
   ;; 値と反復の検査は、パーサーを通さず公開バックエンドへ IR を渡す
   (define (pmd-ir-text name track ir :optional (setup (^[] #f)))
-    (parameterize ([sxmml-environment (make <sxmml-environment>)]
-                   [sxmml-source-file (work-file #"~|name|.sxl")])
+    (parameterize ([sxmml-environment (make <sxmml-environment>)])
       (sxmml-mode-select! 'pmd-source)
-      (slot-set! (sxmml-environment) 'optimize #f)
-      (slot-set! (sxmml-environment) 'output (work-file #"~|name|.mml"))
       (setup)
       (sxmml-ir-register! ir track)
-      (sxmml-pmd-source-output)
-      (file->string (work-file #"~|name|.mml") :encoding "cp932")))
+      (let1 result (sxmml-pmd-source-output
+                   (make-sxmml-output-environment (sxmml-environment)
+                     :output (work-file #"~|name|.mml") :optimize 0
+                     :source (work-file #"~|name|.sxl")))
+        (file->string (slot-ref result 'output) :encoding "cp932"))))
   (define (pmd-ir-result name track ir :optional (setup (^[] #f)))
     (guard (e [else (condition-message e)])
       (filter #/^(@\d|[A-JK] |R[01] )/
@@ -90,9 +93,11 @@
         (guard (e [else (condition-message e)])
           (sxmml-mode-select! mode)
           (load source)
-          ((slot-ref (sxmml-mode-get) 'backend))
+          ((slot-ref (sxmml-mode-get) 'backend)
+           (make-sxmml-output-environment (sxmml-environment)
+             :output (path-swap-extension source "mml") :optimize 1 :source source))
           (filter #/^(; )?#[a-z]/
-                  (string-split (file->string (slot-ref (sxmml-environment) 'output)
+                  (string-split (file->string (path-swap-extension source "mml")
                                               :encoding "shift_jis")
                                 "\r\n"))))))
   ;; forms をこのプロセスで PMD 向けに変換し、成功すればトラック G の行を、
@@ -105,8 +110,10 @@
         (guard (e [else (condition-message e)])
           (sxmml-mode-select! 'pmd-source)
           (load source)
-          ((slot-ref (sxmml-mode-get) 'backend))
-          (find #/^G / (string-split (file->string (slot-ref (sxmml-environment) 'output))
+          ((slot-ref (sxmml-mode-get) 'backend)
+           (make-sxmml-output-environment (sxmml-environment)
+             :output (path-swap-extension source "mml") :optimize 1 :source source))
+          (find #/^G / (string-split (file->string (path-swap-extension source "mml"))
                                      "\r\n"))))))
   ;; forms をこのプロセスで PMD 向けに変換し、成功すればリズムのパターン R0 の行を、
   ;; 失敗すればエラーのメッセージを返す
@@ -118,8 +125,10 @@
         (guard (e [else (condition-message e)])
           (sxmml-mode-select! 'pmd-source)
           (load source)
-          ((slot-ref (sxmml-mode-get) 'backend))
-          (find #/^R0 / (string-split (file->string (slot-ref (sxmml-environment) 'output)
+          ((slot-ref (sxmml-mode-get) 'backend)
+           (make-sxmml-output-environment (sxmml-environment)
+             :output (path-swap-extension source "mml") :optimize 1 :source source))
+          (find #/^R0 / (string-split (file->string (path-swap-extension source "mml")
                                                     :encoding "shift_jis")
                                       "\r\n"))))))
   ;; パーサーを通さず、ループ開始が2個のIRをバックエンドへ渡す。
@@ -128,15 +137,61 @@
       (if (eq? track 'L)
         (make <sxmml-rhythm-emit> :value #t :ticks 12 instrument #t)
         (make <sxmml-mml-rest> :ticks 12)))
-    (parameterize ([sxmml-environment (make <sxmml-environment>)]
-                   [sxmml-source-file (work-file "direct-loop.sxl")])
+    (parameterize ([sxmml-environment (make <sxmml-environment>)])
       (sxmml-mode-select! 'pmd-source)
-      (slot-set! (sxmml-environment) 'output output)
-      (slot-set! (sxmml-environment) 'optimize #f)
       (sxmml-ir-register! (list (event :bass) (make <sxmml-mml-loop>)
-                                (event :snare) (make <sxmml-mml-loop>)
-                                (event :hihat)) track)
-      (sxmml-pmd-source-output)))
+                                (event :snare) (make <sxmml-mml-loop>) (event :hihat)) track)
+      (sxmml-pmd-source-output
+       (make-sxmml-output-environment (sxmml-environment) :output output :optimize 0))))
+
+  (parameterize ([sxmml-environment (make <sxmml-environment>)])
+    (sxmml-mode-select! 'pmd-source)
+    (sxmml-resolution-set! 48)
+    (define-metadata title "明示した環境")
+    (define-lfo effect (1 2 3 4))
+    (define-envelope shape (1 2 3 4))
+    (mml G "M{effect A}E{shape}v8t120c8")
+    (rename-track G lead)
+    (define-track unused)
+    (mml unused "r%70000")
+    (let* ([registered (sxmml-environment)]
+           [out (make-sxmml-output-environment registered
+                  :output (work-file "explicit.mml") :optimize 2)]
+           [original (slot-ref (sxmml-track-get 'lead) 'compiled-data)]
+           [ctx (sxmml-track-get 'lead)])
+      (test* "出力先#fは補完せず値エラーにする"
+             (test-error <sxmml-value-error> "output file is not specified")
+             (sxmml-pmd-source-output (make-sxmml-output-environment registered :output #f :optimize 0)))
+      (parameterize ([sxmml-environment (make <sxmml-environment>)]
+                     [sxmml-source-file "wrong-source.sxl"])
+        (let* ([result (sxmml-pmd-source-output out)]
+               [first (file->bytevector (slot-ref result 'output))])
+          (test* "明示した出力環境から生成できる" #t (is-a? result <sxmml-output-result>))
+          (test* "採用した名前はpartではなく変更後のトラック名" '(#t #f #f)
+                 (let1 names (slot-ref result 'track-names)
+                   (map (^[name] (boolean (memq name names))) '(lead G unused))))
+          (sxmml-pmd-source-output out)
+          (test* "同じ出力環境で同じ生成物を得て、登録IRを変更しない" '(#t #t 24)
+                 (list (equal? first (file->bytevector (slot-ref result 'output)))
+                       (eq? original (slot-ref ctx 'compiled-data))
+                       (slot-ref (find (^[o] (is-a? o <sxmml-mml-note>))
+                                       (sxmml-ir-flatten original)) 'ticks)))))))
+  (parameterize ([sxmml-environment (make <sxmml-environment>)])
+    (sxmml-mode-select! 'pmd3-source)
+    (mml G "c8")
+    (let1 out (make-sxmml-output-environment (sxmml-environment)
+                 :output (work-file "without-source.mml") :optimize 0)
+      (sxmml-pmd3-source-output out)
+      (test* "入力元なしはfromだけを省き、PMD3の改行と終端を保つ" '(#t #t)
+             (let1 text (file->string (slot-ref out 'output) :encoding "cp932")
+               (list (string-prefix? ";; This file was generated by sxmml\r\n;; mode: PMDver3.3\r\n" text)
+                     (char=? (string-ref text (- (string-length text) 1)) #\x1a))))
+      (slot-set! out 'source "/explicit/named-input.sxl")
+      (parameterize ([sxmml-source-file "/wrong/other.sxl"])
+        (sxmml-pmd3-source-output out))
+      (test* "明示した入力元名を使う" #t
+             (boolean (string-contains (file->string (slot-ref out 'output) :encoding "cp932")
+                              "from named-input.sxl")))))
   (unwind-protect
       (begin
         (test* "未定義LFOを名前付きの参照エラーで通知する"
@@ -161,7 +216,7 @@
                    (apply sxmml-opn-voice-set! (string->symbol #"V~n") '(0 0)
                           (make-list 4 '(0 0 0 0 0 0 0 0 0))))
                  (guard (e [else (eq? (class-of e) <sxmml-error>)])
-                   (sxmml-pmd-voice-number-table-compute))))
+                   (sxmml-pmd-voice-number-table-compute (slot-ref (sxmml-environment) 'voice)))))
 
         (test* "通常トラックの直接IR入力で2個目のLを拒否する"
                (test-error <sxmml-mml-syntax-error> "loop command can be used only once in a track")

@@ -75,7 +75,7 @@ docker run --rm -v "$PWD:/work:ro" -v "$render_dir:/out" -w /work \
 
 pmd-source の対応済み命令・定義は、公開されている [PMDMML.MAN](https://github.com/d2lmirrors/pmd/blob/master/mc/PMDMML.MAN) を仕様の根拠として検査する。FM・SSG・PCM の区分で範囲を分け、細かな種別差は最も広い範囲に合わせる。対象音源の列挙だけで使用を禁止せず、効果を再現しない。曖昧な記載から推測で制限を加えず、MC.EXE による実測はこの検査方針の前提にしない。MC.EXE の受理やドライバでの演奏を包括的に保証するものではない。
 
-検査は生成する値の出力箇所に置く。最適化で消えた命令や出力されない音色を追加走査しない。各範囲は[外部動作仕様](behavior-spec.md#pmd-source-の出力値の検査)、内部手続きは[PMD内部リファレンス](internal-reference/pmd.adoc)を参照する。pmd-binary のバイナリ形式の確認については、従来の別の方針を維持する。
+検査は生成する値の出力箇所に置く。最適化で消えた命令や出力されない音色を追加走査しない。各範囲は[外部動作仕様](behavior-spec.md#pmd-source-の出力値の検査)、内部手続きは[PMD内部リファレンス](internal-reference/pmd-source.adoc)を参照する。pmd-binary のバイナリ形式の確認については、従来の別の方針を維持する。
 
 ## 変更種別ごとの調査と確認
 
@@ -199,7 +199,7 @@ O4                       98 93.3%           9       0.03       0.61
 
 モードは`<sxmml-mode>`の情報として登録し、`sxmml-mode-select!`で選択する。登録表は共有し、楽曲環境は選択した情報だけを保持する。旧選択手続きと楽曲環境の`backend`・`output-extension` slotsは廃止し、出力手続き・拡張子はモード情報から参照する。
 
-`sxlc` がモード未指定で止まる場合は、CLI の `-m` またはソースの `sxmml-mode` と、`sxmml-mode-get`が返すモード情報を確認する。構文エラーは入力付近とトラック名が出るため、`sxmml/mml.scm` と `sxmml/compiler.scm` を辿る。音色未定義は生成段階で起き得る。生成先は `sxlc` が `-o` の値（なければ `#f`）をソースの読み込み後に `<sxmml-environment>` の `output` slot へ設定し、`#f` の場合はバックエンドが既定値を設定する。エラーの条件と境界値は[外部動作仕様](behavior-spec.md#失敗条件と境界値)を参照する。
+`sxlc` がモード未指定で止まる場合は、CLI の `-m` またはソースの `sxmml-mode` と、`sxmml-mode-get`が返すモード情報を確認する。構文エラーは入力付近とトラック名が出るため、`sxmml/mml.scm` と `sxmml/compiler.scm` を辿る。音色未定義は生成段階で起き得る。生成先はsxlcが-oまたはモードの拡張子から解決し、整数の最適化要求・入力元と共に出力環境へ渡す。バックエンドは出力環境から生成し、結果で実際の出力先と採用トラック名を返す。手動実行も同じ入口を使う。登録環境のoutput・optimize slotsと、バックエンドによる出力先補完は廃止した。エラーの条件と境界値は[外部動作仕様](behavior-spec.md#失敗条件と境界値)を参照する。
 
 改修対象の現在の問題、再現条件と期待する動作は [既知の課題（GitHub の issue）](https://github.com/sayzbrdg/sxmml/issues)から確認する。
 

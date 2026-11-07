@@ -34,6 +34,6 @@
 
 [source,console]
 ----
-$ gosh -I. -e '(use sxmml)' -e '(define-track G)' -e '(mml-delay G (6 2 1) "c8r8")' -e '(print (length (sxmml-optimize-tree (quote G) :optimize #f)))'
+$ gosh -I. -e '(use sxmml)' -e '(define-track G)' -e '(mml-delay G (6 2 1) "c8r8")' -e '(print (length (sxmml-ir-flatten (slot-ref (sxmml-track-get (quote G)) (quote compiled-data)))))'
 6
 ----

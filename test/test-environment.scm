@@ -10,6 +10,7 @@
 (use sxmml)
 (use sxmml.form)
 (use sxmml.backend.pmd)
+(use sxmml.backend.pmd-source)
 (use gauche.process)
 (use file.util)
 (use test.helpers)
@@ -209,7 +210,7 @@
                     (mml A "l8o5>c")
                     (let* ([ctx (sxmml-track-get 'A)] [ir (slot-ref ctx 'compiled-data)]
                            [slots '(part default-length volume-delta current-octave current-transpose
-                                    current-ticks total-ticks loop-ticks loop-exists compiled-data
+                                    current-ticks loop-exists compiled-data
                                     repeat-stack ticks-statistics)]
                            [state (map (cut slot-ref ctx <>) slots)])
                       (sxmml-track-rename! 'A 'melody)
