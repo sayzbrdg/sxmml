@@ -97,8 +97,8 @@ PMD 向けの生成では、`-o` で指定した出力先、指定がなけれ�
 
 | コマンド | `Processing Mode` | 生成物のモード行 | 末尾 |
 | --- | --- | --- | --- |
-| `sxlc -m pmd /tmp/sxmml-examples/pmd-output/modes.sxl` | `PMD` | `;; mode: PMDver4.8` | CRLF |
-| `sxlc -m pmd3 /tmp/sxmml-examples/pmd-output/modes.sxl` | `PMD3` | `;; mode: PMDver3.3` | `0x1A` |
+| `sxlc -m pmd /tmp/sxmml-examples/pmd-output/modes.sxl` | `pmd-source` | `;; mode: PMDver4.8` | CRLF |
+| `sxlc -m pmd3 /tmp/sxmml-examples/pmd-output/modes.sxl` | `pmd3-source` | `;; mode: PMDver3.3` | `0x1A` |
 
 `/tmp/sxmml-examples/pmd-output/source-mode.sxl` に `(sxmml-mode pmd3)` と `(mml G "c8")` を保存し、`sxlc -m pmd /tmp/sxmml-examples/pmd-output/source-mode.sxl` を実行すると、ソース中の指定は無視されて `Processing Mode: pmd-source` と表示され、生成物のモード行は `;; mode: PMDver4.8` となる。`-m` を省くと、ソース中の指定により `Processing Mode: pmd3-source`、`;; mode: PMDver3.3` となる。
 
