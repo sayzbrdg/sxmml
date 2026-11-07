@@ -34,6 +34,13 @@
 ;;;
 ;;; Environment
 ;;;
+(define-class <sxmml-mode> ()
+  ([name :init-keyword :name :init-value #f]
+   [aliases :init-keyword :aliases :init-value ()]
+   [setup :init-keyword :setup :init-value #f]
+   [backend :init-keyword :backend :init-value #f]
+   [output-extension :init-keyword :output-extension :init-value #f]))
+
 (define-class <sxmml-environment> ()
   ([resolution :init-keyword :resolution :init-value 24]
    [metadata :init-form (make-hash-table eq-comparator)]
@@ -42,12 +49,9 @@
    [voice :init-form (make-hash-table eq-comparator)]
    [track :init-form (make-hash-table eq-comparator)]
    [optimize :init-keyword :optimize :init-value 1]
-   [mode :init-keyword :mode :init-value ""]
-   [backend :init-keyword :backend :init-value #f]
+   [mode :init-keyword :mode :init-value #f]
    ;; 出力先。sxlc が読み込み後に設定し、#f の場合はバックエンドが既定値を設定する
    [output :init-keyword :output :init-value #f]
-   ;; 既定の出力先の拡張子。モードを選ぶ手続きが設定し、sxlc が出力先を決める際に使う
-   [output-extension :init-keyword :output-extension :init-value #f]
    ))
 
 ;;;

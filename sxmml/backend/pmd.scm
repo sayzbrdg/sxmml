@@ -38,7 +38,6 @@
   (use sxmml.voice)
   (use sxmml.util)
   (export sxmml-pmd3-source-output sxmml-pmd4-source-output sxmml-pmd-source-output
-          pmd3-source pmd4-source pmd-source pmd3 pmd
           sxmml-pmd-voice-number-table-compute sxmml-pmd-lfo-values sxmml-pmd-envelope-values
           sxmml-pmd-metadata-value
           ))
@@ -61,23 +60,7 @@
 ;;;
 ;;; mode
 ;;;
-(define (pmd3-source)
-  (slot-set! (sxmml-environment) 'backend sxmml-pmd3-source-output)
-  (slot-set! (sxmml-environment) 'mode "PMD3")
-  (%pmd-source))
-(define (pmd4-source)
-  (slot-set! (sxmml-environment) 'backend sxmml-pmd4-source-output)
-  (slot-set! (sxmml-environment) 'mode "PMD4")
-  (%pmd-source))
-(define (pmd-source)
-  (slot-set! (sxmml-environment) 'backend sxmml-pmd-source-output)
-  (slot-set! (sxmml-environment) 'mode "PMD")
-  (%pmd-source))
-(define pmd3 pmd3-source)
-(define pmd pmd-source)
-
-(define (%pmd-source)
-  (slot-set! (sxmml-environment) 'output-extension "mml")
+(define (%pmd-source-setup)
   (define-track (A B C D E F) :volume-delta 4)
   (define-track (G H I L))
   (define-track J :volume-delta 16))
@@ -696,7 +679,7 @@
   (or (slot-ref (sxmml-environment) 'output)
       (let1 output (or (and-let* ([current-file (sxmml-source-file)])
                          (path-swap-extension current-file
-                                              (slot-ref (sxmml-environment) 'output-extension)))
+                                              (slot-ref (sxmml-mode-get) 'output-extension)))
                        "./a.mml")
         (slot-set! (sxmml-environment) 'output output)
         output)))
@@ -712,3 +695,12 @@
             (find-max (slot-ref (hash-table-get (slot-ref (sxmml-environment) 'track) track) 'ticks-statistics)
                       :key (^p (cdr p)))
             (car mode-pair)))
+
+(sxmml-mode-register!
+ (make <sxmml-mode> :name 'pmd-source :aliases '(pmd pmd4-source)
+       :setup %pmd-source-setup :backend sxmml-pmd-source-output
+       :output-extension "mml"))
+(sxmml-mode-register!
+ (make <sxmml-mode> :name 'pmd3-source :aliases '(pmd3)
+       :setup %pmd-source-setup :backend sxmml-pmd3-source-output
+       :output-extension "mml"))

@@ -161,17 +161,36 @@
                                        "-m" "pmd" "-c" "printf '<%s>\\n'"))))
         ;; CLI とソースのモード指定の優先順位
         (test* "sxmml-mode in source selects the mode without -m"
-               '("Processing Mode: PMD3" ";; mode: PMDver3.3")
+               '("Processing Mode: pmd3-source" ";; mode: PMDver3.3")
                (list (find #/^Processing Mode:/
                            (run-sxlc "source-mode" '((sxmml-mode pmd3) (mml G "c8"))))
                      (generated-mode-line "source-mode")))
         (test* "-m takes precedence over sxmml-mode in source"
-               (list #"warning: ~(work-file \"cli-mode.sxl\"):1: sxmml-mode in source is ignored; mode is already set to PMD"
-                     "Processing Mode: PMD" ";; mode: PMDver4.8")
+               (list #"warning: ~(work-file \"cli-mode.sxl\"):1: sxmml-mode in source is ignored; mode is already set to pmd-source"
+                     "Processing Mode: pmd-source" ";; mode: PMDver4.8")
                (let1 lines (run-sxlc "cli-mode" '((sxmml-mode pmd3) (mml G "c8")) "-m" "pmd")
                  (list (find #/^warning:/ lines)
                        (find #/^Processing Mode:/ lines)
                        (generated-mode-line "cli-mode"))))
+        (test* "C03 登録済みモードの一覧を正規名順に表示する"
+               '(0 ("sxmml available modes:" "" "  pmd-binary (aliases: pmd4-binary)"
+                     "  pmd-source (aliases: pmd, pmd4-source)" "  pmd3-binary"
+                     "  pmd3-source (aliases: pmd3)" "") ())
+               (sxlc-report "-l"))
+        (test* "C04 任意手続きexitをモードとして呼ばず使用法エラーにする" '(2 #t ("undefined mode: exit"))
+               (let* ([source (source-output "mode-exit" "(error \"source evaluated\")")]
+                      [r (sxlc-report "-m" "exit" source)])
+                 (list (car r) (boolean (any #/^Usage:/ (cadr r))) (caddr r))))
+        (test* "C05 ソースの未登録モードは位置付き診断で終了値1になる" '(1 #t)
+               (let* ([source (source-output "source-mode-missing" "(sxmml-mode nosuch)")]
+                      [r (sxlc-report source)])
+                 (list (car r) (equal? (caddr r) (list #"sxlc: error: ~|source|:1: undefined mode: nosuch")))))
+        (test* "C06 明示的な選択手続きはCLI指定後もモードを変更できる" '(0 #t #t #f)
+               (let* ([source (source-output "explicit-mode" "(sxmml-mode-select! 'pmd-binary) (mml G \"c8\")")]
+                      [r (sxlc-report "-m" "pmd" source)])
+                 (list (car r) (boolean (member "Processing Mode: pmd-binary" (cadr r)))
+                       (file-exists? (work-file "explicit-mode.m"))
+                       (file-exists? (work-file "explicit-mode.mml")))))
         ;; 出力先の決定 (#4)
         ;; 出力先は sxlc の -o、なければ入力名の拡張子を .mml に替えたものとし、
         ;; Translate の表示、生成先、-c に渡す名前が一致すること

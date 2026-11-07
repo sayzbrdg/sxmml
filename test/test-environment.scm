@@ -365,68 +365,159 @@
                      (eval `(,macro X2 (5 6)) (interaction-environment))
                      (slot-ref (hash-table-get (slot-ref (sxmml-environment) table) 'X2) 'value)))
             ))
-        ;; sxmml-mode の引数は式として評価する。-m でモードが決まっているときは、モード名も
-        ;; 引数も評価せず、位置付きの警告だけを出す。誤りにはフォームの開始位置を付ける (#51)
-        (let* ([mode-load (^[name text fixed]
-                            (let1 source (source-output name text)
-                              (parameterize ([sxmml-environment (make <sxmml-environment>)]
-                                             [sxmml-source-file source]
-                                             [sxmml-mode-fixed fixed])
-                                (when fixed (pmd-source))
-                                (let* ([result #f]
-                                       [err (call-with-output-string
-                                              (^p (with-error-to-port p
-                                                    (^[] (set! result
-                                                               (guard (e [else e])
-                                                                 (load source)
-                                                                 (slot-ref (sxmml-environment) 'mode)))))))])
-                                  (list source result
-                                        (filter #/^warning:/ (string-split err "\n")))))))]
-               [error-report (^[r] (let1 e (cadr r)
-                                     (list (sxmml-form-syntax-error? e) (condition-message e)
-                                           (sxmml-source-context-location e))))]
-               [ignored (^[location] #"warning: ~|location|: sxmml-mode in source is ignored; mode is already set to PMD")]
-               ;; 3 行目の begin の中に form を置いた入力
-               [in-begin (^[form] #"; mode\n(begin\n  ~form\n  1)\n")]
-               [arg-mode "(define (%test-arg-mode n) (pmd) (slot-set! (sxmml-environment) 'mode (format #f \"PMD-~a\" n)))\n"])
-          (let1 r (mode-load "mode-args" #"~|arg-mode|(sxmml-mode %test-arg-mode (+ 1 2))\n" #f)
-            (test* "sxmml-mode evaluates its arguments"
-                   '("PMD-3" ())
-                   (cdr r)))
-          (let1 r (mode-load "mode-fixed" (in-begin "(sxmml-mode %test-undefined-mode (car '()))") #t)
-            (test* "sxmml-mode does not evaluate the mode and the arguments when the mode is fixed"
-                   (list "PMD" (list (ignored #"~(car r):3")))
-                   (cdr r)))
-          (let1 r (mode-load "mode-fixed-args" #"~|arg-mode|(sxmml-mode %test-arg-mode (+ 1 2))\n" #t)
-            (test* "sxmml-mode with arguments is ignored when the mode is fixed"
-                   (list "PMD" (list (ignored #"~(car r):2")))
-                   (cdr r)))
-          (dolist [fixed '(#f #t)]
-            (let1 r (mode-load #"mode-no-mode-~fixed" (in-begin "(sxmml-mode)") fixed)
-              (test* #"a wrong sxmml-mode form fails at expansion with its location: fixed ~fixed"
-                     (list #t #"invalid sxmml-mode form: expected (sxmml-mode mode arg ...)" #"~(car r):3" #t)
-                     (append (error-report r) (list (sxmml-form-syntax-error? (cadr r)))))))
-          (let1 r (mode-load "mode-undefined" (in-begin "(sxmml-mode %test-undefined-mode)") #f)
-            (test* "未定義モードのSchemeエラーを変換しない"
-                   '(#t #f #f)
-                   (let1 e (cadr r)
-                     (list (condition-has-type? e <unbound-variable-error>)
-                             (sxmml-error? e) (sxmml-source-context? e)))))
-          (let1 r (mode-load "mode-wrong-args" (in-begin "(sxmml-mode pmd 1)") #f)
-            (test* "モード手続きの引数個数エラーを変換しない"
-                   '(#t #f #f)
-                   (let1 e (cadr r)
-                     (list (condition-has-type? e <error>)
-                           (sxmml-error? e) (sxmml-source-context? e)))))
-          (test* "sxmml-mode without a location is ignored with a warning when the mode is fixed"
-                 '("PMD" "warning: sxmml-mode in source is ignored; mode is already set to PMD\n")
-                 (parameterize ([sxmml-environment (make <sxmml-environment>)]
-                                [sxmml-mode-fixed #t])
-                   (pmd-source)
-                   (let1 err (call-with-output-string
-                               (^p (with-error-to-port p
-                                     (^[] (eval (list 'sxmml-mode 'pmd3) (interaction-environment))))))
-                     (list (slot-ref (sxmml-environment) 'mode) err)))))
+        (let ()
+          (define (register-mode name . params)
+            (rlet1 info (apply make <sxmml-mode> :name name :backend (^[] #f) params)
+              (sxmml-mode-register! info)))
+          (define (mode-load label form fixed)
+            (let1 source (source-output label #"; mode\n(begin\n  ~|form|\n  1)\n")
+              (parameterize ([sxmml-environment (make <sxmml-environment>)]
+                             [sxmml-mode-fixed fixed])
+                (when fixed (sxmml-mode-select! 'pmd))
+                (let* ([result #f]
+                       [warnings (call-with-output-string
+                                   (^p (with-error-to-port p
+                                         (^[] (set! result (guard (e [else e])
+                                                              (load source)
+                                                              (sxmml-mode-get)))))))])
+                  (list source result warnings)))))
+          (test* "E01 必須項目だけで登録し既定値を使う" '(#t () #f #f 0)
+                 (let* ([calls 0] [info (make <sxmml-mode> :name 'test-minimal
+                                            :backend (^[] (inc! calls)))])
+                   (sxmml-mode-register! info)
+                   (list (eq? info (sxmml-mode-find 'test-minimal))
+                         (slot-ref info 'aliases) (slot-ref info 'setup)
+                         (slot-ref info 'output-extension) calls)))
+          (test* "E02 別名も同じ情報を指し登録時は初期設定しない" '(#t #t #t 0)
+                 (let* ([calls 0] [info (register-mode 'test-alias :aliases '(test-a test-b)
+                                                       :setup (^[] (inc! calls)))])
+                   (list (eq? info (sxmml-mode-find 'test-alias))
+                         (eq? info (sxmml-mode-find 'test-a))
+                         (eq? info (sxmml-mode-find 'test-b)) calls)))
+          (test* "E03 一覧に別名による重複を含めない" 1
+                 (let1 info (register-mode 'test-list :aliases '(test-list-a test-list-b))
+                   (count (cut eq? info <>) (sxmml-mode-list))))
+          (test* "E04 登録表を共有し選択は楽曲環境ごとに保持する" '(#f #t #t)
+                 (let1 info (register-mode 'test-shared)
+                   (parameterize ([sxmml-environment (make <sxmml-environment>)])
+                     (let1 before (sxmml-mode-get)
+                       (sxmml-mode-select! 'test-shared)
+                       (list before (eq? info (sxmml-mode-find 'test-shared))
+                             (eq? info (sxmml-mode-get)))))))
+          (test* "E05 未登録名の検索は偽" #f (sxmml-mode-find 'test-missing))
+          (test* "E06 選択判定は別名を解決し未登録と未選択は偽" '(#f #t #t #f #f)
+                 (parameterize ([sxmml-environment (make <sxmml-environment>)])
+                   (register-mode 'test-selected :aliases '(test-selected-a))
+                   (let1 before (sxmml-mode-selected? 'test-selected)
+                     (sxmml-mode-select! 'test-selected-a)
+                     (list before (sxmml-mode-selected? 'test-selected)
+                           (sxmml-mode-selected? 'test-selected-a)
+                           (sxmml-mode-selected? 'pmd) (sxmml-mode-selected? 'test-missing)))))
+          (dolist [case (list
+                         (list "E07" "invalid mode: 3 (expected a <sxmml-mode> instance)" (^[] 3))
+                         (list "E08" "invalid mode name: 3 (expected a symbol)"
+                               (^[] (make <sxmml-mode> :name 3 :backend (^[] #f))))
+                         (list "E09" "invalid mode name: #f (expected a symbol)"
+                               (^[] (make <sxmml-mode> :backend (^[] #f))))
+                         (list "E10" "invalid mode aliases: 3 (expected a list of symbols)"
+                               (^[] (make <sxmml-mode> :name 'test-invalid :aliases 3 :backend (^[] #f))))
+                         (list "E11" "invalid mode aliases: (bad 3) (expected a list of symbols)"
+                               (^[] (make <sxmml-mode> :name 'test-invalid :aliases '(bad 3) :backend (^[] #f))))
+                         (list "E12" "invalid mode setup: 3 (expected a procedure or #f)"
+                               (^[] (make <sxmml-mode> :name 'test-invalid :setup 3 :backend (^[] #f))))
+                         (list "E13" "invalid mode backend: 3 (expected a procedure)"
+                               (^[] (make <sxmml-mode> :name 'test-invalid :backend 3)))
+                         (list "E14" "invalid mode backend: #f (expected a procedure)"
+                               (^[] (make <sxmml-mode> :name 'test-invalid)))
+                         (list "E15" "invalid mode output extension: 3 (expected a string or #f)"
+                               (^[] (make <sxmml-mode> :name 'test-invalid :backend (^[] #f)
+                                          :output-extension 3))))]
+            (test* #"~(car case) 不正な登録情報を値エラーにする"
+                   (list #t (cadr case) #f #f)
+                   (let1 e (guard (e [else e]) (sxmml-mode-register! ((caddr case))))
+                     (list (sxmml-value-error? e) (condition-message e)
+                           (sxmml-mode-find 'test-invalid) (sxmml-mode-find 'bad)))))
+          (test* "E16 名前衝突の登録で一部の名前だけを残さない"
+                 '(#t "invalid mode name: test-owned-a (already registered for test-owned)" #f #f)
+                 (begin
+                   (register-mode 'test-owned :aliases '(test-owned-a))
+                   (let1 e (guard (e [else e])
+                             (register-mode 'test-conflict :aliases '(test-free test-owned-a)))
+                     (list (sxmml-value-error? e) (condition-message e)
+                           (sxmml-mode-find 'test-conflict) (sxmml-mode-find 'test-free)))))
+          (dolist [case `(("E17" ,(^[] (sxmml-mode-find 3)))
+                         ("E18" ,(^[] (sxmml-mode-select! 3)))
+                         ("E19" ,(^[] (sxmml-mode-selected? 3))))]
+            (test* #"~(car case) 手続きの名前引数はシンボルに限る"
+                   (test-error <sxmml-value-error> "invalid mode name: 3 (expected a symbol)")
+                   ((cadr case))))
+          (test* "E20 未登録名の選択で既存状態を変更しない"
+                 '(#t "undefined mode: test-missing" #t #t)
+                 (parameterize ([sxmml-environment (make <sxmml-environment>)])
+                   (sxmml-mode-select! 'pmd)
+                   (let* ([info (sxmml-mode-get)] [track (sxmml-track-get 'G)]
+                          [e (guard (e [else e]) (sxmml-mode-select! 'test-missing))])
+                     (list (sxmml-reference-error? e) (condition-message e)
+                           (eq? info (sxmml-mode-get)) (eq? track (sxmml-track-get 'G))))))
+          (test* "E21 初期設定から新しい選択情報を取得する" #t
+                 (parameterize ([sxmml-environment (make <sxmml-environment>)])
+                   (let* ([seen #f] [info (register-mode 'test-setup
+                                                        :setup (^[] (set! seen (sxmml-mode-get))))])
+                     (sxmml-mode-select! 'test-setup)
+                     (eq? info seen))))
+          (test* "E22 同名と別名の再選択でも初期設定する" '(3 #f ())
+                 (parameterize ([sxmml-environment (make <sxmml-environment>)])
+                   (let1 calls 0
+                     (register-mode 'test-repeat :aliases '(test-repeat-a) :setup (^[] (inc! calls)))
+                     (sxmml-mode-select! 'test-repeat)
+                     (sxmml-mode-select! 'test-repeat)
+                     (sxmml-mode-select! 'test-repeat-a)
+                     (sxmml-mode-select! 'pmd)
+                     (mml G "c8")
+                     (let1 before (sxmml-track-get 'G)
+                       (sxmml-mode-select! 'pmd4-source)
+                       (list calls (eq? before (sxmml-track-get 'G))
+                             (slot-ref (sxmml-track-get 'G) 'compiled-data))))))
+          (test* "E23 初期設定なしなら既存トラックを保持する" #t
+                 (parameterize ([sxmml-environment (make <sxmml-environment>)])
+                   (sxmml-track-set! 'keep)
+                   (register-mode 'test-no-setup)
+                   (let1 before (sxmml-track-get 'keep)
+                     (sxmml-mode-select! 'test-no-setup)
+                     (eq? before (sxmml-track-get 'keep)))))
+          (test* "E24 初期設定の失敗で選択と成功済み登録を保持する" '(#t test-failure #t)
+                 (parameterize ([sxmml-environment (make <sxmml-environment>)])
+                   (register-mode 'test-failure :setup (^[] (sxmml-track-set! 'retained)
+                                                            (error <sxmml-value-error> "setup failed")))
+                   (let1 e (guard (e [else e]) (sxmml-mode-select! 'test-failure))
+                     (list (sxmml-value-error? e) (slot-ref (sxmml-mode-get) 'name)
+                           (boolean (sxmml-track-get 'retained))))))
+          (test* "E25 未知の初期設定エラーを包み直さない" '(#t #f "setup bug")
+                 (parameterize ([sxmml-environment (make <sxmml-environment>)])
+                   (register-mode 'test-unknown :setup (^[] (error "setup bug")))
+                   (let1 e (guard (e [else e]) (sxmml-mode-select! 'test-unknown))
+                     (list (condition-has-type? e <error>) (sxmml-error? e) (condition-message e)))))
+          (test* "E26 マクロの名前を評価せず利用者マクロの衛生性を保つ" 'pmd-source
+                 (let1 r (mode-load "mode-hygiene"
+                           "(let ([pmd 3] [sxmml-mode-select! 3] [%sxmml-mode-select 3]) (define-syntax choose (syntax-rules () [(_) (sxmml-mode pmd)])) (choose))" #f)
+                   (slot-ref (cadr r) 'name)))
+          (dolist [case '(("E27" "(sxmml-mode)" #f "invalid sxmml-mode form: expected (sxmml-mode mode)")
+                         ("E28" "(sxmml-mode pmd 1)" #t "invalid sxmml-mode form: expected (sxmml-mode mode)")
+                         ("E29" "(sxmml-mode 3)" #f "invalid sxmml-mode name: 3 (expected a symbol)"))]
+            (test* #"~(car case) マクロの書式と名前を位置付きで検査する"
+                   (list #t (cadddr case) #t)
+                   (let* ([r (mode-load (car case) (cadr case) (caddr case))] [e (cadr r)])
+                     (list (sxmml-form-syntax-error? e) (condition-message e)
+                           (equal? (sxmml-source-context-location e) #"~(car r):3")))))
+          (test* "E30 CLI固定時は正しい名前形式を検索せず警告する" '(pmd-source #t)
+                 (let1 r (mode-load "mode-fixed" "(sxmml-mode test-missing)" #t)
+                   (list (slot-ref (cadr r) 'name)
+                         (equal? (caddr r) #"warning: ~(car r):3: sxmml-mode in source is ignored; mode is already set to pmd-source\n"))))
+          (test* "E31 未登録モードに参照エラーとフォーム位置を付ける"
+                 '(#t "undefined mode: test-missing" #t)
+                 (let* ([r (mode-load "mode-missing" "(sxmml-mode test-missing)" #f)] [e (cadr r)])
+                   (list (sxmml-reference-error? e) (condition-message e)
+                         (equal? (sxmml-source-context-location e) #"~(car r):3")))))
         ;; define-metadata の値は式として評価する。括弧の中が全て文字列の旧書式は、
         ;; 展開時に位置付きの警告を 1 回出して文字列のリストとして受け付ける (#13)
         (let* ([meta-load (^[name text :optional (after #f)]

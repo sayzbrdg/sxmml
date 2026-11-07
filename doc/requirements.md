@@ -19,7 +19,7 @@ R-01・R-02 については、Scheme 式で作った MML 文字列リストを `
 
 `rhythm`、`mml-repeat`、`mml-echo`、`mml-delay` の基本形は利用できる。`mml-echo` は単一トラックを受け付ける。`mml-repeat` の三本文形式では第三節の本文を反復後に置く。`mml-delay` は音符の後の休符を対象とする。
 
-MML ソース内では `define-track`、`sxmml-resolution`、`define-metadata`、`define-lfo`、`define-envelope`、`define-opn-voice`、`sxmml-mode pmd` の基本形を使える。`define-metadata` の値は式として評価する。PMD4 向けには `pmd`、PMD3 向けには `pmd3` を指定する。CLI とソース内のモード指定が重なると、CLI 側が優先される。定義値の生成物への反映は[外部動作仕様](behavior-spec.md)を参照する。
+MML ソース内では `define-track`、`sxmml-resolution`、`define-metadata`、`define-lfo`、`define-envelope`、`define-opn-voice`、`sxmml-mode pmd` の基本形を使える。`define-metadata` の値は式として評価する。PMD4 向けには `pmd`、PMD3 向けには `pmd3` を指定する。モードは登録済みの正規名・別名から選び、`sxlc -l`で一覧を確認できる。CLI とソースの`sxmml-mode`指定が重なると、CLI 側が優先される。公開手続きによる明示的な選択変更もできる。定義値の生成物への反映は[外部動作仕様](behavior-spec.md)を参照する。
 
 R-03 の最適化は、コンパイル後のオブジェクトリストに連結されたオブジェクト数を減らす処理である。バックエンドが出力する最終文字列の長さは評価基準に含めない。代表的な処理は、重複した音量指定の削減と連続休符の結合である。R-04 については、CP932 の PMD 向け MML ファイルを生成する。実験的な PMD バイナリのモードでは `.m` ファイルを生成する。
 

@@ -240,10 +240,10 @@
       (with-output-to-file source (^[] (for-each write forms)))
       (parameterize ([sxmml-environment (make <sxmml-environment>)]
                      [sxmml-source-file source])
-        (pmd-source)
+        (sxmml-mode-select! 'pmd-source)
         (slot-set! (sxmml-environment) 'optimize level)
         (load source)
-        ((slot-ref (sxmml-environment) 'backend))
+        ((slot-ref (sxmml-mode-get) 'backend))
         (find #/^A / (string-split (file->string (slot-ref (sxmml-environment) 'output))
                                    "\r\n")))))
   ;; forms を読み込み、トラック track を最適化の水準 level で最適化した列を返す
@@ -252,7 +252,7 @@
       (with-output-to-file source (^[] (for-each write forms)))
       (parameterize ([sxmml-environment (make <sxmml-environment>)]
                      [sxmml-source-file source])
-        (pmd-source)
+        (sxmml-mode-select! 'pmd-source)
         (load source)
         (sxmml-optimize-tree track :optimize level))))
   (unwind-protect
@@ -426,10 +426,10 @@
     (let1 source (source-output (work-file #"bytes-~|name|.sxl") forms)
       (parameterize ([sxmml-environment (make <sxmml-environment>)]
                      [sxmml-source-file source])
-        (mode)
+        (sxmml-mode-select! mode)
         (slot-set! (sxmml-environment) 'optimize level)
         (load source)
-        ((slot-ref (sxmml-environment) 'backend))
+        ((slot-ref (sxmml-mode-get) 'backend))
         (file->bytevector (slot-ref (sxmml-environment) 'output)))))
   (define (hex-bytes data :optional (start 0) (end (u8vector-length data)))
     (string-join (map (cut format "~2,'0x" <>) (u8vector->list data start end)) " "))
@@ -443,8 +443,8 @@
       (begin
         ;; 圧縮で生成した : を含むループは、同じ形を手で書いた MML と同じバイト内容になる (#69)
         (test* "pmd-binary の生成したループ"
-               (section-hex (make-binary-data "rep-hand" pmd-binary '((mml A "[cd:e]3"))) 'A)
-               (section-hex (make-binary-data "rep-gen" pmd-binary '((mml A "cdecdecd")) :repeat) 'A))
+               (section-hex (make-binary-data "rep-hand" 'pmd-binary '((mml A "[cd:e]3"))) 'A)
+               (section-hex (make-binary-data "rep-gen" 'pmd-binary '((mml A "cdecdecd")) :repeat) 'A))
       )
     (remove-directory* workdir)))
 

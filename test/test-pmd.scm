@@ -36,17 +36,17 @@
           [output (work-file #"~|name|.mml")])
       (parameterize ([sxmml-environment (make <sxmml-environment>)]
                      [sxmml-source-file source])
-        (mode)
+        (sxmml-mode-select! mode)
         (slot-set! (sxmml-environment) 'optimize optimize)
         (load source)
         (slot-set! (sxmml-environment) 'output output)
-        ((slot-ref (sxmml-environment) 'backend))
+        ((slot-ref (sxmml-mode-get) 'backend))
         (file->string output :encoding "cp932"))))
   ;; 値と反復の検査は、パーサーを通さず公開バックエンドへ IR を渡す
   (define (pmd-ir-text name track ir :optional (setup (^[] #f)))
     (parameterize ([sxmml-environment (make <sxmml-environment>)]
                    [sxmml-source-file (work-file #"~|name|.sxl")])
-      (pmd-source)
+      (sxmml-mode-select! 'pmd-source)
       (slot-set! (sxmml-environment) 'optimize #f)
       (slot-set! (sxmml-environment) 'output (work-file #"~|name|.mml"))
       (setup)
@@ -88,9 +88,9 @@
       (parameterize ([sxmml-environment (make <sxmml-environment>)]
                      [sxmml-source-file source])
         (guard (e [else (condition-message e)])
-          (mode)
+          (sxmml-mode-select! mode)
           (load source)
-          ((slot-ref (sxmml-environment) 'backend))
+          ((slot-ref (sxmml-mode-get) 'backend))
           (filter #/^(; )?#[a-z]/
                   (string-split (file->string (slot-ref (sxmml-environment) 'output)
                                               :encoding "shift_jis")
@@ -103,9 +103,9 @@
       (parameterize ([sxmml-environment (make <sxmml-environment>)]
                      [sxmml-source-file source])
         (guard (e [else (condition-message e)])
-          (pmd-source)
+          (sxmml-mode-select! 'pmd-source)
           (load source)
-          ((slot-ref (sxmml-environment) 'backend))
+          ((slot-ref (sxmml-mode-get) 'backend))
           (find #/^G / (string-split (file->string (slot-ref (sxmml-environment) 'output))
                                      "\r\n"))))))
   ;; forms をこのプロセスで PMD 向けに変換し、成功すればリズムのパターン R0 の行を、
@@ -116,9 +116,9 @@
       (parameterize ([sxmml-environment (make <sxmml-environment>)]
                      [sxmml-source-file source])
         (guard (e [else (condition-message e)])
-          (pmd-source)
+          (sxmml-mode-select! 'pmd-source)
           (load source)
-          ((slot-ref (sxmml-environment) 'backend))
+          ((slot-ref (sxmml-mode-get) 'backend))
           (find #/^R0 / (string-split (file->string (slot-ref (sxmml-environment) 'output)
                                                     :encoding "shift_jis")
                                       "\r\n"))))))
@@ -130,7 +130,7 @@
         (make <sxmml-mml-rest> :ticks 12)))
     (parameterize ([sxmml-environment (make <sxmml-environment>)]
                    [sxmml-source-file (work-file "direct-loop.sxl")])
-      (pmd-source)
+      (sxmml-mode-select! 'pmd-source)
       (slot-set! (sxmml-environment) 'output output)
       (slot-set! (sxmml-environment) 'optimize #f)
       (sxmml-ir-register! (list (event :bass) (make <sxmml-mml-loop>)
@@ -141,10 +141,10 @@
       (begin
         (test* "未定義LFOを名前付きの参照エラーで通知する"
                (test-error <sxmml-reference-error> "undefined LFO: UNKNOWN")
-               (pmd-text "undefined-lfo" '((mml A "M{UNKNOWN A}c8")) pmd-source #f))
+               (pmd-text "undefined-lfo" '((mml A "M{UNKNOWN A}c8")) 'pmd-source #f))
         (test* "未定義envelopeを名前付きの参照エラーで通知する"
                (test-error <sxmml-reference-error> "undefined envelope: UNKNOWN")
-               (pmd-text "undefined-envelope" '((mml G "E{UNKNOWN}c8")) pmd-source #f))
+               (pmd-text "undefined-envelope" '((mml G "E{UNKNOWN}c8")) 'pmd-source #f))
 
         (test* "公開pmd-source出力の範囲違反は値エラーになる"
                (test-error <sxmml-value-error> #/invalid FM volume: 128/)
@@ -219,17 +219,17 @@
                    (list (a-line text) (voice-lines text))))
           (let1 forms (append (map voice-form '(a b c) '(0 1 2))
                               '((mml A "@{b}@{c}c8")))
-            (let1 text (pmd-text "used-voices-O0" forms pmd-source #f)
+            (let1 text (pmd-text "used-voices-O0" forms 'pmd-source #f)
               (test* "最適化なしでは生成する全音色指定の定義だけを出力する"
                      '("A l%12@1@2o4c" ((1 1) (2 2)))
                      (list (a-line text) (voice-lines text))))
-            (let1 text (pmd-text "used-voices-O1" forms pmd-source #t)
+            (let1 text (pmd-text "used-voices-O1" forms 'pmd-source #t)
               (test* "最適化で消えた音色指定の定義を省き番号を維持する"
                      '("A l%12@2o4c" ((2 2)))
                      (list (a-line text) (voice-lines text)))))
           (let1 text (pmd-text "used-voices-ssg-pcm"
                               `(,(voice-form 0 0) (mml G "@0c8") (mml J "@0c8"))
-                              pmd-source #t)
+                              'pmd-source #t)
             (test* "SSGとPCMの音色指定ではFM音色定義を出力しない"
                    '(() ("G l%12@0o4c" "J l%12@0o4c"))
                    (list (voice-lines text)
@@ -240,7 +240,7 @@
                                         (mml F "@{a}c8@{c}c8")
                                         (mml G "c8") (mml J "c8")
                                         (rhythm L "@b8")))
-                              pmd-source #t)
+                              'pmd-source #t)
             (test* "複数トラックの使用音色を集約し定義と全本文を順に出力する"
                    '("@000 000 000" "@002 002 000"
                      "A l%12@2o4c" "F l%12@0o4c@2c"
@@ -251,7 +251,7 @@
           (let1 text (pmd-text "used-voices-pmd3"
                               `(,(voice-form 'a 0) ,(voice-form 'b 1)
                                 (mml A "@{b}c8"))
-                              pmd3-source #t)
+                              'pmd3-source #t)
             (test* "PMD3でも未使用定義を省きヘッダと終端を維持する"
                    '(((1 1)) #t "A l%12@1o4c" 26)
                    (list (voice-lines text)
@@ -341,18 +341,18 @@
                  (pmd-g-result "lfo-triangle" (lfo '(define-lfo L1 triangle (1 2 3 4)) "A"))))
         ;; PMD が使うメタデータは、title などが文字列、memo が文字列か文字列のリストで、
         ;; それ以外は書くときにキーと値を示して失敗する (#13)
-        (dolist [case `(("title-number" ,pmd-source ((define-metadata title 1))
+        (dolist [case `(("title-number" pmd-source ((define-metadata title 1))
                          "invalid metadata value: title is 1 (expected a string)")
-                        ("title-list" ,pmd-source ((define-metadata title (list "t1" "t2")))
+                        ("title-list" pmd-source ((define-metadata title (list "t1" "t2")))
                          "invalid metadata value: title is (\"t1\" \"t2\") (expected a string)")
-                        ("memo-element" ,pmd-source ((define-metadata memo (list "a" 1)))
+                        ("memo-element" pmd-source ((define-metadata memo (list "a" 1)))
                          "invalid metadata value: memo is (\"a\" 1) (expected a string or a list of strings)")
-                        ("memo-number" ,pmd-source ((define-metadata memo 1))
+                        ("memo-number" pmd-source ((define-metadata memo 1))
                          "invalid metadata value: memo is 1 (expected a string or a list of strings)")
-                        ("memo-empty" ,pmd-source ((define-metadata memo '())) ())
-                        ("strings" ,pmd-source ((define-metadata title "t") (define-metadata composer "c"))
+                        ("memo-empty" pmd-source ((define-metadata memo '())) ())
+                        ("strings" pmd-source ((define-metadata title "t") (define-metadata composer "c"))
                          ("#title       t" "#composer    c"))
-                        ("pmd3-title-number" ,pmd3-source ((define-metadata title 1))
+                        ("pmd3-title-number" pmd3-source ((define-metadata title 1))
                          "invalid metadata value: title is 1 (expected a string)"))]
           (test* #"PMD checks metadata values: ~(car case)"
                  (cadddr case)

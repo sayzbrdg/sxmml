@@ -1,11 +1,13 @@
 = `sxmml.backend.pmd` の生成処理
 :toc: left
 
+各モード情報はモジュール読込み時に登録し、初期設定は選択時だけに実行します。選択は`(sxmml-mode-select! 'pmd-source)`、出力手続きは選択情報のbackendから取得します。旧選択手続きは廃止しました。
+
 数値検査は `invalid 項目: 値 (expected an integer from 下限 to 上限)` で説明し、参照エラーは `undefined voice/LFO/envelope: 名前` で示します。`%pmd-voice-number` のkindにはSSG/PCMの項目名を渡します。音高は音名と許容音域で示し、ポルタメントは始点・終点を区別します。診断のために範囲・生成内容を変更しません。
 
 既存の数値・定義形式の検査はvalue-error、未定義の音色・LFO・エンベロープはreference-error、重複Lはmml-syntax-errorです。音色数の上限は基底sxmml-errorで通知します。検査範囲や生成内容は変えません。
 
-`sxmml.backend.pmd` には、PMD 向け MML の生成に使う 71 の定義と、LFO・エンベロープの規則の 4 つの表（`%pmd-lfo-types`・`%pmd-lfo-ranges`・`%pmd-envelope-types`・`%pmd-envelope-ranges`）があります。公開名はモード選択と生成の手続きで、`%` で始まる手続き、トラック状態のクラスとパラメータは内部で使います。パラメータ、オブジェクト、文字コード変換、一時ファイル、ファイル名操作は Gauche 0.9.15 の動作に従います。
+`sxmml.backend.pmd` には、PMD 向け MML の生成に使う 66 の定義と、LFO・エンベロープの規則の 4 つの表（`%pmd-lfo-types`・`%pmd-lfo-ranges`・`%pmd-envelope-types`・`%pmd-envelope-ranges`）があります。公開名は生成の手続きで、`%` で始まる手続き、トラック状態のクラスとパラメータは内部で使います。パラメータ、オブジェクト、文字コード変換、一時ファイル、ファイル名操作は Gauche 0.9.15 の動作に従います。
 
 生成系の `%pmd-...set!` 手続きは、特記しない限り `obj` を受けて現在の出力ポートへ PMD MML の文字列を書きます。名前の `set!` は文字列出力を含む内部の慣用名で、環境オブジェクトの slot を必ず変更するという意味ではありません。戻り値は生成側で使いません。必要なオブジェクト型と slot は xref:classes.adoc[クラス一覧]を参照してください。
 
@@ -25,12 +27,7 @@ PMD4 向けに利用するときは `pmd`、PMD3 向けには `pmd3` を指定�
 |[[ref-pmd-class-sxmml-pmd-track-environment]]`<sxmml-pmd-track-environment>` |一トラックを出力する際の状態クラス |`(make <sxmml-pmd-track-environment> [:octave 値] [:mode 値])`。`octave` 初期値 255、`mode` 初期値 0。新規インスタンスを返し、作成時に既存状態は変えない |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-sxmml-pmd-track-environment]]`(sxmml-pmd-track-environment [env])` |出力中のトラック状態パラメータ |初期値 `#f`。取得・設定に使用。状態未設定で emitter を直接呼ぶと slot 参照に失敗し得る |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-internal-pmd-voice-numbers]]`(%pmd-voice-numbers [table])` |生成中の音色番号の表のパラメータ |初期値 `#f`。`%sxmml-pmdx-source-output` が `sxmml-pmd-voice-number-table-compute` の値を設定する |link:../../sxmml/backend/pmd.scm[pmd.scm]
-|[[ref-pmd-pmd3-source]]`(pmd3-source)` |PMD3 形式を選択 |環境の `backend` を PMD3 生成手続き、`mode` を `"PMD3"` に設定してトラックを登録 |link:../../sxmml/backend/pmd.scm[pmd.scm]
-|[[ref-pmd-pmd4-source]]`(pmd4-source)` |PMD4 形式を選択 |`backend` を PMD4 生成手続き、`mode` を `"PMD4"` に設定してトラックを登録 |link:../../sxmml/backend/pmd.scm[pmd.scm]
-|[[ref-pmd-pmd-source]]`(pmd-source)` |PMD4 向けの標準モードを選択 |`backend` を標準生成手続き、`mode` を `"PMD"` に設定してトラックを登録 |link:../../sxmml/backend/pmd.scm[pmd.scm]
-|[[ref-pmd-pmd3]]`pmd3` |`pmd3-source` の手続き別名 |書式・状態変更は元の手続きと同じ |link:../../sxmml/backend/pmd.scm[pmd.scm]
-|[[ref-pmd-pmd]]`pmd` |PMD4 向けに指定する `pmd-source` の手続き別名 |書式・状態変更は元の手続きと同じ |link:../../sxmml/backend/pmd.scm[pmd.scm]
-|[[ref-pmd-internal-pmd-source]]`(%pmd-source)` |既定の出力先の拡張子と A～J・L のトラックを登録 |環境の `output-extension` を `"mml"` に設定し、トラック表を変更。FM A～F の `volume-delta` は 4、PCM J は 16 |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-internal-pmd-source-setup]]`(%pmd-source-setup)` |モード選択時の初期設定。非公開 |既定トラックA～J・Lを登録する。A～Fのvolume-deltaは4、Jは16。再選択でも新しいcontextへ置換 |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-sxmml-pmd3-source-output]]`(sxmml-pmd3-source-output)` |PMD3 向け生成 |PMD3 指定で共通生成処理を実行 |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-sxmml-pmd4-source-output]]`(sxmml-pmd4-source-output)` |PMD4 向け生成 |PMD4 指定で共通生成処理を実行 |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-sxmml-pmd-source-output]]`(sxmml-pmd-source-output :optional (mode #f))` |モード引数を渡して生成 |`mode` を PMD3 用の真値として共通処理へ渡す。省略時 `#f` |link:../../sxmml/backend/pmd.scm[pmd.scm]
@@ -44,7 +41,7 @@ PMD4 向けに利用するときは `pmd`、PMD3 向けには `pmd3` を指定�
 |[[ref-pmd-internal-pmd-source-meta-output]]`(%pmd-source-meta-output :optional (pmd3? #f))` |`title` 等と複数の `memo` を書く |値は `sxmml-pmd-metadata-value` で検査して受け取る。PMD3 はメタデータ行の先頭に `; ` を付ける。値がないキーは書かない |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-sxmml-pmd-metadata-value]]`(sxmml-pmd-metadata-value key)` |PMD が使うメタデータの値を検査して返す |`memo` は文字列 1 つか文字列のリストに限り、文字列のリスト（定義がなければ `()`）を返す。それ以外のキーは文字列に限り、その文字列（定義がなければ `#f`）を返す。誤りは `invalid metadata value: ~a is ~s (expected …)`。`sxmml.backend.pmd-binary` も使う |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-internal-pmd-source-voice-output]]`(%pmd-source-voice-output used-voice-ids)` |id をキーとする使用記録表に含まれる音色だけを、既存の番号順に書く |各演算子で `ar dr sr rr sl tl ks ml dt ams` を出力し、`dt2`・`seg` は出力しない |link:../../sxmml/backend/pmd.scm[pmd.scm]
-|[[ref-pmd-internal-output-file-get]]`(%output-file-get)` |出力先を決める |環境の `output` slot が設定されていればその値を返す。`#f` の場合は入力名の拡張子を `output-extension` の値に替えたもの、入力名がなければ `./a.mml` を slot に設定して返す。`sxlc` から使う場合は `sxlc` が出力先を設定するため、この既定値は `sxlc` を通さずに使う場合にだけ使われる。ファイルへの書き込みはしない |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-internal-output-file-get]]`(%output-file-get)` |出力先を決める |環境の `output` slot が設定されていればその値を返す。`#f` の場合は入力名の拡張子を選択中のモード情報の`output-extension`に替えたもの、入力名がなければ `./a.mml` を slot に設定して返す。`sxlc` から使う場合は `sxlc` が出力先を設定するため、この既定値は `sxlc` を通さずに使う場合にだけ使われる。ファイルへの書き込みはしない |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-internal-check-obsolete-metadata]]`(%check-obsolete-metadata)` |廃止したメタデータの確認 |`filename` メタデータが設定されていれば、生成先には使わない旨の警告を標準エラー出力に表示する |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |===
 
@@ -137,6 +134,6 @@ FM音色定義の出力ではAL・FB・DT、AR・DR・SR、RR・SL・ML、TL、K
 [source,console]
 ----
 $ scratch_dir=$(mktemp -d /tmp/sxmml-internal-pmd.XXXXXX)
-$ SXMML_DOC_DIR="$scratch_dir" gosh -I. -e '(use sxmml.backend.pmd)' -e '(use sxmml)' -e '(sxmml-source-file (string-append (sys-getenv "SXMML_DOC_DIR") "/melody.sxl"))' -e '(pmd-source)' -e '(mml G "c8")' -e '(sxmml-pmd-source-output)' -e '(let1 out (slot-ref (sxmml-environment) (quote output)) (print (sys-basename out) " " (file-exists? out)))'
+$ SXMML_DOC_DIR="$scratch_dir" gosh -I. -e '(use sxmml.backend.pmd)' -e '(use sxmml)' -e '(sxmml-source-file (string-append (sys-getenv "SXMML_DOC_DIR") "/melody.sxl"))' -e '(sxmml-mode-select! (quote pmd-source))' -e '(mml G "c8")' -e '(sxmml-pmd-source-output)' -e '(let1 out (slot-ref (sxmml-environment) (quote output)) (print (sys-basename out) " " (file-exists? out)))'
 melody.mml #t
 ----
