@@ -46,7 +46,13 @@
 ;;;
 (define-class <sxmml-pmd-track-environment> ()
   ([octave :init-keyword :octave :init-value 255]
-   [mode :init-keyword :mode :init-value 0]))
+   [mode :init-keyword :mode :init-value 0]
+   [voice-output :init-keyword :voice-output :init-value #f]
+   [volume-output :init-keyword :volume-output :init-value #f]
+   [volume-change-output :init-keyword :volume-change-output :init-value #f]
+   [tempo-output :init-keyword :tempo-output :init-value #f]
+   [lfo-output :init-keyword :lfo-output :init-value #f]
+   [envelope-output :init-keyword :envelope-output :init-value #f]))
 
 ;;;
 ;;; translate procedure
@@ -64,13 +70,15 @@
   (let ([lis (sxmml-pmd-ir-optimize (slot-ref track 'ir) (slot-ref env 'optimize))]
         [mode (%most-frequent-ticks-find track)])
     (unless (null? lis)
-      (let1 state (make <sxmml-pmd-track-environment> :mode (or mode 0))
+      (let1 state (make <sxmml-pmd-track-environment> :mode (or mode 0)
+                       :voice-output voice-proc! :volume-output vol-set-proc!
+                       :volume-change-output vol-change-proc!
+                       :tempo-output (cut %pmd-tempo-output env <>)
+                       :lfo-output (cut %pmd-lfo-output env <>)
+                       :envelope-output (cut %pmd-envelope-output env <>))
         (format #t "~a " part)
         (when mode (format #t "l%~d" mode))
-        (%pmd-track-output state lis voice-proc! vol-set-proc! vol-change-proc!
-                          (cut %pmd-tempo-output env <>)
-                          (cut %pmd-lfo-output env <>)
-                          (cut %pmd-envelope-output env <>))
+        (%pmd-track-output! state lis)
         (display "\r\n\r\n")))))
 
 (define (%fm-track-output env track part voice-proc)
@@ -82,86 +90,88 @@
 (define (%pcm-track-output env track part)
   (%track-output env track part %pmd-pcm-voice-output %pmd-pcm-volume-output %pmd-pcm-volume-change-output))
 
-(define (%pmd-track-output state lis voiceproc volproc volcproc tempoproc lfoproc envelopeproc)
-  (let loop ([rest lis]
-             [loop-seen? #f]
-             [depth 0])
-    (cond [(null? rest)
-           ()]
-          [(is-a? (car rest) <sxmml-mml-rest>)
-           (%pmd-rest-output state (car rest))
-           (loop (cdr rest) loop-seen? depth)]
-          [(is-a? (car rest) <sxmml-mml-portamento>)
-           (%pmd-portamento-output state (car rest))
-           (loop (cdr rest) loop-seen? depth)]
-          [(is-a? (car rest) <sxmml-mml-note>)
-           (%pmd-note-output state (car rest))
-           (loop (cdr rest) loop-seen? depth)]
-          [(is-a? (car rest) <sxmml-mml-voice>)
-           (voiceproc (car rest))
-           (loop (cdr rest) loop-seen? depth)]
-          [(is-a? (car rest) <sxmml-mml-gate-time>)
-           (%pmd-gate-time-output (car rest))
-           (loop (cdr rest) loop-seen? depth)]
-          [(is-a? (car rest) <sxmml-mml-volume>)
-           (volproc (car rest))
-           (loop (cdr rest) loop-seen? depth)]
-          [(is-a? (car rest) <sxmml-mml-tempo-absolute>)
-           (%pmd-tempo-absolute-output (car rest))
-           (loop (cdr rest) loop-seen? depth)]
-          [(is-a? (car rest) <sxmml-mml-tempo>)
-           (tempoproc (car rest))
-           (loop (cdr rest) loop-seen? depth)]
-          [(is-a? (car rest) <sxmml-mml-tie>)
-           (%pmd-tie-output (car rest))
-           (loop (cdr rest) loop-seen? depth)]
-          [(is-a? (car rest) <sxmml-mml-detune>)
-           (%pmd-detune-output (car rest))
-           (loop (cdr rest) loop-seen? depth)]
-          [(is-a? (car rest) <sxmml-mml-repeat-start>)
-           (%pmd-value-check "repeat depth" (+ depth 1) 1 32)
-           (%pmd-repeat-start-output (car rest))
-           (loop (cdr rest) loop-seen? (+ depth 1))]
-          [(is-a? (car rest) <sxmml-mml-repeat-end>)
-           (%pmd-repeat-end-output (car rest))
-           (loop (cdr rest) loop-seen? (- depth 1))]
-          [(is-a? (car rest) <sxmml-mml-repeat-break>)
-           (%pmd-repeat-break-output (car rest))
-           (loop (cdr rest) loop-seen? depth)]
-          [(is-a? (car rest) <sxmml-mml-loop>)
-           (when loop-seen?
-             (error <sxmml-mml-syntax-error> "loop command can be used only once in a track"))
-           (%pmd-loop-output (car rest))
-           (loop (cdr rest) #t depth)]
-          [(is-a? (car rest) <sxmml-mml-transpose>)
-           (%pmd-transpose-output (car rest))
-           (loop (cdr rest) loop-seen? depth)]
-          [(is-a? (car rest) <sxmml-mml-lfo-switch>)
-           (%pmd-lfo-switch-output (car rest))
-           (loop (cdr rest) loop-seen? depth)]
-          [(is-a? (car rest) <sxmml-mml-lfo>)
-           (lfoproc (car rest))
-           (loop (cdr rest) loop-seen? depth)]
-          [(is-a? (car rest) <sxmml-mml-envelope>)
-           (envelopeproc (car rest))
-           (loop (cdr rest) loop-seen? depth)]
-          [(is-a? (car rest) <sxmml-mml-pan>)
-           (%pmd-pan-output (car rest))
-           (loop (cdr rest) loop-seen? depth)]
-          [(is-a? (car rest) <sxmml-mml-transpose-change>)
-           (%pmd-transpose-change-output (car rest))
-           (loop (cdr rest) loop-seen? depth)]
-          [(is-a? (car rest) <sxmml-mml-volume-change>)
-           (volcproc (car rest))
-           (loop (cdr rest) loop-seen? depth)]
-          [(is-a? (car rest) <sxmml-mml-noise-frequency>)
-           (%pmd-noise-freq-output (car rest))
-           (loop (cdr rest) loop-seen? depth)]
-          [(is-a? (car rest) <sxmml-mml-output-switch>)
-           (%pmd-output-switch-output (car rest))
-           (loop (cdr rest) loop-seen? depth)]
-          [else
-           (loop (cdr rest) loop-seen? depth)])))
+(define (%pmd-track-output! state lis)
+  (let loop ([rest lis] [loop-seen? #f] [depth 0])
+    (unless (null? rest)
+      (receive (next-loop-seen? next-depth)
+          (%pmd-ir-output! state (car rest) loop-seen? depth)
+        (loop (cdr rest) next-loop-seen? next-depth)))))
+
+(define (%pmd-ir-output! state obj loop-seen? depth)
+  (cond [(is-a? obj <sxmml-mml-rest>)
+         (%pmd-rest-output state obj)
+         (values loop-seen? depth)]
+        [(is-a? obj <sxmml-mml-portamento>)
+         (%pmd-portamento-output state obj)
+         (values loop-seen? depth)]
+        [(is-a? obj <sxmml-mml-note>)
+         (%pmd-note-output state obj)
+         (values loop-seen? depth)]
+        [(is-a? obj <sxmml-mml-voice>)
+         ((slot-ref state 'voice-output) obj)
+         (values loop-seen? depth)]
+        [(is-a? obj <sxmml-mml-gate-time>)
+         (%pmd-gate-time-output obj)
+         (values loop-seen? depth)]
+        [(is-a? obj <sxmml-mml-volume>)
+         ((slot-ref state 'volume-output) obj)
+         (values loop-seen? depth)]
+        [(is-a? obj <sxmml-mml-tempo-absolute>)
+         (%pmd-tempo-absolute-output obj)
+         (values loop-seen? depth)]
+        [(is-a? obj <sxmml-mml-tempo>)
+         ((slot-ref state 'tempo-output) obj)
+         (values loop-seen? depth)]
+        [(is-a? obj <sxmml-mml-tie>)
+         (%pmd-tie-output obj)
+         (values loop-seen? depth)]
+        [(is-a? obj <sxmml-mml-detune>)
+         (%pmd-detune-output obj)
+         (values loop-seen? depth)]
+        [(is-a? obj <sxmml-mml-repeat-start>)
+         (%pmd-value-check "repeat depth" (+ depth 1) 1 32)
+         (%pmd-repeat-start-output obj)
+         (values loop-seen? (+ depth 1))]
+        [(is-a? obj <sxmml-mml-repeat-end>)
+         (%pmd-repeat-end-output obj)
+         (values loop-seen? (- depth 1))]
+        [(is-a? obj <sxmml-mml-repeat-break>)
+         (%pmd-repeat-break-output obj)
+         (values loop-seen? depth)]
+        [(is-a? obj <sxmml-mml-loop>)
+         (when loop-seen?
+           (error <sxmml-mml-syntax-error> "loop command can be used only once in a track"))
+         (%pmd-loop-output obj)
+         (values #t depth)]
+        [(is-a? obj <sxmml-mml-transpose>)
+         (%pmd-transpose-output obj)
+         (values loop-seen? depth)]
+        [(is-a? obj <sxmml-mml-lfo-switch>)
+         (%pmd-lfo-switch-output obj)
+         (values loop-seen? depth)]
+        [(is-a? obj <sxmml-mml-lfo>)
+         ((slot-ref state 'lfo-output) obj)
+         (values loop-seen? depth)]
+        [(is-a? obj <sxmml-mml-envelope>)
+         ((slot-ref state 'envelope-output) obj)
+         (values loop-seen? depth)]
+        [(is-a? obj <sxmml-mml-pan>)
+         (%pmd-pan-output obj)
+         (values loop-seen? depth)]
+        [(is-a? obj <sxmml-mml-transpose-change>)
+         (%pmd-transpose-change-output obj)
+         (values loop-seen? depth)]
+        [(is-a? obj <sxmml-mml-volume-change>)
+         ((slot-ref state 'volume-change-output) obj)
+         (values loop-seen? depth)]
+        [(is-a? obj <sxmml-mml-noise-frequency>)
+         (%pmd-noise-freq-output obj)
+         (values loop-seen? depth)]
+        [(is-a? obj <sxmml-mml-output-switch>)
+         (%pmd-output-switch-output obj)
+         (values loop-seen? depth)]
+        [else
+         (values loop-seen? depth)]))
 
 (define (%pmd-rhythm-track-output env track)
   (let* ([lis (sxmml-pmd-ir-optimize (slot-ref track 'ir) (slot-ref env 'optimize))]

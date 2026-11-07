@@ -3,7 +3,7 @@
 
 この索引は、sxmml を保守・改修する際に内部定義を名前から探すためのものです。動作環境は Gauche 0.9.15 です。内部の名前は MML 記述者向け API を示しません。公開機能の使い方は xref:../sxmml-reference-manual.adoc[MML 記述者向けリファレンス]、MML 文字列の記法は xref:../sxmml-mml-manual.adoc[MML コマンドマニュアル]を参照してください。
 
-モジュール直下の手続き 306 件、クラス 64 件、マクロ 13 件、合計 383 件を掲載します。実験的な `sxmml.backend.pmd-binary` は公開名 4 件だけを掲載し、内部定義は xref:pmd-binary.adoc[本文]に概要だけを記します。`sxmml.scm` は各モジュールを継承し、独自の直下定義はありません。`sxmml.backend.pmd-binary` の `initialize` と `sxmml.form` の `report-additional-condition` のメソッドは、手続き件数へ重複計上しません。局所関数と `sxlc.in` の直下定義は範囲外です。呼び出せない表（ハッシュ表やリスト）は対象外です。
+モジュール直下の手続き 307 件、クラス 64 件、マクロ 13 件、合計 384 件を掲載します。実験的な `sxmml.backend.pmd-binary` は公開名 4 件だけを掲載し、内部定義は xref:pmd-binary.adoc[本文]に概要だけを記します。`sxmml.scm` は各モジュールを継承し、独自の直下定義はありません。`sxmml.backend.pmd-binary` の `initialize` と `sxmml.form` の `report-additional-condition` のメソッドは、手続き件数へ重複計上しません。局所関数と `sxlc.in` の直下定義は範囲外です。呼び出せない表（ハッシュ表やリスト）は対象外です。
 
 識別子の命名と改名の判断は xref:naming-conventions.adoc[命名規約]を参照してください。
 
@@ -25,7 +25,7 @@
 |xref:util.adoc[`sxmml.util`] |BPM の補助計算 |1
 |xref:form.adoc[`sxmml.form`] |エラー文脈・フォーム位置・定義名 |9
 |xref:pmd.adoc[`sxmml.backend.pmd`] |PMD共通規則・初期設定・最適化選択 |8
-|xref:pmd-source.adoc[`sxmml.backend.pmd-source`] |PMD向けMML生成 |55
+|xref:pmd-source.adoc[`sxmml.backend.pmd-source`] |PMD向けMML生成 |56
 |xref:pmd-binary.adoc[`sxmml.backend.pmd-binary`] |PMD バイナリ生成（実験的・公開名のみ） |4
 |===
 
@@ -132,6 +132,7 @@
 |`%pmd-fm-volume-change-output` |`sxmml.backend.pmd-source` |手続き・非公開 |xref:pmd-source.adoc#ref-pmd-source-internal-pmd-fm-volume-change-output[項目へ]
 |`%pmd-fm-volume-output` |`sxmml.backend.pmd-source` |手続き・非公開 |xref:pmd-source.adoc#ref-pmd-source-internal-pmd-fm-volume-output[項目へ]
 |`%pmd-gate-time-output` |`sxmml.backend.pmd-source` |手続き・非公開 |xref:pmd-source.adoc#ref-pmd-source-internal-pmd-gate-time-output[項目へ]
+|`%pmd-ir-output!` |`sxmml.backend.pmd-source` |手続き・非公開 |xref:pmd-source.adoc#ref-pmd-source-internal-pmd-ir-output-bang[項目へ]
 |`%pmd-lfo-output` |`sxmml.backend.pmd-source` |手続き・非公開 |xref:pmd-source.adoc#ref-pmd-source-internal-pmd-lfo-output[項目へ]
 |`%pmd-lfo-switch-output` |`sxmml.backend.pmd-source` |手続き・非公開 |xref:pmd-source.adoc#ref-pmd-source-internal-pmd-lfo-switch-output[項目へ]
 |`%pmd-loop-output` |`sxmml.backend.pmd-source` |手続き・非公開 |xref:pmd-source.adoc#ref-pmd-source-internal-pmd-loop-output[項目へ]
@@ -165,7 +166,7 @@
 |`%pmd-tempo-absolute-output` |`sxmml.backend.pmd-source` |手続き・非公開 |xref:pmd-source.adoc#ref-pmd-source-internal-pmd-tempo-absolute-output[項目へ]
 |`%pmd-tempo-output` |`sxmml.backend.pmd-source` |手続き・非公開 |xref:pmd-source.adoc#ref-pmd-source-internal-pmd-tempo-output[項目へ]
 |`%pmd-tie-output` |`sxmml.backend.pmd-source` |手続き・非公開 |xref:pmd-source.adoc#ref-pmd-source-internal-pmd-tie-output[項目へ]
-|`%pmd-track-output` |`sxmml.backend.pmd-source` |手続き・非公開 |xref:pmd-source.adoc#ref-pmd-source-internal-pmd-track-output[項目へ]
+|`%pmd-track-output!` |`sxmml.backend.pmd-source` |手続き・非公開 |xref:pmd-source.adoc#ref-pmd-source-internal-pmd-track-output-bang[項目へ]
 |`%pmd-transpose-change-output` |`sxmml.backend.pmd-source` |手続き・非公開 |xref:pmd-source.adoc#ref-pmd-source-internal-pmd-transpose-change-output[項目へ]
 |`%pmd-transpose-output` |`sxmml.backend.pmd-source` |手続き・非公開 |xref:pmd-source.adoc#ref-pmd-source-internal-pmd-transpose-output[項目へ]
 |`%pmd-value-check` |`sxmml.backend.pmd-source` |手続き・非公開 |xref:pmd-source.adoc#ref-pmd-source-internal-pmd-value-check[項目へ]
