@@ -71,22 +71,21 @@
           (%convert (^[]
                       (load (sxmml-source-file))
                       (unless (sxmml-mode-get)
-                        (error <sxmml-error> "backend is not specified by option or source file" ))
-                      (slot-set! (sxmml-environment) 'optimize (cond [(>= optimize 4) :repeat-expand]
-                                                                     [(= optimize 3) :repeat]
-                                                                     [(= optimize 2) :full]
-                                                                     [(> optimize 0) #t]
-                                                                     [else #f]))))
-          ;; 出力先は sxlc が決める。ソースが output slot を変更していても上書きする
-          (slot-set! (sxmml-environment) 'output (%output-file-resolve output))
-          (%convert (slot-ref (sxmml-mode-get) 'backend))
-          (format #t "Translate: ~a => ~a\n" (sxmml-source-file) (slot-ref (sxmml-environment) 'output))
-          (format #t "Processing Mode: ~a\n" (slot-ref (sxmml-mode-get) 'name))
-          (format #t "Optimize level: ~d\n\n" optimize)
-          (%ticks-information-output)
-          (if cmd-args
-            (%post-process cmd cmd-args wsl)
-            0))))))
+                        (error <sxmml-error> "backend is not specified by option or source file"))))
+          (let* ([output-path (%output-file-resolve output)]
+                 [prepared (%convert (^[] (make-sxmml-output-environment
+                                           (sxmml-environment) :output output-path
+                                           :optimize optimize :source (sxmml-source-file))))]
+                 [result (%convert (^[] ((slot-ref (sxmml-mode-get) 'backend) prepared)))]
+                 [actual-output (slot-ref result 'output)])
+            (when actual-output
+              (format #t "Translate: ~a => ~a\n" (sxmml-source-file) actual-output))
+            (format #t "Processing Mode: ~a\n" (slot-ref (sxmml-mode-get) 'name))
+            (format #t "Optimize level: ~d\n\n" optimize)
+            (%ticks-information-output prepared (slot-ref result 'track-names))
+            (if (and cmd-args actual-output)
+              (%post-process cmd cmd-args wsl actual-output)
+              0)))))))
 
 ;; 既知の入力エラーは簡潔に、未知の例外はGaucheの標準報告で知らせる。
 (define (%convert thunk)
@@ -104,7 +103,7 @@
 
 ;; 出力先を決める。-o の指定、なければ入力ファイル名の拡張子を、選んだモードが
 ;; 登録した拡張子に替えたものとする。拡張子が登録されていなければ #f を返し、
-;; バックエンドが既定値を設定する
+;; ファイルを出力しないバックエンドへ渡す
 (define (%output-file-resolve output)
   (rlet1 file (cond [output (sys-normalize-pathname output :absolute #t)]
                     [(slot-ref (sxmml-mode-get) 'output-extension)
@@ -125,11 +124,10 @@
   (%convert (^[] (sxmml-mode-select! mode))))
 
 ;; 後処理を実行し、終了値を返す。後処理が失敗した場合は標準エラー出力に通知して 3 を返す
-(define (%post-process cmd cmd-args wsl)
+(define (%post-process cmd cmd-args wsl output-file)
   ;; 後処理の段階の予期しないエラーも後処理の失敗とする
   (guard (e [else (%post-failure #"failed: ~(%error-message e)")])
-    (let* ([output-file (slot-ref (sxmml-environment) 'output)]
-           [output (if wsl
+    (let ([output (if wsl
                      (guard (e [else (%post-failure #"failed: wslpath: ~(%error-message e)") #f])
                        (process-output->string (list "wslpath" "-aw" output-file)))
                      output-file)])
@@ -208,16 +206,16 @@
   (newline)
   (exit 0))
 
-(define (%ticks-information-output)
-  (let1 track-ht (slot-ref (sxmml-environment) 'track)
-    (for-each (^c (let1 track (hash-table-get track-ht c)
-                    (when (> (slot-ref track 'total-ticks) 0)
-                      (format #t "Track ~a: total: ~a" c (slot-ref track 'total-ticks))
-                      (when (slot-ref track 'loop-exists)
-                        (format #t " / loop: ~a" (slot-ref track 'loop-ticks)))
-                      (newline))))
-              (sort (hash-table-keys (slot-ref (sxmml-environment) 'track))
-                    (^[x y] (string<? (x->string x) (x->string y)))))
+(define (%ticks-information-output prepared track-names)
+  (let1 tracks (slot-ref prepared 'track)
+    (for-each (^[name]
+                (let1 track (hash-table-get tracks name)
+                  (when (> (slot-ref track 'total-ticks) 0)
+                    (format #t "Track ~a: total: ~a" name (slot-ref track 'total-ticks))
+                    (when (slot-ref track 'loop-exists)
+                      (format #t " / loop: ~a" (slot-ref track 'loop-ticks)))
+                    (newline))))
+              (sort track-names (^[x y] (string<? (symbol->string x) (symbol->string y)))))
     (newline)))
 
 (define-syntax use-backend

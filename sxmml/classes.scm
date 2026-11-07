@@ -48,11 +48,33 @@
    [envelope :init-form (make-hash-table eq-comparator)]
    [voice :init-form (make-hash-table eq-comparator)]
    [track :init-form (make-hash-table eq-comparator)]
-   [optimize :init-keyword :optimize :init-value 1]
    [mode :init-keyword :mode :init-value #f]
-   ;; 出力先。sxlc が読み込み後に設定し、#f の場合はバックエンドが既定値を設定する
-   [output :init-keyword :output :init-value #f]
    ))
+
+;;; 出力準備と出力結果
+(define-class <sxmml-output-environment> ()
+  ([resolution :init-keyword :resolution :init-value 24]
+   [metadata :init-keyword :metadata :init-form (make-hash-table eq-comparator)]
+   [voice :init-keyword :voice :init-form (make-hash-table eq-comparator)]
+   [envelope :init-keyword :envelope :init-form (make-hash-table eq-comparator)]
+   [lfo :init-keyword :lfo :init-form (make-hash-table eq-comparator)]
+   [track :init-keyword :track :init-form (make-hash-table eq-comparator)]
+   [optimize :init-keyword :optimize :init-value 0]
+   [output :init-keyword :output :init-value #f]
+   [source :init-keyword :source :init-value #f]))
+
+(define-class <sxmml-output-track> ()
+  ([name :init-keyword :name :init-value #f]
+   [part :init-keyword :part :init-value #f]
+   [ir :init-keyword :ir :init-value ()]
+   [total-ticks :init-keyword :total-ticks :init-value 0]
+   [loop-ticks :init-keyword :loop-ticks :init-value 0]
+   [loop-exists :init-keyword :loop-exists :init-value #f]
+   [ticks-statistics :init-keyword :ticks-statistics :init-form (make-hash-table eqv-comparator)]))
+
+(define-class <sxmml-output-result> ()
+  ([output :init-keyword :output :init-value #f]
+   [track-names :init-keyword :track-names :init-value ()]))
 
 ;;;
 ;;; Errors
@@ -110,8 +132,6 @@
    [current-octave :init-value 4 :init-keyword :current-octave]
    [current-transpose :init-value 0 :init-keyword :current-transpose]
    [current-ticks :init-form (acons 0 0 ())]
-   [total-ticks :init-value 0 :init-keyword :total-ticks]
-   [loop-ticks :init-value 0 :init-keyword :loop-ticks]
    [loop-exists :init-value #f :init-keyword :loop-exists]
    [compiled-data :init-value ()]
    [repeat-stack :init-value ()]

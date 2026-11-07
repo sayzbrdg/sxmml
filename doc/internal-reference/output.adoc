@@ -1,0 +1,19 @@
+= `sxmml.output` の出力準備
+:toc: left
+
+3つの公開手続きを持ち、`sxmml`から継承します。登録環境を明示的に受け、バックエンドの採用範囲にかかわらず全トラックを準備します。最適化・モード選択・ファイル出力は行いません。
+
+[cols="2,4,4,1",options="header"]
+|===
+|名前・書式 |役割・引数 |結果・状態・失敗条件 |ソース
+|[[ref-output-sxmml-ir-flatten]]`(sxmml-ir-flatten ir-tree)` |登録用cons木を平坦なIR列へ整列 |順序を保ち、NOPと空の枝を除く。反復命令は残し、最適化しない。入力を変更しない |link:../../sxmml/output.scm[output.scm]
+|[[ref-output-make-sxmml-output-environment]]`(make-sxmml-output-environment registered-environment
+                                      :key (output (undefined)) (optimize (undefined)) (source #f))` |登録環境から出力環境を作る |output・optimizeは必須、sourceは省略時#f。全トラックのIRを整列し、集計を確定。登録側は変更せず、定義表・統計・未変更IRは共有可能 |link:../../sxmml/output.scm[output.scm]
+|[[ref-output-sxmml-output-track-find]]`(sxmml-output-track-find output-environment part)` |partに対応する出力トラックを検索 |出力トラック情報を返し、不在は#f。手動編集された重複partを新たに拒否しない |link:../../sxmml/output.scm[output.scm]
+|===
+
+生成ヘルパーで:outputを省略すると`make-sxmml-output-environment requires :output`、:optimizeの省略は`make-sxmml-output-environment requires :optimize`を本文とする値エラーです。明示的なoutput=#fは受理します。optimizeは整数の要求値で、どの最適化を実行するかはバックエンドが決めます。
+
+トラック表と出力トラックは新しく作ります。登録時のcurrent-ticksの先頭が(total . loop-start)なので、total-ticks=total、loop-ticks=total-loop-startとします。Lなし24ticksなら24・24・loop-exists=#fです。統計は解析時の情報を引き継ぎ、再集計しません。
+
+定義表・統計・未変更IRの共有を認めます。生成後に登録内容を変更した場合は出力環境を作り直し、変更の自動反映や独立したスナップショットは保証しません。手作りIRについても入力の前提を守る必要がありますが、全IRを検査する追加走査は設けません。クラスと既定値は xref:classes.adoc[クラス一覧]を参照してください。

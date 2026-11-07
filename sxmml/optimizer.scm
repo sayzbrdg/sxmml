@@ -30,42 +30,16 @@
   (use gauche.record)
   (use srfi.1)
   (use sxmml.classes)
-  (use sxmml.environment)
-  (use sxmml.mml)
   (use sxmml.repeat-tree)
-  (export sxmml-optimize-tree
+  (export sxmml-ir-optimize-local sxmml-ir-remove-redundant-settings sxmml-ir-merge-rests
+          sxmml-ir-compress-repeats sxmml-ir-optimize sxmml-ir-optimize-with-repeats
+          sxmml-ir-optimize-with-repeat-expansion
           ))
 (select-module sxmml.optimizer)
 
 ;;;
 ;;; optimizer
 ;;;
-
-(define (sxmml-optimize-tree track :key (optimize #t))
-  (let* ([env (hash-table-get (slot-ref (sxmml-environment) 'track) track)]
-         [ct (car (slot-ref env 'current-ticks))])
-    (slot-set! env 'total-ticks (car ct))
-    (slot-set! env 'loop-ticks (- (car ct) (cdr ct)))
-    (cond [(memq optimize '(:repeat :repeat-expand))
-           (%sxmml-optimize-repeat (%sxmml-optimize-2nd-pass! (%sxmml-optimize-tree! env))
-                                   (eq? optimize :repeat-expand))]
-          [(eq? optimize :full)
-           (%sxmml-optimize-2nd-pass! (%sxmml-optimize-tree! env))]
-          [optimize
-           (%sxmml-optimize-tree! env)]
-          [else
-           (reverse!
-            (let recur ([rest (slot-ref env 'compiled-data)]
-                        [objs ()])
-              (cond [(null? rest)
-                     objs]
-                    [(pair? (car rest))
-                     (recur (cdr rest) (recur (car rest) objs))]
-                    [(is-a? (car rest) <sxmml-mml-nop>)
-                     (recur (cdr rest) objs)]
-                    [else
-                     (recur (cdr rest) (cons (car rest) objs))])))]
-          )))
 
 (define-record-type <setting-effect>
   (%make-setting-effect key relative? value origin position)
@@ -131,12 +105,9 @@
          (sort (hash-table-values table)
                (^[a b] (< (%setting-effect-position a) (%setting-effect-position b)))))))
 
-(define (%sxmml-optimize-tree! mmlenv)
-  (let* ([objects (let recur ([rest (slot-ref mmlenv 'compiled-data)] [result ()])
-                    (cond [(null? rest) result]
-                          [(pair? (car rest)) (recur (cdr rest) (recur (car rest) result))]
-                          [else (recur (cdr rest) (cons (car rest) result))]))]
-         [table (make-hash-table equal-comparator)])
+(define (sxmml-ir-optimize-local ir)
+  (let ([objects (reverse ir)]
+        [table (make-hash-table equal-comparator)])
     (let loop ([rest objects] [position (length objects)] [result ()])
       (cond [(null? rest) (append (%setting-effects->ir table) result)]
             [(is-a? (car rest) <sxmml-mml-nop>)
@@ -285,19 +256,36 @@
                    [else
                     (loop (cdr rest) (%state-set state key (slot-ref obj 'value)) (cons obj result))]))])))
 
-(define (%state-merge-rests! lis)
-  (let loop ([rest lis] [result ()])
-    (cond [(null? rest) (reverse! result)]
-          [(and (pair? (cdr rest)) (is-a? (car rest) <sxmml-mml-rest>)
-                (is-a? (cadr rest) <sxmml-mml-rest>))
-           (slot-set! (cadr rest) 'ticks (+ (slot-ref (car rest) 'ticks) (slot-ref (cadr rest) 'ticks)))
-           (loop (cdr rest) result)]
-          [else (loop (cdr rest) (cons (car rest) result))])))
+(define (sxmml-ir-merge-rests ir)
+  (reverse!
+   (fold (^[obj result]
+           (if (and (is-a? obj <sxmml-mml-rest>) (pair? result)
+                    (is-a? (car result) <sxmml-mml-rest>))
+             (let* ([ticks (+ (slot-ref obj 'ticks) (slot-ref (car result) 'ticks))]
+                    [combined (if (slot-bound? obj 'value)
+                                (make (class-of obj) :ticks ticks :value (slot-ref obj 'value))
+                                (make (class-of obj) :ticks ticks))])
+               (cons combined (cdr result)))
+             (cons obj result)))
+         () ir)))
 
-(define (%sxmml-optimize-2nd-pass! lis)
+(define (sxmml-ir-remove-redundant-settings ir)
   (receive (items outgoing)
-      (%state-optimize-region (%repeat-structure lis) () (make-hash-table eq-comparator))
-    (%state-merge-rests! (%repeat-flatten items))))
+      (%state-optimize-region (%repeat-structure ir) () (make-hash-table eq-comparator))
+    (%repeat-flatten items)))
+
+(define (sxmml-ir-compress-repeats ir :key (expand-small #f))
+  (%sxmml-optimize-repeat ir expand-small))
+
+(define (sxmml-ir-optimize ir)
+  (sxmml-ir-merge-rests
+   (sxmml-ir-remove-redundant-settings (sxmml-ir-optimize-local ir))))
+
+(define (sxmml-ir-optimize-with-repeats ir)
+  (sxmml-ir-compress-repeats (sxmml-ir-optimize ir)))
+
+(define (sxmml-ir-optimize-with-repeat-expansion ir)
+  (sxmml-ir-compress-repeats (sxmml-ir-optimize ir) :expand-small #t))
 
 ;;
 ;; repeat

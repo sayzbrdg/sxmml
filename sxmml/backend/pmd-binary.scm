@@ -34,11 +34,10 @@
   (use sxmml.classes)
   (use sxmml.environment)
   (use sxmml.compiler)
-  (use sxmml.optimizer)
+  (use sxmml.output)
   (use sxmml.voice)
   (use sxmml.util)
-  (use sxmml.backend.pmd :only (sxmml-pmd-voice-number-table-compute sxmml-pmd-lfo-values sxmml-pmd-envelope-values
-                                sxmml-pmd-metadata-value))
+  (use sxmml.backend.pmd)
   (export <sxmml-pmd-binary-environment>
           sxmml-pmd3-binary-output sxmml-pmd4-binary-output sxmml-pmd-binary-output
           ))
@@ -54,15 +53,13 @@
    [max-total-ticks :init-value 0] [max-loop-ticks :init-value 0]
    [used-fm-voices :init-form (make-hash-table eq-comparator)]
    ;; 音色番号の表。環境は生成の最初に作るので、何かを書く前に番号が決まる
-   [voice-numbers :init-form (sxmml-pmd-voice-number-table-compute)]))
+   [voice-numbers :init-keyword :voice-numbers]
+   [environment :init-keyword :environment]))
 
 (define-method initialize ([self <sxmml-pmd-binary-environment>] initargs)
   (next-method)
   (let1 track (slot-ref self 'track)
     (vector-for-each-with-index (^[i v] (vector-set! track i (make-u8vector 65600 0))) track)))
-
-(define sxmml-pmd-binary-environment
-  (make-parameter #f))
 
 ;; 大きさの上限を超えたときに、エラーに表示する生成中の場所
 (define %pmd-section (make-parameter #f))
@@ -70,221 +67,211 @@
 ;;;
 ;;; mode
 ;;;
-(define (%pmd-binary-setup)
-  (define-track (A B C D E F) :volume-delta 4)
-  (define-track (G H I L))
-  (define-track J :volume-delta 16))
+
 
 ;;;
 ;;; translate procedure
 ;;;
-(define (sxmml-pmd3-binary-output)
-  (%sxmml-pmdx-binary-output 'fc88))
+(define (sxmml-pmd3-binary-output env)
+  (%sxmml-pmdx-binary-output env 'fc88))
 
-(define (sxmml-pmd4-binary-output)
-  (%sxmml-pmdx-binary-output #f))
+(define (sxmml-pmd4-binary-output env)
+  (%sxmml-pmdx-binary-output env #f))
 
-(define (sxmml-pmd-binary-output :optional (mode #f))
-  (%sxmml-pmdx-binary-output mode))
+(define (sxmml-pmd-binary-output env)
+  (%sxmml-pmdx-binary-output env #f))
 
-(define (%sxmml-pmdx-binary-output mode)
-  (parameterize ([sxmml-pmd-binary-environment
-                  (make <sxmml-pmd-binary-environment> :offset 26 :head-length 26 :mode mode)])
-    (u8vector-set! (slot-ref (sxmml-pmd-binary-environment) 'head) 0 (slot-ref (sxmml-pmd-binary-environment) 'head-length))
-    (for-each (^[name i h] (let1 t (sxmml-track-find name)
-                             (parameterize ([%pmd-section #"track ~name"])
-                               (%fm-track-u8vector-set! i
-                                                        h
-                                                        (sxmml-optimize-tree t :optimize (slot-ref (sxmml-environment) 'optimize))))
-                             (%ticks-update! t)))
-              '(A B C D E F)
-              (iota 6)
-              (iota 6 2 2))
-    (for-each (^[name i h] (let1 t (sxmml-track-find name)
-                             (parameterize ([%pmd-section #"track ~name"])
-                               (%ssg-track-u8vector-set! i
-                                                         h
-                                                         (sxmml-optimize-tree t :optimize (slot-ref (sxmml-environment) 'optimize))))
-                             (%ticks-update! t)))
-              '(G H I)
-              (iota 3 6)
-              (iota 3 14 2))
-    (let1 pcm-track (sxmml-track-find 'J)
+(define (%sxmml-pmdx-binary-output env mode)
+  (unless (slot-ref env 'output)
+    (error <sxmml-value-error> "output file is not specified"))
+  (let ([work (make <sxmml-pmd-binary-environment>
+                :offset 26 :head-length 26 :mode mode :environment env
+                :voice-numbers (sxmml-pmd-voice-number-table-compute (slot-ref env 'voice)))]
+        [tracks (map (cut sxmml-output-track-find env <>) '(A B C D E F G H I J L))])
+    (define (optimized track)
+      (sxmml-pmd-ir-optimize (slot-ref track 'ir) (slot-ref env 'optimize)))
+    (u8vector-set! (slot-ref work 'head) 0 (slot-ref work 'head-length))
+    (for-each (^[track i h]
+                (parameterize ([%pmd-section (format #f "track ~a" (slot-ref track 'part))])
+                  (%fm-track-u8vector-set! work i h (optimized track)))
+                (%ticks-update! work track))
+              (take tracks 6) (iota 6) (iota 6 2 2))
+    (for-each (^[track i h]
+                (parameterize ([%pmd-section (format #f "track ~a" (slot-ref track 'part))])
+                  (%ssg-track-u8vector-set! work i h (optimized track)))
+                (%ticks-update! work track))
+              (take (drop tracks 6) 3) (iota 3 6) (iota 3 14 2))
+    (let1 track (list-ref tracks 9)
       (parameterize ([%pmd-section "track J"])
-        (%pcm-track-u8vector-set! 9 20 (sxmml-optimize-tree pcm-track :optimize (slot-ref (sxmml-environment) 'optimize))))
-      (%ticks-update! pcm-track))
-    ;; R トラックの末尾に全トラックの最大の tick を書くので、L トラックの tick は書く前に集計する。
-    ;; トラックの tick は sxmml-optimize-tree が設定する
-    (let* ([rhythm-track (sxmml-track-find 'L)]
-           [lis (sxmml-optimize-tree rhythm-track :optimize (slot-ref (sxmml-environment) 'optimize))])
-      (%ticks-update! rhythm-track)
+        (%pcm-track-u8vector-set! work 9 20 (optimized track)))
+      (%ticks-update! work track))
+    ;; リズム末尾へ書く前に、採用した全トラックの集計を確定する。
+    (let1 track (list-ref tracks 10)
+      (%ticks-update! work track)
       (parameterize ([%pmd-section "track L"])
-        (%pmd-rhythm-track-u8vector-set! lis)))
-    (%pmd-meta-track-u8vector-set!)
-    ;; 書き込みの途中の検査は作業用のバッファを守るもので、最後に全体の大きさを検査する
-    (%size-check (slot-ref (sxmml-pmd-binary-environment) 'offset))
-    (%pmd-binary-output)
-    (sxmml-environment)))
+        (%pmd-rhythm-track-u8vector-set! work (optimized track))))
+    (%pmd-meta-track-u8vector-set! work)
+    (%size-check (slot-ref work 'offset))
+    (make <sxmml-output-result> :output (%pmd-binary-output work)
+          :track-names (map (cut slot-ref <> 'name) tracks))))
 
 
-(define (%fm-track-u8vector-set! index hoffset lis)
-  (%pmd-track-u8vector-set! index hoffset lis
-                            %pmd-fm-voice-set!
+(define (%fm-track-u8vector-set! work index hoffset lis)
+  (%pmd-track-u8vector-set! work index hoffset lis
+                            (cut %pmd-fm-voice-set! work <> <> <>)
                             %pmd-fm-volume-set!
                             %pmd-fm-volume-change-set!))
 
-(define (%ssg-track-u8vector-set! index hoffset lis)
-  (%pmd-track-u8vector-set! index hoffset lis
+(define (%ssg-track-u8vector-set! work index hoffset lis)
+  (%pmd-track-u8vector-set! work index hoffset lis
                             %pmd-ssg-voice-set!
                             %pmd-ssg-volume-set!
                             %pmd-ssg-volume-change-set!))
 
-(define (%pcm-track-u8vector-set! index hoffset lis)
-  (%pmd-track-u8vector-set! index hoffset lis
+(define (%pcm-track-u8vector-set! work index hoffset lis)
+  (%pmd-track-u8vector-set! work index hoffset lis
                             %pmd-pcm-voice-set!
                             %pmd-pcm-volume-set!
                             %pmd-pcm-volume-change-set!))
 
-(define (%pmd-track-u8vector-set! index hoffset lis voiceproc volproc volcproc)
-  (define u8vec (vector-ref (slot-ref (sxmml-pmd-binary-environment) 'track) index))
-  (define overall-offset (slot-ref (sxmml-pmd-binary-environment) 'offset))
-  (define repeat-stack ())
+(define (%pmd-track-u8vector-set! work index hoffset lis voiceproc volproc volcproc)
+  (define u8vec (vector-ref (slot-ref work 'track) index))
+  (define overall-offset (slot-ref work 'offset))
   (let loop ([rest lis]
              [track-offset 0]
-             [loop-seen? #f])
+             [loop-seen? #f]
+             [repeat-stack ()])
     (%size-check (+ overall-offset track-offset))
     (cond [(null? rest)
            (u8vector-set! u8vec track-offset #x80)
-           (vector-set! (slot-ref (sxmml-pmd-binary-environment) 'track-length) index (+ track-offset 1))
-           (slot-set! (sxmml-pmd-binary-environment) 'offset (+ overall-offset track-offset 1))
-           (receive (lb hb) (%short->le-bytes (slot-ref (sxmml-pmd-binary-environment) 'offset))
-             (u8vector-set! (slot-ref (sxmml-pmd-binary-environment) 'head) hoffset lb)
-             (u8vector-set! (slot-ref (sxmml-pmd-binary-environment) 'head) (+ hoffset 1) hb))
-           (sxmml-pmd-binary-environment)]
+           (vector-set! (slot-ref work 'track-length) index (+ track-offset 1))
+           (slot-set! work 'offset (+ overall-offset track-offset 1))
+           (receive (lb hb) (%short->le-bytes (slot-ref work 'offset))
+             (u8vector-set! (slot-ref work 'head) hoffset lb)
+             (u8vector-set! (slot-ref work 'head) (+ hoffset 1) hb))
+           work]
           [(is-a? (car rest) <sxmml-mml-rest>)
-           (loop (cdr rest) (%pmd-rest-set! u8vec track-offset (car rest)) loop-seen?)]
+           (loop (cdr rest) (%pmd-rest-set! work u8vec track-offset (car rest)) loop-seen? repeat-stack)]
           [(is-a? (car rest) <sxmml-mml-portamento>)
-           (loop (cdr rest) (%pmd-portamento-set! u8vec track-offset (car rest)) loop-seen?)]
+           (loop (cdr rest) (%pmd-portamento-set! u8vec track-offset (car rest)) loop-seen? repeat-stack)]
           [(is-a? (car rest) <sxmml-mml-note>)
-           (loop (cdr rest) (%pmd-note-set! u8vec track-offset (car rest)) loop-seen?)]
+           (loop (cdr rest) (%pmd-note-set! work u8vec track-offset (car rest)) loop-seen? repeat-stack)]
           [(is-a? (car rest) <sxmml-mml-voice>)
-           (loop (cdr rest) (voiceproc u8vec track-offset (car rest)) loop-seen?)]
+           (loop (cdr rest) (voiceproc u8vec track-offset (car rest)) loop-seen? repeat-stack)]
           [(is-a? (car rest) <sxmml-mml-gate-time>)
-           (loop (cdr rest) (%pmd-gate-time-set! u8vec track-offset (car rest)) loop-seen?)]
+           (loop (cdr rest) (%pmd-gate-time-set! u8vec track-offset (car rest)) loop-seen? repeat-stack)]
           [(is-a? (car rest) <sxmml-mml-volume>)
-           (loop (cdr rest) (volproc u8vec track-offset (car rest)) loop-seen?)]
+           (loop (cdr rest) (volproc u8vec track-offset (car rest)) loop-seen? repeat-stack)]
           [(is-a? (car rest) <sxmml-mml-tempo-absolute>)
-           (loop (cdr rest) (%pmd-tempo-absolute-set! u8vec track-offset (car rest)) loop-seen?)]
+           (loop (cdr rest) (%pmd-tempo-absolute-set! u8vec track-offset (car rest)) loop-seen? repeat-stack)]
           [(is-a? (car rest) <sxmml-mml-tempo>)
-           (loop (cdr rest) (%pmd-tempo-set! u8vec track-offset (car rest)) loop-seen?)]
+           (loop (cdr rest) (%pmd-tempo-set! work u8vec track-offset (car rest)) loop-seen? repeat-stack)]
           [(is-a? (car rest) <sxmml-mml-tie>)
-           (loop (cdr rest) (%pmd-tie-set! u8vec track-offset (car rest)) loop-seen?)]
+           (loop (cdr rest) (%pmd-tie-set! u8vec track-offset (car rest)) loop-seen? repeat-stack)]
           [(is-a? (car rest) <sxmml-mml-detune>)
-           (loop (cdr rest) (%pmd-detune-set! u8vec track-offset (car rest)) loop-seen?)]
+           (loop (cdr rest) (%pmd-detune-set! u8vec track-offset (car rest)) loop-seen? repeat-stack)]
           [(is-a? (car rest) <sxmml-mml-repeat-start>)
-           (push! repeat-stack (cons (+ track-offset 1) 0))
-           (loop (cdr rest) (%pmd-repeat-start-set! u8vec track-offset (car rest)) loop-seen?)]
+           (loop (cdr rest) (%pmd-repeat-start-set! u8vec track-offset (car rest)) loop-seen? (cons (cons (+ track-offset 1) 0) repeat-stack))]
           [(is-a? (car rest) <sxmml-mml-repeat-end>)
-           (loop (cdr rest) (%pmd-repeat-end-set! u8vec track-offset (car rest) (pop! repeat-stack) overall-offset) loop-seen?)]
+           (loop (cdr rest) (%pmd-repeat-end-set! u8vec track-offset (car rest) (car repeat-stack) overall-offset) loop-seen? (cdr repeat-stack))]
           [(is-a? (car rest) <sxmml-mml-repeat-break>)
-           (set! (cdar repeat-stack) (+ track-offset 1))
-           (loop (cdr rest) (%pmd-repeat-break-set! u8vec track-offset (car rest)) loop-seen?)]
+           (loop (cdr rest) (%pmd-repeat-break-set! u8vec track-offset (car rest)) loop-seen? (cons (cons (caar repeat-stack) (+ track-offset 1)) (cdr repeat-stack)))]
           [(is-a? (car rest) <sxmml-mml-loop>)
            (when loop-seen?
              (error <sxmml-mml-syntax-error> "loop command can be used only once in a track"))
-           (loop (cdr rest) (%pmd-loop-set! u8vec track-offset (car rest)) #t)]
+           (loop (cdr rest) (%pmd-loop-set! u8vec track-offset (car rest)) #t repeat-stack)]
           [(is-a? (car rest) <sxmml-mml-transpose>)
-           (loop (cdr rest) (%pmd-transpose-set! u8vec track-offset (car rest)) loop-seen?)]
+           (loop (cdr rest) (%pmd-transpose-set! u8vec track-offset (car rest)) loop-seen? repeat-stack)]
           [(is-a? (car rest) <sxmml-mml-lfo-switch>)
-           (loop (cdr rest) (%pmd-lfo-switch-set! u8vec track-offset (car rest)) loop-seen?)]
+           (loop (cdr rest) (%pmd-lfo-switch-set! work u8vec track-offset (car rest)) loop-seen? repeat-stack)]
           [(is-a? (car rest) <sxmml-mml-lfo>)
-           (loop (cdr rest) (%pmd-lfo-set! u8vec track-offset (car rest)) loop-seen?)]
+           (loop (cdr rest) (%pmd-lfo-set! work u8vec track-offset (car rest)) loop-seen? repeat-stack)]
           [(is-a? (car rest) <sxmml-mml-envelope>)
-           (loop (cdr rest) (%pmd-envelope-set! u8vec track-offset (car rest)) loop-seen?)]
+           (loop (cdr rest) (%pmd-envelope-set! work u8vec track-offset (car rest)) loop-seen? repeat-stack)]
           [(is-a? (car rest) <sxmml-mml-pan>)
-           (loop (cdr rest) (%pmd-pan-set! u8vec track-offset (car rest)) loop-seen?)]
+           (loop (cdr rest) (%pmd-pan-set! u8vec track-offset (car rest)) loop-seen? repeat-stack)]
           [(is-a? (car rest) <sxmml-mml-transpose-change>)
-           (loop (cdr rest) (%pmd-transpose-change-set! u8vec track-offset (car rest)) loop-seen?)]
+           (loop (cdr rest) (%pmd-transpose-change-set! u8vec track-offset (car rest)) loop-seen? repeat-stack)]
           [(is-a? (car rest) <sxmml-mml-volume-change>)
-           (loop (cdr rest) (volcproc u8vec track-offset (car rest)) loop-seen?)]
+           (loop (cdr rest) (volcproc u8vec track-offset (car rest)) loop-seen? repeat-stack)]
           [(is-a? (car rest) <sxmml-mml-noise-frequency>)
-           (loop (cdr rest) (%pmd-noise-freq-set! u8vec track-offset (car rest)) loop-seen?)]
+           (loop (cdr rest) (%pmd-noise-freq-set! u8vec track-offset (car rest)) loop-seen? repeat-stack)]
           [(is-a? (car rest) <sxmml-mml-output-switch>)
-           (loop (cdr rest) (%pmd-output-switch-set! u8vec track-offset (car rest)) loop-seen?)]
+           (loop (cdr rest) (%pmd-output-switch-set! u8vec track-offset (car rest)) loop-seen? repeat-stack)]
           [else
-           (loop (cdr rest) track-offset loop-seen?)])))
+           (loop (cdr rest) track-offset loop-seen? repeat-stack)])))
 
-(define (%pmd-rhythm-track-u8vector-set! lis)
+(define (%pmd-rhythm-track-u8vector-set! work lis)
   (define has-loop? (boolean (find (^o (is-a? o <sxmml-mml-loop>)) lis)))
   ;; Track11(K-channel)
-  (%pmd-rhythm-deploy-track-u8vector-set! has-loop? lis)
-  (receive (lb hb) (%short->le-bytes (slot-ref (sxmml-pmd-binary-environment) 'offset))
-    (u8vector-set! (slot-ref (sxmml-pmd-binary-environment) 'head) 22 lb)
-    (u8vector-set! (slot-ref (sxmml-pmd-binary-environment) 'head) 23 hb))
+  (%pmd-rhythm-deploy-track-u8vector-set! work has-loop? lis)
+  (receive (lb hb) (%short->le-bytes (slot-ref work 'offset))
+    (u8vector-set! (slot-ref work 'head) 22 lb)
+    (u8vector-set! (slot-ref work 'head) 23 hb))
   ;; Track12(R-channel)
-  (%pmd-rhythm-definition-track-u8vector-set! has-loop? lis))
+  (%pmd-rhythm-definition-track-u8vector-set! work has-loop? lis))
 
-(define (%pmd-rhythm-deploy-track-u8vector-set! has-loop? lis)
-  (define (overall-offset) (slot-ref (sxmml-pmd-binary-environment) 'offset))
-  (define u8vec (vector-ref (slot-ref (sxmml-pmd-binary-environment) 'track) 10))
+(define (%pmd-rhythm-deploy-track-u8vector-set! work has-loop? lis)
+  (define (overall-offset) (slot-ref work 'offset))
+  (define u8vec (vector-ref (slot-ref work 'track) 10))
   (cond [(null? lis)
          (u8vector-set! u8vec 0 #x80)
-         (vector-set! (slot-ref (sxmml-pmd-binary-environment) 'track-length) 10 1)
-         (slot-set! (sxmml-pmd-binary-environment) 'offset (+ (overall-offset) 1))]
+         (vector-set! (slot-ref work 'track-length) 10 1)
+         (slot-set! work 'offset (+ (overall-offset) 1))]
         [has-loop?
          (u8vector-set! u8vec 0 #x00)
          (u8vector-set! u8vec 1 #xf6)
          (u8vector-set! u8vec 2 #x01)
          (u8vector-set! u8vec 3 #x80)
-         (vector-set! (slot-ref (sxmml-pmd-binary-environment) 'track-length) 10 4)
-         (slot-set! (sxmml-pmd-binary-environment) 'offset (+ (overall-offset) 4))]
+         (vector-set! (slot-ref work 'track-length) 10 4)
+         (slot-set! work 'offset (+ (overall-offset) 4))]
         [else
          (u8vector-set! u8vec 0 #x00)
          (u8vector-set! u8vec 1 #x80)
-         (vector-set! (slot-ref (sxmml-pmd-binary-environment) 'track-length) 10 2)
-         (slot-set! (sxmml-pmd-binary-environment) 'offset (+ (overall-offset) 2))]))
+         (vector-set! (slot-ref work 'track-length) 10 2)
+         (slot-set! work 'offset (+ (overall-offset) 2))]))
 
-(define (%pmd-rhythm-definition-track-u8vector-set! has-loop? lis)
-  (define (overall-offset) (slot-ref (sxmml-pmd-binary-environment) 'offset))
-  (define u8vec (vector-ref (slot-ref (sxmml-pmd-binary-environment) 'track) 11))
-  (define repeat-stack ())
+(define (%pmd-rhythm-definition-track-u8vector-set! work has-loop? lis)
+  (define (overall-offset) (slot-ref work 'offset))
+  (define u8vec (vector-ref (slot-ref work 'track) 11))
   ;; 先頭はパターンの位置の表で、L がなければ 1 つ、あれば 2 つ。リズムがなければ
   ;; パターンを作らず、位置の表も中身も書かない
   (define table-size (cond [(null? lis) 0] [has-loop? 4] [else 2]))
   (unless (null? lis)
-    (receive (lb hb) (%short->le-bytes (+ (slot-ref (sxmml-pmd-binary-environment) 'offset) table-size))
+    (receive (lb hb) (%short->le-bytes (+ (slot-ref work 'offset) table-size))
       (u8vector-set! u8vec 0 lb)
       (u8vector-set! u8vec 1 hb)))
   (let loop ([rest lis]
              [track-offset table-size]
-             [loop-seen? #f])
+             [loop-seen? #f]
+             [repeat-stack ()])
     (%size-check (+ (overall-offset) track-offset))
     (cond [(null? rest)
            ;; パターンの終わりの ff の次（パターンがなければ先頭）から、PMD4 の末尾の 12 バイトを書く
-           (let ([metasize (if (eq? (slot-ref (sxmml-pmd-binary-environment) 'mode) 'fc88) 0 12)]
+           (let ([metasize (if (eq? (slot-ref work 'mode) 'fc88) 0 12)]
                  [end (if (null? lis)
                         0
                         (begin (u8vector-set! u8vec track-offset #xff)
                                (+ track-offset 1)))])
-             (vector-set! (slot-ref (sxmml-pmd-binary-environment) 'track-length) 11 (+ end metasize))
-             (slot-set! (sxmml-pmd-binary-environment) 'offset (+ (overall-offset) end metasize))
-             (receive (lb hb) (%short->le-bytes (slot-ref (sxmml-pmd-binary-environment) 'offset))
-               (u8vector-set! (slot-ref (sxmml-pmd-binary-environment) 'head) 24 lb)
-               (u8vector-set! (slot-ref (sxmml-pmd-binary-environment) 'head) 25 hb))
-             (unless (eq? (slot-ref (sxmml-pmd-binary-environment) 'mode) 'fc88)
+             (vector-set! (slot-ref work 'track-length) 11 (+ end metasize))
+             (slot-set! work 'offset (+ (overall-offset) end metasize))
+             (receive (lb hb) (%short->le-bytes (slot-ref work 'offset))
+               (u8vector-set! (slot-ref work 'head) 24 lb)
+               (u8vector-set! (slot-ref work 'head) 25 hb))
+             (unless (eq? (slot-ref work 'mode) 'fc88)
                ;; 合計 tick は 2 バイトで書く。loop tick は合計 tick を超えない
-               (let1 ticks (slot-ref (sxmml-pmd-binary-environment) 'max-total-ticks)
+               (let1 ticks (slot-ref work 'max-total-ticks)
                  (when (> ticks 65535)
                    (errorf <sxmml-error> "total ticks exceed the limit: ~a (max 65535)" ticks)))
-               (receive (lb hb) (%short->le-bytes (slot-ref (sxmml-pmd-binary-environment) 'max-total-ticks))
+               (receive (lb hb) (%short->le-bytes (slot-ref work 'max-total-ticks))
                  (u8vector-set! u8vec end lb)
                  (u8vector-set! u8vec (+ end 1) hb))
-               (receive (lb hb) (%short->le-bytes (slot-ref (sxmml-pmd-binary-environment) 'max-loop-ticks))
+               (receive (lb hb) (%short->le-bytes (slot-ref work 'max-loop-ticks))
                  (u8vector-set! u8vec (+ end 4) lb)
                  (u8vector-set! u8vec (+ end 5) hb))
                (u8vector-set! u8vec (- (+ end metasize) 2) #x48)
                (u8vector-set! u8vec (- (+ end metasize) 1) #xfe)))
-           (sxmml-pmd-binary-environment)]
+           work]
           [(is-a? (car rest) <sxmml-mml-loop>)
            (when loop-seen?
              (error <sxmml-mml-syntax-error> "loop command can be used only once in a track"))
@@ -292,58 +279,56 @@
            (receive (lb hb) (%short->le-bytes (+ (overall-offset) track-offset 1))
              (u8vector-set! u8vec 2 lb)
              (u8vector-set! u8vec 3 hb))
-           (loop (cdr rest) (+ track-offset 1) #t)]
+           (loop (cdr rest) (+ track-offset 1) #t repeat-stack)]
           [(is-a? (car rest) <sxmml-mml-rest>)
-           (loop (cdr rest) (%pmd-rest-set! u8vec track-offset (car rest)) loop-seen?)]
+           (loop (cdr rest) (%pmd-rest-set! work u8vec track-offset (car rest)) loop-seen? repeat-stack)]
           [(is-a? (car rest) <sxmml-rhythm-emit>)
-           (loop (cdr rest) (%pmd-rhythm-emit-set! u8vec track-offset (car rest)) loop-seen?)]
+           (loop (cdr rest) (%pmd-rhythm-emit-set! work u8vec track-offset (car rest)) loop-seen? repeat-stack)]
           [(is-a? (car rest) <sxmml-mml-repeat-start>)
-           (push! repeat-stack (cons (+ track-offset 1) 0))
-           (loop (cdr rest) (%pmd-repeat-start-set! u8vec track-offset (car rest)) loop-seen?)]
+           (loop (cdr rest) (%pmd-repeat-start-set! u8vec track-offset (car rest)) loop-seen? (cons (cons (+ track-offset 1) 0) repeat-stack))]
           [(is-a? (car rest) <sxmml-mml-repeat-end>)
-           (loop (cdr rest) (%pmd-repeat-end-set! u8vec track-offset (car rest) (pop! repeat-stack) (overall-offset)) loop-seen?)]
+           (loop (cdr rest) (%pmd-repeat-end-set! u8vec track-offset (car rest) (car repeat-stack) (overall-offset)) loop-seen? (cdr repeat-stack))]
           [(is-a? (car rest) <sxmml-mml-repeat-break>)
-           (set! (cdar repeat-stack) (+ track-offset 1))
-           (loop (cdr rest) (%pmd-repeat-break-set! u8vec track-offset (car rest)) loop-seen?)]
+           (loop (cdr rest) (%pmd-repeat-break-set! u8vec track-offset (car rest)) loop-seen? (cons (cons (caar repeat-stack) (+ track-offset 1)) (cdr repeat-stack)))]
           [(is-a? (car rest) <sxmml-rhythm-volume>)
-           (loop (cdr rest) (%pmd-rhythm-volume-set! u8vec track-offset (car rest)) loop-seen?)]
+           (loop (cdr rest) (%pmd-rhythm-volume-set! u8vec track-offset (car rest)) loop-seen? repeat-stack)]
           [(is-a? (car rest) <sxmml-rhythm-volume-change>)
-           (loop (cdr rest) (%pmd-rhythm-volume-change-set! u8vec track-offset (car rest)) loop-seen?)]
+           (loop (cdr rest) (%pmd-rhythm-volume-change-set! u8vec track-offset (car rest)) loop-seen? repeat-stack)]
           [(is-a? (car rest) <sxmml-rhythm-pan>)
-           (loop (cdr rest) (%pmd-rhythm-pan-set! u8vec track-offset (car rest)) loop-seen?)]
+           (loop (cdr rest) (%pmd-rhythm-pan-set! u8vec track-offset (car rest)) loop-seen? repeat-stack)]
           [else
-           (loop (cdr rest) track-offset loop-seen?)])))
+           (loop (cdr rest) track-offset loop-seen? repeat-stack)])))
 
 
-(define (%pmd-meta-track-u8vector-set!)
-  (define voice-ht (slot-ref (sxmml-environment) 'voice))
-  (define t12u8vec (vector-ref (slot-ref (sxmml-pmd-binary-environment) 'track) 11))
-  (define t13u8vec (vector-ref (slot-ref (sxmml-pmd-binary-environment) 'track) 12))
-  (define track-start-pos (slot-ref (sxmml-pmd-binary-environment) 'offset))
+(define (%pmd-meta-track-u8vector-set! work)
+  (define voice-ht (slot-ref (slot-ref work 'environment) 'voice))
+  (define t12u8vec (vector-ref (slot-ref work 'track) 11))
+  (define t13u8vec (vector-ref (slot-ref work 'track) 12))
+  (define track-start-pos (slot-ref work 'offset))
   (let1 track-offset
       (parameterize ([%pmd-section "voice table"])
         (fold (^[value offset]
                 (%size-check (+ track-start-pos offset 26))
-                (u8vector-set! t13u8vec offset (%pmd-fm-voice-number value))
+                (u8vector-set! t13u8vec offset (%pmd-fm-voice-number work value))
                 (u8vector-copy! t13u8vec (+ offset 1)
                                 (list->u8vector
                                  (%opn-voice-form->register-data (slot-ref value 'value)
                                                                  (slot-ref value 'id))))
                 (+ offset 26))
               0
-              (sort (filter (cut hash-table-exists? (slot-ref (sxmml-pmd-binary-environment) 'used-fm-voices) <>)
+              (sort (filter (cut hash-table-exists? (slot-ref work 'used-fm-voices) <>)
                             (hash-table-values voice-ht))
                     ;; 番号順に並べ、音色表の反復順に依存させない。
-                    (^[x y] (< (%pmd-fm-voice-number x) (%pmd-fm-voice-number y))))))
-    (if (eq? (slot-ref (sxmml-pmd-binary-environment) 'mode) 'fc88)
-      (begin (vector-set! (slot-ref (sxmml-pmd-binary-environment) 'track-length) 12 track-offset)
-             (slot-set! (sxmml-pmd-binary-environment) 'offset (+ track-start-pos track-offset)))
+                    (^[x y] (< (%pmd-fm-voice-number work x) (%pmd-fm-voice-number work y))))))
+    (if (eq? (slot-ref work 'mode) 'fc88)
+      (begin (vector-set! (slot-ref work 'track-length) 12 track-offset)
+             (slot-set! work 'offset (+ track-start-pos track-offset)))
       (begin (u8vector-set! t13u8vec track-offset #x00)
              (u8vector-set! t13u8vec (+ track-offset 1) #xff)
-             (vector-set! (slot-ref (sxmml-pmd-binary-environment) 'track-length) 12 (+ track-offset 2))
-             (slot-set! (sxmml-pmd-binary-environment) 'offset (+ track-start-pos track-offset 2))))
+             (vector-set! (slot-ref work 'track-length) 12 (+ track-offset 2))
+             (slot-set! work 'offset (+ track-start-pos track-offset 2))))
     ;; for PMD4 meta informations.
-    (unless (eq? (slot-ref (sxmml-pmd-binary-environment) 'mode) 'fc88)
+    (unless (eq? (slot-ref work 'mode) 'fc88)
       (parameterize ([%pmd-section "metadata"])
         (let loop ([rest (list 'ppzfile 'ppsfile 'pcmfile 'title 'composer 'arranger 'memo)]
                    [meta-offset (+ track-offset 2)]
@@ -351,15 +336,15 @@
           (cond [(null? rest)
                  ;; write pos info to the rhythm definition track
                  (receive (lb hb) (%short->le-bytes (+ track-start-pos meta-offset))
-                   (u8vector-set! t12u8vec (- (vector-ref (slot-ref (sxmml-pmd-binary-environment) 'track-length) 11) 4) lb)
-                   (u8vector-set! t12u8vec (- (vector-ref (slot-ref (sxmml-pmd-binary-environment) 'track-length) 11) 3) hb))
+                   (u8vector-set! t12u8vec (- (vector-ref (slot-ref work 'track-length) 11) 4) lb)
+                   (u8vector-set! t12u8vec (- (vector-ref (slot-ref work 'track-length) 11) 3) hb))
                  (let recur ([stack (reverse offset-stack)]
                              [toffset meta-offset])
                    (if (null? stack)
                      (begin (u8vector-set! t13u8vec toffset #x00)
                             (u8vector-set! t13u8vec (+ toffset 1) #x00)
-                            (vector-set! (slot-ref (sxmml-pmd-binary-environment) 'track-length) 12 (+ toffset 2))
-                            (slot-set! (sxmml-pmd-binary-environment) 'offset (+ track-start-pos toffset 2))
+                            (vector-set! (slot-ref work 'track-length) 12 (+ toffset 2))
+                            (slot-set! work 'offset (+ track-start-pos toffset 2))
                             (+ toffset 2))
                      (receive (lb hb) (%short->le-bytes (+ track-start-pos (car stack)))
                        (%size-check (+ track-start-pos toffset 2))
@@ -368,7 +353,7 @@
                        (recur (cdr stack) (+ toffset 2)))))]
                 [(eq? (car rest) 'memo)
                  ;; memo は文字列のリストとして受け取り、要素の数だけ書く。空なら書かない
-                 (let recur ([stack (sxmml-pmd-metadata-value 'memo)]
+                 (let recur ([stack (sxmml-pmd-metadata-value (slot-ref (slot-ref work 'environment) 'metadata) 'memo)]
                              [moffset meta-offset]
                              [ostack offset-stack])
                    (if (null? stack)
@@ -376,25 +361,25 @@
                      (let1 doffset (%shift-jis-u8vector-copy! t13u8vec (car stack) moffset track-start-pos)
                        (recur (cdr stack) doffset (cons moffset ostack)))))]
                 [else
-                 (if-let1 data (sxmml-pmd-metadata-value (car rest))
+                 (if-let1 data (sxmml-pmd-metadata-value (slot-ref (slot-ref work 'environment) 'metadata) (car rest))
                    (let1 doffset (%shift-jis-u8vector-copy! t13u8vec data meta-offset track-start-pos)
                      (loop (cdr rest) doffset (cons meta-offset offset-stack)))
                    (begin (u8vector-set! t13u8vec meta-offset #x00)
                           (loop (cdr rest) (+ meta-offset 1) (cons meta-offset offset-stack))))]))))))
 
 
-(define (%pmd-binary-output)
-  (%check-obsolete-metadata)
-  (let1 output-file (%output-file-get)
+(define (%pmd-binary-output work)
+  (sxmml-pmd-check-obsolete-metadata (slot-ref (slot-ref work 'environment) 'metadata))
+  (let1 output-file (slot-ref (slot-ref work 'environment) 'output)
     (call-with-temporary-file
         (^[p n]
           (display #\null p)
-          (write-uvector (slot-ref (sxmml-pmd-binary-environment) 'head) p 0
-                         (slot-ref (sxmml-pmd-binary-environment) 'head-length))
+          (write-uvector (slot-ref work 'head) p 0
+                         (slot-ref work 'head-length))
           (vector-for-each (^[uvec len]
                              (write-uvector uvec p 0 len))
-                           (slot-ref (sxmml-pmd-binary-environment) 'track)
-                           (slot-ref (sxmml-pmd-binary-environment) 'track-length))
+                           (slot-ref work 'track)
+                           (slot-ref work 'track-length))
           (close-port p)
           (sys-rename n output-file))
       :directory (sys-dirname output-file))
@@ -406,10 +391,10 @@
 ;;;
 
 ;; PMD operator
-(define (%pmd-rest-set! u8vec offset obj)
+(define (%pmd-rest-set! work u8vec offset obj)
   (let recur ([ticks (slot-ref obj 'ticks)]
               [cur offset])
-    (%size-check (+ (slot-ref (sxmml-pmd-binary-environment) 'offset) cur 2))
+    (%size-check (+ (slot-ref work 'offset) cur 2))
     (u8vector-set! u8vec cur #x0f)
     (if (> ticks 255)
       (begin (u8vector-set! u8vec (+ cur 1) #xff)
@@ -417,11 +402,11 @@
       (begin (u8vector-set! u8vec (+ cur 1) ticks)
              (+ cur 2)))))
 
-(define (%pmd-note-set! u8vec offset obj)
+(define (%pmd-note-set! work u8vec offset obj)
   (let recur ([note (%note-number->pmd-note (slot-ref obj 'value))]
               [ticks (slot-ref obj 'ticks)]
               [cur offset])
-    (%size-check (+ (slot-ref (sxmml-pmd-binary-environment) 'offset) cur (if (> ticks 255) 3 2)))
+    (%size-check (+ (slot-ref work 'offset) cur (if (> ticks 255) 3 2)))
     (u8vector-set! u8vec cur note)
     (if (> ticks 255)
       (begin (u8vector-set! u8vec (+ cur 1) #xff)
@@ -430,15 +415,15 @@
       (begin (u8vector-set! u8vec (+ cur 1) ticks)
              (+ cur 2)))))
 
-(define (%pmd-fm-voice-set! u8vec offset obj)
-  (let1 inst (hash-table-get (slot-ref (sxmml-environment) 'voice) (slot-ref obj 'value) #f)
+(define (%pmd-fm-voice-set! work u8vec offset obj)
+  (let1 inst (hash-table-get (slot-ref (slot-ref work 'environment) 'voice) (slot-ref obj 'value) #f)
     (unless inst
       (errorf <sxmml-reference-error> "undefined voice: ~a" (slot-ref obj 'value)))
-    (hash-table-put! (slot-ref (sxmml-pmd-binary-environment) 'used-fm-voices) inst #t)
-    (%pmd-1byte-set! u8vec offset #xff (%pmd-fm-voice-number inst) 255 0 "FM voice number")))
+    (hash-table-put! (slot-ref work 'used-fm-voices) inst #t)
+    (%pmd-1byte-set! u8vec offset #xff (%pmd-fm-voice-number work inst) 255 0 "FM voice number")))
 
-(define (%pmd-fm-voice-number voice)
-  (hash-table-get (slot-ref (sxmml-pmd-binary-environment) 'voice-numbers) (slot-ref voice 'id)))
+(define (%pmd-fm-voice-number work voice)
+  (hash-table-get (slot-ref work 'voice-numbers) (slot-ref voice 'id)))
 
 (define (%pmd-gate-time-set! u8vec offset obj)
   (%pmd-1byte-set! u8vec offset #xfe (slot-ref obj 'value) 255 0 "gate time"))
@@ -455,9 +440,9 @@
 (define (%pmd-tempo-absolute-set! u8vec offset obj)
   (%pmd-1byte-set! u8vec offset #xfc (slot-ref obj 'value) 250 0 "Timer-B"))
 
-(define (%pmd-tempo-set! u8vec offset obj)
+(define (%pmd-tempo-set! work u8vec offset obj)
   (let* ([bpm (slot-ref obj 'value)]
-         [timerb (sxmml-bpm->timer-b bpm)])
+         [timerb (sxmml-bpm->timer-b bpm (slot-ref (slot-ref work 'environment) 'resolution))])
     (when (> timerb 250)
       (errorf <sxmml-value-error>
               "invalid calculated Timer-B: ~s (from BPM ~s; expected an integer from 0 to 250)"
@@ -509,13 +494,13 @@
 (define (%pmd-transpose-set! u8vec offset obj)
   (%pmd-1byte-set! u8vec offset #xf5 (slot-ref obj 'value) 127 -128 "transpose"))
 
-(define (%pmd-lfo-set! u8vec offset obj)
-  (let1 lfo (hash-table-get (slot-ref (sxmml-environment) 'lfo) (slot-ref obj 'value) #f)
+(define (%pmd-lfo-set! work u8vec offset obj)
+  (let1 lfo (hash-table-get (slot-ref (slot-ref work 'environment) 'lfo) (slot-ref obj 'value) #f)
     (unless lfo
       (errorf <sxmml-reference-error> "undefined LFO: ~a" (slot-ref obj 'value)))
     (let ([channel (slot-ref obj 'channel)])
       (when (or (not (memq channel '(#f A B)))
-                (and (eq? (slot-ref (sxmml-pmd-binary-environment) 'mode) 'fc88) (eq? channel 'B)))
+                (and (eq? (slot-ref work 'mode) 'fc88) (eq? channel 'B)))
         (errorf <sxmml-value-error> "invalid LFO channel: ~a" channel))
       (let1 value (sxmml-pmd-lfo-values lfo)
         (u8vector-set! u8vec offset (if (or (eq? channel #f) (eq? channel 'A)) #xf2 #xbf))
@@ -525,23 +510,23 @@
         (u8vector-set! u8vec (+ offset 4) (cadddr value))
         (+ offset 5)))))
 
-(define (%pmd-lfo-switch-set! u8vec offset obj)
+(define (%pmd-lfo-switch-set! work u8vec offset obj)
   (let ([channel (slot-ref obj 'channel)]
         [switch (slot-ref obj 'value)])
     (when (or (and (not (eq? channel 'A)) (not (eq? channel 'B)) (not (eq? channel #f)))
-              (and (eq? (slot-ref (sxmml-pmd-binary-environment) 'mode) 'fc88) (eq? channel 'B)))
+              (and (eq? (slot-ref work 'mode) 'fc88) (eq? channel 'B)))
         (errorf <sxmml-value-error> "invalid LFO channel: ~a" channel))
     (u8vector-set! u8vec offset (if (or (eq? channel #f) (eq? channel 'A)) #xf1 #xbe))
     (u8vector-set! u8vec (+ offset 1) (if switch 1 0))
     (+ offset 2)))
 
-(define (%pmd-envelope-set! u8vec offset obj)
-  (let1 envelope (hash-table-get (slot-ref (sxmml-environment) 'envelope) (slot-ref obj 'value) #f)
+(define (%pmd-envelope-set! work u8vec offset obj)
+  (let1 envelope (hash-table-get (slot-ref (slot-ref work 'environment) 'envelope) (slot-ref obj 'value) #f)
     (unless envelope
       (errorf <sxmml-reference-error> "undefined envelope: ~a" (slot-ref obj 'value)))
     (let1 value (sxmml-pmd-envelope-values envelope)
       ;; PMD3 は 4 値の書式だけを書ける
-      (when (and (eq? (slot-ref (sxmml-pmd-binary-environment) 'mode) 'fc88) (> (length value) 4))
+      (when (and (eq? (slot-ref work 'mode) 'fc88) (> (length value) 4))
         (errorf <sxmml-value-error> "unsupported envelope values in PMD3: ~a has ~a values (expected 4)"
                 (slot-ref envelope 'id) (length value)))
       (if (= (length value) 4)
@@ -662,7 +647,7 @@
     (+ offset 2)))
 
 ;; Rhythm operator
-(define (%pmd-rhythm-emit-set! u8vec offset obj)
+(define (%pmd-rhythm-emit-set! work u8vec offset obj)
   (let* ([sw (if (slot-ref obj 'value) 0 128)]
          [b (if (slot-ref obj 'bass) 1 0)]
          [s (if (slot-ref obj 'snare) 2 0)]
@@ -672,7 +657,7 @@
          [i (if (slot-ref obj 'rimshot) 32 0)]
          [cur (%pmd-1byte-set! u8vec offset #xeb (+ sw b s t c h i) 255 1 "rhythm instrument selection")])
     (if (slot-ref obj 'value)
-      (%pmd-rest-set! u8vec cur (make <sxmml-mml-rest> :value #f :ticks (slot-ref obj 'ticks)))
+      (%pmd-rest-set! work u8vec cur (make <sxmml-mml-rest> :value #f :ticks (slot-ref obj 'ticks)))
       cur)))
 
 (define (%pmd-rhythm-volume-set! u8vec offset obj)
@@ -835,21 +820,6 @@
                               (operator->register op4 4)
                               (logior (ash (check fb 'FB 7) 3) (check al 'AL 7)))]))
 
-;; CLI が設定した出力先を使い、ライブラリからの利用時だけ既定値を補う。
-(define (%output-file-get)
-  (or (slot-ref (sxmml-environment) 'output)
-      (let1 output (or (and-let* ([current-file (sxmml-source-file)])
-                         (path-swap-extension current-file "m"))
-                       "./a.m")
-        (slot-set! (sxmml-environment) 'output output)
-        output)))
-
-;; 出力先の指定に使われていた filename メタデータは無視し、警告を表示する
-(define (%check-obsolete-metadata)
-  (when (sxmml-metadata-get 'filename)
-    (format (current-error-port)
-            "warning: metadata 'filename' is ignored; use the -o option of sxlc to set the output file\n")))
-
 (define (%shift-jis-u8vector-copy! u8vector str start base)
   (let* ([u8str (ces-convert-to <u8vector> str "*jp" "cp932")]
          [u8len (u8vector-length u8str)])
@@ -857,23 +827,23 @@
     (u8vector-copy! u8vector start u8str)
     (+ start u8len 1)))
 
-(define (%ticks-update! track)
-  (when (> (slot-ref (sxmml-track-get track) 'total-ticks)
-           (slot-ref (sxmml-pmd-binary-environment) 'max-total-ticks))
-    (slot-set! (sxmml-pmd-binary-environment) 'max-total-ticks
-               (slot-ref (sxmml-track-get track) 'total-ticks)))
+(define (%ticks-update! work track)
+  (when (> (slot-ref track 'total-ticks)
+           (slot-ref work 'max-total-ticks))
+    (slot-set! work 'max-total-ticks
+               (slot-ref track 'total-ticks)))
   ;; L のないトラックの loop-ticks は合計 tick と同じ値なので、loop tick の最大には数えない
-  (when (and (slot-ref (sxmml-track-get track) 'loop-exists)
-             (> (slot-ref (sxmml-track-get track) 'loop-ticks)
-                (slot-ref (sxmml-pmd-binary-environment) 'max-loop-ticks)))
-    (slot-set! (sxmml-pmd-binary-environment) 'max-loop-ticks
-               (slot-ref (sxmml-track-get track) 'loop-ticks))))
+  (when (and (slot-ref track 'loop-exists)
+             (> (slot-ref track 'loop-ticks)
+                (slot-ref work 'max-loop-ticks)))
+    (slot-set! work 'max-loop-ticks
+               (slot-ref track 'loop-ticks))))
 
 (sxmml-mode-register!
  (make <sxmml-mode> :name 'pmd-binary :aliases '(pmd4-binary)
-       :setup %pmd-binary-setup :backend sxmml-pmd-binary-output
+       :setup sxmml-pmd-setup! :backend sxmml-pmd-binary-output
        :output-extension "m"))
 (sxmml-mode-register!
  (make <sxmml-mode> :name 'pmd3-binary
-       :setup %pmd-binary-setup :backend sxmml-pmd3-binary-output
+       :setup sxmml-pmd-setup! :backend sxmml-pmd3-binary-output
        :output-extension "m"))

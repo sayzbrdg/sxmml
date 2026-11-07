@@ -10,6 +10,7 @@
 (use sxmml)
 (use sxmml.form)
 (use sxmml.backend.pmd)
+(use sxmml.backend.pmd-source)
 (use gauche.process)
 (use file.util)
 (use test.helpers)
@@ -21,7 +22,7 @@
     (rlet1 source (work-file #"~|name|.sxl")
       (with-output-to-file source (^[] (display text)))))
   (define (delay-state track)
-    (let* ([ir (sxmml-optimize-tree track :optimize #f)]
+    (let* ([ir (sxmml-ir-flatten (slot-ref (sxmml-track-get track) 'compiled-data))]
            [notes (filter (^o (and (is-a? o <sxmml-mml-note>)
                                    (not (is-a? o <sxmml-mml-rest>)))) ir)])
       (list (map (cut slot-ref <> 'value) notes)
@@ -38,8 +39,10 @@
                                                [sxmml-source-file source])
                                   (sxmml-mode-select! 'pmd-source)
                                   (load source)
-                                  ((slot-ref (sxmml-mode-get) 'backend))
-                                  (filter #/^[A-L] / (string-split (file->string (slot-ref (sxmml-environment) 'output))
+                                  ((slot-ref (sxmml-mode-get) 'backend)
+                                   (make-sxmml-output-environment (sxmml-environment)
+                                     :output (path-swap-extension source "mml") :optimize 1 :source source))
+                                  (filter #/^[A-L] / (string-split (file->string (path-swap-extension source "mml"))
                                                                    "\r\n")))))]
                [load-error (^[name text]
                              (let1 source (source-output name text)
@@ -97,7 +100,7 @@
                    (sxmml-mode-select! 'pmd-source)
                    (eval '(mml-repeat G (+ 1 1) ((mml G "c"))) (interaction-environment))
                    (slot-ref (find (cut is-a? <> <sxmml-mml-repeat-end>)
-                                   (sxmml-optimize-tree 'G :optimize #f))
+                                   (sxmml-ir-flatten (slot-ref (sxmml-track-get 'G) 'compiled-data)))
                              'value)))
           (test* "R01 回数式を終了直前に一度評価し本文のスコープを保つ"
                  '((front back count after) (2 2) (((48 . 0)) ((48 . 0))))
@@ -109,7 +112,7 @@
                      (list (eval '%repeat-events (interaction-environment))
                            (map (^[track]
                                   (slot-ref (find (cut is-a? <> <sxmml-mml-repeat-end>)
-                                                  (sxmml-optimize-tree track :optimize #f)) 'value))
+                                                  (sxmml-ir-flatten (slot-ref (sxmml-track-get track) 'compiled-data))) 'value))
                                 '(A B))
                            (map (^[track] (slot-ref (sxmml-track-get track) 'current-ticks)) '(A B))))))
           (test* "R02 反復の生成識別子は利用者の束縛に捕捉されない"
@@ -125,7 +128,7 @@
                                          (list (slot-ref ir 'value) (slot-ref ir 'ticks))]
                                         [(is-a? ir <sxmml-mml-repeat-end>) (list (slot-ref ir 'value))]
                                         [else '()])))
-                          (sxmml-optimize-tree 'G :optimize #f)))))
+                          (sxmml-ir-flatten (slot-ref (sxmml-track-get 'G) 'compiled-data))))))
           (let1 r (load-error "repeat-undefined-track" (in-begin "(mml-repeat X 2 ())"))
             (test* "R03 未登録トラックにフォーム位置とトラック情報を付ける"
                    (list #t "undefined track: X" #"~(car r):3" 'X)
