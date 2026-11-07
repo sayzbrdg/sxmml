@@ -1,7 +1,7 @@
 = `sxmml.backend.pmd-source` の生成処理
 :toc: left
 
-PMD向けMML出力の55定義（手続き54件・クラス1件）を持ちます。モード情報は読込み時に登録し、初期トラック設定は選択時に共通setup!で実行します。定義の規則と最適化選択は xref:pmd.adoc[PMD共通処理]を使います。
+PMD向けMML出力の56定義（手続き55件・クラス1件）を持ちます。モード情報は読込み時に登録し、初期トラック設定は選択時に共通setup!で実行します。定義の規則と最適化選択は xref:pmd.adoc[PMD共通処理]を使います。
 
 公開出力は出力環境一つを受け、出力結果を返します。A～J・Lに対応する出力トラックが必要です。出力中に現在の登録環境・モード・sxmml-source-fileを参照せず、入力を変更しません。作業用のトラック状態は明示引数、音色番号表・使用id表と定義参照は局所状態とクロージャで渡します。
 
@@ -12,7 +12,7 @@ PMD向けMML出力の55定義（手続き54件・クラス1件）を持ちます
 [cols="2,4,4,1",options="header"]
 |===
 |名前・書式 |役割・引数 |結果・状態・失敗条件 |ソース
-|[[ref-pmd-source-class-sxmml-pmd-track-environment]]`<sxmml-pmd-track-environment>` |一トラックを出力する際の状態クラス |`(make <sxmml-pmd-track-environment> [:octave 値] [:mode 値])`。`octave` 初期値 255、`mode` 初期値 0。新規インスタンスを返し、作成時に既存状態は変えない |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
+|[[ref-pmd-source-class-sxmml-pmd-track-environment]]`<sxmml-pmd-track-environment>` |一トラックを出力する際の状態クラス |`(make <sxmml-pmd-track-environment> [:octave 値] [:mode 値])`。`octave` 初期値 255、`mode` 初期値 0。通常トラックでは `:voice-output`・`:volume-output`・`:volume-change-output`・`:tempo-output`・`:lfo-output`・`:envelope-output` に出力用手続きを指定し、生成後は変更しない。各初期値は `#f` で、リズム出力では使わない。新規インスタンスを返し、作成時に既存状態は変えない |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
 |[[ref-pmd-source-sxmml-pmd3-source-output]]`(sxmml-pmd3-source-output env)` |PMD3向けの公開出力 |同じ入出力契約でPMD3の形式と終端0x1aを使用する |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
 |[[ref-pmd-source-sxmml-pmd4-source-output]]`(sxmml-pmd4-source-output env)` |PMD4向けの公開出力 |sxmml-pmd-source-outputと同じ形式・契約 |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
 |[[ref-pmd-source-sxmml-pmd-source-output]]`(sxmml-pmd-source-output env)` |PMD4向けの公開出力 |出力環境を受け、出力先と採用トラック名を持つ出力結果を返す。入力環境は変更しない |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
@@ -20,7 +20,8 @@ PMD向けMML出力の55定義（手続き54件・クラス1件）を持ちます
 |[[ref-pmd-source-internal-fm-track-output]]`(%fm-track-output env track part voice-proc)` |FMトラックの出力 |明示した環境・トラックと音色出力用クロージャを使う |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
 |[[ref-pmd-source-internal-ssg-track-output]]`(%ssg-track-output env track part)` |SSGトラックの出力 |明示した環境・トラックを使い、既存の値の検査と出力順を保つ |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
 |[[ref-pmd-source-internal-pcm-track-output]]`(%pcm-track-output env track part)` |PCMトラックの出力 |明示した環境・トラックを使い、既存の値の検査と出力順を保つ |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
-|[[ref-pmd-source-internal-pmd-track-output]]`(%pmd-track-output state lis voiceproc volproc volcproc tempoproc lfoproc envelopeproc)` |平坦なIR列を順に出力 |トラック状態と定義参照用コールバックを明示引数で受ける。ループ有無と反復深さを再帰引数で保持 |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
+|[[ref-pmd-source-internal-pmd-track-output-bang]]`(%pmd-track-output! state lis)` |平坦なIR列を順に出力 |一個分の処理へトラック状態を渡し、返されたループ有無と反復深さを次の再帰へ渡す。音符・ポルタメントの出力でstateのoctaveを更新。IR列は変更しない |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
+|[[ref-pmd-source-internal-pmd-ir-output-bang]]`(%pmd-ir-output! state obj loop-seen? depth)` |IR一個の型をcondで判定して出力 |stateの固定コールバックを使い、次のloop-seen?とdepthを多値で返す。反復開始時の深さ検査と重複Lの検査を行う。必要ならoctaveを更新し、objは変更しない。未対応IRは出力せず、進行状態をそのまま返す |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
 |[[ref-pmd-source-internal-pmd-rhythm-track-output]]`(%pmd-rhythm-track-output env track)` |リズムトラックの出力 |明示した出力環境の要求で最適化し、局所状態を定義・展開トラックへ渡す |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
 |[[ref-pmd-source-internal-pmd-rhythm-definition-track-output]]`(%pmd-rhythm-definition-track-output state has-loop? lis)` |R0・R1のリズム本文を出力 |明示した状態を使う。2個目のLは既存の構文エラーとし、R0からR1へ検査状態を引き継ぐ |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
 |[[ref-pmd-source-internal-pmd-rhythm-deploy-track-output]]`(%pmd-rhythm-deploy-track-output state track has-loop? lis)` |Kトラックのパターン呼出しを出力 |明示した出力トラックの解析時統計を使う |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
