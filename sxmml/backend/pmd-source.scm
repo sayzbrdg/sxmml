@@ -102,10 +102,10 @@
          (%pmd-rest-output state obj)
          (values loop-seen? depth)]
         [(is-a? obj <sxmml-mml-portamento>)
-         (%pmd-portamento-output state obj)
+         (%pmd-portamento-output! state obj)
          (values loop-seen? depth)]
         [(is-a? obj <sxmml-mml-note>)
-         (%pmd-note-output state obj)
+         (%pmd-note-output! state obj)
          (values loop-seen? depth)]
         [(is-a? obj <sxmml-mml-voice>)
          ((slot-ref state 'voice-output) obj)
@@ -178,7 +178,7 @@
          [has-loop? (boolean (find (^o (is-a? o <sxmml-mml-loop>)) lis))]
          [state (make <sxmml-pmd-track-environment>)])
     (%pmd-rhythm-definition-track-output state has-loop? lis)
-    (%pmd-rhythm-deploy-track-output state track has-loop? lis)))
+    (%pmd-rhythm-deploy-track-output! state track has-loop? lis)))
 
 (define (%pmd-rhythm-definition-track-output state has-loop? lis)
   (define (loop rest loop-seen? depth)
@@ -225,7 +225,7 @@
         (loop rest #t 0)))
     (display "\r\n")))
 
-(define (%pmd-rhythm-deploy-track-output state track has-loop? lis)
+(define (%pmd-rhythm-deploy-track-output! state track has-loop? lis)
   (unless (null? lis)
     (display "K ")
     (and-let1 mode (%most-frequent-ticks-find track)
@@ -358,7 +358,7 @@
           [else
            (format #t "r%~d" ticks)])))
 
-(define (%pmd-note-output state obj)
+(define (%pmd-note-output! state obj)
   (let recur ([note (%note-number->pmd-note (%pmd-note-check (slot-ref obj 'value)))]
               [ticks (slot-ref obj 'ticks)]
               [octave (slot-ref state 'octave)])
@@ -511,7 +511,7 @@
           [else
            (format #t "(%~d" (* value -1))])))
 
-(define (%pmd-portamento-output state obj)
+(define (%pmd-portamento-output! state obj)
   (define (octave-output noteoct)
     (let1 octave (slot-ref state 'octave)
       (cond [(or (> (- noteoct octave) 1) (< (- noteoct octave) -1))

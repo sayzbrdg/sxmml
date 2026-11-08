@@ -3,7 +3,7 @@
 
 この索引は、sxmml を保守・改修する際に内部定義を名前から探すためのものです。動作環境は Gauche 0.9.15 です。内部の名前は MML 記述者向け API を示しません。公開機能の使い方は xref:../sxmml-reference-manual.adoc[MML 記述者向けリファレンス]、MML 文字列の記法は xref:../sxmml-mml-manual.adoc[MML コマンドマニュアル]を参照してください。
 
-モジュール直下の手続き 307 件、クラス 64 件、マクロ 13 件、合計 384 件を掲載します。実験的な `sxmml.backend.pmd-binary` は公開名 4 件だけを掲載し、内部定義は xref:pmd-binary.adoc[本文]に概要だけを記します。`sxmml.scm` は各モジュールを継承し、独自の直下定義はありません。`sxmml.backend.pmd-binary` の `initialize` と `sxmml.form` の `report-additional-condition` のメソッドは、手続き件数へ重複計上しません。局所関数と `sxlc.in` の直下定義は範囲外です。呼び出せない表（ハッシュ表やリスト）は対象外です。
+モジュール直下の手続き 311 件、クラス 64 件、マクロ 13 件、合計 388 件を掲載します。実験的な `sxmml.backend.pmd-binary` は公開名 4 件だけを掲載し、内部定義は xref:pmd-binary.adoc[本文]に概要だけを記します。`sxmml.scm` は各モジュールを継承し、独自の直下定義はありません。`sxmml.backend.pmd-binary` の `initialize` と `sxmml.form` の `report-additional-condition` のメソッドは、手続き件数へ重複計上しません。局所関数と `sxlc.in` の直下定義は範囲外です。呼び出せない表（ハッシュ表やリスト）は対象外です。
 
 識別子の命名と改名の判断は xref:naming-conventions.adoc[命名規約]を参照してください。
 
@@ -106,6 +106,9 @@
 |`%copy-costs` |`sxmml.repeat-tree` |手続き・非公開 |xref:repeat-tree.adoc#ref-repeat-tree-internal-copy-costs[項目へ]
 |`%define-lfo/envelope-expand` |`sxmml.environment` |手続き・非公開 |xref:environment.adoc#ref-environment-internal-define-lfo-envelope-expand[項目へ]
 |`%fm-track-output` |`sxmml.backend.pmd-source` |手続き・非公開 |xref:pmd-source.adoc#ref-pmd-source-internal-fm-track-output[項目へ]
+|`%ir-setting-kind` |`sxmml.optimizer` |手続き・非公開 |xref:optimizer.adoc#ref-optimizer-internal-ir-setting-kind[項目へ]
+|`%ir-same-class?` |`sxmml.optimizer` |手続き・非公開 |xref:optimizer.adoc#ref-optimizer-internal-ir-same-class-p[項目へ]
+|`%ir-copy-with-updates` |`sxmml.optimizer` |手続き・非公開 |xref:optimizer.adoc#ref-optimizer-internal-ir-copy-with-updates[項目へ]
 |`%ir->setting-effects` |`sxmml.optimizer` |手続き・非公開 |xref:optimizer.adoc#ref-optimizer-internal-ir-to-setting-effects[項目へ]
 |`%make-mml-command-parser` |`sxmml.mml` |手続き・非公開 |xref:mml.adoc#ref-mml-internal-make-mml-command-parser[項目へ]
 |`%make-mml-context-value-parser` |`sxmml.mml` |手続き・非公開 |xref:mml.adoc#ref-mml-internal-make-mml-context-value-parser[項目へ]
@@ -138,19 +141,19 @@
 |`%pmd-loop-output` |`sxmml.backend.pmd-source` |手続き・非公開 |xref:pmd-source.adoc#ref-pmd-source-internal-pmd-loop-output[項目へ]
 |`%pmd-noise-freq-output` |`sxmml.backend.pmd-source` |手続き・非公開 |xref:pmd-source.adoc#ref-pmd-source-internal-pmd-noise-freq-output[項目へ]
 |`%pmd-note-check` |`sxmml.backend.pmd-source` |手続き・非公開 |xref:pmd-source.adoc#ref-pmd-source-internal-pmd-note-check[項目へ]
-|`%pmd-note-output` |`sxmml.backend.pmd-source` |手続き・非公開 |xref:pmd-source.adoc#ref-pmd-source-internal-pmd-note-output[項目へ]
+|`%pmd-note-output!` |`sxmml.backend.pmd-source` |手続き・非公開 |xref:pmd-source.adoc#ref-pmd-source-internal-pmd-note-output[項目へ]
 |`%pmd-output-switch-output` |`sxmml.backend.pmd-source` |手続き・非公開 |xref:pmd-source.adoc#ref-pmd-source-internal-pmd-output-switch-output[項目へ]
 |`%pmd-pan-output` |`sxmml.backend.pmd-source` |手続き・非公開 |xref:pmd-source.adoc#ref-pmd-source-internal-pmd-pan-output[項目へ]
 |`%pmd-pcm-voice-output` |`sxmml.backend.pmd-source` |手続き・非公開 |xref:pmd-source.adoc#ref-pmd-source-internal-pmd-pcm-voice-output[項目へ]
 |`%pmd-pcm-volume-change-output` |`sxmml.backend.pmd-source` |手続き・非公開 |xref:pmd-source.adoc#ref-pmd-source-internal-pmd-pcm-volume-change-output[項目へ]
 |`%pmd-pcm-volume-output` |`sxmml.backend.pmd-source` |手続き・非公開 |xref:pmd-source.adoc#ref-pmd-source-internal-pmd-pcm-volume-output[項目へ]
-|`%pmd-portamento-output` |`sxmml.backend.pmd-source` |手続き・非公開 |xref:pmd-source.adoc#ref-pmd-source-internal-pmd-portamento-output[項目へ]
+|`%pmd-portamento-output!` |`sxmml.backend.pmd-source` |手続き・非公開 |xref:pmd-source.adoc#ref-pmd-source-internal-pmd-portamento-output[項目へ]
 |`%pmd-repeat-break-output` |`sxmml.backend.pmd-source` |手続き・非公開 |xref:pmd-source.adoc#ref-pmd-source-internal-pmd-repeat-break-output[項目へ]
 |`%pmd-repeat-end-output` |`sxmml.backend.pmd-source` |手続き・非公開 |xref:pmd-source.adoc#ref-pmd-source-internal-pmd-repeat-end-output[項目へ]
 |`%pmd-repeat-start-output` |`sxmml.backend.pmd-source` |手続き・非公開 |xref:pmd-source.adoc#ref-pmd-source-internal-pmd-repeat-start-output[項目へ]
 |`%pmd-rest-output` |`sxmml.backend.pmd-source` |手続き・非公開 |xref:pmd-source.adoc#ref-pmd-source-internal-pmd-rest-output[項目へ]
 |`%pmd-rhythm-definition-track-output` |`sxmml.backend.pmd-source` |手続き・非公開 |xref:pmd-source.adoc#ref-pmd-source-internal-pmd-rhythm-definition-track-output[項目へ]
-|`%pmd-rhythm-deploy-track-output` |`sxmml.backend.pmd-source` |手続き・非公開 |xref:pmd-source.adoc#ref-pmd-source-internal-pmd-rhythm-deploy-track-output[項目へ]
+|`%pmd-rhythm-deploy-track-output!` |`sxmml.backend.pmd-source` |手続き・非公開 |xref:pmd-source.adoc#ref-pmd-source-internal-pmd-rhythm-deploy-track-output[項目へ]
 |`%pmd-rhythm-emit-output` |`sxmml.backend.pmd-source` |手続き・非公開 |xref:pmd-source.adoc#ref-pmd-source-internal-pmd-rhythm-emit-output[項目へ]
 |`%pmd-rhythm-pan-output` |`sxmml.backend.pmd-source` |手続き・非公開 |xref:pmd-source.adoc#ref-pmd-source-internal-pmd-rhythm-pan-output[項目へ]
 |`%pmd-rhythm-track-output` |`sxmml.backend.pmd-source` |手続き・非公開 |xref:pmd-source.adoc#ref-pmd-source-internal-pmd-rhythm-track-output[項目へ]
@@ -173,6 +176,7 @@
 |`%pmd-voice-number` |`sxmml.backend.pmd-source` |手続き・非公開 |xref:pmd-source.adoc#ref-pmd-source-internal-pmd-voice-number[項目へ]
 |`%positive-integer?` |`sxmml.processor` |手続き・非公開 |xref:processor.adoc#ref-processor-internal-positive-integer-p[項目へ]
 |`%proc-note-number` |`sxmml.mml` |手続き・非公開 |xref:mml.adoc#ref-mml-internal-proc-note-number[項目へ]
+|`%processor-track-name-check` |`sxmml.processor` |手続き・非公開 |xref:processor.adoc#ref-processor-internal-processor-track-name-check[項目へ]
 |`%processor-value-check` |`sxmml.processor` |手続き・非公開 |xref:processor.adoc#ref-processor-internal-processor-value-check[項目へ]
 |`%record-ticks!` |`sxmml.command` |手続き・非公開 |xref:command.adoc#ref-command-record-ticks[項目へ]
 |`%repeat-block-back` |`sxmml.optimizer` |手続き・非公開 |xref:optimizer.adoc#ref-optimizer-internal-repeat-block-back[項目へ]

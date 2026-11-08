@@ -21,6 +21,77 @@
 
 (use test.ir-meaning)
 (use srfi.1)
+
+(define-class <test-volume> (<sxmml-mml-volume>)
+  ([marker :init-value 'default :init-keyword :marker] [extra]))
+(define-class <test-volume-change> (<sxmml-mml-volume-change>)
+  ([marker :init-keyword :marker]))
+(define-class <test-lfo> (<sxmml-mml-lfo>) ([marker :init-keyword :marker]))
+(define-class <test-lfo-switch> (<sxmml-mml-lfo-switch>) ([marker :init-keyword :marker]))
+(define-class <test-rhythm-volume> (<sxmml-rhythm-volume>) ([marker :init-keyword :marker]))
+(define-class <test-rhythm-volume-other> (<test-rhythm-volume>) ())
+(define-class <test-rest> (<sxmml-mml-rest>) ([marker :init-keyword :marker]))
+(define-class <test-note> (<sxmml-mml-note>) ())
+
+(let ()
+  (define (snapshot ir)
+    (map (^[obj]
+           (cons (class-name (class-of obj))
+                 (map (^[definition]
+                        (let1 slot (slot-definition-name definition)
+                          (list slot (slot-bound? obj slot)
+                                (and (slot-bound? obj slot) (slot-ref obj slot)))))
+                      (class-slots (class-of obj))))) ir))
+  (define (check name procedure input expected)
+    (let* ([before (snapshot input)] [result (procedure input)])
+      (test* name (list #t (snapshot expected))
+             (list (equal? before (snapshot input)) (snapshot result)))))
+  (define (volume value marker) (make <test-volume> :value value :marker marker))
+  (check "派生音量の絶対・相対合成は原型の情報を保つ" sxmml-ir-optimize-local
+         (list (volume 8 'A) (make <sxmml-mml-volume-change> :value 2))
+         (list (volume 10 'A)))
+  (check "派生相対音量は親と同じ状態を更新する" sxmml-ir-optimize-local
+         (list (make <test-volume-change> :value 2 :marker 'A)
+               (make <sxmml-mml-volume-change> :value 3))
+         (list (make <test-volume-change> :value 5 :marker 'A)))
+  (check "後続の絶対指定を原型とする" sxmml-ir-optimize-local
+         (list (volume 8 'A) (volume 9 'B)) (list (volume 9 'B)))
+  (check "派生LFOの選択と切替はチャンネルを保ち別々に追跡する" sxmml-ir-optimize
+         (list (make <sxmml-mml-lfo> :value 'L2 :channel 'A)
+               (make <test-lfo> :value 'L1 :channel 'A :marker 'definition)
+               (make <test-lfo-switch> :value #t :channel 'A :marker 'switch))
+         (list (make <test-lfo> :value 'L1 :channel 'A :marker 'definition)
+               (make <test-lfo-switch> :value #t :channel 'A :marker 'switch)))
+  (check "同クラスのリズム設定は最初の寄与元を原型とする" sxmml-ir-optimize-local
+         (list (make <test-rhythm-volume> :bass 9 :marker 'A)
+               (make <test-rhythm-volume> :snare 8 :marker 'B))
+         (list (make <test-rhythm-volume> :bass 9 :snare 8 :marker 'A)))
+  (check "親子であっても異なるクラスのリズム設定はまとめない" sxmml-ir-optimize-local
+         (list (make <test-rhythm-volume> :bass 9 :marker 'A)
+               (make <test-rhythm-volume-other> :snare 8 :marker 'B))
+         (list (make <test-rhythm-volume> :bass 9 :marker 'A)
+               (make <test-rhythm-volume-other> :snare 8 :marker 'B)))
+  (check "コピーによって上書き済みの楽器設定を復活させない" sxmml-ir-optimize-local
+         (list (make <test-rhythm-volume> :bass 9 :snare 8 :marker 'A)
+               (make <sxmml-rhythm-volume> :snare 7))
+         (list (make <test-rhythm-volume> :bass 9 :marker 'A)
+               (make <sxmml-rhythm-volume> :snare 7)))
+  (check "派生休符の結合は後の原型と未束縛のvalueを保つ" sxmml-ir-merge-rests
+         (list (make <test-rest> :ticks 6 :marker 'A) (make <test-rest> :ticks 6 :marker 'B))
+         (list (make <test-rest> :ticks 12 :marker 'B)))
+  (let ([origin (allocate-instance <test-volume> '())]
+        [expected (allocate-instance <test-volume> '())])
+    (slot-set! origin 'value 8)
+    (slot-set! expected 'value 10)
+    (check "再生成は初期値を戻さず追加スロットの未束縛を保つ" sxmml-ir-optimize-local
+           (list origin (make <sxmml-mml-volume-change> :value 2)) (list expected)))
+  (let1 same? (with-module sxmml.optimizer %repeat-same?)
+    (test* "反復比較は同じスロットを持つ親と派生を区別する" '(#f #t)
+           (list (same? (make <sxmml-mml-note> :value 48 :ticks 12)
+                        (make <test-note> :value 48 :ticks 12))
+                 (same? (make <test-note> :value 48 :ticks 12)
+                        (make <test-note> :value 48 :ticks 12))))))
+
 (define (test-optimize-track track :key (optimize #t))
   (sxmml-pmd-ir-optimize
    (sxmml-ir-flatten (slot-ref (sxmml-track-get track) 'compiled-data))

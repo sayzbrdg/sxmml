@@ -167,6 +167,55 @@
                        (list (sxmml-reference-error? e) (condition-message e)
                              (equal? (sxmml-source-context-location e) #"~|source|:3")
                              (sxmml-track-context-track e) (delay-state 'A))))))
+          (for-each
+           (^[case]
+             (test* #"利用者マクロのidentifierを受け取る: ~(car case)"
+                    (track-lines #"name-direct-~(car case)" (caddr case))
+                    (track-lines #"name-macro-~(car case)"
+                                 `((define-syntax user-processor
+                                     (syntax-rules () [(_) ,(cadr case)]))
+                                   (user-processor)))))
+           '((repeat (mml-repeat G 2 ((mml G "c8"))) ((mml G "[c8]2")))
+             (echo (mml-echo G ("g" 2 1) "c8d8r8") ((mml-echo G ("g" 2 1) "c8d8r8")))
+             (delay (mml-delay G (6 2 1) "c8r8") ((mml-delay G (6 2 1) "c8r8")))))
+          (for-each
+           (^[case]
+             (eval '(define %processor-name-events '()) (interaction-environment))
+             (let1 source (source-output #"name-invalid-~(car case)" (in-begin (cadr case)))
+               (parameterize ([sxmml-environment (make <sxmml-environment>)])
+                 (sxmml-mode-select! 'pmd-source)
+                 (let1 e (guard (e [else e]) (load source) #f)
+                   (test* #"不正な名前は評価・登録前に拒否する: ~(car case)"
+                          (list #t (caddr case) #t '() '() 0)
+                          (list (sxmml-form-syntax-error? e) (condition-message e)
+                                (equal? (sxmml-source-context-location e) #"~|source|:3")
+                                (eval '%processor-name-events (interaction-environment))
+                                (slot-ref (sxmml-track-get 'G) 'compiled-data)
+                                (length (slot-ref (sxmml-track-get 'G) 'repeat-stack))))))))
+           '((delay "(mml-delay (G 0) ((begin (set! %processor-name-events '(value)) 6) 2 1) (begin (set! %processor-name-events '(body)) \"c8r8\"))"
+                    "invalid mml-delay track name: 0 (expected a symbol)")
+             (echo "(mml-echo (G) (\"g\" 2 1) (begin (set! %processor-name-events '(body)) \"c8\"))"
+                   "invalid mml-echo track name: (G) (expected a symbol)")
+             (repeat "(mml-repeat 0 2 ((set! %processor-name-events '(body)) (mml G \"c8\")))"
+                     "invalid mml-repeat track name: 0 (expected a symbol)")
+             (break "(mml-repeat (G) 2 ((set! %processor-name-events '(front)) (mml G \"c8\")) ((set! %processor-name-events '(back))) ((0)))"
+                    "invalid mml-repeat track name: 0 (expected a symbol)")))
+          (test* "型が正しい未登録名は実行時の参照エラーと先行登録を保つ"
+                 '(#t "undefined track: X" ((48 48) (12 6) ((24 . 0))))
+                 (let1 source (source-output "name-undefined" (in-begin "(mml-delay (G X) (6 2 1) \"c8r8\")"))
+                   (parameterize ([sxmml-environment (make <sxmml-environment>)])
+                     (sxmml-mode-select! 'pmd-source)
+                     (let1 e (guard (e [else e]) (load source) #f)
+                       (list (sxmml-reference-error? e) (condition-message e) (delay-state 'G))))))
+          (test* "直接登録された数値名もマクロの構文では拒否する"
+                 '(#t "invalid mml-delay track name: 0 (expected a symbol)" ())
+                 (let1 source (source-output "name-numeric" (in-begin "(mml-delay 0 (6 2 1) \"c8r8\")"))
+                   (parameterize ([sxmml-environment (make <sxmml-environment>)])
+                     (hash-table-put! (slot-ref (sxmml-environment) 'track) 0
+                                      (make <sxmml-mml-context> :track 0 :part 'G))
+                     (let1 e (guard (e [else e]) (load source) #f)
+                       (list (sxmml-form-syntax-error? e) (and e (condition-message e))
+                             (slot-ref (sxmml-track-get 0) 'compiled-data))))))
           ;; 値の誤りは実行時の値エラーとして通知する
           (dolist [case '(("repeat-zero" "(mml-repeat G 0 ((mml G \"c\")))" "repeat count: 0 (expected a positive exact integer)")
                           ("repeat-negative" "(mml-repeat G -1 ((mml G \"c\")))" "repeat count: -1 (expected a positive exact integer)")

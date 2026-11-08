@@ -50,6 +50,11 @@
 (define (%track->track-list track)
   (if (list? track) track (list track)))
 
+(define (%processor-track-name-check form macro-name track)
+  (unless (identifier? track)
+    (sxmml-form-error form "invalid ~a track name: ~s (expected a symbol)"
+                     macro-name (unwrap-syntax track))))
+
 ;; 本文は begin に並べ、その間に反復の開始・脱出・終了の登録を挟む。回数は式として
 ;; 評価し、実行時に検査する。形は展開時に検査し、誤りには、展開時でも実行時でも、
 ;; このフォームの位置を付ける
@@ -64,6 +69,8 @@
              tracks))
       ;; 脱出位置は breaks のトラックに置く。breaks が空なら置かない
       (define (expand tracks times body1 breaks body2 body3)
+        (for-each (cut %processor-track-name-check form "mml-repeat" <>) tracks)
+        (for-each (cut %processor-track-name-check form "mml-repeat" <>) breaks)
         (quasirename rename
           `(begin
              ,@(build-registration tracks 'sxmml-command-repeat-start!)
@@ -170,6 +177,7 @@
     (^[form rename id=?]
       (match form
         [(_ track (firstnote voldown restdown) body ...)
+         (%processor-track-name-check form "mml-echo" track)
          (sxmml-form-wrap form rename
            (quasirename rename
              `(sxmml-ir-register!
@@ -222,6 +230,7 @@
             ',track)))
       (match form
         [(_ (? %track-spec? track) (ticks voldown restdown) body ...)
+         (for-each (cut %processor-track-name-check form "mml-delay" <>) (%track->track-list track))
          (sxmml-form-wrap form rename
            (quasirename rename
              `(let ([ticks ,ticks] [voldown ,voldown] [restdown ,restdown]

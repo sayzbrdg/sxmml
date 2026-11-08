@@ -42,38 +42,54 @@
 ;;;
 
 (define-record-type <setting-effect>
-  (%make-setting-effect key relative? value origin position)
+  (%make-setting-effect key relative value origin position)
   %setting-effect?
   (key %setting-effect-key)
-  (relative? %setting-effect-relative?)
+  (relative %setting-effect-relative?)
   (value %setting-effect-value)
   (origin %setting-effect-origin)
   (position %setting-effect-position))
 
+(define (%ir-setting-kind obj)
+  (cond [(is-a? obj <sxmml-mml-volume-change>) 'volume-change]
+        [(is-a? obj <sxmml-mml-transpose-change>) 'transpose-change]
+        [(is-a? obj <sxmml-mml-lfo-switch>) 'lfo-switch]
+        [(is-a? obj <sxmml-mml-lfo>) 'lfo]
+        [(is-a? obj <sxmml-rhythm-volume-change>) 'rhythm-volume-change]
+        [(is-a? obj <sxmml-rhythm-volume>) 'rhythm-volume]
+        [(is-a? obj <sxmml-rhythm-pan>) 'rhythm-pan]
+        [(is-a? obj <sxmml-mml-tempo>) 'tempo]
+        [(is-a? obj <sxmml-mml-tempo-absolute>) 'tempo]
+        [(is-a? obj <sxmml-mml-volume>) 'volume]
+        [(is-a? obj <sxmml-mml-transpose>) 'transpose]
+        [(is-a? obj <sxmml-mml-voice>) 'voice]
+        [(is-a? obj <sxmml-mml-gate-time>) 'gate-time]
+        [(is-a? obj <sxmml-mml-pan>) 'pan]
+        [(is-a? obj <sxmml-mml-detune>) 'detune]
+        [(is-a? obj <sxmml-mml-envelope>) 'envelope]
+        [(is-a? obj <sxmml-mml-noise-frequency>) 'noise-frequency]
+        [(is-a? obj <sxmml-mml-output-switch>) 'output-switch]
+        [else #f]))
+
 (define (%ir->setting-effects obj position)
   (define (effect key relative? value)
     (%make-setting-effect key relative? value obj position))
-  (let1 class (class-of obj)
-    (cond [(eq? class <sxmml-mml-volume-change>)
-           (list (effect <sxmml-mml-volume> #t (slot-ref obj 'value)))]
-          [(eq? class <sxmml-mml-transpose-change>)
-           (list (effect <sxmml-mml-transpose> #t (slot-ref obj 'value)))]
-          [(memq class (list <sxmml-mml-tempo> <sxmml-mml-tempo-absolute>))
-           (list (effect 'tempo #f (slot-ref obj 'value)))]
-          [(memq class (list <sxmml-mml-lfo> <sxmml-mml-lfo-switch>))
-           (list (effect (cons class (slot-ref obj 'channel)) #f (slot-ref obj 'value)))]
-          [(memq class (list <sxmml-rhythm-volume> <sxmml-rhythm-volume-change> <sxmml-rhythm-pan>))
-           (let1 relative? (eq? class <sxmml-rhythm-volume-change>)
+  (let1 kind (%ir-setting-kind obj)
+    (cond [(eq? kind 'volume-change)
+           (list (effect 'volume #t (slot-ref obj 'value)))]
+          [(eq? kind 'transpose-change)
+           (list (effect 'transpose #t (slot-ref obj 'value)))]
+          [(memq kind '(lfo lfo-switch))
+           (list (effect (cons kind (slot-ref obj 'channel)) #f (slot-ref obj 'value)))]
+          [(memq kind '(rhythm-volume rhythm-volume-change rhythm-pan))
+           (let1 relative? (eq? kind 'rhythm-volume-change)
              (and (not (and relative? (slot-ref obj 'value)))
                   (filter-map (^[slot] (let1 value (slot-ref obj slot)
                                        (and value
-                                            (effect (cons (if relative? <sxmml-rhythm-volume> class) slot)
+                                            (effect (cons (if relative? 'rhythm-volume kind) slot)
                                                     relative? value))))
                               '(value bass snare tom cymbal hihat rimshot))))]
-          [(memq class (list <sxmml-mml-volume> <sxmml-mml-transpose> <sxmml-mml-voice>
-                             <sxmml-mml-gate-time> <sxmml-mml-pan> <sxmml-mml-detune>
-                             <sxmml-mml-envelope> <sxmml-mml-noise-frequency> <sxmml-mml-output-switch>))
-           (list (effect class #f (slot-ref obj 'value)))]
+          [kind (list (effect kind #f (slot-ref obj 'value)))]
           [else #f])))
 
 (define (%compose-setting-effects earlier later)
@@ -86,24 +102,39 @@
                                (%setting-effect-origin earlier)
                                (%setting-effect-position earlier))]))
 
+(define (%ir-same-class? a b)
+  (equal? (class-of a) (class-of b)))
+
+(define (%ir-copy-with-updates origin updates)
+  (rlet1 result (allocate-instance (class-of origin) ())
+    (for-each
+     (^[definition]
+       (when (eq? (slot-definition-allocation definition) :instance)
+         (let* ([slot (slot-definition-name definition)] [update (assq slot updates)])
+           (cond [update (slot-set! result slot (cdr update))]
+                 [(slot-bound? origin slot) (slot-set! result slot (slot-ref origin slot))]))))
+     (class-slots (class-of origin)))))
+
 (define (%setting-effects->ir table)
-  (reverse!
-   (fold (^[effect result]
-           (let* ([origin (%setting-effect-origin effect)]
-                  [class (class-of origin)]
-                  [value (%setting-effect-value effect)])
-             (cond [(memq class (list <sxmml-rhythm-volume> <sxmml-rhythm-volume-change> <sxmml-rhythm-pan>))
-                    (let* ([slot (cdr (%setting-effect-key effect))]
-                           [previous (and (pair? result) (eq? class (class-of (car result))))]
-                           [obj (if previous (car result) (make class))])
-                      (slot-set! obj slot value)
-                      (if previous result (cons obj result)))]
-                   [(is-a? origin <sxmml-mml-lfo>)
-                    (cons (make class :value value :channel (slot-ref origin 'channel)) result)]
-                   [else (cons (make class :value value) result)])))
-         ()
-         (sort (hash-table-values table)
-               (^[a b] (< (%setting-effect-position a) (%setting-effect-position b)))))))
+  (define (rhythm-setting? obj)
+    (of-type? obj (</> <sxmml-rhythm-volume> <sxmml-rhythm-volume-change> <sxmml-rhythm-pan>)))
+  (let loop ([effects (sort (hash-table-values table)
+                           (^[a b] (< (%setting-effect-position a) (%setting-effect-position b))))]
+             [result ()])
+    (if (null? effects)
+      (reverse! result)
+      (let* ([effect (car effects)] [origin (%setting-effect-origin effect)])
+        (if (rhythm-setting? origin)
+          (receive (group tail)
+              (span (^[e] (and (rhythm-setting? (%setting-effect-origin e))
+                              (%ir-same-class? origin (%setting-effect-origin e)))) effects)
+            (let* ([values (map (^[e] (cons (cdr (%setting-effect-key e)) (%setting-effect-value e))) group)]
+                   [updates (map (^[slot] (cons slot (cond [(assq slot values) => cdr] [else #f])))
+                                 '(value bass snare tom cymbal hihat rimshot))])
+              (loop tail (cons (%ir-copy-with-updates origin updates) result))))
+          (loop (cdr effects)
+                (cons (%ir-copy-with-updates origin (list (cons 'value (%setting-effect-value effect))))
+                      result)))))))
 
 (define (sxmml-ir-optimize-local ir)
   (let ([objects (reverse ir)]
@@ -131,21 +162,18 @@
 ;;
 ;; 第2パス
 (define-record-type <state-effect>
-  (%make-state-effect relative? value)
+  (%make-state-effect relative value)
   %state-effect?
-  (relative? %state-effect-relative?)
+  (relative %state-effect-relative?)
   (value %state-effect-value))
 
 (define (%state-object-key obj)
-  (cond [(is-a? obj <sxmml-mml-volume-change>) <sxmml-mml-volume>]
-        [(is-a? obj <sxmml-mml-lfo-switch>)
-         (cons <sxmml-mml-lfo-switch> (slot-ref obj 'channel))]
-        [(is-a? obj <sxmml-mml-lfo>)
-         (cons <sxmml-mml-lfo> (slot-ref obj 'channel))]
-        [else
-         (find (^[class] (is-a? obj class))
-               (list <sxmml-mml-volume> <sxmml-mml-voice> <sxmml-mml-gate-time>
-                     <sxmml-mml-pan> <sxmml-mml-detune> <sxmml-mml-envelope>))]))
+  (let1 kind (%ir-setting-kind obj)
+    (case kind
+      [(volume-change) 'volume]
+      [(lfo lfo-switch) (cons kind (slot-ref obj 'channel))]
+      [(volume voice gate-time pan detune envelope) kind]
+      [else #f])))
 
 (define (%state-set state key value)
   (acons key value (alist-delete key state equal?)))
@@ -262,9 +290,7 @@
            (if (and (is-a? obj <sxmml-mml-rest>) (pair? result)
                     (is-a? (car result) <sxmml-mml-rest>))
              (let* ([ticks (+ (slot-ref obj 'ticks) (slot-ref (car result) 'ticks))]
-                    [combined (if (slot-bound? obj 'value)
-                                (make (class-of obj) :ticks ticks :value (slot-ref obj 'value))
-                                (make (class-of obj) :ticks ticks))])
+                    [combined (%ir-copy-with-updates obj (list (cons 'ticks ticks)))])
                (cons combined (cdr result)))
              (cons obj result)))
          () ir)))
@@ -365,7 +391,7 @@
         [(and (pair? a) (pair? b)) (items-same? a b)]
         [(or (pair? a) (pair? b)) #f]
         [else
-         (and (eq? (class-of a) (class-of b))
+         (and (%ir-same-class? a b)
               (every (^s (let ([ba (slot-bound? a s)] [bb (slot-bound? b s)])
                            (and (eq? ba bb)
                                 (or (not ba) (equal? (slot-ref a s) (slot-ref b s))))))
