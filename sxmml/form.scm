@@ -29,6 +29,7 @@
 ;; 定義・設定のマクロと加工マクロの誤りと警告を、ソースの位置付きで知らせる
 (define-module sxmml.form
   (use util.match)
+  (use srfi.13)
   (use sxmml.classes)
   (export sxmml-form-location sxmml-form-error sxmml-form-warn sxmml-form-warn-at sxmml-form-call sxmml-form-wrap sxmml-error-with-context
           sxmml-form-name->symbol))
@@ -60,8 +61,7 @@
                     [else (sxmml-form-error form "invalid ~a name: ~s (expected a symbol or number)"
                                            macro-name (unwrap-syntax name))])]
          [text (symbol->string sym)])
-    (unless (and (> (string-length text) 0)
-                 (every (^[c] (not (char-set-contains? #[\s{}] c))) (string->list text)))
+    (unless (and (not (string-null? text)) (not (string-any #[\s{}] text)))
       (sxmml-form-error form "invalid ~a name: ~s (expected a non-empty name without whitespace or braces)"
                        macro-name sym))
     (string->symbol text)))

@@ -678,84 +678,50 @@
       (%pmd-rest-set! work u8vec cur (make <sxmml-mml-rest> :value #f :ticks (slot-ref obj 'ticks)))
       cur)))
 
+(define %pmd-rhythm-instruments
+  '((bass . 1) (snare . 2) (tom . 5) (cymbal . 3) (hihat . 4) (rimshot . 6)))
+
 (define (%pmd-rhythm-volume-set! u8vec offset obj)
   (define (data-set! offset cmd value)
     (u8vector-set! u8vec offset cmd)
     (u8vector-set! u8vec (+ offset 1) value)
     (+ offset 2))
-  ;; 全体の音量は 0～63
-  (define (whole-value value)
-    (when (or (> value 63) (< value 0))
+  (let1 value (slot-ref obj 'value)
+    (when (and value (or (> value 63) (< value 0)))
       (errorf <sxmml-value-error> "invalid rhythm volume: ~s (expected an integer from 0 to 63)" value))
-    value)
-  ;; 楽器別の音量は楽器 * 32 + 音量の 1 バイトなので、符号化の前に 0～31 を検査する
-  (define (instrument-value inst value)
-    (unless (<= 0 value 31)
-      (errorf <sxmml-value-error> "invalid rhythm instrument volume: ~s (expected an integer from 0 to 31)" value))
-    (logior (ash inst 5) value))
-  (let ([v (cons 0 (slot-ref obj 'value))]
-        [b (cons 1 (slot-ref obj 'bass))]
-        [s (cons 2 (slot-ref obj 'snare))]
-        [t (cons 5 (slot-ref obj 'tom))]
-        [c (cons 3 (slot-ref obj 'cymbal))]
-        [h (cons 4 (slot-ref obj 'hihat))]
-        [i (cons 6 (slot-ref obj 'rimshot))])
-    (let recur ([rest (list v b s t c h i)]
-                [cur offset])
-      (cond [(null? rest)
-             cur]
-            [(and (= (caar rest) 0) (cdar rest))
-             (recur (cdr rest) (data-set! cur #xe8 (whole-value (cdar rest))))]
-            [(cdar rest)
-             (recur (cdr rest) (data-set! cur #xea (instrument-value (caar rest) (cdar rest))))]
-            [else
-             (recur (cdr rest) cur)]))))
+    (fold (^[instrument offset]
+            (if-let1 value (slot-ref obj (car instrument))
+              (begin
+                (unless (<= 0 value 31)
+                  (errorf <sxmml-value-error> "invalid rhythm instrument volume: ~s (expected an integer from 0 to 31)" value))
+                (data-set! offset #xea (logior (ash (cdr instrument) 5) value)))
+              offset))
+          (if value (data-set! offset #xe8 value) offset) %pmd-rhythm-instruments)))
 
 (define (%pmd-rhythm-volume-change-set! u8vec offset obj)
-  (define (data-set! offset inst value)
-    (when (or (> value 31) (< value -31))
-      (errorf <sxmml-value-error> "invalid relative rhythm volume: ~s (expected an integer from -31 to 31)" value))
-    (u8vector-set! u8vec offset #xe5)
-    (u8vector-set! u8vec (+ offset 1) inst)
-    (u8vector-set! u8vec (+ offset 2) (logand value #xff))
-    (+ offset 3))
-  (let ([b (cons 1 (slot-ref obj 'bass))]
-        [s (cons 2 (slot-ref obj 'snare))]
-        [t (cons 5 (slot-ref obj 'tom))]
-        [c (cons 3 (slot-ref obj 'cymbal))]
-        [h (cons 4 (slot-ref obj 'hihat))]
-        [i (cons 6 (slot-ref obj 'rimshot))])
-    (let recur ([rest (list b s t c h i)]
-                [cur offset])
-      (cond [(null? rest)
-             cur]
-            [(cdar rest)
-             (recur (cdr rest) (data-set! cur (caar rest) (cdar rest)))]
-            [else
-             (recur (cdr rest) cur)]))))
+  (fold (^[instrument offset]
+          (if-let1 value (slot-ref obj (car instrument))
+            (begin
+              (when (or (> value 31) (< value -31))
+                (errorf <sxmml-value-error> "invalid relative rhythm volume: ~s (expected an integer from -31 to 31)" value))
+              (u8vector-set! u8vec offset #xe5)
+              (u8vector-set! u8vec (+ offset 1) (cdr instrument))
+              (u8vector-set! u8vec (+ offset 2) (logand value #xff))
+              (+ offset 3))
+            offset))
+        offset %pmd-rhythm-instruments))
 
 (define (%pmd-rhythm-pan-set! u8vec offset obj)
-  ;; パンは楽器 * 32 + 値の 1 バイト。値は 1（右）・2（左）・3（中央）で、符号化の前に検査する
-  (define (data-set! offset inst value)
-    (unless (<= 1 value 3)
-      (errorf <sxmml-value-error> "invalid rhythm pan: ~s (expected an integer from 1 to 3)" value))
-    (u8vector-set! u8vec offset #xe9)
-    (u8vector-set! u8vec (+ offset 1) (logior (ash inst 5) value))
-    (+ offset 2))
-  (let ([b (cons 1 (slot-ref obj 'bass))]
-        [s (cons 2 (slot-ref obj 'snare))]
-        [t (cons 5 (slot-ref obj 'tom))]
-        [c (cons 3 (slot-ref obj 'cymbal))]
-        [h (cons 4 (slot-ref obj 'hihat))]
-        [i (cons 6 (slot-ref obj 'rimshot))])
-    (let recur ([rest (list b s t c h i)]
-                [cur offset])
-      (cond [(null? rest)
-             cur]
-            [(cdar rest)
-             (recur (cdr rest) (data-set! cur (caar rest) (cdar rest)))]
-            [else
-             (recur (cdr rest) cur)]))))
+  (fold (^[instrument offset]
+          (if-let1 value (slot-ref obj (car instrument))
+            (begin
+              (unless (<= 1 value 3)
+                (errorf <sxmml-value-error> "invalid rhythm pan: ~s (expected an integer from 1 to 3)" value))
+              (u8vector-set! u8vec offset #xe9)
+              (u8vector-set! u8vec (+ offset 1) (logior (ash (cdr instrument) 5) value))
+              (+ offset 2))
+            offset))
+        offset %pmd-rhythm-instruments))
 
 
 ;; Misc

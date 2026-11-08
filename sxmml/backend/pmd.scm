@@ -28,6 +28,7 @@
 
 (define-module sxmml.backend.pmd
   (use srfi.1)
+  (use gauche.sequence)
   (use sxmml.classes)
   (use sxmml.environment)
   (use sxmml.optimizer)
@@ -54,12 +55,13 @@
         value))))
 
 (define (sxmml-pmd-voice-number-table-compute voices)
-  (let ([ids (sort (hash-table-keys voices)
-                   (^[a b] (string<? (symbol->string a) (symbol->string b))))]
-        [table (make-hash-table eq-comparator)])
-    (when (> (length ids) 256)
-      (errorf <sxmml-error> "too many voices: ~a (max 256)" (length ids)))
-    (for-each (^[id number] (hash-table-put! table id number)) ids (iota (length ids)))
+  (let* ([ids (sort (hash-table-keys voices)
+                    (^[a b] (string<? (symbol->string a) (symbol->string b))))]
+         [count (length ids)]
+         [table (make-hash-table eq-comparator)])
+    (when (> count 256)
+      (errorf <sxmml-error> "too many voices: ~a (max 256)" count))
+    (for-each-with-index (^[number id] (hash-table-put! table id number)) ids)
     table))
 
 (define %pmd-lfo-types '(default triangle))
@@ -87,15 +89,15 @@
     (unless (memq type types)
       (errorf <sxmml-value-error> "unsupported ~a type: ~a in ~a (supported: ~a)"
               kind type id (string-join (map symbol->string types) ", ")))
-    (let1 range (assv (length value) ranges)
+    (let* ([count (length value)] [range (assv count ranges)])
       (unless range
         (errorf <sxmml-value-error> "invalid ~a values: ~a has ~a value~a (expected ~a)"
-                kind id (length value) (if (= (length value) 1) "" "s") expected))
-      (for-each (^[v r i]
+                kind id count (if (= count 1) "" "s") expected))
+      (for-each-with-index (^[i v r]
                   (unless (and (exact-integer? v) (<= (car r) v (cadr r)))
                     (errorf <sxmml-value-error> "invalid ~a ~a value ~a: ~s (expected an integer from ~a to ~a)"
-                            kind id i v (car r) (cadr r))))
-                value (cdr range) (iota (length value) 1))
+                            kind id (+ i 1) v (car r) (cadr r))))
+                value (cdr range))
       value)))
 
 (define (sxmml-pmd-check-obsolete-metadata metadata)

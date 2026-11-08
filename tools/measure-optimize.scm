@@ -74,11 +74,11 @@
         [load-options (map (^p (string-append "-I" (sys-normalize-pathname p :absolute #t)))
                            (reverse *load-path*))]
         [source (sys-normalize-pathname source :absolute #t)])
-    (for-each parse-config configs)      ; 測り始める前に設定の誤りを見つける
+    (define parsed-configs (map parse-config configs))
     (format #t "~16a ~10a ~8a ~8a ~10a ~10a\n" "config" "bytes" "vs O2" "objects" "generate" "total")
-    (let loop ([rest configs] [base #f])
+    (let loop ([rest configs] [parsed parsed-configs] [base #f])
       (unless (null? rest)
-        (let* ([config (parse-config (car rest))]
+        (let* ([config (car parsed)]
                [dir (sys-mkdtemp (build-path (temporary-directory) "measure-optimize"))]
                [result (build-path dir "result")]
                [t0 (current-time)])
@@ -100,11 +100,11 @@
                       (if base (format #f "~,1f%" (* 100.0 (/ (car row) base))) "-")
                       (cadr row) (caddr row) total)
               (flush)
-              (loop (cdr rest) base))
+              (loop (cdr rest) (cdr parsed) base))
             (begin
               (format #t "~16a failed (exit status ~d)\n" (car rest) status)
               (flush)
-              (loop (cdr rest) base)))))))))
+              (loop (cdr rest) (cdr parsed) base)))))))))
 
 (define (main args)
   (if (and (pair? (cdr args)) (equal? (cadr args) "--child"))

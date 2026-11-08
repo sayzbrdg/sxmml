@@ -200,6 +200,14 @@
                      "invalid mml-repeat track name: 0 (expected a symbol)")
              (break "(mml-repeat (G) 2 ((set! %processor-name-events '(front)) (mml G \"c8\")) ((set! %processor-name-events '(back))) ((0)))"
                     "invalid mml-repeat track name: 0 (expected a symbol)")))
+          (test* "対象名と脱出対象名が不正なら対象名を先に拒否し本文を実行しない"
+                 '(#t "invalid mml-repeat track name: 0 (expected a symbol)" ())
+                 (begin
+                   (eval '(define %processor-priority-events '()) (interaction-environment))
+                   (let1 r (load-error "name-priority"
+                            (in-begin "(mml-repeat (G 0) 2 ((set! %processor-priority-events '(body))) () ((1)))"))
+                     (list (sxmml-form-syntax-error? (cdr r)) (condition-message (cdr r))
+                           (eval '%processor-priority-events (interaction-environment))))))
           (test* "型が正しい未登録名は実行時の参照エラーと先行登録を保つ"
                  '(#t "undefined track: X" ((48 48) (12 6) ((24 . 0))))
                  (let1 source (source-output "name-undefined" (in-begin "(mml-delay (G X) (6 2 1) \"c8r8\")"))

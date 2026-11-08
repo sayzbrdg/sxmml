@@ -50,114 +50,104 @@
   (origin %setting-effect-origin)
   (position %setting-effect-position))
 
-(define (%ir-setting-kind obj)
-  (cond [(is-a? obj <sxmml-mml-volume-change>) 'volume-change]
-        [(is-a? obj <sxmml-mml-transpose-change>) 'transpose-change]
-        [(is-a? obj <sxmml-mml-lfo-switch>) 'lfo-switch]
-        [(is-a? obj <sxmml-mml-lfo>) 'lfo]
-        [(is-a? obj <sxmml-rhythm-volume-change>) 'rhythm-volume-change]
-        [(is-a? obj <sxmml-rhythm-volume>) 'rhythm-volume]
-        [(is-a? obj <sxmml-rhythm-pan>) 'rhythm-pan]
-        [(is-a? obj <sxmml-mml-tempo>) 'tempo]
-        [(is-a? obj <sxmml-mml-tempo-absolute>) 'tempo]
-        [(is-a? obj <sxmml-mml-volume>) 'volume]
-        [(is-a? obj <sxmml-mml-transpose>) 'transpose]
-        [(is-a? obj <sxmml-mml-voice>) 'voice]
-        [(is-a? obj <sxmml-mml-gate-time>) 'gate-time]
-        [(is-a? obj <sxmml-mml-pan>) 'pan]
-        [(is-a? obj <sxmml-mml-detune>) 'detune]
-        [(is-a? obj <sxmml-mml-envelope>) 'envelope]
-        [(is-a? obj <sxmml-mml-noise-frequency>) 'noise-frequency]
-        [(is-a? obj <sxmml-mml-output-switch>) 'output-switch]
-        [else #f]))
-
-(define (%ir->setting-effects obj position)
-  (define (effect key relative? value)
-    (%make-setting-effect key relative? value obj position))
-  (let1 kind (%ir-setting-kind obj)
-    (cond [(eq? kind 'volume-change)
-           (list (effect 'volume #t (slot-ref obj 'value)))]
-          [(eq? kind 'transpose-change)
-           (list (effect 'transpose #t (slot-ref obj 'value)))]
-          [(memq kind '(lfo lfo-switch))
-           (list (effect (cons kind (slot-ref obj 'channel)) #f (slot-ref obj 'value)))]
-          [(memq kind '(rhythm-volume rhythm-volume-change rhythm-pan))
-           (let1 relative? (eq? kind 'rhythm-volume-change)
-             (and (not (and relative? (slot-ref obj 'value)))
-                  (filter-map (^[slot] (let1 value (slot-ref obj slot)
-                                       (and value
-                                            (effect (cons (if relative? 'rhythm-volume kind) slot)
-                                                    relative? value))))
-                              '(value bass snare tom cymbal hihat rimshot))))]
-          [kind (list (effect kind #f (slot-ref obj 'value)))]
-          [else #f])))
-
-(define (%compose-setting-effects earlier later)
-  (cond [(not later) earlier]
-        [(not (%setting-effect-relative? later)) later]
+(define (%ir-setting-effects-fold proc state obj position)
+  (cond [(or (is-a? obj <sxmml-rhythm-volume-change>)
+             (is-a? obj <sxmml-rhythm-volume>) (is-a? obj <sxmml-rhythm-pan>))
+         (let ([relative? (is-a? obj <sxmml-rhythm-volume-change>)]
+               [kind (if (is-a? obj <sxmml-rhythm-pan>) 'rhythm-pan 'rhythm-volume)])
+           (if (and relative? (slot-ref obj 'value))
+             (values #f state)
+             (let loop ([slots '(value bass snare tom cymbal hihat rimshot)] [state state])
+               (if (null? slots)
+                 (values #t state)
+                 (let1 value (slot-ref obj (car slots))
+                   (loop (cdr slots)
+                         (if value
+                           (proc (cons kind (car slots)) relative? value obj position state)
+                           state)))))))]
         [else
-         (%make-setting-effect (%setting-effect-key earlier)
-                               (%setting-effect-relative? earlier)
-                               (+ (%setting-effect-value earlier) (%setting-effect-value later))
-                               (%setting-effect-origin earlier)
-                               (%setting-effect-position earlier))]))
+         (let1 key
+             (cond [(or (is-a? obj <sxmml-mml-volume-change>) (is-a? obj <sxmml-mml-volume>)) 'volume]
+                   [(or (is-a? obj <sxmml-mml-transpose-change>) (is-a? obj <sxmml-mml-transpose>)) 'transpose]
+                   [(is-a? obj <sxmml-mml-lfo-switch>) (cons 'lfo-switch (slot-ref obj 'channel))]
+                   [(is-a? obj <sxmml-mml-lfo>) (cons 'lfo (slot-ref obj 'channel))]
+                   [(or (is-a? obj <sxmml-mml-tempo>) (is-a? obj <sxmml-mml-tempo-absolute>)) 'tempo]
+                   [(is-a? obj <sxmml-mml-voice>) 'voice]
+                   [(is-a? obj <sxmml-mml-gate-time>) 'gate-time]
+                   [(is-a? obj <sxmml-mml-pan>) 'pan]
+                   [(is-a? obj <sxmml-mml-detune>) 'detune]
+                   [(is-a? obj <sxmml-mml-envelope>) 'envelope]
+                   [(is-a? obj <sxmml-mml-noise-frequency>) 'noise-frequency]
+                   [(is-a? obj <sxmml-mml-output-switch>) 'output-switch]
+                   [else #f])
+           (if key
+             (values #t (proc key
+                             (or (is-a? obj <sxmml-mml-volume-change>)
+                                 (is-a? obj <sxmml-mml-transpose-change>))
+                             (slot-ref obj 'value) obj position state))
+             (values #f state)))]))
+
+(define (%compose-setting-effects key relative? value origin position later)
+  (cond [(not later) (%make-setting-effect key relative? value origin position)]
+        [(not (%setting-effect-relative? later)) later]
+        [else (%make-setting-effect key relative? (+ value (%setting-effect-value later)) origin position)]))
 
 (define (%ir-same-class? a b)
   (equal? (class-of a) (class-of b)))
 
-(define (%ir-copy-with-updates origin updates)
+(define (%ir-copy-except origin omitted-slots)
   (rlet1 result (allocate-instance (class-of origin) ())
     (for-each
      (^[definition]
-       (when (eq? (slot-definition-allocation definition) :instance)
-         (let* ([slot (slot-definition-name definition)] [update (assq slot updates)])
-           (cond [update (slot-set! result slot (cdr update))]
-                 [(slot-bound? origin slot) (slot-set! result slot (slot-ref origin slot))]))))
+       (let1 slot (slot-definition-name definition)
+         (when (and (eq? (slot-definition-allocation definition) :instance)
+                    (not (memq slot omitted-slots)) (slot-bound? origin slot))
+           (slot-set! result slot (slot-ref origin slot)))))
      (class-slots (class-of origin)))))
 
-(define (%setting-effects->ir table)
+(define (%setting-effects->ir table tail)
   (define (rhythm-setting? obj)
-    (of-type? obj (</> <sxmml-rhythm-volume> <sxmml-rhythm-volume-change> <sxmml-rhythm-pan>)))
+    (or (is-a? obj <sxmml-rhythm-volume-change>)
+        (is-a? obj <sxmml-rhythm-volume>) (is-a? obj <sxmml-rhythm-pan>)))
   (let loop ([effects (sort (hash-table-values table)
                            (^[a b] (< (%setting-effect-position a) (%setting-effect-position b))))]
              [result ()])
     (if (null? effects)
-      (reverse! result)
+      (reverse! result tail)
       (let* ([effect (car effects)] [origin (%setting-effect-origin effect)])
         (if (rhythm-setting? origin)
-          (receive (group tail)
-              (span (^[e] (and (rhythm-setting? (%setting-effect-origin e))
-                              (%ir-same-class? origin (%setting-effect-origin e)))) effects)
-            (let* ([values (map (^[e] (cons (cdr (%setting-effect-key e)) (%setting-effect-value e))) group)]
-                   [updates (map (^[slot] (cons slot (cond [(assq slot values) => cdr] [else #f])))
-                                 '(value bass snare tom cymbal hihat rimshot))])
-              (loop tail (cons (%ir-copy-with-updates origin updates) result))))
-          (loop (cdr effects)
-                (cons (%ir-copy-with-updates origin (list (cons 'value (%setting-effect-value effect))))
-                      result)))))))
+          (let1 combined (%ir-copy-except origin '(value bass snare tom cymbal hihat rimshot))
+            (let emit ([rest effects])
+              (if (and (pair? rest) (rhythm-setting? (%setting-effect-origin (car rest)))
+                       (%ir-same-class? origin (%setting-effect-origin (car rest))))
+                (begin
+                  (slot-set! combined (cdr (%setting-effect-key (car rest))) (%setting-effect-value (car rest)))
+                  (emit (cdr rest)))
+                (begin
+                  (for-each (^[slot] (unless (slot-bound? combined slot) (slot-set! combined slot #f)))
+                            '(value bass snare tom cymbal hihat rimshot))
+                  (loop rest (cons combined result))))))
+          (let1 combined (%ir-copy-except origin '(value))
+            (slot-set! combined 'value (%setting-effect-value effect))
+            (loop (cdr effects) (cons combined result))))))))
 
 (define (sxmml-ir-optimize-local ir)
-  (let ([objects (reverse ir)]
-        [table (make-hash-table equal-comparator)])
-    (let loop ([rest objects] [position (length objects)] [result ()])
-      (cond [(null? rest) (append (%setting-effects->ir table) result)]
-            [(is-a? (car rest) <sxmml-mml-nop>)
-             (loop (cdr rest) (- position 1) result)]
-            [else
-             (let* ([obj (car rest)]
-                    [effects (%ir->setting-effects obj position)])
-               (if effects
-                 (begin
-                   (for-each (^[effect]
-                               (let1 key (%setting-effect-key effect)
-                                 (hash-table-set! table key
-                                                  (%compose-setting-effects effect
-                                                                            (hash-table-get table key #f)))))
-                             effects)
-                   (loop (cdr rest) (- position 1) result))
-                 (let1 suffix (%setting-effects->ir table)
+  (define (compose! key relative? value origin position table)
+    (hash-table-set! table key
+                     (%compose-setting-effects key relative? value origin position (hash-table-get table key #f)))
+    table)
+  (let loop ([rest (reverse ir)] [position 0] [table (make-hash-table equal-comparator)] [result ()])
+    (cond [(null? rest) (%setting-effects->ir table result)]
+          [(is-a? (car rest) <sxmml-mml-nop>)
+           (loop (cdr rest) (- position 1) table result)]
+          [else
+           (let1 obj (car rest)
+             (receive (recognized? table) (%ir-setting-effects-fold compose! table obj position)
+               (if recognized?
+                 (loop (cdr rest) (- position 1) table result)
+                 (let1 suffix (%setting-effects->ir table result)
                    (hash-table-clear! table)
-                   (loop (cdr rest) (- position 1) (cons obj (append suffix result))))))]))))
+                   (loop (cdr rest) (- position 1) table (cons obj suffix))))))])))
 
 ;;
 ;; 第2パス
@@ -168,12 +158,15 @@
   (value %state-effect-value))
 
 (define (%state-object-key obj)
-  (let1 kind (%ir-setting-kind obj)
-    (case kind
-      [(volume-change) 'volume]
-      [(lfo lfo-switch) (cons kind (slot-ref obj 'channel))]
-      [(volume voice gate-time pan detune envelope) kind]
-      [else #f])))
+  (cond [(or (is-a? obj <sxmml-mml-volume-change>) (is-a? obj <sxmml-mml-volume>)) 'volume]
+        [(is-a? obj <sxmml-mml-lfo-switch>) (cons 'lfo-switch (slot-ref obj 'channel))]
+        [(is-a? obj <sxmml-mml-lfo>) (cons 'lfo (slot-ref obj 'channel))]
+        [(is-a? obj <sxmml-mml-voice>) 'voice]
+        [(is-a? obj <sxmml-mml-gate-time>) 'gate-time]
+        [(is-a? obj <sxmml-mml-pan>) 'pan]
+        [(is-a? obj <sxmml-mml-detune>) 'detune]
+        [(is-a? obj <sxmml-mml-envelope>) 'envelope]
+        [else #f]))
 
 (define (%state-set state key value)
   (acons key value (alist-delete key state equal?)))
@@ -270,7 +263,7 @@
           [(is-a? (car rest) <sxmml-mml-loop>)
            (let1 entry (%state-join state (%state-effects-apply state (%state-region-effects (cdr rest) cache)))
              (receive (tail outgoing) (%state-optimize-region (cdr rest) entry cache)
-               (values (append (reverse! result) (cons (car rest) tail)) outgoing)))]
+               (values (reverse! result (cons (car rest) tail)) outgoing)))]
           [else
            (let* ([obj (car rest)] [key (%state-object-key obj)]
                   [known (and key (assoc key state))])
@@ -290,7 +283,8 @@
            (if (and (is-a? obj <sxmml-mml-rest>) (pair? result)
                     (is-a? (car result) <sxmml-mml-rest>))
              (let* ([ticks (+ (slot-ref obj 'ticks) (slot-ref (car result) 'ticks))]
-                    [combined (%ir-copy-with-updates obj (list (cons 'ticks ticks)))])
+                    [combined (%ir-copy-except obj '(ticks))])
+               (slot-set! combined 'ticks ticks)
                (cons combined (cdr result)))
              (cons obj result)))
          () ir)))
@@ -298,7 +292,7 @@
 (define (sxmml-ir-remove-redundant-settings ir)
   (receive (items outgoing)
       (%state-optimize-region (%repeat-structure ir) () (make-hash-table eq-comparator))
-    (%repeat-flatten items)))
+    (%repeat-flatten items ())))
 
 (define (sxmml-ir-compress-repeats ir :key (expand-small #f))
   (%sxmml-optimize-repeat ir expand-small))
@@ -331,11 +325,11 @@
   (define (body rest)
     (let loop ([rest rest] [items ()] [front #f] [break #f])
       (cond [(null? rest)
-             (values (reverse items) front break #f ())]
+             (values (reverse! items) front break #f ())]
             [(is-a? (car rest) <sxmml-mml-repeat-end>)
-             (values (reverse items) front break (car rest) (cdr rest))]
+             (values (reverse! items) front break (car rest) (cdr rest))]
             [(and (is-a? (car rest) <sxmml-mml-repeat-break>) (not break))
-             (loop (cdr rest) () (reverse items) (car rest))]
+             (loop (cdr rest) () (reverse! items) (car rest))]
             [(is-a? (car rest) <sxmml-mml-repeat-start>)
              (receive (items* front* break* end rest*) (body (cdr rest))
                (unless end (error "MML terminated before repeat end"))
@@ -352,26 +346,36 @@
     items))
 
 ;; %repeat-structure の逆。要素のリストを平坦なオブジェクトのリストにする
-(define (%repeat-flatten items)
-  (append-map (^i (if (%repeat-block? i)
-                    `(,(%repeat-block-start i) ,@(%repeat-flatten (%repeat-block-front i))
-                      ,@(if (%repeat-block-break i)
-                          `(,(%repeat-block-break i) ,@(%repeat-flatten (%repeat-block-back i)))
-                          ())
-                      ,(%repeat-block-end i))
-                    (list i)))
-              items))
+(define (%repeat-flatten items tail)
+  (fold-right
+   (^[i tail]
+     (if (%repeat-block? i)
+       (cons (%repeat-block-start i)
+             (%repeat-flatten
+              (%repeat-block-front i)
+              (if (%repeat-block-break i)
+                (cons (%repeat-block-break i)
+                      (%repeat-flatten (%repeat-block-back i) (cons (%repeat-block-end i) tail)))
+                (cons (%repeat-block-end i) tail))))
+       (cons i tail)))
+   tail items))
 
-;; 要素のリストを展開したオブジェクトのリスト。反復回数 r は正の正確な整数で、
-;; ブロックは (front back)^(r-1) front とする
-(define (%repeat-expansion items)
-  (append-map (^i (if (%repeat-block? i)
-                    (let ([r (slot-ref (%repeat-block-end i) 'value)]
-                          [front (%repeat-expansion (%repeat-block-front i))]
-                          [back (%repeat-expansion (or (%repeat-block-back i) ()))])
-                      (append (concatenate (make-list (- r 1) (append front back))) front))
-                    (list i)))
-              items))
+;; ブロックは (front back)^(r-1) front。展開した本文は各出現のセルの構築に再利用する。
+(define (%repeat-expansion items tail)
+  (fold-right
+   (^[i tail]
+     (if (%repeat-block? i)
+       (let1 count (slot-ref (%repeat-block-end i) 'value)
+         (if (= count 1)
+           (%repeat-expansion (%repeat-block-front i) tail)
+           (let ([front (%repeat-expansion (%repeat-block-front i) ())]
+                 [back (%repeat-expansion (or (%repeat-block-back i) ()) ())])
+             (let loop ([remaining (- count 1)] [result (fold-right cons tail front)])
+               (if (zero? remaining)
+                 result
+                 (loop (- remaining 1) (fold-right cons (fold-right cons result back) front)))))))
+       (cons i tail)))
+   tail items))
 
 ;; クラスごとのスロット名。%repeat-same? は圧縮で何度も呼ぶので覚えておく
 (define %repeat-slot-names (make-hash-table eq-comparator))
@@ -381,7 +385,10 @@
 ;; 順に同じなら同じ。音符と & をまとめた要素（オブジェクトのリスト）は要素ごとに比べる
 (define (%repeat-same? a b)
   (define (items-same? x y)
-    (and (= (length x) (length y)) (every %repeat-same? x y)))
+    (let loop ([x x] [y y])
+      (cond [(null? x) (null? y)]
+            [(null? y) #f]
+            [else (and (%repeat-same? (car x) (car y)) (loop (cdr x) (cdr y)))])))
   (cond [(and (%repeat-block? a) (%repeat-block? b))
          (and (equal? (slot-ref (%repeat-block-end a) 'value) (slot-ref (%repeat-block-end b) 'value))
               (eq? (not (%repeat-block-break a)) (not (%repeat-block-break b)))
@@ -424,23 +431,23 @@
 ;; 回数が 1 以上で、展開後の長さが limit 以下のブロックを、内側から順に展開する。
 ;; 展開した列は元のインスタンスを並べ、複製しない
 (define (%repeat-expand-small items limit)
-  (append-map (^i (if (%repeat-block? i)
-                    (let1 b (%make-repeat-block (%repeat-block-start i)
-                                                (%repeat-expand-small (%repeat-block-front i) limit)
-                                                (%repeat-block-break i)
-                                                (and-let1 back (%repeat-block-back i)
-                                                  (%repeat-expand-small back limit))
-                                                (%repeat-block-end i))
-                      ;; L を含むブロックと、2 個目以降の : を持つブロックは展開しない
-                      (if (and (>= (slot-ref (%repeat-block-end b) 'value) 1)
-                               (not (%repeat-loop? b))
-                               (not (any (cut is-a? <> <sxmml-mml-repeat-break>)
-                                         (or (%repeat-block-back b) ())))
-                               (<= (%repeat-expanded-length (list b)) limit))
-                        (%repeat-expansion (list b))
-                        (list b)))
-                    (list i)))
-              items))
+  (fold-right
+   (^[i tail]
+     (if (%repeat-block? i)
+       (let1 b (%make-repeat-block (%repeat-block-start i)
+                                  (%repeat-expand-small (%repeat-block-front i) limit)
+                                  (%repeat-block-break i)
+                                  (and-let1 back (%repeat-block-back i)
+                                    (%repeat-expand-small back limit))
+                                  (%repeat-block-end i))
+         (if (and (>= (slot-ref (%repeat-block-end b) 'value) 1)
+                  (not (%repeat-loop? b))
+                  (not (any (cut is-a? <> <sxmml-mml-repeat-break>) (or (%repeat-block-back b) ())))
+                  (<= (%repeat-expanded-length (list b)) limit))
+           (%repeat-expansion (list b) tail)
+           (cons b tail)))
+       (cons i tail)))
+   () items))
 
 ;; %repeat-expansion の長さ。入れ子の深いリピートでも展開せずに求める
 (define (%repeat-expanded-length items)
@@ -469,61 +476,65 @@
                     ())
                 ,(%repeat-block-end i))
               (list i))))
-  (define (segment atoms)
-    (if (null? atoms)
+  (define (segment atoms count)
+    (if (zero? count)
       ()
-      (let* ([elements (list->vector (map car atoms))]
-             [outputs (list->vector (map cdr atoms))]
-             [raw (append-map cdr atoms)])
-        (receive (cost tree)
-            (repeat-tree-compress elements (vector-map length outputs) %repeat-same? settings)
-          (let1 compressed (%repeat-tree->ir tree outputs)
-            ;; 入れ子が上限を超え、圧縮前より深くなる区間は圧縮しない
-            (if (and (> (+ depth (%repeat-depth compressed)) %repeat-depth-max)
-                     (> (%repeat-depth compressed) (%repeat-depth raw)))
-              raw
+      (let ([elements (make-vector count)] [outputs (make-vector count)] [weights (make-vector count)])
+        (let fill ([rest atoms] [index (- count 1)])
+          (unless (null? rest)
+            (let* ([entry (car rest)] [group? (pair? (car entry))]
+                   [element (if group? (reverse! (car entry)) (car entry))]
+                   [output (if group? element (cdr entry))])
+              (vector-set! elements index element)
+              (vector-set! outputs index output)
+              (vector-set! weights index (length output))
+              (fill (cdr rest) (- index 1)))))
+        (receive (cost tree) (repeat-tree-compress elements weights %repeat-same? settings)
+          (let* ([compressed (%repeat-tree->ir tree outputs ())]
+                 [compressed-depth (%repeat-depth compressed)])
+            (if (> (+ depth compressed-depth) %repeat-depth-max)
+              (let1 raw (let loop ([index (- count 1)] [tail ()])
+                          (if (< index 0) tail
+                              (loop (- index 1) (fold-right cons tail (vector-ref outputs index)))))
+                (if (> compressed-depth (%repeat-depth raw)) raw compressed))
               compressed))))))
   (define (barrier? element)
     (or (is-a? element <sxmml-mml-loop>) (is-a? element <sxmml-mml-repeat-break>)
         (and (%repeat-block? element) (%repeat-loop? element))))
-  ;; & を直前の要素にまとめる。直前がオブジェクトかまとめた要素のときだけ
-  (define (tie-groups atoms)
-    (reverse
-     (fold (^[a groups]
-             (if (and (is-a? (car a) <sxmml-mml-tie>) (pair? groups)
-                      (not (%repeat-block? (caar groups))) (not (barrier? (caar groups))))
-               (let1 prev (car groups)
-                 (cons (cons (append (if (pair? (car prev)) (car prev) (list (car prev))) (list (car a)))
-                             (append (cdr prev) (cdr a)))
-                       (cdr groups)))
-               (cons a groups)))
-           () atoms)))
-  (let loop ([rest (tie-groups (map atom items))] [atoms ()] [result ()])
+  (let loop ([rest items] [atoms ()] [count 0] [result ()])
     (cond [(null? rest)
-           (concatenate (reverse (cons (segment (reverse atoms)) result)))]
-          [(barrier? (caar rest))
-           (loop (cdr rest) () (cons* (cdar rest) (segment (reverse atoms)) result))]
-          [else
-           (loop (cdr rest) (cons (car rest) atoms) result)])))
+           (fold (^[part tail] (fold-right cons tail part)) () (cons (segment atoms count) result))]
+          [(barrier? (car rest))
+           (loop (cdr rest) () 0 (cons* (cdr (atom (car rest))) (segment atoms count) result))]
+          [(and (is-a? (car rest) <sxmml-mml-tie>) (pair? atoms)
+                (not (%repeat-block? (caar atoms))) (not (barrier? (caar atoms))))
+           (let1 group (cons (car rest) (if (pair? (caar atoms)) (caar atoms) (list (caar atoms))))
+             (loop (cdr rest) (cons (cons group group) (cdr atoms)) count result))]
+          [else (loop (cdr rest) (cons (atom (car rest)) atoms) (+ count 1) result)])))
 
 ;; ブロックの本文（入れ子を含む）に L があるか
 (define (%repeat-loop? block)
-  (any (^i (if (%repeat-block? i) (%repeat-loop? i) (is-a? i <sxmml-mml-loop>)))
-       (append (%repeat-block-front block) (or (%repeat-block-back block) ()))))
+  (define (loop? i)
+    (if (%repeat-block? i) (%repeat-loop? i) (is-a? i <sxmml-mml-loop>)))
+  (or (any loop? (%repeat-block-front block))
+      (any loop? (or (%repeat-block-back block) ()))))
 
-;; 圧縮した木を平坦なオブジェクトのリストにする。葉は outputs の出力に置き換え、
-;; 反復には新しい [、:、] のオブジェクトを作る
-(define (%repeat-tree->ir tree outputs)
-  (cond [(literal? tree) (vector-ref outputs (literal-index tree))]
-        [(concat? tree) (append (%repeat-tree->ir (concat-left tree) outputs)
-                                (%repeat-tree->ir (concat-right tree) outputs))]
+;; 圧縮木の葉を出力テンプレートに置き換え、tailの前へIRを構築する。
+(define (%repeat-tree->ir tree outputs tail)
+  (cond [(literal? tree) (fold-right cons tail (vector-ref outputs (literal-index tree)))]
+        [(concat? tree) (%repeat-tree->ir (concat-left tree) outputs
+                                         (%repeat-tree->ir (concat-right tree) outputs tail))]
         [(repeat? tree)
-         `(,(make <sxmml-mml-repeat-start>) ,@(%repeat-tree->ir (repeat-body tree) outputs)
-           ,(make <sxmml-mml-repeat-end> :value (repeat-count tree)))]
+         (cons (make <sxmml-mml-repeat-start>)
+               (%repeat-tree->ir (repeat-body tree) outputs
+                                 (cons (make <sxmml-mml-repeat-end> :value (repeat-count tree)) tail)))]
         [(final? tree)
-         `(,(make <sxmml-mml-repeat-start>) ,@(%repeat-tree->ir (final-prefix tree) outputs)
-           ,(make <sxmml-mml-repeat-break>) ,@(%repeat-tree->ir (final-suffix tree) outputs)
-           ,(make <sxmml-mml-repeat-end> :value (final-count tree)))]))
+         (cons (make <sxmml-mml-repeat-start>)
+               (%repeat-tree->ir
+                (final-prefix tree) outputs
+                (cons (make <sxmml-mml-repeat-break>)
+                      (%repeat-tree->ir (final-suffix tree) outputs
+                                        (cons (make <sxmml-mml-repeat-end> :value (final-count tree)) tail)))))]))
 
 ;; 平坦なオブジェクトのリストの、リピートの入れ子の最大の深さ
 (define (%repeat-depth lis)
@@ -546,26 +557,33 @@
             (hash-table-put! h (%repeat-block-start i) #t)
             (mark (%repeat-block-front i))
             (mark (or (%repeat-block-back i) ())))))))
-  (define (unfold items)
-    (append-map (^i (if (and (%repeat-block? i)
-                             (not (hash-table-contains? originals (%repeat-block-start i))))
-                      (let ([r (slot-ref (%repeat-block-end i) 'value)]
-                            [front (unfold (%repeat-block-front i))]
-                            [back (unfold (or (%repeat-block-back i) ()))])
-                        (append (concatenate (make-list (- r 1) (append front back))) front))
-                      (list i)))
-                items))
-  ;; xs は出力の、ys は入力の要素のリスト
+  (define (unfold items tail)
+    (fold-right
+     (^[i tail]
+       (if (and (%repeat-block? i)
+                (not (hash-table-contains? originals (%repeat-block-start i))))
+         (let ([count (slot-ref (%repeat-block-end i) 'value)]
+               [front (unfold (%repeat-block-front i) ())]
+               [back (unfold (or (%repeat-block-back i) ()) ())])
+           (let loop ([remaining (- count 1)] [result (fold-right cons tail front)])
+             (if (zero? remaining)
+               result
+               (loop (- remaining 1) (fold-right cons (fold-right cons result back) front)))))
+         (cons i tail)))
+     tail items))
   (define (match? xs ys)
-    (and (= (length xs) (length ys))
-         (every (^[x y] (cond [(and (%repeat-block? x) (%repeat-block? y))
-                               (and (equal? (slot-ref (%repeat-block-end x) 'value)
-                                            (slot-ref (%repeat-block-end y) 'value))
-                                    (eq? (not (%repeat-block-break x)) (not (%repeat-block-break y)))
-                                    (match? (unfold (%repeat-block-front x)) (%repeat-block-front y))
-                                    (match? (unfold (or (%repeat-block-back x) ())) (or (%repeat-block-back y) ())))]
-                              [(or (%repeat-block? x) (%repeat-block? y)) #f]
-                              [else (%repeat-same? x y)]))
-                xs ys)))
-  (unless (match? (unfold (%repeat-structure output)) input)
+    (cond [(null? xs) (null? ys)]
+          [(null? ys) #f]
+          [else
+           (let ([x (car xs)] [y (car ys)])
+             (and (cond [(and (%repeat-block? x) (%repeat-block? y))
+                         (and (equal? (slot-ref (%repeat-block-end x) 'value)
+                                      (slot-ref (%repeat-block-end y) 'value))
+                              (eq? (not (%repeat-block-break x)) (not (%repeat-block-break y)))
+                              (match? (unfold (%repeat-block-front x) ()) (%repeat-block-front y))
+                              (match? (unfold (or (%repeat-block-back x) ()) ()) (or (%repeat-block-back y) ())))]
+                        [(or (%repeat-block? x) (%repeat-block? y)) #f]
+                        [else (%repeat-same? x y)])
+                  (match? (cdr xs) (cdr ys))))]))
+  (unless (match? (unfold (%repeat-structure output) ()) input)
     (error "repeat optimization changed the expanded objects")))

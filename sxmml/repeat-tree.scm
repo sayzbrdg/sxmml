@@ -31,6 +31,7 @@
 ;;; 重み付きの葉と窓幅を加えた。仕様との違いは doc/internal-reference/repeat-tree.adoc を参照
 (define-module sxmml.repeat-tree
   (use gauche.record)
+  (use gauche.sequence)
   (use srfi.1)
   (export make-literal literal? literal-index
           make-concat concat? concat-left concat-right
@@ -71,7 +72,7 @@
 ;; ((回数 . 制御費用) ...) を検査してコピーする。回数は昇順・重複なしの 2 以上、費用は 0 以上
 (define (%copy-costs pairs)
   (let loop ([rest pairs] [previous 1] [saved ()])
-    (cond [(null? rest) (reverse saved)]
+    (cond [(null? rest) (reverse! saved)]
           [(and (pair? rest) (pair? (car rest))
                 (exact-integer? (caar rest)) (> (caar rest) previous)
                 (exact-integer? (cdar rest)) (>= (cdar rest) 0))
@@ -163,9 +164,9 @@
         (fail "claimed cost mismatch"))
       (unless (= len n) (fail "expansion length mismatch"))
       (rlet1 expanded (indices ())
-        (for-each (^[t index] (unless (%same? same? (vector-ref items t) (vector-ref items index))
+        (for-each-with-index (^[t index] (unless (%same? same? (vector-ref items t) (vector-ref items index))
                                 (fail "expanded value mismatch")))
-                  (iota n) expanded)))))
+                  expanded)))))
 
 ;;;
 ;;; 圧縮
