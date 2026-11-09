@@ -6,9 +6,9 @@
 
 | ID | 要求 | 判定の観点 | 実装箇所 |
 | --- | --- | --- | --- |
-| R-01 | Scheme を使い、古い MML の制約に妨げられず柔軟に MML を記述できる | 現行実装で再現できる記述例と制約 | [`sxmml/compiler.scm`](../sxmml/compiler.scm) の `mml` / `rhythm`、[`sxlc.in`](../sxlc.in) のソース読み込み |
+| R-01 | Scheme を使い、古い MML の制約に妨げられず柔軟に MML を記述できる | 現行実装で再現できる記述例と制約 | [`sxmml/compiler.scm`](../sxmml/compiler.scm) の `mml` / `rhythm`、[`sxlc`](../sxlc.in) のソース読み込み |
 | R-02 | Scheme から MML オブジェクトを操作できる | 現行実装で利用者が操作できる対象・方法・結果 | [`sxmml/classes.scm`](../sxmml/classes.scm) の MML クラス、[`sxmml/processor.scm`](../sxmml/processor.scm) の変換マクロ |
-| R-03 | 既存ドライバー向け MML で手作業だった最適化を自動化できる | 現行実装が行う最適化の種類とコンパイル後のオブジェクト数の削減 | [`sxmml/optimizer.scm`](../sxmml/optimizer.scm) の単独処理・標準組合せ、[`sxlc.in`](../sxlc.in) の `-O` |
+| R-03 | 既存ドライバー向け MML で手作業だった最適化を自動化できる | 現行実装が行う最適化の種類とコンパイル後のオブジェクト数の削減 | [`sxmml/optimizer.scm`](../sxmml/optimizer.scm) の単独処理・標準組合せ、[`sxlc`](../sxlc.in) の `-O` |
 | R-04 | sxmml が変換結果の生成物を作る | 現行実装の入力・出力形式と生成結果 | [`sxmml/backend/pmd.scm`](../sxmml/backend/pmd.scm) の PMD 向け MML 生成、[`sxmml/backend/pmd-binary.scm`](../sxmml/backend/pmd-binary.scm) の PMD バイナリ生成（実験的） |
 
 R-04 は生成物を MML に限定しない。現在の出力は PMD 向け MML と、実験的な PMD バイナリである。PMD バイナリは、生成物が MC.EXE の出力と同じであることを保証しない。生成先は `sxlc` の `-o` で指定し、生成先、CLI 表示、`-c` に渡す名前が一致することを要求する。ソースから生成先を変更する手段は設けない（`filename` メタデータは無視する）。

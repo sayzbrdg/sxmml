@@ -222,9 +222,8 @@
   (er-macro-transformer
     (^[form rename id=?]
       (cons (rename 'begin)
-            (library-fold 'sxmml.backend.*
-                          (^[module _ result] (cons (quasirename rename `(use ,module)) result))
-                          ())))))
+            (library-map 'sxmml.backend.*
+                         (^[module _] `(,(rename 'use) ,module)))))))
 (use-backend)
 
 ; Local Variables:

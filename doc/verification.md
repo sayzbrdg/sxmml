@@ -87,7 +87,7 @@ Q-01 は、最適化前後で、sxmml がコンパイルした後のオブジェ
 
 例えば、八つの `r8` と一つの `r1`、`v117 v*2` と `v119` は、表記の違いだけで不一致と判定しない。PMD 向けの生成行 `l%12o4cr` と `o4c%12r%12` も同じ考え方の例である。生成行は sxmml の入力構文ではない。
 
-Scheme入力全体を評価して比較する場合は、同じ入力を**独立したGaucheプロセス**で`-O 0`〜`-O 4`相当の条件で評価し、環境・トラック文脈・最適化された列を各回で採取する。公開最適化は入力を変更しない。Scheme入力全体の評価では登録環境への作用を混ぜず、同じ条件で独立して評価する。IR単位の比較では、比較基準と入力を別々に構築する。入力、モード、分解能、トラック、Gaucheの版を固定し、比較対象と対象外を明示する。現行の分岐は[`sxlc.in`](../sxlc.in)と[`sxmml/optimizer.scm`](../sxmml/optimizer.scm)を参照する。
+Scheme入力全体を評価して比較する場合は、同じ入力を**独立したGaucheプロセス**で`-O 0`〜`-O 4`相当の条件で評価し、環境・トラック文脈・最適化された列を各回で採取する。公開最適化は入力を変更しない。Scheme入力全体の評価では登録環境への作用を混ぜず、同じ条件で独立して評価する。IR単位の比較では、比較基準と入力を別々に構築する。入力、モード、分解能、トラック、Gaucheの版を固定し、比較対象と対象外を明示する。現行の分岐は[`sxlc`](../sxlc.in)と[`sxmml/optimizer.scm`](../sxmml/optimizer.scm)を参照する。
 
 IR単位の自動テストには、[`test/ir-meaning.scm`](../test/ir-meaning.scm)の`test.ir-meaning`モジュールを使う。同じ入力を別々に構築し、一方を比較基準、他方を最適化対象として同一プロセスで比較する。比較器は整列済みの有効なIR列二つを受け取り、登録環境やバックエンドの既定値を参照しない。
 
@@ -148,7 +148,7 @@ gosh -I. test/test-ir-meaning.scm
 
 ## 関連資料
 
-[`test/`](../test/)、[`Makefile.in`](../Makefile.in)、[`sxlc.in`](../sxlc.in)、[`sxmml/optimizer.scm`](../sxmml/optimizer.scm)、[Gauche 0.9.15 Users’ Reference](https://practical-scheme.net/vault/Gauche-0.9.15-refe.pdf)。
+[`test/`](../test/)、[`Makefile.in`](../Makefile.in)、[`sxlc`](../sxlc.in)、[`sxmml/optimizer.scm`](../sxmml/optimizer.scm)、[Gauche 0.9.15 Users’ Reference](https://practical-scheme.net/vault/Gauche-0.9.15-refe.pdf)。
 
 #80の追加25件は、classes 3件、form 3件、compiler 3件、mml 6件、environment 2件、processor 1件、util 1件、pmd-source 3件、pmd-binary 2件、sxlc 1件。型・本文・位置・PEGとの境界・未知の例外の通過を観測する。既存102ケースの型・文脈・旧ラッパーの期待も移行し、入力と生成結果は保つ。compound conditionそのものやGaucheの実装全般を保証するものではない。
 
@@ -196,7 +196,7 @@ P01の中央値は約0.071秒増加した。全登録トラックの準備と非
 
 ## リスト構築と消費の整理の性能比較（#163）
 
-Gauche 0.9.15、Linux x86_64の同じ環境で、各条件を変更前後各3回、独立プロセスで直列に実行した。変更前の製品コードは`d830825`。変更後は同HEADに対する計測時未commitの製品差分であり、その後の修正は既存テストの内部IF追従と文書である。全体テストとの同時実行はしていない。
+Gauche 0.9.15、Linux x86_64の同じ環境で、各条件を変更前後各3回、独立プロセスで直列に実行した。変更前の製品コードは`d830825`。変更後は同HEADに対する計測時未commitの製品差分であり、計測後にCLIのバックエンド読込み式と既存テスト・文書を整理したが、この3条件で計測する製品コードは変更していない。全体テストとの同時実行はしていない。
 
 | 条件 | 変更前の中央値（範囲）ms | 変更後の中央値（範囲）ms | 中央値の比 |
 | --- | --- | --- | --- |

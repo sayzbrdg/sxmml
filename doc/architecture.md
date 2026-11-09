@@ -30,7 +30,7 @@ flowchart LR
 
 | 箇所 | 責務 | 主な入出力・依存 |
 | --- | --- | --- |
-| [`sxlc.in`](../sxlc.in) | 引数解析、モード設定、ソースの `load`、最適化水準の設定、バックエンド呼び出し、情報表示、任意の後処理 | `sxmml` と列挙した `sxmml.backend.*` を使用。ソースファイル・生成先・プロセスを扱う |
+| [`sxlc`](../sxlc.in) | 引数解析、モード設定、ソースの `load`、最適化水準の設定、バックエンド呼び出し、情報表示、任意の後処理 | `sxmml` と列挙した `sxmml.backend.*` を使用。ソースファイル・生成先・プロセスを扱う |
 | [`sxmml.scm`](../sxmml.scm) | 基本モジュール群を `extend` して `sxmml` を構成 | PMD バックエンド（`backend/pmd.scm`・`backend/pmd-source.scm`・`backend/pmd-binary.scm`）は継承対象に含まれない |
 | [`sxmml/classes.scm`](../sxmml/classes.scm) | 環境、トラック文脈、解析結果、最適化文脈、音色等のクラスと、エラーの種類（`<sxmml-error>` の分類と独立した位置・トラックの文脈condition） | 他モジュールが共有するオブジェクトの形を定義 |
 | [`sxmml/environment.scm`](../sxmml/environment.scm) | 環境・ファイル名のパラメータ、トラック・メタデータ・LFO・エンベロープの登録と参照 | 環境内の表とトラック文脈を更新 |
@@ -52,7 +52,7 @@ flowchart LR
 
 ## 処理とデータの流れ
 
-1. `sxlc.in`の`main`は引数から入力パス・モード・最適化水準を取得する。登録表から名前を解決してモードを選び、初期設定後にソースを`load`する。生成時には最終的なモード情報の`backend`を呼ぶ。`-m`指定中は`sxmml-mode-fixed`を真にしてソースの`sxmml-mode`を無視する。明示的な選択手続きは変更できる。
+1. `sxlc`の`main`は引数から入力パス・モード・最適化水準を取得する。登録表から名前を解決してモードを選び、初期設定後にソースを`load`する。生成時には最終的なモード情報の`backend`を呼ぶ。`-m`指定中は`sxmml-mode-fixed`を真にしてソースの`sxmml-mode`を無視する。明示的な選択手続きは変更できる。
 2. バックエンドは読込み時に`<sxmml-mode>`を共有登録表へ登録する。情報は正規名・別名・初期設定・出力手続き・既定拡張子を持つ。`sxmml-mode-select!`は楽曲環境の`mode`を情報へ更新してから初期設定する。PMDの初期設定は既定トラックを登録する。
 3. `compiler.scm` の `mml` / `rhythm` は Scheme 式の結果を `write-tree` で文字列化する。`mml.scm`のパーサーは値を解析し、`command.scm`の共通手続きで文脈更新・IR生成・集計を行う。IRを生成しない命令は`#f`を返し、compilerが収集時に除く。結果はトラックの `compiled-data` に登録される。`processor.scm`の`mml-repeat`は反復IRを共通手続きで直接作って登録し、反復命令の文字列化・再解析を行わない。`mml-echo`・`mml-delay`はコンパイル結果を加工して登録する。
 4. sxlcは出力先を解決し、`make-sxmml-output-environment`で全登録トラックを準備する。`output.scm`がcons木から平坦な列を作り、NOPを除き、登録時のcurrent-ticksから集計を確定する。この段階では最適化しない。
@@ -70,7 +70,7 @@ flowchart LR
 
 ## 外部依存と信頼境界
 
-Scheme ソースは `load` で Gauche のコードとして実行される（`sxlc.in` の `main`）。入力を単なる MML データとして隔離する仕組みはこの入口にはない。変換作業では入力元を信頼できるかを判断する必要がある。Gauche の `load` は [Users’ Reference, 6.22.1 Loading Scheme file](https://practical-scheme.net/vault/Gauche-0.9.15-refe.pdf)を参照する。`-m`は登録済みの名前を検索し、`-c` は外部プロセスを起動する（`sxlc.in` の `main`）。バックエンドの読込みは実行環境で見つかる`sxmml.backend.*`に依存する。これらの入口は実行環境の権限・インストール状態に影響される。
+Scheme ソースは `load` で Gauche のコードとして実行される（`sxlc` の `main`）。入力を単なる MML データとして隔離する仕組みはこの入口にはない。変換作業では入力元を信頼できるかを判断する必要がある。Gauche の `load` は [Users’ Reference, 6.22.1 Loading Scheme file](https://practical-scheme.net/vault/Gauche-0.9.15-refe.pdf)を参照する。`-m`は登録済みの名前を検索し、`-c` は外部プロセスを起動する（`sxlc` の `main`）。バックエンドの読込みは実行環境で見つかる`sxmml.backend.*`に依存する。これらの入口は実行環境の権限・インストール状態に影響される。
 
 生成時は `backend/pmd-source.scm` の `%pmd-source-output` が Gauche の文字コード変換と一時ファイル・リネームを使う。利用する Gauche の機能は [Gauche 0.9.15 Users’ Reference の 9.5 Character code conversion、12.40 parser.peg、12.80 Lazy text construction、9.25 Parsing command-line options、High-level process interface](https://practical-scheme.net/vault/Gauche-0.9.15-refe.pdf)を参照する。
 
@@ -83,7 +83,7 @@ Scheme ソースは `load` で Gauche のコードとして実行される（`sx
 | 通常・リズム MML の構文、音長 | `mml.scm`のパーサー、`command.scm`の計算・文脈更新、`classes.scm`の文脈 | `compiler.scm` の解析・登録、`optimizer.scm` の列、`backend/pmd.scm` の生成結果。通常・リズム双方の境界入力を確認 |
 | Scheme からのオブジェクト加工 | `processor.scm` のマクロと変換関数、`compiler.scm` の登録 | トラックの `compiled-data` と `current-ticks`、最適化前後の列、生成結果。`mml-repeat` 等の既知の差も参照 |
 | 最適化条件 | `optimizer.scm` の各水準と状態管理 | トラックの合計 tick、最適化前後の列、PMD 生成結果。[Q-01 の比較方法](verification.md#q-01-音楽的な意味の保持)を使う |
-| モード指定・生成先 | `sxlc.in`の選択・読込み順・出力先決定、共有モード登録表、楽曲環境の`mode`・`output`、モード情報の`backend`・`output-extension` | CLI表示、実際の生成パス、`-c`に渡す引数が一致すること |
+| モード指定・生成先 | `sxlc`の選択・読込み順・出力先決定、共有モード登録表、楽曲環境の`mode`・`output`、モード情報の`backend`・`output-extension` | CLI表示、実際の生成パス、`-c`に渡す引数が一致すること |
 | PMD 向け出力 | `backend/pmd.scm` のメタデータ・音色・型別出力 | CP932 のファイル内容、出力パス、代表トラックとリズム |
 
 ## 制約

@@ -22,7 +22,7 @@ git clone -b タグ名 https://github.com/sayzbrdg/sxmml.git
 
 ## 最初の変換
 
-リポジトリを取得し、そのルートでビルド・インストールしてから最初のファイルを変換します。次の `git clone` は `main` の開発中の版を取得します。手元にリポジトリがある場合は、そのルートから始めてください。`sxlc.in` は生成用テンプレートです。変換には `make` が生成し、`make install` で配置した `sxlc` コマンドを使います。
+リポジトリを取得し、そのルートでビルド・インストールしてから最初のファイルを変換します。次の `git clone` は `main` の開発中の版を取得します。手元にリポジトリがある場合は、そのルートから始めてください。変換には `make` が生成し、`make install` で配置した `sxlc` コマンドを使います。
 
 ```console
 git clone https://github.com/sayzbrdg/sxmml.git
