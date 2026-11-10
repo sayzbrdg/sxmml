@@ -17,9 +17,9 @@
 |xref:mml.adoc[`sxmml.mml`] |通常・リズム MML の PEG パーサー |74
 |xref:environment.adoc[`sxmml.environment`] |環境と登録表 |35
 |xref:compiler.adoc[`sxmml.compiler`] |文字列の解析と登録マクロ |8
-|xref:processor.adoc[`sxmml.processor`] |反復・エコー・ディレイ |10
+|xref:processor.adoc[`sxmml.processor`] |反復・エコー・ディレイ |11
 |xref:output.adoc[`sxmml.output`] |出力準備・整列化・part検索 |3
-|xref:optimizer.adoc[`sxmml.optimizer`] |オブジェクト列の最適化 |57
+|xref:optimizer.adoc[`sxmml.optimizer`] |オブジェクト列の最適化 |60
 |xref:repeat-tree.adoc[`sxmml.repeat-tree`] |局所反復木による列の圧縮 |33
 |xref:voice.adoc[`sxmml.voice`] |音色定義 |8
 |xref:util.adoc[`sxmml.util`] |BPM の補助計算 |1
