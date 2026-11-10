@@ -50,42 +50,56 @@
   (origin %setting-effect-origin)
   (position %setting-effect-position))
 
+(define (%single-setting-effect-fold proc state obj position key relative?)
+  (values #t (proc key relative? (slot-ref obj 'value) obj position state)))
+
+(define (%rhythm-setting-effects-fold proc state obj position key relative?)
+  (let loop ([slots '(value bass snare tom cymbal hihat rimshot)] [state state])
+    (cond [(null? slots) (values #t state)]
+          [else
+           (let1 value (slot-ref obj (car slots))
+             (loop (cdr slots)
+                   (if value (proc (cons key (car slots)) relative? value obj position state) state)))])))
+
 (define (%ir-setting-effects-fold proc state obj position)
-  (cond [(or (is-a? obj <sxmml-rhythm-volume-change>)
-             (is-a? obj <sxmml-rhythm-volume>) (is-a? obj <sxmml-rhythm-pan>))
-         (let ([relative? (is-a? obj <sxmml-rhythm-volume-change>)]
-               [kind (if (is-a? obj <sxmml-rhythm-pan>) 'rhythm-pan 'rhythm-volume)])
-           (if (and relative? (slot-ref obj 'value))
-             (values #f state)
-             (let loop ([slots '(value bass snare tom cymbal hihat rimshot)] [state state])
-               (if (null? slots)
-                 (values #t state)
-                 (let1 value (slot-ref obj (car slots))
-                   (loop (cdr slots)
-                         (if value
-                           (proc (cons kind (car slots)) relative? value obj position state)
-                           state)))))))]
-        [else
-         (let1 key
-             (cond [(or (is-a? obj <sxmml-mml-volume-change>) (is-a? obj <sxmml-mml-volume>)) 'volume]
-                   [(or (is-a? obj <sxmml-mml-transpose-change>) (is-a? obj <sxmml-mml-transpose>)) 'transpose]
-                   [(is-a? obj <sxmml-mml-lfo-switch>) (cons 'lfo-switch (slot-ref obj 'channel))]
-                   [(is-a? obj <sxmml-mml-lfo>) (cons 'lfo (slot-ref obj 'channel))]
-                   [(or (is-a? obj <sxmml-mml-tempo>) (is-a? obj <sxmml-mml-tempo-absolute>)) 'tempo]
-                   [(is-a? obj <sxmml-mml-voice>) 'voice]
-                   [(is-a? obj <sxmml-mml-gate-time>) 'gate-time]
-                   [(is-a? obj <sxmml-mml-pan>) 'pan]
-                   [(is-a? obj <sxmml-mml-detune>) 'detune]
-                   [(is-a? obj <sxmml-mml-envelope>) 'envelope]
-                   [(is-a? obj <sxmml-mml-noise-frequency>) 'noise-frequency]
-                   [(is-a? obj <sxmml-mml-output-switch>) 'output-switch]
-                   [else #f])
-           (if key
-             (values #t (proc key
-                             (or (is-a? obj <sxmml-mml-volume-change>)
-                                 (is-a? obj <sxmml-mml-transpose-change>))
-                             (slot-ref obj 'value) obj position state))
-             (values #f state)))]))
+  (cond [(and (is-a? obj <sxmml-rhythm-volume-change>) (slot-ref obj 'value))
+         (values #f state)]
+        [(is-a? obj <sxmml-rhythm-pan>)
+         (%rhythm-setting-effects-fold proc state obj position 'rhythm-pan
+                                      (is-a? obj <sxmml-rhythm-volume-change>))]
+        [(is-a? obj <sxmml-rhythm-volume-change>)
+         (%rhythm-setting-effects-fold proc state obj position 'rhythm-volume #t)]
+        [(is-a? obj <sxmml-rhythm-volume>)
+         (%rhythm-setting-effects-fold proc state obj position 'rhythm-volume #f)]
+        [(is-a? obj <sxmml-mml-volume-change>)
+         (%single-setting-effect-fold proc state obj position 'volume #t)]
+        [(is-a? obj <sxmml-mml-volume>)
+         (%single-setting-effect-fold proc state obj position 'volume #f)]
+        [(is-a? obj <sxmml-mml-transpose-change>)
+         (%single-setting-effect-fold proc state obj position 'transpose #t)]
+        [(is-a? obj <sxmml-mml-transpose>)
+         (%single-setting-effect-fold proc state obj position 'transpose #f)]
+        [(is-a? obj <sxmml-mml-lfo-switch>)
+         (%single-setting-effect-fold proc state obj position (cons 'lfo-switch (slot-ref obj 'channel)) #f)]
+        [(is-a? obj <sxmml-mml-lfo>)
+         (%single-setting-effect-fold proc state obj position (cons 'lfo (slot-ref obj 'channel)) #f)]
+        [(or (is-a? obj <sxmml-mml-tempo>) (is-a? obj <sxmml-mml-tempo-absolute>))
+         (%single-setting-effect-fold proc state obj position 'tempo #f)]
+        [(is-a? obj <sxmml-mml-voice>)
+         (%single-setting-effect-fold proc state obj position 'voice #f)]
+        [(is-a? obj <sxmml-mml-gate-time>)
+         (%single-setting-effect-fold proc state obj position 'gate-time #f)]
+        [(is-a? obj <sxmml-mml-pan>)
+         (%single-setting-effect-fold proc state obj position 'pan #f)]
+        [(is-a? obj <sxmml-mml-detune>)
+         (%single-setting-effect-fold proc state obj position 'detune #f)]
+        [(is-a? obj <sxmml-mml-envelope>)
+         (%single-setting-effect-fold proc state obj position 'envelope #f)]
+        [(is-a? obj <sxmml-mml-noise-frequency>)
+         (%single-setting-effect-fold proc state obj position 'noise-frequency #f)]
+        [(is-a? obj <sxmml-mml-output-switch>)
+         (%single-setting-effect-fold proc state obj position 'output-switch #f)]
+        [else (values #f state)]))
 
 (define (%compose-setting-effects key relative? value origin position later)
   (cond [(not later) (%make-setting-effect key relative? value origin position)]
@@ -105,31 +119,37 @@
            (slot-set! result slot (slot-ref origin slot)))))
      (class-slots (class-of origin)))))
 
+(define (%rhythm-setting? obj)
+  (or (is-a? obj <sxmml-rhythm-volume-change>)
+      (is-a? obj <sxmml-rhythm-volume>) (is-a? obj <sxmml-rhythm-pan>)))
+
+(define (%single-setting-effect->ir effect)
+  (rlet1 result (%ir-copy-except (%setting-effect-origin effect) '(value))
+    (slot-set! result 'value (%setting-effect-value effect))))
+
+(define (%rhythm-setting-effects->ir effects)
+  (let* ([origin (%setting-effect-origin (car effects))]
+         [result (%ir-copy-except origin '(value bass snare tom cymbal hihat rimshot))]
+         [remaining
+          (let loop ([rest effects])
+            (cond [(and (pair? rest) (%rhythm-setting? (%setting-effect-origin (car rest)))
+                        (%ir-same-class? origin (%setting-effect-origin (car rest))))
+                   (slot-set! result (cdr (%setting-effect-key (car rest))) (%setting-effect-value (car rest)))
+                   (loop (cdr rest))]
+                  [else rest]))])
+    (for-each (^[slot] (unless (slot-bound? result slot) (slot-set! result slot #f)))
+              '(value bass snare tom cymbal hihat rimshot))
+    (values result remaining)))
+
 (define (%setting-effects->ir table tail)
-  (define (rhythm-setting? obj)
-    (or (is-a? obj <sxmml-rhythm-volume-change>)
-        (is-a? obj <sxmml-rhythm-volume>) (is-a? obj <sxmml-rhythm-pan>)))
   (let loop ([effects (sort (hash-table-values table)
                            (^[a b] (< (%setting-effect-position a) (%setting-effect-position b))))]
              [result ()])
-    (if (null? effects)
-      (reverse! result tail)
-      (let* ([effect (car effects)] [origin (%setting-effect-origin effect)])
-        (if (rhythm-setting? origin)
-          (let1 combined (%ir-copy-except origin '(value bass snare tom cymbal hihat rimshot))
-            (let emit ([rest effects])
-              (if (and (pair? rest) (rhythm-setting? (%setting-effect-origin (car rest)))
-                       (%ir-same-class? origin (%setting-effect-origin (car rest))))
-                (begin
-                  (slot-set! combined (cdr (%setting-effect-key (car rest))) (%setting-effect-value (car rest)))
-                  (emit (cdr rest)))
-                (begin
-                  (for-each (^[slot] (unless (slot-bound? combined slot) (slot-set! combined slot #f)))
-                            '(value bass snare tom cymbal hihat rimshot))
-                  (loop rest (cons combined result))))))
-          (let1 combined (%ir-copy-except origin '(value))
-            (slot-set! combined 'value (%setting-effect-value effect))
-            (loop (cdr effects) (cons combined result))))))))
+    (cond [(null? effects) (reverse! result tail)]
+          [(%rhythm-setting? (%setting-effect-origin (car effects)))
+           (receive (obj remaining) (%rhythm-setting-effects->ir effects)
+             (loop remaining (cons obj result)))]
+          [else (loop (cdr effects) (cons (%single-setting-effect->ir (car effects)) result))])))
 
 (define (sxmml-ir-optimize-local ir)
   (define (compose! key relative? value origin position table)

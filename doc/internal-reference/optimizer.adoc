@@ -1,7 +1,7 @@
 = `sxmml.optimizer` のIR列最適化
 :toc: left
 
-52手続きとrecord型3件を定義し、7手続きを公開します。入力は整列済みの有効な共通IR列、出力も平坦なIR列です。登録環境の検索、整列化、集計確定、最適化要求の数値解釈は行いません。
+57手続きとrecord型3件を定義し、7手続きを公開します。入力は整列済みの有効な共通IR列、出力も平坦なIR列です。登録環境の検索、整列化、集計確定、最適化要求の数値解釈は行いません。
 
 各処理は単独で使え、前の最適化処理の実行を前提にしません。他の処理の削減能力を包含する必要もありません。入力のリスト構造・IRを変更せず、変更するIRを新しく作り、未変更部分は共有できます。局所処理で自分が生成した設定IRの組立てに更新を使うこととは区別します。
 
@@ -37,6 +37,11 @@
 |[[ref-optimizer-internal-ir-same-class-p]]`(%ir-same-class? a b)` |直接属するクラスを比較する |`class-of`の結果を`equal?`で比較。親と派生の所属判定とは区別 |link:../../sxmml/optimizer.scm[optimizer.scm]
 |[[ref-optimizer-internal-ir-copy-except]]`(%ir-copy-except origin omitted-slots)` |除外対象以外の束縛済みinstance slotを同じクラスの未初期化インスタンスへ浅くコピーする |除外対象と原型の未束縛slotは未束縛。initializeを再実行しない。呼出し側が変更値を一度設定する |link:../../sxmml/optimizer.scm[optimizer.scm]
 |[[ref-optimizer-internal-ir-setting-effects-fold]]`(%ir-setting-effects-fold proc state obj position)` |各設定効果を`(proc key relative? value origin position state)`へ渡して折り畳む |認識可否とstateの2値。既知の空設定は認識済みで呼出しゼロ回。未知命令・未対応の全体相対リズム値は対象外。LFOの選択・切替は生のchannelを含む別の鍵 |link:../../sxmml/optimizer.scm[optimizer.scm]
+|[[ref-optimizer-internal-single-setting-effect-fold]]`(%single-setting-effect-fold proc state obj position key relative?)` |valueの単一効果をprocへ渡す |認識済みと更新後stateの2値。偽値のvalueも指定値として渡す |link:../../sxmml/optimizer.scm[optimizer.scm]
+|[[ref-optimizer-internal-rhythm-setting-effects-fold]]`(%rhythm-setting-effects-fold proc state obj position key relative?)` |既存順の全体・六楽器の効果を折り畳む |認識済みと更新後stateの2値。#fは飛ばし0は渡す。未対応の全体相対値は呼出し前に振り分ける |link:../../sxmml/optimizer.scm[optimizer.scm]
+|[[ref-optimizer-internal-rhythm-setting-p]]`(%rhythm-setting? obj)` |既知のリズム設定への所属を判定する |音量・相対音量・パンとその派生なら真 |link:../../sxmml/optimizer.scm[optimizer.scm]
+|[[ref-optimizer-internal-single-setting-effect-to-ir]]`(%single-setting-effect\->ir effect)` |単一効果からIRを作る |原型をvalue以外でコピーし、最終値を一度設定。原型の情報保持は%ir-copy-exceptに従う |link:../../sxmml/optimizer.scm[optimizer.scm]
+|[[ref-optimizer-internal-rhythm-setting-effects-to-ir]]`(%rhythm-setting-effects\->ir effects)` |同じ実クラスの連続するリズム効果一群を復元する |新しいIRと残りの効果列の2値。先頭は既知のリズム設定を前提とし、最初の寄与元を原型にする。標準slotは残存効果で設定後、未束縛だけ#fへ確定する |link:../../sxmml/optimizer.scm[optimizer.scm]
 |[[ref-optimizer-internal-compose-setting-effects]]`(%compose-setting-effects key relative? value origin position later)` |先行効果の各値と後続効果laterを合成する |後続が絶対指定ならそのrecordを返す。後続が相対指定なら加算し、先行の種類・原型・位置を保持したrecordを作る。laterが`#f`なら先行効果のrecordを作る |link:../../sxmml/optimizer.scm[optimizer.scm]
 |[[ref-optimizer-internal-setting-effects-to-ir]]`(%setting-effects\->ir table tail)` |効果表を寄与位置順の IR 列にする |新しい IR のリストを返す。同一クラスの隣接するリズム設定はまとめ、最初の寄与元を原型とする。更新する標準スロットは残存効果から組み立て、付加スロットは原型から引き継ぐ。元 IR は変更しない |link:../../sxmml/optimizer.scm[optimizer.scm]
 |[[ref-optimizer-class-state-effect]]`<state-effect>` +
