@@ -6,6 +6,7 @@
 
 (test-start "sxmml.optimizer")
 (use sxmml.optimizer)
+(use sxmml.repeat-tree)
 (test-module 'sxmml.optimizer)
 (use sxmml)
 (use sxmml.form)
@@ -21,6 +22,94 @@
 
 (use test.ir-meaning)
 (use srfi.1)
+
+(define-class <test-volume> (<sxmml-mml-volume>)
+  ([marker :init-value 'default :init-keyword :marker] [extra]))
+(define-class <test-volume-change> (<sxmml-mml-volume-change>)
+  ([marker :init-keyword :marker]))
+(define-class <test-lfo> (<sxmml-mml-lfo>) ([marker :init-keyword :marker]))
+(define-class <test-lfo-switch> (<sxmml-mml-lfo-switch>) ([marker :init-keyword :marker]))
+(define-class <test-rhythm-volume> (<sxmml-rhythm-volume>) ([marker :init-keyword :marker]))
+(define-class <test-rhythm-volume-other> (<test-rhythm-volume>) ())
+(define-class <test-rest> (<sxmml-mml-rest>) ([marker :init-keyword :marker]))
+(define-class <test-note> (<sxmml-mml-note>) ())
+
+(let ()
+  (define (snapshot ir)
+    (map (^[obj]
+           (cons (class-name (class-of obj))
+                 (map (^[definition]
+                        (let1 slot (slot-definition-name definition)
+                          (list slot (slot-bound? obj slot)
+                                (and (slot-bound? obj slot) (slot-ref obj slot)))))
+                      (class-slots (class-of obj))))) ir))
+  (define (check name procedure input expected)
+    (let* ([before (snapshot input)] [result (procedure input)])
+      (test* name (list #t (snapshot expected))
+             (list (equal? before (snapshot input)) (snapshot result)))))
+  (define (volume value marker) (make <test-volume> :value value :marker marker))
+  (let* ([origin (volume 8 'A)]
+         [tail (list (make <sxmml-mml-note> :value 48 :ticks 12))]
+         [before (snapshot (cons origin tail))]
+         [table (make-hash-table equal-comparator)])
+    (hash-table-put! table 'volume
+                     ((with-module sxmml.optimizer %make-setting-effect) 'volume #f 10 origin 0))
+    (test* "設定を後続列の前へ構築し原型と後続列を変更しない"
+           (list #t (snapshot (cons (volume 10 'A) tail)))
+           (let1 result ((with-module sxmml.optimizer %setting-effects->ir) table tail)
+             (list (equal? before (snapshot (cons origin tail))) (snapshot result)))))
+  (check "空のリズム設定は設定合成の境界を作らない" sxmml-ir-optimize-local
+         (list (volume 8 'A) (make <sxmml-rhythm-volume>) (volume 9 'B))
+         (list (volume 9 'B)))
+  (let1 unsupported (make <sxmml-rhythm-volume-change> :value 1 :bass 2)
+    (check "未対応の全体相対リズム値は前後の設定とともに保持する" sxmml-ir-optimize-local
+           (list (volume 8 'A) unsupported (volume 9 'B))
+           (list (volume 8 'A) unsupported (volume 9 'B))))
+  (check "派生音量の絶対・相対合成は原型の情報を保つ" sxmml-ir-optimize-local
+         (list (volume 8 'A) (make <sxmml-mml-volume-change> :value 2))
+         (list (volume 10 'A)))
+  (check "派生相対音量は親と同じ状態を更新する" sxmml-ir-optimize-local
+         (list (make <test-volume-change> :value 2 :marker 'A)
+               (make <sxmml-mml-volume-change> :value 3))
+         (list (make <test-volume-change> :value 5 :marker 'A)))
+  (check "後続の絶対指定を原型とする" sxmml-ir-optimize-local
+         (list (volume 8 'A) (volume 9 'B)) (list (volume 9 'B)))
+  (check "派生LFOの選択と切替はチャンネルを保ち別々に追跡する" sxmml-ir-optimize
+         (list (make <sxmml-mml-lfo> :value 'L2 :channel 'A)
+               (make <test-lfo> :value 'L1 :channel 'A :marker 'definition)
+               (make <test-lfo-switch> :value #t :channel 'A :marker 'switch))
+         (list (make <test-lfo> :value 'L1 :channel 'A :marker 'definition)
+               (make <test-lfo-switch> :value #t :channel 'A :marker 'switch)))
+  (check "同クラスのリズム設定は最初の寄与元を原型とする" sxmml-ir-optimize-local
+         (list (make <test-rhythm-volume> :bass 9 :marker 'A)
+               (make <test-rhythm-volume> :snare 8 :marker 'B))
+         (list (make <test-rhythm-volume> :bass 9 :snare 8 :marker 'A)))
+  (check "親子であっても異なるクラスのリズム設定はまとめない" sxmml-ir-optimize-local
+         (list (make <test-rhythm-volume> :bass 9 :marker 'A)
+               (make <test-rhythm-volume-other> :snare 8 :marker 'B))
+         (list (make <test-rhythm-volume> :bass 9 :marker 'A)
+               (make <test-rhythm-volume-other> :snare 8 :marker 'B)))
+  (check "コピーによって上書き済みの楽器設定を復活させない" sxmml-ir-optimize-local
+         (list (make <test-rhythm-volume> :bass 9 :snare 8 :marker 'A)
+               (make <sxmml-rhythm-volume> :snare 7))
+         (list (make <test-rhythm-volume> :bass 9 :marker 'A)
+               (make <sxmml-rhythm-volume> :snare 7)))
+  (check "派生休符の結合は後の原型と未束縛のvalueを保つ" sxmml-ir-merge-rests
+         (list (make <test-rest> :ticks 6 :marker 'A) (make <test-rest> :ticks 6 :marker 'B))
+         (list (make <test-rest> :ticks 12 :marker 'B)))
+  (let ([origin (allocate-instance <test-volume> '())]
+        [expected (allocate-instance <test-volume> '())])
+    (slot-set! origin 'value 8)
+    (slot-set! expected 'value 10)
+    (check "再生成は初期値を戻さず追加スロットの未束縛を保つ" sxmml-ir-optimize-local
+           (list origin (make <sxmml-mml-volume-change> :value 2)) (list expected)))
+  (let1 same? (with-module sxmml.optimizer %repeat-same?)
+    (test* "反復比較は同じスロットを持つ親と派生を区別する" '(#f #t)
+           (list (same? (make <sxmml-mml-note> :value 48 :ticks 12)
+                        (make <test-note> :value 48 :ticks 12))
+                 (same? (make <test-note> :value 48 :ticks 12)
+                        (make <test-note> :value 48 :ticks 12))))))
+
 (define (test-optimize-track track :key (optimize #t))
   (sxmml-pmd-ir-optimize
    (sxmml-ir-flatten (slot-ref (sxmml-track-get track) 'compiled-data))
@@ -159,7 +248,7 @@
        (test-optimize-track 'G :optimize #f))))
   (define (values-at-notes text absolute :optional (relative #f) (laps 1))
     (let1 objects ((with-module sxmml.optimizer %repeat-expansion)
-                  ((with-module sxmml.optimizer %repeat-structure) (optimize text)))
+                  ((with-module sxmml.optimizer %repeat-structure) (optimize text)) '())
       (receive (prefix suffix) (span (^o (not (is-a? o <sxmml-mml-loop>))) objects)
         (reverse
          (cdr
@@ -219,9 +308,40 @@
        [expansion (with-module sxmml.optimizer %repeat-expansion)]
        [same-objects? (^[a b] (and (= (length a) (length b)) (every eq? a b)))])
   (test* "repeat structure round-trips" #t
-         (same-objects? lis (flatten (structure lis))))
+         (same-objects? lis (flatten (structure lis) '())))
   (test* "repeat expansion" #t
-         (same-objects? (list c d d e c d d e c d d) (expansion (structure lis))))
+         (same-objects? (list c d d e c d d e c d d) (expansion (structure lis) '())))
+  (let ([items (structure lis)] [tail (list e c)])
+    (test* "反復の平坦化は後続列と入力を保持する" '(#t #t #t)
+           (let1 result (flatten items tail)
+             (list (same-objects? (append lis (list e c)) result)
+                   (same-objects? lis (flatten items '())) (same-objects? (list e c) tail)))))
+  (let ([items (structure lis)] [tail (list e c)])
+    (test* "反復の展開は出現順と後続列と入力を保持する" '(#t #t #t)
+           (let1 result (expansion items tail)
+             (list (same-objects? (list c d d e c d d e c d d e c) result)
+                   (same-objects? lis (flatten items '())) (same-objects? (list e c) tail)))))
+  (let ([outputs (vector (list c) (list d) (list e))] [tail (list c)])
+    (test* "反復木の連結と脱出と反復を後続列の前へ復元する" '(#t #t #t)
+           (let1 result ((with-module sxmml.optimizer %repeat-tree->ir)
+                        (make-concat (make-literal 0)
+                                     (make-final 3 (make-repeat 2 (make-literal 1)) (make-literal 2)))
+                        outputs tail)
+             (list (and (= (length result) 9)
+                        (every (with-module sxmml.optimizer %repeat-same?)
+                               (list c start1 start2 d end2 break1 e end1 c) result))
+                   (equal? outputs (vector (list c) (list d) (list e))) (same-objects? (list c) tail)))))
+  (test* "反復比較は左列だけが先に終われば不一致" #f
+         ((with-module sxmml.optimizer %repeat-same?) (list c) (list c d)))
+  (test* "反復比較は右列だけが先に終われば不一致" #f
+         ((with-module sxmml.optimizer %repeat-same?) (list c d) (list c)))
+  (let* ([input (append-map (^_ (list (note 0) (make <sxmml-mml-tie>)
+                                    (make <sxmml-mml-tie>) (make <sxmml-mml-tie>) (note 2))) '(1 2 3))]
+         [result (sxmml-ir-compress-repeats input)])
+    (test* "複数のタイをまとめても復元した命令の順序を保つ" #t
+           (let1 expanded (expansion (structure result) '())
+             (and (= (length input) (length expanded))
+                  (every (with-module sxmml.optimizer %repeat-same?) input expanded)))))
   (test* "a repeat without its end fails" (test-error <error>)
          (structure (list start1 c)))
   (test* "a repeat end without its start fails" (test-error <error>)
@@ -439,8 +559,8 @@
                           "[cdcdcd]1" "c4c4c4c4c8" "[c:]2" "v10cdv12cdv10cdv12cd" "[c&c&]4"))
             (dolist (level '(:repeat :repeat-expand))
               (test* #"\"~|text|\" keeps its expansion with optimize ~level" #t
-                     (let ([a (expansion (structure (optimized-objects 'A :full `((mml A ,text)))))]
-                           [b (expansion (structure (optimized-objects 'A level `((mml A ,text)))))])
+                     (let ([a (expansion (structure (optimized-objects 'A :full `((mml A ,text)))) '())]
+                           [b (expansion (structure (optimized-objects 'A level `((mml A ,text)))) '())])
                        (and (= (length a) (length b)) (every same? a b)))))))
         ;; 最適化で不正なチャンネルの命令が落ちず、-O 0 と同じく失敗する (#64)
         (let1 source (source-output "lfo-invalid-channel"

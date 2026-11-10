@@ -50,6 +50,11 @@
 (define (%track->track-list track)
   (if (list? track) track (list track)))
 
+(define (%processor-track-name-check form macro-name track)
+  (unless (identifier? track)
+    (sxmml-form-error form "invalid ~a track name: ~s (expected a symbol)"
+                     macro-name (unwrap-syntax track))))
+
 ;; 本文は begin に並べ、その間に反復の開始・脱出・終了の登録を挟む。回数は式として
 ;; 評価し、実行時に検査する。形は展開時に検査し、誤りには、展開時でも実行時でも、
 ;; このフォームの位置を付ける
@@ -57,30 +62,35 @@
   (er-macro-transformer
     (^[form rename id=?]
       ;; 各トラックの文脈で共通コマンドを実行し、IRを登録する。
-      (define (build-registration tracks command . args)
-        (map (^[t] (sxmml-form-wrap form rename
+      (define (build-registration tracks command check? . args)
+        (map (^[t]
+               (when check? (%processor-track-name-check form "mml-repeat" t))
+               (sxmml-form-wrap form rename
                      (quasirename rename
                        `(%repeat-command-register! ',t ,(rename command) ,@args))))
              tracks))
       ;; 脱出位置は breaks のトラックに置く。breaks が空なら置かない
       (define (expand tracks times body1 breaks body2 body3)
-        (quasirename rename
-          `(begin
-             ,@(build-registration tracks 'sxmml-command-repeat-start!)
-             ,@body1
-             ,@(build-registration breaks 'sxmml-command-repeat-break!)
-             ,@body2
-             ,(quasirename rename
-                `(let ([count ,(sxmml-form-wrap form rename times)])
-                   ,@(build-registration tracks 'sxmml-command-repeat-end! (rename 'count))))
-             ,@body3)))
+        (let* ([starts (build-registration tracks 'sxmml-command-repeat-start! #t)]
+               [breaks (build-registration breaks 'sxmml-command-repeat-break! #t)])
+          (quasirename rename
+            `(begin
+               ,@starts
+               ,@body1
+               ,@breaks
+               ,@body2
+               ,(quasirename rename
+                  `(let ([count ,(sxmml-form-wrap form rename times)])
+                     ,@(build-registration tracks 'sxmml-command-repeat-end! #f (rename 'count))))
+               ,@body3))))
       (match form
         ;; 1st format
         [(_ (? %track-spec? track) times (body ...))
          (expand (%track->track-list track) times body () () ())]
         ;; 2nd format
         [(_ (? %track-spec? track) times (body1 ...) (body2 ...))
-         (expand (%track->track-list track) times body1 (%track->track-list track) body2 ())]
+         (let1 tracks (%track->track-list track)
+           (expand tracks times body1 tracks body2 ()))]
         ;; 3rd format
         [(_ (track ..1) times (body1 ...) (body2 ...) ((break ...) body3 ...))
          (expand track times body1 break body2 body3)]
@@ -170,6 +180,7 @@
     (^[form rename id=?]
       (match form
         [(_ track (firstnote voldown restdown) body ...)
+         (%processor-track-name-check form "mml-echo" track)
          (sxmml-form-wrap form rename
            (quasirename rename
              `(sxmml-ir-register!
@@ -215,6 +226,7 @@
   (er-macro-transformer
     (^[form rename id=?]
       (define (build-registration track)
+        (%processor-track-name-check form "mml-delay" track)
         (quasirename rename
           `(sxmml-ir-register!
             (sxmml-ir-self-delay! (sxmml-compile-track-mml ',track text)
@@ -222,9 +234,10 @@
             ',track)))
       (match form
         [(_ (? %track-spec? track) (ticks voldown restdown) body ...)
-         (sxmml-form-wrap form rename
-           (quasirename rename
-             `(let ([ticks ,ticks] [voldown ,voldown] [restdown ,restdown]
-                    [text (write-to-string (list ,@body) write-tree)])
-                ,@(map build-registration (%track->track-list track)))))]
+         (let1 registrations (map build-registration (%track->track-list track))
+           (sxmml-form-wrap form rename
+             (quasirename rename
+               `(let ([ticks ,ticks] [voldown ,voldown] [restdown ,restdown]
+                      [text (write-to-string (list ,@body) write-tree)])
+                  ,@registrations))))]
         [_ (sxmml-form-error form "invalid mml-delay form: expected (mml-delay track (ticks voldown restdown) body ...)")]))))

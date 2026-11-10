@@ -70,7 +70,7 @@
            [result (compile rhythm? (cadr case))]
            [objects (car result)]
            [expanded ((with-module sxmml.optimizer %repeat-expansion)
-                      ((with-module sxmml.optimizer %repeat-structure) objects))])
+                      ((with-module sxmml.optimizer %repeat-structure) objects) ())])
       (test* #"正の回数の意味・集計・状態を保ち、反復を保持する: ~(cadr case)"
              (cddr case)
              (list (cadr result)
