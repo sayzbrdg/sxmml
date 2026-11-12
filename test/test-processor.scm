@@ -273,4 +273,35 @@
       )
     (remove-directory* workdir)))
 
+(let ()
+  (define (echo-repeat break?)
+    (let* ([tail (list (make <sxmml-mml-note> :value 2 :ticks 12)
+                       (make <sxmml-mml-repeat-end> :value 2)
+                       (make <sxmml-mml-note> :value 4 :ticks 12))]
+           [input (cons (make <sxmml-mml-repeat-start>)
+                        (cons (make <sxmml-mml-note> :value 0 :ticks 12)
+                              (if break? (cons (make <sxmml-mml-repeat-break>) tail) tail)))])
+      (map (^[obj]
+             (cond [(is-a? obj <sxmml-mml-note>)
+                    (list 'note (slot-ref obj 'value) (slot-ref obj 'ticks))]
+                   [(is-a? obj <sxmml-mml-volume-change>)
+                    (list 'volume-change (slot-ref obj 'value))]
+                   [(is-a? obj <sxmml-mml-repeat-start>) 'start]
+                   [(is-a? obj <sxmml-mml-repeat-break>) 'break]
+                   [(is-a? obj <sxmml-mml-repeat-end>) (list 'end (slot-ref obj 'value))]
+                   [else (class-name (class-of obj))]))
+           (sxmml-ir-flatten ((with-module sxmml.processor sxmml-ir-self-echo!) input "o0c" 2 1)))))
+  (test* "echoは脱出なしの反復後も直前の音高と音量復帰位置を保つ"
+         '(start (note 0 6) (volume-change 2) (note 0 6)
+                 (volume-change -2) (note 2 6) (volume-change 2) (note 0 6)
+                 (volume-change -2) (end 2)
+                 (note 4 6) (volume-change 2) (note 2 6) (volume-change -2))
+         (echo-repeat #f))
+  (test* "echoは脱出時の音高0を反復後へ引き継ぐ"
+         '(start (note 0 6) (volume-change 2) (note 0 6)
+                 (volume-change -2) break (note 2 6) (volume-change 2) (note 0 6)
+                 (volume-change -2) (end 2)
+                 (note 4 6) (volume-change 2) (note 0 6) (volume-change -2))
+         (echo-repeat #t)))
+
 (test-end :exit-on-failure #t)
