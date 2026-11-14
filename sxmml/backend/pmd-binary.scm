@@ -252,6 +252,53 @@
 (define (%pmd-rhythm-definition-track-u8vector-set! work has-loop? lis)
   (define (overall-offset) (slot-ref work 'offset))
   (define u8vec (vector-ref (slot-ref work 'track) 11))
+  (define (set-ir! obj offset repeat-stack)
+    (cond [(is-a? obj <sxmml-mml-rest>)
+           (values (%pmd-rest-set! work u8vec offset obj) repeat-stack)]
+          [(is-a? obj <sxmml-rhythm-emit>)
+           (values (%pmd-rhythm-emit-set! work u8vec offset obj) repeat-stack)]
+          [(is-a? obj <sxmml-mml-repeat-start>)
+           (values (%pmd-repeat-start-set! u8vec offset obj)
+                   (cons (cons (+ offset 1) 0) repeat-stack))]
+          [(is-a? obj <sxmml-mml-repeat-end>)
+           (values (%pmd-repeat-end-set! u8vec offset obj (car repeat-stack) (overall-offset))
+                   (cdr repeat-stack))]
+          [(is-a? obj <sxmml-mml-repeat-break>)
+           (values (%pmd-repeat-break-set! u8vec offset obj)
+                   (cons (cons (caar repeat-stack) (+ offset 1)) (cdr repeat-stack)))]
+          [(is-a? obj <sxmml-rhythm-volume>)
+           (values (%pmd-rhythm-volume-set! u8vec offset obj) repeat-stack)]
+          [(is-a? obj <sxmml-rhythm-volume-change>)
+           (values (%pmd-rhythm-volume-change-set! u8vec offset obj) repeat-stack)]
+          [(is-a? obj <sxmml-rhythm-pan>)
+           (values (%pmd-rhythm-pan-set! u8vec offset obj) repeat-stack)]
+          [else (values offset repeat-stack)]))
+  (define (finish! offset)
+    ;; パターンの終わりの ff の次（パターンがなければ先頭）から、PMD4 の末尾の 12 バイトを書く
+    (let ([metasize (if (eq? (slot-ref work 'mode) 'fc88) 0 12)]
+          [end (if (null? lis)
+                 0
+                 (begin (u8vector-set! u8vec offset #xff)
+                        (+ offset 1)))])
+      (vector-set! (slot-ref work 'track-length) 11 (+ end metasize))
+      (slot-set! work 'offset (+ (overall-offset) end metasize))
+      (receive (lb hb) (%short->le-bytes (slot-ref work 'offset))
+        (u8vector-set! (slot-ref work 'head) 24 lb)
+        (u8vector-set! (slot-ref work 'head) 25 hb))
+      (unless (eq? (slot-ref work 'mode) 'fc88)
+        ;; 合計 tick は 2 バイトで書く。loop tick は合計 tick を超えない
+        (let1 ticks (slot-ref work 'max-total-ticks)
+          (when (> ticks 65535)
+            (errorf <sxmml-error> "total ticks exceed the limit: ~a (max 65535)" ticks)))
+        (receive (lb hb) (%short->le-bytes (slot-ref work 'max-total-ticks))
+          (u8vector-set! u8vec end lb)
+          (u8vector-set! u8vec (+ end 1) hb))
+        (receive (lb hb) (%short->le-bytes (slot-ref work 'max-loop-ticks))
+          (u8vector-set! u8vec (+ end 4) lb)
+          (u8vector-set! u8vec (+ end 5) hb))
+        (u8vector-set! u8vec (- (+ end metasize) 2) #x48)
+        (u8vector-set! u8vec (- (+ end metasize) 1) #xfe)))
+    work)
   ;; 先頭はパターンの位置の表で、L がなければ 1 つ、あれば 2 つ。リズムがなければ
   ;; パターンを作らず、位置の表も中身も書かない
   (define table-size (cond [(null? lis) 0] [has-loop? 4] [else 2]))
@@ -264,32 +311,7 @@
              [loop-seen? #f]
              [repeat-stack ()])
     (%size-check (+ (overall-offset) track-offset))
-    (cond [(null? rest)
-           ;; パターンの終わりの ff の次（パターンがなければ先頭）から、PMD4 の末尾の 12 バイトを書く
-           (let ([metasize (if (eq? (slot-ref work 'mode) 'fc88) 0 12)]
-                 [end (if (null? lis)
-                        0
-                        (begin (u8vector-set! u8vec track-offset #xff)
-                               (+ track-offset 1)))])
-             (vector-set! (slot-ref work 'track-length) 11 (+ end metasize))
-             (slot-set! work 'offset (+ (overall-offset) end metasize))
-             (receive (lb hb) (%short->le-bytes (slot-ref work 'offset))
-               (u8vector-set! (slot-ref work 'head) 24 lb)
-               (u8vector-set! (slot-ref work 'head) 25 hb))
-             (unless (eq? (slot-ref work 'mode) 'fc88)
-               ;; 合計 tick は 2 バイトで書く。loop tick は合計 tick を超えない
-               (let1 ticks (slot-ref work 'max-total-ticks)
-                 (when (> ticks 65535)
-                   (errorf <sxmml-error> "total ticks exceed the limit: ~a (max 65535)" ticks)))
-               (receive (lb hb) (%short->le-bytes (slot-ref work 'max-total-ticks))
-                 (u8vector-set! u8vec end lb)
-                 (u8vector-set! u8vec (+ end 1) hb))
-               (receive (lb hb) (%short->le-bytes (slot-ref work 'max-loop-ticks))
-                 (u8vector-set! u8vec (+ end 4) lb)
-                 (u8vector-set! u8vec (+ end 5) hb))
-               (u8vector-set! u8vec (- (+ end metasize) 2) #x48)
-               (u8vector-set! u8vec (- (+ end metasize) 1) #xfe)))
-           work]
+    (cond [(null? rest) (finish! track-offset)]
           [(is-a? (car rest) <sxmml-mml-loop>)
            (when loop-seen?
              (error <sxmml-mml-syntax-error> "loop command can be used only once in a track"))
@@ -298,25 +320,9 @@
              (u8vector-set! u8vec 2 lb)
              (u8vector-set! u8vec 3 hb))
            (loop (cdr rest) (+ track-offset 1) #t repeat-stack)]
-          [(is-a? (car rest) <sxmml-mml-rest>)
-           (loop (cdr rest) (%pmd-rest-set! work u8vec track-offset (car rest)) loop-seen? repeat-stack)]
-          [(is-a? (car rest) <sxmml-rhythm-emit>)
-           (loop (cdr rest) (%pmd-rhythm-emit-set! work u8vec track-offset (car rest)) loop-seen? repeat-stack)]
-          [(is-a? (car rest) <sxmml-mml-repeat-start>)
-           (loop (cdr rest) (%pmd-repeat-start-set! u8vec track-offset (car rest)) loop-seen? (cons (cons (+ track-offset 1) 0) repeat-stack))]
-          [(is-a? (car rest) <sxmml-mml-repeat-end>)
-           (loop (cdr rest) (%pmd-repeat-end-set! u8vec track-offset (car rest) (car repeat-stack) (overall-offset)) loop-seen? (cdr repeat-stack))]
-          [(is-a? (car rest) <sxmml-mml-repeat-break>)
-           (loop (cdr rest) (%pmd-repeat-break-set! u8vec track-offset (car rest)) loop-seen? (cons (cons (caar repeat-stack) (+ track-offset 1)) (cdr repeat-stack)))]
-          [(is-a? (car rest) <sxmml-rhythm-volume>)
-           (loop (cdr rest) (%pmd-rhythm-volume-set! u8vec track-offset (car rest)) loop-seen? repeat-stack)]
-          [(is-a? (car rest) <sxmml-rhythm-volume-change>)
-           (loop (cdr rest) (%pmd-rhythm-volume-change-set! u8vec track-offset (car rest)) loop-seen? repeat-stack)]
-          [(is-a? (car rest) <sxmml-rhythm-pan>)
-           (loop (cdr rest) (%pmd-rhythm-pan-set! u8vec track-offset (car rest)) loop-seen? repeat-stack)]
           [else
-           (loop (cdr rest) track-offset loop-seen? repeat-stack)])))
-
+           (receive (next-offset next-stack) (set-ir! (car rest) track-offset repeat-stack)
+             (loop (cdr rest) next-offset loop-seen? next-stack))])))
 
 (define (%pmd-meta-track-u8vector-set! work)
   (define voice-ht (slot-ref (slot-ref work 'environment) 'voice))
