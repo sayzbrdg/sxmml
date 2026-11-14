@@ -181,6 +181,33 @@
     (%pmd-rhythm-deploy-track-output! state track has-loop? lis)))
 
 (define (%pmd-rhythm-definition-track-output state has-loop? lis)
+  (define (output-ir obj depth)
+    (cond [(is-a? obj <sxmml-mml-rest>)
+           (%pmd-rest-output state obj)
+           depth]
+          [(is-a? obj <sxmml-rhythm-emit>)
+           (%pmd-rhythm-emit-output state obj)
+           depth]
+          [(is-a? obj <sxmml-mml-repeat-start>)
+           (%pmd-value-check "repeat depth" (+ depth 1) 1 32)
+           (%pmd-repeat-start-output obj)
+           (+ depth 1)]
+          [(is-a? obj <sxmml-mml-repeat-end>)
+           (%pmd-repeat-end-output obj)
+           (- depth 1)]
+          [(is-a? obj <sxmml-mml-repeat-break>)
+           (%pmd-repeat-break-output obj)
+           depth]
+          [(is-a? obj <sxmml-rhythm-volume>)
+           (%pmd-rhythm-volume-output obj)
+           depth]
+          [(is-a? obj <sxmml-rhythm-volume-change>)
+           (%pmd-rhythm-volume-change-output obj)
+           depth]
+          [(is-a? obj <sxmml-rhythm-pan>)
+           (%pmd-rhythm-pan-output obj)
+           depth]
+          [else depth]))
   (define (loop rest loop-seen? depth)
     (cond [(null? rest)
            (display "\r\n")
@@ -190,33 +217,8 @@
              (error <sxmml-mml-syntax-error> "loop command can be used only once in a track"))
            (display "\r\n")
            (cdr rest)]
-          [(is-a? (car rest) <sxmml-mml-rest>)
-           (%pmd-rest-output state (car rest))
-           (loop (cdr rest) loop-seen? depth)]
-          [(is-a? (car rest) <sxmml-rhythm-emit>)
-           (%pmd-rhythm-emit-output state (car rest))
-           (loop (cdr rest) loop-seen? depth)]
-          [(is-a? (car rest) <sxmml-mml-repeat-start>)
-           (%pmd-value-check "repeat depth" (+ depth 1) 1 32)
-           (%pmd-repeat-start-output (car rest))
-           (loop (cdr rest) loop-seen? (+ depth 1))]
-          [(is-a? (car rest) <sxmml-mml-repeat-end>)
-           (%pmd-repeat-end-output (car rest))
-           (loop (cdr rest) loop-seen? (- depth 1))]
-          [(is-a? (car rest) <sxmml-mml-repeat-break>)
-           (%pmd-repeat-break-output (car rest))
-           (loop (cdr rest) loop-seen? depth)]
-          [(is-a? (car rest) <sxmml-rhythm-volume>)
-           (%pmd-rhythm-volume-output (car rest))
-           (loop (cdr rest) loop-seen? depth)]
-          [(is-a? (car rest) <sxmml-rhythm-volume-change>)
-           (%pmd-rhythm-volume-change-output (car rest))
-           (loop (cdr rest) loop-seen? depth)]
-          [(is-a? (car rest) <sxmml-rhythm-pan>)
-           (%pmd-rhythm-pan-output (car rest))
-           (loop (cdr rest) loop-seen? depth)]
           [else
-           (loop (cdr rest) loop-seen? depth)]))
+           (loop (cdr rest) loop-seen? (output-ir (car rest) depth))]))
   (unless (null? lis)
     (display "R0 ")
     (let1 rest (loop lis #f 0)
