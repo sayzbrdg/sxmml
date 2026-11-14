@@ -1,6 +1,17 @@
 # sxmml の変更履歴
 
-## 未リリース
+## v0.6.0
+
+楽曲登録・出力・最適化APIの責務を整理し、最適化の不具合修正と代表的な検証を追加した版である。互換性のない変更を含む。
+
+#70全体のリファクタリングは継続課題であり、新バックエンド追加の準備やコーディングルール整備の完了を意味しない。pmd-binaryは引き続き実験的機能である。
+
+### v0.5.0からの移行
+
+- 旧`(pmd)`・`(pmd-source)`等を直接呼ぶコードは、`(sxmml-mode-select! 'pmd)`・`(sxmml-mode-select! 'pmd-source)`へ移行する。ソース用の`(sxmml-mode pmd)`は名前を評価しない単一名の形式とし、追加引数は受け付けない。
+- pmd-sourceの出力手続きを直接使うコードは、`(use sxmml.backend.pmd-source)`で出力モジュールを読み込む。手動出力では登録環境から`make-sxmml-output-environment`で出力環境を作り、`:output`と`:optimize`を明示してバックエンドへ渡す。呼出し結果の`output`・`track-names`から実際の出力先と採用トラック名を取得する。具体例は[手続きによる出力](doc/sxmml-reference-manual.adoc)を参照する。
+- 廃止した`sxmml-optimize-tree`を呼ぶコードは、出力準備や`sxmml-ir-flatten`で得た平坦なIR列を公開最適化手続きへ渡す形に移行する。基本組合せは`sxmml-ir-optimize`、通常の反復圧縮付きは`sxmml-ir-optimize-with-repeats`、展開を伴う反復圧縮付きは`sxmml-ir-optimize-with-repeat-expansion`を使う。個別処理と組合せは[最適化手続きの一覧](doc/internal-reference/optimizer.adoc)を参照する。
+- `mml`・`rhythm`・`mml-delay`の本文は複数トラックでも一度だけ評価する。トラックごとに異なる本文を作る必要があるコードは、トラックを個別に指定した呼出しへ分ける。`mml`・`rhythm`・`define-track`の複数トラック形式は、指定順に実行する。
 
 ### 互換性のない変更
 
