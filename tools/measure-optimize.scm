@@ -74,26 +74,26 @@
         [load-options (map (^p (string-append "-I" (sys-normalize-pathname p :absolute #t)))
                            (reverse *load-path*))]
         [source (sys-normalize-pathname source :absolute #t)])
+    (define (run-config parsed-config)
+      (let* ([dir (sys-mkdtemp (build-path (temporary-directory) "measure-optimize"))]
+             [result (build-path dir "result")]
+             [t0 (current-time)])
+        (unwind-protect
+            (let* ([p (run-process `(,gosh ,@load-options ,script "--child" ,mode
+                                           ,@(map x->string parsed-config) ,source ,result ,dir)
+                                   :output :null :error :null :wait #t)]
+                   [total (- (time->seconds (current-time)) (time->seconds t0))]
+                   [status (sys-wait-exit-status (process-exit-status p))])
+              (values status total
+                      (and (zero? status) (file-exists? result)
+                           (map string->number
+                                (string-split (string-trim-right (file->string result)) #\space)))))
+          (remove-directory* dir))))
     (define parsed-configs (map parse-config configs))
     (format #t "~16a ~10a ~8a ~8a ~10a ~10a\n" "config" "bytes" "vs O2" "objects" "generate" "total")
     (let loop ([rest configs] [parsed parsed-configs] [base #f])
       (unless (null? rest)
-        (let* ([config (car parsed)]
-               [dir (sys-mkdtemp (build-path (temporary-directory) "measure-optimize"))]
-               [result (build-path dir "result")]
-               [t0 (current-time)])
-          (receive (status total row)
-              (unwind-protect
-                  (let* ([p (run-process `(,gosh ,@load-options ,script "--child" ,mode
-                                                 ,@(map x->string config) ,source ,result ,dir)
-                                         :output :null :error :null :wait #t)]
-                         [total (- (time->seconds (current-time)) (time->seconds t0))]
-                         [status (sys-wait-exit-status (process-exit-status p))])
-                    (values status total
-                            (and (zero? status) (file-exists? result)
-                                 (map string->number
-                                      (string-split (string-trim-right (file->string result)) #\space)))))
-                (remove-directory* dir))
+        (receive (status total row) (run-config (car parsed))
           (if row
             (let1 base (or base (and (equal? (car rest) "O2") (car row)))
               (format #t "~16a ~10d ~8a ~8d ~10,2f ~10,2f\n" (car rest) (car row)
@@ -104,7 +104,7 @@
             (begin
               (format #t "~16a failed (exit status ~d)\n" (car rest) status)
               (flush)
-              (loop (cdr rest) (cdr parsed) base)))))))))
+              (loop (cdr rest) (cdr parsed) base))))))))
 
 (define (main args)
   (if (and (pair? (cdr args)) (equal? (cadr args) "--child"))
