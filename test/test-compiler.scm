@@ -140,4 +140,33 @@
                    (list (condition-has-type? e <error>) (condition-message e)
                          (sxmml-error? e) (sxmml-source-context? e))))))
     (remove-directory* workdir)))
+
+(test* "C11 通常MMLは式で作った文字列リストと後続本文を順に登録する"
+       '(((note 48 12) (note 50 12) (rest 12)) 36)
+       (parameterize ([sxmml-environment (make <sxmml-environment>)])
+         (sxmml-track-set! 'G :current-octave 4)
+         (mml G (map (^[name] (string-append name "8")) '("c" "d")) "r8")
+         (let* ([ctx (sxmml-track-get 'G)]
+                [ir (sxmml-ir-flatten (slot-ref ctx 'compiled-data))])
+           (list (map (^[obj]
+                        (if (is-a? obj <sxmml-mml-rest>)
+                          (list 'rest (slot-ref obj 'ticks))
+                          (list 'note (slot-ref obj 'value) (slot-ref obj 'ticks)))) ir)
+                 (caar (slot-ref ctx 'current-ticks))))))
+(test* "C12 リズムMMLは式で作った文字列リストと後続本文を順に登録する"
+       '(((emit (bass) 12) (emit (snare) 12) (rest 12)) 36)
+       (parameterize ([sxmml-environment (make <sxmml-environment>)])
+         (sxmml-track-set! 'L)
+         (rhythm L (map (^[name] (string-append name "8")) '("@b" "@s")) "r8")
+         (let* ([ctx (sxmml-track-get 'L)]
+                [ir (sxmml-ir-flatten (slot-ref ctx 'compiled-data))])
+           (list (map (^[obj]
+                        (if (is-a? obj <sxmml-mml-rest>)
+                          (list 'rest (slot-ref obj 'ticks))
+                          (list 'emit
+                                (filter (^[instrument] (slot-ref obj instrument))
+                                        '(bass snare tom cymbal hihat rimshot))
+                                (slot-ref obj 'ticks)))) ir)
+                 (caar (slot-ref ctx 'current-ticks))))))
+
 (test-end :exit-on-failure #t)
