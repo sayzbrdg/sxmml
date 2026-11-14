@@ -329,68 +329,72 @@
   (define t12u8vec (vector-ref (slot-ref work 'track) 11))
   (define t13u8vec (vector-ref (slot-ref work 'track) 12))
   (define track-start-pos (slot-ref work 'offset))
-  (let1 track-offset
-      (parameterize ([%pmd-section "voice table"])
-        (fold (^[value offset]
-                (%size-check (+ track-start-pos offset 26))
-                (u8vector-set! t13u8vec offset (%pmd-fm-voice-number work value))
-                (u8vector-copy! t13u8vec (+ offset 1)
-                                (list->u8vector
-                                 (%opn-voice-form->register-data (slot-ref value 'value)
-                                                                 (slot-ref value 'id))))
-                (+ offset 26))
-              0
-              (sort (filter (cut hash-table-exists? (slot-ref work 'used-fm-voices) <>)
-                            (hash-table-values voice-ht))
-                    ;; 番号順に並べ、音色表の反復順に依存させない。
-                    (^[x y] (< (%pmd-fm-voice-number work x) (%pmd-fm-voice-number work y))))))
-    (if (eq? (slot-ref work 'mode) 'fc88)
-      (begin (vector-set! (slot-ref work 'track-length) 12 track-offset)
-             (slot-set! work 'offset (+ track-start-pos track-offset)))
-      (begin (u8vector-set! t13u8vec track-offset #x00)
-             (u8vector-set! t13u8vec (+ track-offset 1) #xff)
-             (vector-set! (slot-ref work 'track-length) 12 (+ track-offset 2))
-             (slot-set! work 'offset (+ track-start-pos track-offset 2))))
-    ;; for PMD4 meta informations.
+  (define (write-voices!)
+    (let1 track-offset
+        (parameterize ([%pmd-section "voice table"])
+          (fold (^[value offset]
+                  (%size-check (+ track-start-pos offset 26))
+                  (u8vector-set! t13u8vec offset (%pmd-fm-voice-number work value))
+                  (u8vector-copy! t13u8vec (+ offset 1)
+                                  (list->u8vector
+                                   (%opn-voice-form->register-data (slot-ref value 'value)
+                                                                   (slot-ref value 'id))))
+                  (+ offset 26))
+                0
+                (sort (filter (cut hash-table-exists? (slot-ref work 'used-fm-voices) <>)
+                              (hash-table-values voice-ht))
+                      ;; 番号順に並べ、音色表の反復順に依存させない。
+                      (^[x y] (< (%pmd-fm-voice-number work x) (%pmd-fm-voice-number work y))))))
+      (if (eq? (slot-ref work 'mode) 'fc88)
+        (begin (vector-set! (slot-ref work 'track-length) 12 track-offset)
+               (slot-set! work 'offset (+ track-start-pos track-offset))
+               track-offset)
+        (begin (u8vector-set! t13u8vec track-offset #x00)
+               (u8vector-set! t13u8vec (+ track-offset 1) #xff)
+               (vector-set! (slot-ref work 'track-length) 12 (+ track-offset 2))
+               (slot-set! work 'offset (+ track-start-pos track-offset 2))
+               (+ track-offset 2)))))
+  (define (write-strings! offset)
+    (let loop ([rest '(ppzfile ppsfile pcmfile title composer arranger memo)]
+               [meta-offset offset]
+               [offset-stack ()])
+      (cond [(null? rest) (values meta-offset (reverse! offset-stack))]
+            [(eq? (car rest) 'memo)
+             ;; memoは文字列のリストとして受け取り、要素の数だけ書く。空なら書かない
+             (let recur ([stack (sxmml-pmd-metadata-value (slot-ref (slot-ref work 'environment) 'metadata) 'memo)]
+                         [moffset meta-offset]
+                         [ostack offset-stack])
+               (if (null? stack)
+                 (loop (cdr rest) moffset ostack)
+                 (let1 doffset (%shift-jis-u8vector-copy! t13u8vec (car stack) moffset track-start-pos)
+                   (recur (cdr stack) doffset (cons moffset ostack)))))]
+            [else
+             (if-let1 data (sxmml-pmd-metadata-value (slot-ref (slot-ref work 'environment) 'metadata) (car rest))
+               (let1 doffset (%shift-jis-u8vector-copy! t13u8vec data meta-offset track-start-pos)
+                 (loop (cdr rest) doffset (cons meta-offset offset-stack)))
+               (begin (u8vector-set! t13u8vec meta-offset #x00)
+                      (loop (cdr rest) (+ meta-offset 1) (cons meta-offset offset-stack))))])))
+  (define (finish! offset positions)
+    (receive (lb hb) (%short->le-bytes (+ track-start-pos offset))
+      (u8vector-set! t12u8vec (- (vector-ref (slot-ref work 'track-length) 11) 4) lb)
+      (u8vector-set! t12u8vec (- (vector-ref (slot-ref work 'track-length) 11) 3) hb))
+    (let loop ([rest positions] [toffset offset])
+      (if (null? rest)
+        (begin (u8vector-set! t13u8vec toffset #x00)
+               (u8vector-set! t13u8vec (+ toffset 1) #x00)
+               (vector-set! (slot-ref work 'track-length) 12 (+ toffset 2))
+               (slot-set! work 'offset (+ track-start-pos toffset 2))
+               (+ toffset 2))
+        (receive (lb hb) (%short->le-bytes (+ track-start-pos (car rest)))
+          (%size-check (+ track-start-pos toffset 2))
+          (u8vector-set! t13u8vec toffset lb)
+          (u8vector-set! t13u8vec (+ toffset 1) hb)
+          (loop (cdr rest) (+ toffset 2))))))
+  (let1 offset (write-voices!)
     (unless (eq? (slot-ref work 'mode) 'fc88)
       (parameterize ([%pmd-section "metadata"])
-        (let loop ([rest (list 'ppzfile 'ppsfile 'pcmfile 'title 'composer 'arranger 'memo)]
-                   [meta-offset (+ track-offset 2)]
-                   [offset-stack ()])
-          (cond [(null? rest)
-                 ;; write pos info to the rhythm definition track
-                 (receive (lb hb) (%short->le-bytes (+ track-start-pos meta-offset))
-                   (u8vector-set! t12u8vec (- (vector-ref (slot-ref work 'track-length) 11) 4) lb)
-                   (u8vector-set! t12u8vec (- (vector-ref (slot-ref work 'track-length) 11) 3) hb))
-                 (let recur ([stack (reverse offset-stack)]
-                             [toffset meta-offset])
-                   (if (null? stack)
-                     (begin (u8vector-set! t13u8vec toffset #x00)
-                            (u8vector-set! t13u8vec (+ toffset 1) #x00)
-                            (vector-set! (slot-ref work 'track-length) 12 (+ toffset 2))
-                            (slot-set! work 'offset (+ track-start-pos toffset 2))
-                            (+ toffset 2))
-                     (receive (lb hb) (%short->le-bytes (+ track-start-pos (car stack)))
-                       (%size-check (+ track-start-pos toffset 2))
-                       (u8vector-set! t13u8vec toffset lb)
-                       (u8vector-set! t13u8vec (+ toffset 1) hb)
-                       (recur (cdr stack) (+ toffset 2)))))]
-                [(eq? (car rest) 'memo)
-                 ;; memo は文字列のリストとして受け取り、要素の数だけ書く。空なら書かない
-                 (let recur ([stack (sxmml-pmd-metadata-value (slot-ref (slot-ref work 'environment) 'metadata) 'memo)]
-                             [moffset meta-offset]
-                             [ostack offset-stack])
-                   (if (null? stack)
-                     (loop (cdr rest) moffset ostack)
-                     (let1 doffset (%shift-jis-u8vector-copy! t13u8vec (car stack) moffset track-start-pos)
-                       (recur (cdr stack) doffset (cons moffset ostack)))))]
-                [else
-                 (if-let1 data (sxmml-pmd-metadata-value (slot-ref (slot-ref work 'environment) 'metadata) (car rest))
-                   (let1 doffset (%shift-jis-u8vector-copy! t13u8vec data meta-offset track-start-pos)
-                     (loop (cdr rest) doffset (cons meta-offset offset-stack)))
-                   (begin (u8vector-set! t13u8vec meta-offset #x00)
-                          (loop (cdr rest) (+ meta-offset 1) (cons meta-offset offset-stack))))]))))))
-
+        (receive (next-offset positions) (write-strings! offset)
+          (finish! next-offset positions))))))
 
 (define (%pmd-binary-output work)
   (sxmml-pmd-check-obsolete-metadata (slot-ref (slot-ref work 'environment) 'metadata))
