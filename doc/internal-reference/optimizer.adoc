@@ -1,7 +1,7 @@
 = `sxmml.optimizer` のIR列最適化
 :toc: left
 
-57手続きとrecord型3件を定義し、7手続きを公開します。入力は整列済みの有効な共通IR列、出力も平坦なIR列です。登録環境の検索、整列化、集計確定、最適化要求の数値解釈は行いません。
+58手続きとrecord型3件を定義し、7手続きを公開します。入力は整列済みの有効な共通IR列、出力も平坦なIR列です。登録環境の検索、整列化、集計確定、最適化要求の数値解釈は行いません。
 
 各処理は単独で使え、前の最適化処理の実行を前提にしません。他の処理の削減能力を包含する必要もありません。入力のリスト構造・IRを変更せず、変更するIRを新しく作り、未変更部分は共有できます。局所処理で自分が生成した設定IRの組立てに更新を使うこととは区別します。
 
@@ -51,11 +51,12 @@
 [[ref-optimizer-internal-state-effect-value]]`(%state-effect-value effect)` |設定への効果（record 型）。相対変化かどうかと値を保持し、表に項目がなければ変化なし |フィールドは変更できない。相対変化は通常音量だけに使用 |link:../../sxmml/optimizer.scm[optimizer.scm]
 |[[ref-optimizer-internal-state-object-key]]`(%state-object-key obj)` |追跡する設定の鍵を求める |通常音量・音色・ゲートタイム・パン・デチューン・エンベロープは対応するシンボル。相対音量は絶対音量と同じ鍵。LFO の選択・切替は種類と生のチャンネルの対。それ以外は `#f` |link:../../sxmml/optimizer.scm[optimizer.scm]
 |[[ref-optimizer-internal-state-set]]`(%state-set state key value)` |連想リストの鍵を置き換える |新しい連想リストを返し、元の表は変更しない。既知値 `#f` も保持 |link:../../sxmml/optimizer.scm[optimizer.scm]
-|[[ref-optimizer-internal-state-effects-compose]]`(%state-effects-compose earlier later)` |先行 G と後続 F の効果表を F(G(x)) に合成する |新しい効果表を返す。絶対指定は上書き、後続が相対変化なら先行の絶対値または差分へ加算 |link:../../sxmml/optimizer.scm[optimizer.scm]
+|[[ref-optimizer-internal-state-effect-compose]]`(%state-effect-compose effects key effect)` |先行する効果表へ後続の一効果を合成する |更新後の表を返す。後続が絶対指定なら上書きし、相対指定で先行効果があれば値を加算して先行の相対指定フラグを引き継ぐ。元の表は変更しない |link:../../sxmml/optimizer.scm[optimizer.scm]
+|[[ref-optimizer-internal-state-effects-compose]]`(%state-effects-compose earlier later)` |先行 G と後続 F の効果表を F(G(x)) に合成する |後続の各効果を`%state-effect-compose`へ渡して折り畳む。絶対指定は上書き、後続が相対変化なら先行の絶対値または差分へ加算 |link:../../sxmml/optimizer.scm[optimizer.scm]
 |[[ref-optimizer-internal-state-effects-power]]`(%state-effects-power effects count)` |非負整数 `count` 回の効果を求める |0 回なら変化なし、正の回数の絶対指定は同じ値、相対変化は差分と回数の積。周回を展開しない |link:../../sxmml/optimizer.scm[optimizer.scm]
 |[[ref-optimizer-internal-state-effects-apply]]`(%state-effects-apply state effects)` |入口状態に効果を適用する |出口状態の連想リストを返す。相対変化で入口値が不明なら不明を維持。元の表は変更しない |link:../../sxmml/optimizer.scm[optimizer.scm]
 |[[ref-optimizer-internal-state-join]]`(%state-join left right)` |経路ごとの状態を合わせる |両側に同じ既知値がある鍵だけを残す。入力表は変更しない |link:../../sxmml/optimizer.scm[optimizer.scm]
-|[[ref-optimizer-internal-state-region-effects]]`(%state-region-effects items cache)` |領域の各命令・反復の効果を実行順に合成する |効果表を返す。入れ子の反復は要約を再利用し、作業用 `cache` を更新する場合がある |link:../../sxmml/optimizer.scm[optimizer.scm]
+|[[ref-optimizer-internal-state-region-effects]]`(%state-region-effects items cache)` |領域の各命令・反復の効果を実行順に合成する |通常命令は一効果を直接合成し、反復は要約の効果列を合成する。入れ子の反復は要約を再利用し、作業用 `cache` を更新する場合がある |link:../../sxmml/optimizer.scm[optimizer.scm]
 |[[ref-optimizer-internal-state-repeat-effects]]`(%state-repeat-effects block cache)` |反復全体の効果を求める |最後は脱出前だけを実行する効果表を返し、元のブロックを鍵に `cache` へ保存。回数はコンパイラが保証する正の正確な整数を前提とする |link:../../sxmml/optimizer.scm[optimizer.scm]
 |[[ref-optimizer-internal-state-optimize-repeat]]`(%state-optimize-repeat block state cache)` |全周回に共通する入口で本文を最適化する |新しいブロックと出口状態の 2 値。出口は外側の入口と反復全体の要約から求める。1 回の反復の脱出後は保持し、出口状態へ反映しない |link:../../sxmml/optimizer.scm[optimizer.scm]
 |[[ref-optimizer-internal-state-optimize-region]]`(%state-optimize-region items state cache)` |領域の再指定を削除し、状態を追跡する |新しい要素列と出口状態の 2 値。反復・L では入口を合流し、同値と分かる絶対指定だけを削除。入力の状態表は変更しない |link:../../sxmml/optimizer.scm[optimizer.scm]

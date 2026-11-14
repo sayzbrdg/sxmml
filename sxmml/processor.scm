@@ -159,15 +159,8 @@
           [(is-a? (car rest) <sxmml-mml-note>)
            (loop (cdr rest) (slot-ref (car rest) 'value) #t rstack (cons (self-echo! (car rest) prev) res))]
           [(is-a? (car rest) <sxmml-mml-repeat-end>)
-           (if (car rstack)
-             (loop (cdr rest) (car rstack) #f (cdr rstack) (cons (if vol?
-                                                                   (list (build-vol (* -1 vol)) (car rest))
-                                                                   (car rest))
-                                                                 res))
-             (loop (cdr rest) prev #f (cdr rstack) (cons (if vol?
-                                                           (list (build-vol (* -1 vol)) (car rest))
-                                                           (car rest))
-                                                         res)))]
+           (loop (cdr rest) (or (car rstack) prev) #f (cdr rstack)
+                 (cons (if vol? (list (build-vol (* -1 vol)) (car rest)) (car rest)) res))]
           [(is-a? (car rest) <sxmml-mml-repeat-break>)
            (loop (cdr rest) prev #f (cons prev rstack) (cons (if vol? (list (build-vol (* -1 vol)) (car rest)) (car rest)) res))]
           [(is-a? (car rest) <sxmml-mml-repeat-start>)

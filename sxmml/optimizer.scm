@@ -191,15 +191,17 @@
 (define (%state-set state key value)
   (acons key value (alist-delete key state equal?)))
 
+(define (%state-effect-compose effects key effect)
+  (let1 previous (assoc key effects)
+    (%state-set effects key
+                (if (and (%state-effect-relative? effect) previous)
+                  (%make-state-effect (%state-effect-relative? (cdr previous))
+                                      (+ (%state-effect-value (cdr previous))
+                                         (%state-effect-value effect)))
+                  effect))))
+
 (define (%state-effects-compose earlier later)
-  (fold (^[entry result]
-          (let* ([key (car entry)] [effect (cdr entry)] [previous (assoc key result)])
-            (%state-set result key
-                        (if (and (%state-effect-relative? effect) previous)
-                          (%make-state-effect (%state-effect-relative? (cdr previous))
-                                              (+ (%state-effect-value (cdr previous))
-                                                 (%state-effect-value effect)))
-                          effect))))
+  (fold (^[entry result] (%state-effect-compose result (car entry) (cdr entry)))
         earlier later))
 
 (define (%state-effects-power effects count)
@@ -230,14 +232,14 @@
 
 (define (%state-region-effects items cache)
   (fold (^[item effects]
-          (%state-effects-compose
-           effects
-           (if (%repeat-block? item)
-             (%state-repeat-effects item cache)
-             (if-let1 key (%state-object-key item)
-               (list (cons key (%make-state-effect (is-a? item <sxmml-mml-volume-change>)
-                                                  (slot-ref item 'value))))
-               ()))))
+          (cond [(%repeat-block? item)
+                 (%state-effects-compose effects (%state-repeat-effects item cache))]
+                [(%state-object-key item)
+                 => (^[key]
+                      (%state-effect-compose effects key
+                                             (%make-state-effect (is-a? item <sxmml-mml-volume-change>)
+                                                                 (slot-ref item 'value))))]
+                [else effects]))
         () items))
 
 (define (%state-repeat-effects block cache)
