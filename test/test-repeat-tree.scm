@@ -6,6 +6,7 @@
 
 (test-start "sxmml.repeat-tree")
 (use sxmml.repeat-tree)
+(use test.repeat-tree-check)
 (test-module 'sxmml.repeat-tree)
 
 ;; 木を比べやすい S 式にする
@@ -34,10 +35,10 @@
 
 ;; 独立検査
 (test* "inspect accepts a final tree" '(0 1 0 1 0)
-       (repeat-tree-inspect #(0 1 0 1 0) (make-unit-weights 5) eqv? s-final3
+       (inspect-repeat-tree #(0 1 0 1 0) (make-unit-weights 5) eqv? s-final3
                             (make-final 3 (make-literal 0) (make-literal 1)) 2))
 (test* "inspect counts weights" '(0 0)
-       (repeat-tree-inspect #(a a) #(5 5) eq? s-repeat2 (make-repeat 2 (make-literal 0)) 7))
+       (inspect-repeat-tree #(a a) #(5 5) eq? s-repeat2 (make-repeat 2 (make-literal 0)) 7))
 (dolist [c `(("a disallowed count" #(a a) #(5 5) ,s-repeat2 ,(make-repeat 3 (make-literal 0)) 7)
              ("a wrong cost" #(0 1 0 1 0) ,(make-unit-weights 5) ,s-final3
               ,(make-final 3 (make-literal 0) (make-literal 1)) 3)
@@ -50,11 +51,11 @@
               ,(make-repeat 255 (make-literal 0)) 1)
              ("a non-tree value" #(0) ,(make-unit-weights 1) ,s-repeat2 (lit 0) 1))]
   (test* #"inspect rejects ~(car c)" (test-error <error>)
-         (repeat-tree-inspect (list-ref c 1) (list-ref c 2) eqv? (list-ref c 3) (list-ref c 4) (list-ref c 5))))
+         (inspect-repeat-tree (list-ref c 1) (list-ref c 2) eqv? (list-ref c 3) (list-ref c 4) (list-ref c 5))))
 ;; 設定でない値は、圧縮と同じ repeat-tree: のメッセージで失敗する
 (test* "inspect rejects a non-settings value with the repeat-tree message" #t
        (let1 message (guard (e [else (condition-message e)])
-                       (repeat-tree-inspect #(0) (make-unit-weights 1) eqv? 'settings (make-literal 0) 1)
+                       (inspect-repeat-tree #(0) (make-unit-weights 1) eqv? 'settings (make-literal 0) 1)
                        'no-error)
          (boolean (and (string? message) (#/^repeat-tree: settings required/ message)))))
 
@@ -62,6 +63,7 @@
 (define (compress-sexp items weights rc fc final? :optional (window 256))
   (receive (cost tree)
       (repeat-tree-compress items weights eqv? (make-repeat-tree-settings rc fc final? window))
+    (inspect-repeat-tree items weights eqv? (make-repeat-tree-settings rc fc final? window) tree cost)
     (list cost (tree->sexp tree))))
 (test* "ABABA with final 3 fee 0" '(2 (fin 3 (lit 0) (lit 1)))
        (compress-sexp #(0 1 0 1 0) (make-unit-weights 5) '() '((3 . 0)) #t))
@@ -176,7 +178,40 @@
               [settings (apply make-repeat-tree-settings `(,@(list-ref oracle-settings 0) 16))])
          (receive (cost tree) (repeat-tree-compress items (make-unit-weights 600) eqv? settings)
            (and (< cost 600)
-                (list? (repeat-tree-inspect items (make-unit-weights 600) eqv? settings tree cost))))))
+                (list? (inspect-repeat-tree items (make-unit-weights 600) eqv? settings tree cost))))))
+
+;; C の費用範囲。期待する費用は圧縮器から算出せず、境界値から直接指定する。
+(let* ([u (- (ash 1 64) 1)]
+       [plain (make-repeat-tree-settings '() '() #f 256)])
+  (test* "費用の最大値を単一の葉として返す" (list u '(lit 0))
+         (compress-sexp #(a) (vector u) '() '() #f))
+  (test* "採用しない反復候補の巨大な費用を加算しない" '(4 (cat (lit 0) (lit 1)))
+         (compress-sexp #(a a) #(2 2) (list (cons 2 u)) '() #f))
+  (test* "重みの総和が最大値と等しければ受理する" (list u '(cat (lit 0) (lit 1)))
+         (compress-sexp #(a b) (vector (- u 1) 1) '() '() #f))
+  (for-each
+   (^[entry]
+     (test* (car entry) #t
+            (guard (e [else (boolean (string-scan (condition-message e) (cadr entry)))])
+              ((caddr entry)) #f)))
+   (list
+    (list "重みの上限超過を診断する" "weight out of range"
+          (^[] (repeat-tree-compress #(a) (vector (+ u 1)) eqv? plain)))
+    (list "制御費用の上限超過を診断する" "control fee out of range"
+          (^[] (repeat-tree-compress #(a a) #(1 1) eqv?
+                  (make-repeat-tree-settings (list (cons 2 (+ u 1))) '() #f 256))))
+    (list "重み総和の上限超過を診断する" "total weight out of range"
+          (^[] (repeat-tree-compress #(a b) (vector u 1) eqv? plain)))
+    (list "窓幅の上限超過を診断する" "window out of range"
+          (^[] (repeat-tree-compress #(a) #(1) eqv?
+                  (make-repeat-tree-settings '() '() #f (ash 1 64)))))))
+  (test* "汎用比較の真偽値以外の戻り値を拒否する" (test-error <error>)
+         (repeat-tree-compress #(a a) #(1 1) (^[a b] 'same) plain))
+  (let1 original (make <error> :message "比較中の例外")
+    (test* "汎用比較の例外を包み直さず伝える" #t
+           (guard (e [else (eq? e original)])
+             (repeat-tree-compress #(a a) #(1 1) (^[a b] (raise original)) plain)
+             #f))))
 
 ;; If you don't want `gosh' to exit with nonzero status even if
 ;; the test fails, pass #f to :exit-on-failure.

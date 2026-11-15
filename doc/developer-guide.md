@@ -8,15 +8,15 @@
 
 ## 必要な環境と生成物
 
-開発・検証環境は Gauche 0.9.15、GNU Make、`iconv` とする。`configure` は Gauche の `gauche.configure` を使用する。`package.scm` の依存条件は Gauche 0.9.15 以上である。`Makefile.in` は `gosh`、`gauche-config`、`gauche-package`、`gauche-install` を使用する。
+開発・検証環境は Gauche 0.9.15 と開発用ヘッダ、C コンパイラ、GNU Make、`iconv` とする。`configure` は Gauche の `gauche.configure` を使用する。`package.scm` の依存条件は Gauche 0.9.15 以上である。`Makefile.in` は `gosh`、`gauche-config`、`gauche-package`、`gauche-install` を使用する。
 
 以下の手順には、リポジトリの Git チェックアウトが必要である。取得方法は[README](../README.md#最初の変換)を参照する。
 
-`./configure` は `Makefile`、`sxmml.gpd`、`VERSION` を生成する。`make` は shebang 付きの `sxlc` を生成する。`make check` は `test/` 配下のテストを実行し、`tools/` があれば `tools/test-measure-optimize.scm` も実行して、`test.log` に結果を残す。設定と生成の規則は [`configure`](../configure)、[`Makefile.in`](../Makefile.in)、[`package.scm`](../package.scm)を参照する。
+`./configure` は `Makefile`、`sxmml.gpd`、`VERSION` を生成する。`make` は shebang 付きの `sxlc` と、必須の C 拡張 `sxmml_native` 共有ライブラリを生成する。CLI の生成元は `src/`、C・ヘッダ・CiSE の生成元は `src/lib/` に置き、生成した C・オブジェクト・共有ライブラリはビルドディレクトリに置く。`make check` は `test/` 配下のテストを実行し、`tools/` があれば `tools/test-measure-optimize.scm` も実行して、`test.log` に結果を残す。設定と生成の規則は [`configure`](../configure)、[`Makefile.in`](../Makefile.in)、[`package.scm`](../package.scm)を参照する。
 
 ## 隔離したコピーでの確認
 
-次の手順は現在の `HEAD` を `/tmp` に展開し、作業ツリーに生成物を置かない。別の版を検証するときは `source_rev` に対象のブランチやタグを指定する。`git archive` は未コミットの編集を含まない。Gauche 0.9.15 で `./configure`、`make check`、一時ディレクトリへのインストールと後述の変換を実行できる。配置したコマンドとモジュールを `PATH`・`GAUCHE_LOAD_PATH` で選ぶため、既存のインストールを上書きしない。
+次の手順は現在の `HEAD` を `/tmp` に展開し、作業ツリーに生成物を置かない。別の版を検証するときは `source_rev` に対象のブランチやタグを指定する。`git archive` は未コミットの編集を含まない。Gauche 0.9.15 で `./configure`、`make check`、一時ディレクトリへのインストールと後述の変換を実行できる。配置したコマンドとモジュールを `PATH`・`GAUCHE_LOAD_PATH`・`GAUCHE_DYNLOAD_PATH` で選ぶため、既存のインストールを上書きしない。
 
 ```console
 scratch_dir=$(mktemp -d /tmp/sxmml-dev.XXXXXX)
@@ -28,9 +28,10 @@ gosh -V
 make check
 cat test.log
 install_dir=$(mktemp -d /tmp/sxmml-dev-install.XXXXXX)
-make bindir="$install_dir/bin" GAUCHE_PKGLIBDIR="$install_dir/share/sxmml" install
+make bindir="$install_dir/bin" GAUCHE_PKGLIBDIR="$install_dir/share/sxmml" GAUCHE_PKGARCHDIR="$install_dir/lib/sxmml" install
 export PATH="$install_dir/bin:$PATH"
 export GAUCHE_LOAD_PATH="$install_dir/share/sxmml${GAUCHE_LOAD_PATH:+:$GAUCHE_LOAD_PATH}"
+export GAUCHE_DYNLOAD_PATH="$install_dir/lib/sxmml${GAUCHE_DYNLOAD_PATH:+:$GAUCHE_DYNLOAD_PATH}"
 ```
 
 `make check` の成功時は、`test.log` に各検査が `ok` と表示され、各ファイルの末尾が `passed.` となる。`test/` の `test-<モジュール名>.scm` は、そのモジュールを主な対象とする既存検査をまとめる。`test-pmd.scm` は pmd-source、`test-pmd-binary.scm` は pmd-binary の検査である。binding 検査だけのモジュールにも専用ファイルを置く。
@@ -54,7 +55,7 @@ cat melody-and-rest.mml
 `test/` 配下のテストを単独で実行する際は、環境変数 `SXMML_SXLC` にテストで使用する `sxlc` を設定してください。以下は、`./configure` と `make` でビルドした後に、リポジトリのルートで実行する例です。
 
 ```sh
-SXMML_SXLC=./sxlc gosh -I. test/test-sxlc.scm
+GAUCHE_DYNLOAD_PATH="$PWD${GAUCHE_DYNLOAD_PATH:+:$GAUCHE_DYNLOAD_PATH}" SXMML_SXLC=./sxlc gosh -I. test/test-sxlc.scm
 ```
 
 ## 文書生成の現状
@@ -100,14 +101,14 @@ contextや登録表を直接編集する利用者は、対応関係を維持す�
 `tools/measure-optimize.scm` は、一つのソースを最適化の水準ごとに変換し、生成物のバイト数、全トラックのオブジェクト数の合計、時間を表にする。`-O 3`・`-O 4` の圧縮の設定（展開の上限 E と窓幅 W）を変えたときの効果と時間を比べるのに使う。リポジトリのルートで次のように実行する。
 
 ```console
-gosh -I. tools/measure-optimize.scm [-m モード] ソース.sxl [設定 ...]
+GAUCHE_DYNLOAD_PATH="$PWD${GAUCHE_DYNLOAD_PATH:+:$GAUCHE_DYNLOAD_PATH}" gosh -I. tools/measure-optimize.scm [-m モード] ソース.sxl [設定 ...]
 ```
 
 モードの既定は `pmd` で、`pmd-binary` なども指定できる。設定は `O2`・`O3`・`O4` のいずれかで、`:E=数`・`:W=数` を付けると圧縮の設定を変えられる（例：`O4:E=128:W=256`）。既定は `sxlc` の `-O 3`・`-O 4` と同じで、E が 256、W が `O3` で 256、`O4` で 1024 である。設定を省略すると `O2`・`O3`・`O4` を測る。
 
 ```console
 $ printf '%s\n' '(mml A "[aaaaaaaa]2 cdecdecd")' > repeat.sxl
-$ gosh -I. tools/measure-optimize.scm repeat.sxl
+$ GAUCHE_DYNLOAD_PATH="$PWD${GAUCHE_DYNLOAD_PATH:+:$GAUCHE_DYNLOAD_PATH}" gosh -I. tools/measure-optimize.scm repeat.sxl
 config           bytes      vs O2    objects  generate   total
 O2                      105 100.0%         18       0.02       0.62
 O3                      100 95.2%          11       0.03       0.61

@@ -4,7 +4,8 @@ sxmml は、Scheme で MML を組み立て、MML オブジェクトを加工し�
 
 ## 必要なもの
 
-- Gauche 0.9.15
+- Gauche 0.9.15 と開発用ヘッダ
+- C コンパイラ
 - make
 - Git（リポジトリを取得する場合）
 
@@ -35,7 +36,7 @@ printf '%s\n' '(mml G "c8r8")' > first.sxl
 sxlc -m pmd first.sxl
 ```
 
-`make install` は、コマンドを `bindir`、Scheme モジュールを `GAUCHE_PKGLIBDIR` に配置します。既定の配置先には書き込み権限が必要です。実際の値は生成された `Makefile` で確認してください。コマンドの配置先を変えるには `./configure --prefix=配置先` を指定します。モジュール配置先の初期値は Gauche の設定から取得され、Make の変数を含む場合があります。`--prefix` を変更した場合も、展開後の配置先が Gauche の検索先に含まれるか確認してください。
+`make install` は、コマンドを `bindir`、Scheme モジュールを `GAUCHE_PKGLIBDIR`、共有ライブラリを `GAUCHE_PKGARCHDIR` に配置します。C 拡張は必須です。既定の配置先には書き込み権限が必要です。実際の値は生成された `Makefile` で確認してください。コマンドの配置先を変えるには `./configure --prefix=配置先` を指定します。モジュール配置先の初期値は Gauche の設定から取得され、Make の変数を含む場合があります。`--prefix` を変更した場合も、展開後の配置先が Gauche の検索先に含まれるか確認してください。
 
 利用者が書き込める場所へインストールする場合は、上記の `./configure` から `make install` までを次に置き換えます。
 
@@ -43,12 +44,13 @@ sxlc -m pmd first.sxl
 sxmml_prefix="$HOME/.local"
 ./configure --prefix="$sxmml_prefix"
 make
-make GAUCHE_PKGLIBDIR="$sxmml_prefix/share/sxmml" install
+make GAUCHE_PKGLIBDIR="$sxmml_prefix/share/sxmml" GAUCHE_PKGARCHDIR="$sxmml_prefix/lib/sxmml" install
 export PATH="$sxmml_prefix/bin:$PATH"
 export GAUCHE_LOAD_PATH="$sxmml_prefix/share/sxmml${GAUCHE_LOAD_PATH:+:$GAUCHE_LOAD_PATH}"
+export GAUCHE_DYNLOAD_PATH="$sxmml_prefix/lib/sxmml${GAUCHE_DYNLOAD_PATH:+:$GAUCHE_DYNLOAD_PATH}"
 ```
 
-この場合は新しいシェルでも `PATH` と `GAUCHE_LOAD_PATH` を設定してから `sxlc` を使ってください。`GAUCHE_LOAD_PATH` は Gauche が Scheme モジュールを探す追加のディレクトリです。配置の詳細は[配布・互換性](doc/release-guide.md#現行の生成配置)、Gauche の設定は [Gauche 0.9.15 Users’ Reference, 3.1 と 9.8](https://practical-scheme.net/vault/Gauche-0.9.15-refe.pdf)を参照してください。
+この場合は新しいシェルでも `PATH`・`GAUCHE_LOAD_PATH`・`GAUCHE_DYNLOAD_PATH` を設定してから `sxlc` を使ってください。`GAUCHE_LOAD_PATH` は Gauche が Scheme モジュールを探す追加のディレクトリです。`GAUCHE_DYNLOAD_PATH` は共有ライブラリを探す追加のディレクトリです。配置の詳細は[配布・互換性](doc/release-guide.md#現行の生成配置)、Gauche の設定は [Gauche 0.9.15 Users’ Reference, 3.1 と 9.8](https://practical-scheme.net/vault/Gauche-0.9.15-refe.pdf)を参照してください。
 
 `first.mml` が作られ、標準出力には `Track G: total: 24` と表示されます。出力は CP932、改行は CRLF です。UTF-8 の端末では `iconv -f CP932 -t UTF-8 first.mml` で内容を読めます。ソース中の Scheme 式は Gauche によって実行されるため、信頼できる入力ファイルを指定してください。
 

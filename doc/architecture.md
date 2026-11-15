@@ -30,7 +30,7 @@ flowchart LR
 
 | 箇所 | 責務 | 主な入出力・依存 |
 | --- | --- | --- |
-| [`sxlc`](../sxlc.in) | 引数解析、モード設定、ソースの `load`、最適化水準の設定、バックエンド呼び出し、情報表示、任意の後処理 | `sxmml` と列挙した `sxmml.backend.*` を使用。ソースファイル・生成先・プロセスを扱う |
+| [`sxlc`](../src/sxlc.in) | 引数解析、モード設定、ソースの `load`、最適化水準の設定、バックエンド呼び出し、情報表示、任意の後処理 | `sxmml` と列挙した `sxmml.backend.*` を使用。ソースファイル・生成先・プロセスを扱う |
 | [`sxmml.scm`](../sxmml.scm) | 基本モジュール群を `extend` して `sxmml` を構成 | PMD バックエンド（`backend/pmd.scm`・`backend/pmd-source.scm`・`backend/pmd-binary.scm`）は継承対象に含まれない |
 | [`sxmml/classes.scm`](../sxmml/classes.scm) | 環境、トラック文脈、解析結果、最適化文脈、音色等のクラスと、エラーの種類（`<sxmml-error>` の分類と独立した位置・トラックの文脈condition） | 他モジュールが共有するオブジェクトの形を定義 |
 | [`sxmml/environment.scm`](../sxmml/environment.scm) | 環境・ファイル名のパラメータ、トラック・メタデータ・LFO・エンベロープの登録と参照 | 環境内の表とトラック文脈を更新 |
@@ -42,6 +42,7 @@ flowchart LR
 | [`sxmml/output.scm`](../sxmml/output.scm) | 登録環境から全トラックの整列済みIRと集計を準備 | 最適化せず、登録環境を変更しない |
 | [`sxmml/optimizer.scm`](../sxmml/optimizer.scm) | 平坦なIR列を単独処理・標準組合せで変換 | 公開7手続きは入力を変更せず、登録環境・バックエンドを参照しない |
 | [`sxmml/repeat-tree.scm`](../sxmml/repeat-tree.scm) | 同値比較できる要素の列を、展開すると元の列になる最小費用の局所反復木に圧縮する | sxmml のクラスに依存しない。`sxmml.optimizer` が使用。`sxmml` の継承対象に含まれない |
+| [`sxmml/native.scm`](../sxmml/native.scm)、[`src/lib/`](../src/lib/) | Gauche と必須 C 拡張の接続。C コアは LCP・区間 DP・全体連結・圧縮木の復元を担当 | 汎用コアは IR を知らず C の比較関数を使う。IR 固定比較は optimizer 所属の CiSE が持つ |
 | [`sxmml/backend/pmd.scm`](../sxmml/backend/pmd.scm) | PMD共通規則・初期トラック設定・最適化選択 | 明示された定義表やIRを使う |
 | [`sxmml/backend/pmd-source.scm`](../sxmml/backend/pmd-source.scm) | sourceモードの登録とMML出力 | 出力環境からCP932ファイルを生成し、出力結果を返す |
 | [`sxmml/backend/pmd-binary.scm`](../sxmml/backend/pmd-binary.scm) | PMD バイナリモード（実験的）の登録、トラック列から PMD の命令列・音色表・メタ情報への変換 | 最適化結果と環境から `.m` を生成。生成物が MC.EXE の出力と同じであることは保証しない |
@@ -56,7 +57,7 @@ flowchart LR
 2. バックエンドは読込み時に`<sxmml-mode>`を共有登録表へ登録する。情報は正規名・別名・初期設定・出力手続き・既定拡張子を持つ。`sxmml-mode-select!`は楽曲環境の`mode`を情報へ更新してから初期設定する。PMDの初期設定は既定トラックを登録する。
 3. `compiler.scm` の `mml` / `rhythm` は Scheme 式の結果を `write-tree` で文字列化する。`mml.scm`のパーサーは値を解析し、`command.scm`の共通手続きで文脈更新・IR生成・集計を行う。IRを生成しない命令は`#f`を返し、compilerが収集時に除く。結果はトラックの `compiled-data` に登録される。`processor.scm`の`mml-repeat`は反復IRを共通手続きで直接作って登録し、反復命令の文字列化・再解析を行わない。`mml-echo`・`mml-delay`はコンパイル結果を加工して登録する。
 4. sxlcは出力先を解決し、`make-sxmml-output-environment`で全登録トラックを準備する。`output.scm`がcons木から平坦な列を作り、NOPを除き、登録時のcurrent-ticksから集計を確定する。この段階では最適化しない。
-5. バックエンドは出力環境一つを受け、採用トラックと最適化処理を選ぶ。PMDでは共通の`sxmml-pmd-ir-optimize`が整数要求を解釈し、局所整理、状態追跡、休符結合、反復圧縮を組み合わせる。本体は、各バックエンドが共通IRをそのまま出力できることを保証しない。
+5. バックエンドは出力環境一つを受け、採用トラックと最適化処理を選ぶ。PMDでは共通の`sxmml-pmd-ir-optimize`が整数要求を解釈し、局所整理、状態追跡、休符結合、反復圧縮を組み合わせる。反復圧縮の前処理・重み・制御境界・IR復元はScheme、固定IR比較はCiSE、圧縮の探索はGauche非依存のCコアが担当する。Cノード配列からGaucheの木への変換は接続層で行い、IRそのものは複製しない。本体は、各バックエンドが共通IRをそのまま出力できることを保証しない。
 6. sourceは`pmd-source.scm`で全本文を文字列ポートへ生成して使用音色を集め、CP932の一時ファイルから生成先へ移す。binaryも明示した出力環境からバッファを構築し、一時ファイルから移す。両者とも出力先の補完や登録環境への書戻しを行わず、実際の出力先と採用トラック名を持つ出力結果を返す。
 7. sxlcは結果の名前に対応する出力トラックの集計を表示する。出力先が#fのバックエンドではTranslateと-cの後処理を省く。既存の使用法・変換・後処理の終了値と、失敗時の既存ファイル保護を維持する。
 

@@ -31,6 +31,7 @@
 ;;; 圧縮方式と成立条件は doc/internal-reference/repeat-tree.adoc を参照
 (define-module sxmml.repeat-tree
   (use gauche.record)
+  (use sxmml.native)
   (use gauche.sequence)
   (use srfi.1)
   (export make-literal literal? literal-index
@@ -40,7 +41,7 @@
           make-repeat-tree-settings repeat-tree-settings?
           repeat-tree-settings-repeat-costs repeat-tree-settings-final-costs
           repeat-tree-settings-allow-final? repeat-tree-settings-window
-          repeat-tree-compress repeat-tree-inspect
+          repeat-tree-compress
           ))
 (select-module sxmml.repeat-tree)
 
@@ -105,155 +106,6 @@
                          (errorf "repeat-tree: weights must be exact integers > 0: ~s" w)))
                    weights))
 
-;; 比較手続きの結果は真偽値に限る
-(define (%same? same? a b)
-  (rlet1 v (same? a b)
-    (unless (boolean? v)
-      (errorf "repeat-tree: the comparison must return a boolean: ~s" v))))
-
-;;;
-;;; 独立検査
-;;;
-;; 木を直接たどり、LCP・DP は使わない。訪問は 2n-1 回、部分展開の長さは n までとし、
-;; 展開列は長さを確かめてから作る。通れば展開した添字のリストを返す。添字列は、後に続く
-;; 列を受け取って前に足す手続きで作り、全体で O(n) にする
-(define (repeat-tree-inspect items weights same? settings tree claimed-cost)
-  (%check-input items weights settings)
-  (let* ([n (vector-length items)]
-         [fee (^[costs r]
-                (or (and (exact-integer? r) (>= r 2) (assv-ref costs r))
-                    (errorf "repeat-tree: disallowed repeat count: ~s" r)))])
-    (define (fail message) (errorf "repeat-tree: inspection failed: ~a" message))
-    ;; 戻り値は (values 費用 長さ 添字列を tail の前に足す手続き 残りの訪問数)
-    (define (finish cost len indices remaining)
-      (unless (<= 1 len n) (fail "partial expansion length limit"))
-      (values cost len indices remaining))
-    (define (walk node remaining)
-      (when (<= remaining 0) (fail "node visit limit"))
-      (let1 left (- remaining 1)
-        (cond
-         [(literal? node)
-          (let1 index (literal-index node)
-            (unless (and (exact-integer? index) (<= 0 index) (< index n)) (fail "source index"))
-            (finish (vector-ref weights index) 1 (cut cons index <>) left))]
-         [(concat? node)
-          (receive (ca la ia ra) (walk (concat-left node) left)
-            (receive (cb lb ib rb) (walk (concat-right node) ra)
-              (finish (+ ca cb) (+ la lb) (^[tail] (ia (ib tail))) rb)))]
-         [(repeat? node)
-          (let* ([r (repeat-count node)]
-                 [h (fee (repeat-tree-settings-repeat-costs settings) r)])
-            (receive (ca la ia ra) (walk (repeat-body node) left)
-              (finish (+ h ca) (* r la)
-                      (^[tail] (let loop ([k r] [acc tail])
-                                 (if (zero? k) acc (loop (- k 1) (ia acc)))))
-                      ra)))]
-         [(final? node)
-          (unless (repeat-tree-settings-allow-final? settings) (fail "final disabled"))
-          (let* ([r (final-count node)]
-                 [h (fee (repeat-tree-settings-final-costs settings) r)])
-            (receive (ca la ia ra) (walk (final-prefix node) left)
-              (receive (cb lb ib rb) (walk (final-suffix node) ra)
-                (finish (+ h ca cb) (+ (* (- r 1) (+ la lb)) la)
-                        (^[tail] (let loop ([k (- r 1)] [acc (ia tail)])
-                                   (if (zero? k) acc (loop (- k 1) (ia (ib acc))))))
-                        rb))))]
-         [else (fail "tree node required")])))
-    (receive (cost len indices _) (walk tree (- (* 2 n) 1))
-      (unless (and (exact-integer? claimed-cost) (= claimed-cost cost))
-        (fail "claimed cost mismatch"))
-      (unless (= len n) (fail "expansion length mismatch"))
-      (rlet1 expanded (indices ())
-        (for-each-with-index (^[t index] (unless (%same? same? (vector-ref items t) (vector-ref items index))
-                                (fail "expanded value mismatch")))
-                  expanded)))))
-
-;;;
-;;; 圧縮
-;;;
-;; 全周期・LCP・区間 DP を、深さ無制限の 1 層で解く。区間 [i,i+m) を
-;; セル (i,m) とし、長さ m が窓幅 W 以下の区間だけを費用表と根の記述の表に持つ。
-;; 列全体は G(j) = min G(i) + F(i,j) (j-W <= i < j) でつなぐ。W >= n なら G(n) は
-;; F(0,n) となり、厳密な区間 DP と同じ費用・同じ木になる。時間 O(nW^2)、領域 O(nW)。
-;; 根の記述は割り当てを減らすため kind + 4x の整数に符号化する。kind は raw 0、
-;; cat 1 (x=k-i)、rep 2 (x=p)、final 3 (x=p*span+a)。回数は m と p から求め直す
 (define (repeat-tree-compress items weights same? settings)
   (%check-input items weights settings)
-  (let* ([n (vector-length items)]
-         [span (min n (repeat-tree-settings-window settings))]
-         [sums (rlet1 v (make-vector (+ n 1) 0)
-                 (dotimes [t n] (vector-set! v (+ t 1) (+ (vector-ref v t) (vector-ref weights t)))))]
-         [fee-table (^[costs] (rlet1 v (make-vector (+ n 1) #f)
-                                (for-each (^p (when (<= (car p) n) (vector-set! v (car p) (cdr p))))
-                                          costs)))]
-         [fees-r (fee-table (repeat-tree-settings-repeat-costs settings))]
-         [fees-f (and (repeat-tree-settings-allow-final? settings)
-                      (fee-table (repeat-tree-settings-final-costs settings)))]
-         [lcp (make-vector (* n span) 0)]
-         [costs (make-vector (* n span) #f)]
-         [roots (make-vector (* n span) 0)])
-    ;; λ(u,u+d) は d < span の組だけを持つ。DP が問うのは m <= span の区間の p < m だけ
-    (define (lcp-ref u v) (if (= v n) 0 (vector-ref lcp (+ (* u span) (- v u)))))
-    (define (cell i m) (+ (* i span) (- m 1)))
-    (define (cost i m) (vector-ref costs (cell i m)))
-    ;; λ(u,v): u < v から連続して一致する要素数
-    (define (build-lcp!)
-      (do ([u (- n 2) (- u 1)]) [(< u 0)]
-        (do ([d 1 (+ d 1)]) [(or (>= d span) (>= (+ u d) n))]
-          (when (%same? same? (vector-ref items u) (vector-ref items (+ u d)))
-            (vector-set! lcp (+ (* u span) d) (+ 1 (lcp-ref (+ u 1) (+ u 1 d))))))))
-    ;; 同率では raw、分割点の昇順、周期の昇順の先に見つけた候補を残す
-    (define (solve-cell! i m)
-      (let ([best (- (vector-ref sums (+ i m)) (vector-ref sums i))] [root 0])
-        (do ([k 1 (+ k 1)]) [(>= k m)]
-          (let1 value (+ (cost i k) (cost (+ i k) (- m k)))
-            (when (< value best) (set! best value) (set! root (+ 1 (* 4 k))))))
-        (do ([p 1 (+ p 1)]) [(>= p m)]
-          (receive (t a) (quotient&remainder m p)
-            (when (>= (lcp-ref i (+ i p)) (- m p))
-              (if (zero? a)
-                (and-let1 h (vector-ref fees-r t)
-                  (let1 value (+ (cost i p) h)
-                    (when (< value best) (set! best value) (set! root (+ 2 (* 4 p))))))
-                (and-let* ([fees-f] [h (vector-ref fees-f (+ t 1))])
-                  (let1 value (+ (cost i a) (cost (+ i a) (- p a)) h)
-                    (when (< value best)
-                      (set! best value) (set! root (+ 3 (* 4 (+ (* p span) a)))))))))))
-        (vector-set! costs (cell i m) best)
-        (vector-set! roots (cell i m) root)))
-    (define (raw i m)
-      (let loop ([t (+ i 1)] [tree (make-literal i)])
-        (if (= t (+ i m)) tree (loop (+ t 1) (make-concat tree (make-literal t))))))
-    (define (restore i m)
-      (receive (x kind) (quotient&remainder (vector-ref roots (cell i m)) 4)
-        (case kind
-          [(0) (raw i m)]
-          [(1) (make-concat (restore i x) (restore (+ i x) (- m x)))]
-          [(2) (make-repeat (quotient m x) (restore i x))]
-          [(3) (receive (p a) (quotient&remainder x span)
-                 (make-final (+ (quotient m p) 1) (restore i a) (restore (+ i a) (- p a))))])))
-    ;; G(j) と、選んだブロックの始点。始点は昇順に試し、厳密に小さいときだけ更新する
-    (define (chain)
-      (rlet1 g (make-vector (+ n 1) 0)
-        (dotimes [j n]
-          (let1 end (+ j 1)
-            (let loop ([i (max 0 (- end span))] [best #f] [from #f])
-              (if (= i end)
-                (vector-set! g end (cons best from))
-                (let1 value (+ (if (zero? i) 0 (car (vector-ref g i))) (cost i (- end i)))
-                  (if (or (not best) (< value best))
-                    (loop (+ i 1) value i)
-                    (loop (+ i 1) best from)))))))))
-    (define (restore-chain g)
-      (let loop ([end n] [blocks ()])
-        (if (zero? end)
-          (fold (^[b tree] (make-concat tree b)) (car blocks) (cdr blocks))
-          (let1 from (cdr (vector-ref g end))
-            (loop from (cons (restore from (- end from)) blocks))))))
-    (build-lcp!)
-    (do ([m 1 (+ m 1)]) [(> m span)]
-      (do ([i 0 (+ i 1)]) [(> i (- n m))]
-        (solve-cell! i m)))
-    (let* ([g (chain)] [total (car (vector-ref g n))] [tree (restore-chain g)])
-      (repeat-tree-inspect items weights same? settings tree total)
-      (values total tree))))
+  (sxmml-native-repeat-tree-compress items weights same? settings))

@@ -7,6 +7,7 @@
 (test-start "sxmml.optimizer")
 (use sxmml.optimizer)
 (use sxmml.repeat-tree)
+(use sxmml.native)
 (test-module 'sxmml.optimizer)
 (use sxmml)
 (use sxmml.form)
@@ -17,6 +18,7 @@
 (use gauche.process)
 (use file.util)
 (use test.helpers)
+(use test.optimizer-repeat-check)
 (define (test-level-number level)
   (case level [(#f) 0] [(#t) 1] [(:full) 2] [(:repeat) 3] [(:repeat-expand) 4] [else level]))
 
@@ -103,17 +105,46 @@
     (slot-set! expected 'value 10)
     (check "再生成は初期値を戻さず追加スロットの未束縛を保つ" sxmml-ir-optimize-local
            (list origin (make <sxmml-mml-volume-change> :value 2)) (list expected)))
-  (let1 same? (with-module sxmml.optimizer %repeat-same?)
+  (let1 same? (make-sxmml-native-ir-comparison)
     (test* "反復比較は同じスロットを持つ親と派生を区別する" '(#f #t)
            (list (same? (make <sxmml-mml-note> :value 48 :ticks 12)
                         (make <test-note> :value 48 :ticks 12))
                  (same? (make <test-note> :value 48 :ticks 12)
                         (make <test-note> :value 48 :ticks 12))))))
 
+;; 実 IR の利用者拡張で、通常スロットと仮想スロットの比較を確認する。
+(define test-virtual-values (make-hash-table eq-comparator))
+(define-class <test-virtual-note> (<sxmml-mml-note>)
+  ([annotation :allocation :virtual
+               :slot-ref (^o (hash-table-get test-virtual-values o))]))
+(let ([same? (make-sxmml-native-ir-comparison)]
+      [a (make <test-volume> :value 8 :marker 'A)]
+      [b (make <test-volume> :value 8 :marker 'B)])
+  (test* "C反復比較は追加スロットの違いを保持する" #f (same? a b))
+  (slot-set! b 'marker 'A)
+  (slot-set! b 'extra #f)
+  (test* "C反復比較は未束縛と偽を区別する" #f (same? a b))
+  (slot-set! a 'extra (list (list 1 2) (list 3 4)))
+  (slot-set! b 'extra (list (list 1 2) (list 3 4)))
+  (test* "C反復比較は集約値をequal?で比較する" #t (same? a b)))
+(let ([same? (make-sxmml-native-ir-comparison)]
+      [a (make <test-virtual-note> :value 48 :ticks 12)]
+      [b (make <test-virtual-note> :value 48 :ticks 12)])
+  (hash-table-put! test-virtual-values a 1)
+  (hash-table-put! test-virtual-values b 2)
+  (test* "C反復比較は仮想スロットの値を読む" #f (same? a b)))
+
 (define (test-optimize-track track :key (optimize #t))
-  (sxmml-pmd-ir-optimize
-   (sxmml-ir-flatten (slot-ref (sxmml-track-get track) 'compiled-data))
-   (test-level-number optimize)))
+  (let* ([ir (sxmml-ir-flatten (slot-ref (sxmml-track-get track) 'compiled-data))]
+         [level (test-level-number optimize)]
+         [result (sxmml-pmd-ir-optimize ir level)])
+    (when (>= level 3)
+      (let* ([input ((with-module sxmml.optimizer %repeat-structure) (sxmml-ir-optimize ir))]
+             [input (if (>= level 4)
+                      ((with-module sxmml.optimizer %repeat-expand-small) input 256)
+                      input)])
+        (check-repeat-ir result input)))
+    result))
 
 
 (let ()
@@ -328,26 +359,27 @@
                                      (make-final 3 (make-repeat 2 (make-literal 1)) (make-literal 2)))
                         outputs tail)
              (list (and (= (length result) 9)
-                        (every (with-module sxmml.optimizer %repeat-same?)
+                        (every (make-sxmml-native-ir-comparison)
                                (list c start1 start2 d end2 break1 e end1 c) result))
                    (equal? outputs (vector (list c) (list d) (list e))) (same-objects? (list c) tail)))))
   (test* "反復比較は左列だけが先に終われば不一致" #f
-         ((with-module sxmml.optimizer %repeat-same?) (list c) (list c d)))
+         ((make-sxmml-native-ir-comparison) (list c) (list c d)))
   (test* "反復比較は右列だけが先に終われば不一致" #f
-         ((with-module sxmml.optimizer %repeat-same?) (list c d) (list c)))
+         ((make-sxmml-native-ir-comparison) (list c d) (list c)))
   (let* ([input (append-map (^_ (list (note 0) (make <sxmml-mml-tie>)
                                     (make <sxmml-mml-tie>) (make <sxmml-mml-tie>) (note 2))) '(1 2 3))]
          [result (sxmml-ir-compress-repeats input)])
+    (check-repeat-ir result ((with-module sxmml.optimizer %repeat-structure) input))
     (test* "複数のタイをまとめても復元した命令の順序を保つ" #t
            (let1 expanded (expansion (structure result) '())
              (and (= (length input) (length expanded))
-                  (every (with-module sxmml.optimizer %repeat-same?) input expanded)))))
+                  (every (make-sxmml-native-ir-comparison) input expanded)))))
   (test* "a repeat without its end fails" (test-error <error>)
          (structure (list start1 c)))
   (test* "a repeat end without its start fails" (test-error <error>)
          (structure (list c end1)))
   ;; 同値判定。オブジェクトはクラスと全スロット、ブロックは回数・: の有無・本文で比べる
-  (let ([same? (with-module sxmml.optimizer %repeat-same?)]
+  (let ([same? (make-sxmml-native-ir-comparison)]
         [block (^[text-items count break?]
                  (car (structure `(,(make <sxmml-mml-repeat-start>)
                                    ,@(if break?
@@ -447,7 +479,7 @@
                                                   (string-join (make-list depth "]2") "")))]
               [expansion (with-module sxmml.optimizer %repeat-expansion)]
               [structure (with-module sxmml.optimizer %repeat-structure)]
-              [same? (with-module sxmml.optimizer %repeat-same?)])
+              [same? (make-sxmml-native-ir-comparison)])
           (dolist (case '(("[aaaaaaaa]2" "[[o4a]8]2")
                           ("[[aaaa]4[aaaa]4]2" "[[[[o4a]4]4]2]2")
                           ("[ab]2ab" "[o4ab]2ab")
