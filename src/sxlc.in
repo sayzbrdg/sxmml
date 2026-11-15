@@ -34,6 +34,7 @@
 (use file.util)
 
 (define (main argv)
+  (define definitions ())
   ;; 終了値は 0 成功、1 変換の失敗、2 使用法の誤り、3 後処理の失敗とする (#37)
   (guard (e [(<parseopt-error> e) (%usage-error (condition-message e))])
     (let-args (cdr argv)
@@ -42,6 +43,8 @@
          [cmd "c|command=s" #f]
          [output "o|output=s" #f]
          [wsl "w|wsl" #f]
+         [#f "D|define=ye" => (^[name value]
+                               (set! definitions (cons (cons name value) definitions)))]
          [#f "l|list" => %mode-list-output]
          [#f "h|help" => (^[] (%usage 0))]
          [#f "v|version" => %version-output]
@@ -66,6 +69,8 @@
                             (shell-tokenize-string cmd)))
         (parameterize ([sxmml-source-file (sys-normalize-pathname (car args) :absolute #t)]
                        [sxmml-mode-fixed (boolean mode)])
+          (for-each (^[entry] (sxmml-option-set! (car entry) (cdr entry)))
+                    (reverse! definitions))
           (when mode
             (%mode-select mode))
           (%convert (^[]
@@ -173,8 +178,9 @@
   (if (condition? e) (condition-message e) e))
 
 (define (%usage code)
-  (display "Usage: sxlc [-whlv] [-O opt_lv] [-m mode] [-o output] [-c command] file\n\n")
+  (display "Usage: sxlc [-whlv] [-D NAME VALUE] [-O opt_lv] [-m mode] [-o output] [-c command] file\n\n")
   (display "Options:\n")
+  (format #t "    ~12a 利用者定義の値をモードの初期設定前に登録する。\n" "-D NAME VALUE")
   (format #t "    ~12a Set the optimize level to \"opt_lv\".\n" "-O opt_lv")
   (format #t "    ~12a 0: none, 1-2: basic, 3: repeat, 4: repeat with expansion.\n" "")
   (format #t "    ~12a Set the processing to \"mode\".\n" "-m mode")
