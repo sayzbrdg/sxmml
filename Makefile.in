@@ -49,6 +49,7 @@ GAUCHE_PKGARCHDIR = @GAUCHE_PKGARCHDIR@
 all : $(TARGET) $(ARCHFILES)
 
 sxmml_native.$(SOEXT): $(srcdir)/src/lib/sxmml_native.c $(srcdir)/src/lib/sxmml_nativelib.scm $(srcdir)/src/lib/sxmml_optimizerlib.scm $(srcdir)/src/lib/sxmml_repeat_tree.c $(srcdir)/src/lib/sxmml_native.h $(srcdir)/src/lib/sxmml_repeat_tree.h
+	$(GAUCHE_PACKAGE) compile --clean sxmml_native $(NATIVE_SRCS)
 	$(GAUCHE_PACKAGE) compile --srcdir="$(srcdir)/src/lib" \
 	  --cppflags="$(CPPFLAGS)" --cflags="$(CFLAGS)" --ldflags="$(LDFLAGS)" \
 	  --libs="$(LIBS)" --local=$(LOCAL_PATHS) --verbose sxmml_native $(NATIVE_SRCS)

@@ -69,4 +69,3 @@
         (for-each-with-index (^[t index] (unless (%same? same? (vector-ref items t) (vector-ref items index))
                                 (fail "expanded value mismatch")))
                   expanded)))))
-
