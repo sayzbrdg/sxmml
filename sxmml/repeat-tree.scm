@@ -27,8 +27,8 @@
 ;;; SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ;;; 局所反復木による列の圧縮。repeat-tree の Gauche 移植（実装 ID gauche-all-periods/2、
-;;; 仕様 ID local-repeat-tree/1、commit 7e521ec46950b9c9a42424ea1199db5f2170a766）をもとに、
-;;; 重み付きの葉と窓幅を加えた。仕様との違いは doc/internal-reference/repeat-tree.adoc を参照
+;;; commit 7e521ec46950b9c9a42424ea1199db5f2170a766）をもとに、重み付きの葉と窓幅を加えた。
+;;; 圧縮方式と成立条件は doc/internal-reference/repeat-tree.adoc を参照
 (define-module sxmml.repeat-tree
   (use gauche.record)
   (use gauche.sequence)
@@ -171,7 +171,7 @@
 ;;;
 ;;; 圧縮
 ;;;
-;; 仕様 §6 の全周期・LCP・区間 DP を、深さ無制限の 1 層で解く。区間 [i,i+m) を
+;; 全周期・LCP・区間 DP を、深さ無制限の 1 層で解く。区間 [i,i+m) を
 ;; セル (i,m) とし、長さ m が窓幅 W 以下の区間だけを費用表と根の記述の表に持つ。
 ;; 列全体は G(j) = min G(i) + F(i,j) (j-W <= i < j) でつなぐ。W >= n なら G(n) は
 ;; F(0,n) となり、厳密な区間 DP と同じ費用・同じ木になる。時間 O(nW^2)、領域 O(nW)。
