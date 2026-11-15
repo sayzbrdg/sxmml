@@ -7,10 +7,10 @@ sxlc — Scheme で記述した sxmml ソースを変換する
 
 # 書式
 
-    sxlc [-m mode] [-O level] [-o output] [-c command] [-w] [--] file
+    sxlc [-D name value] [-m mode] [-O level] [-o output] [-c command] [-w] [--] file
     sxlc -l | -h | -v
 
-長い形式は `--mode`、`--optimize`、`--output`、`--command`、`--wsl`、`--list`、`--help`、`--version`。
+長い形式は `--define`、`--mode`、`--optimize`、`--output`、`--command`、`--wsl`、`--list`、`--help`、`--version`。
 
 # 説明
 
@@ -19,6 +19,13 @@ sxlc は *file* を Scheme ソースとして読み込み、トラックに登�
 ビルド・インストールの手順は [README](../README.md#最初の変換)を参照。入力には Scheme の式が含まれるため、信頼できるソースを指定する。
 
 # オプション
+
+**-D** *name* *value*, `--define` *name* *value*
+:   利用者定義の設定値を渡す。名前はsymbolへ変換し、大文字・小文字を区別する。値はSchemeのデータとして読み、sxlcで評価しない。例えば`-D variant hard`はsymbol、`-D gain 9`は数値、`-D enabled '#f'`は偽、`-D balance '(8 9 10)'`はリストを登録する。シェルの引用は指定する側で行う。
+
+読み取りはGaucheの`gauche.parseopt`の`e`変換に従い、値の先頭のデータを1個読む。例えば`-D gain '9 10'`は9になる。引数不足や読み取り時の構文エラーは使用法の誤りとして終了値2となる。
+
+複数回指定でき、同じ名前は最後の値を使う。`-m`との位置関係によらずモード初期設定前に登録され、ソースの`sxmml-option-get`で取得できる。ソースの`sxmml-option-set!`による後続の変更も有効。未登録名の取得はundefinedであり、登録済みの#fと区別する。
 
 **-m** *mode*, `--mode` *mode*
 :   変換モードを選ぶ。PMD4 向けには `pmd`、PMD3 向けには `pmd3` を指定する。PMD のバイナリを直接生成する実験的なモードとして、PMD4 向けの `pmd-binary` と `pmd4-binary`、PMD3 向けの `pmd3-binary` がある。省略した場合はソース中の `(sxmml-mode pmd)` などが必要。CLI とソースの両方で指定すると、この指定が有効になり、ソース中の `sxmml-mode` は警告を表示して無視される（名前は評価・検索しない。書式と名前の型は検査する）。
