@@ -3,7 +3,7 @@
 
 この索引は、sxmml を保守・改修する際に内部定義を名前から探すためのものです。動作環境は Gauche 0.9.15 です。内部の名前は MML 記述者向け API を示しません。公開機能の使い方は xref:../sxmml-reference-manual.adoc[MML 記述者向けリファレンス]、MML 文字列の記法は xref:../sxmml-mml-manual.adoc[MML コマンドマニュアル]を参照してください。
 
-モジュール直下の手続き 317 件、クラス 64 件、マクロ 13 件、合計 394 件を掲載します。実験的な `sxmml.backend.pmd-binary` は公開名 4 件だけを掲載し、内部定義は xref:pmd-binary.adoc[本文]に概要だけを記します。`sxmml.scm` は各モジュールを継承し、独自の直下定義はありません。`sxmml.backend.pmd-binary` の `initialize` と `sxmml.form` の `report-additional-condition` のメソッドは、手続き件数へ重複計上しません。局所関数と `sxlc` の直下定義は範囲外です。呼び出せない表（ハッシュ表やリスト）は対象外です。
+モジュール直下の手続き 320 件、クラス 64 件、マクロ 13 件、合計 397 件を掲載します。実験的な `sxmml.backend.pmd-binary` は公開名 4 件だけを掲載し、内部定義は xref:pmd-binary.adoc[本文]に概要だけを記します。`sxmml.scm` は各モジュールを継承し、独自の直下定義はありません。`sxmml.backend.pmd-binary` の `initialize` と `sxmml.form` の `report-additional-condition` のメソッドは、手続き件数へ重複計上しません。局所関数と `sxlc` の直下定義は範囲外です。呼び出せない表（ハッシュ表やリスト）は対象外です。
 
 識別子の命名と改名の判断は xref:naming-conventions.adoc[命名規約]を参照してください。
 
@@ -15,7 +15,7 @@
 |xref:classes.adoc[`sxmml.classes`] |環境・MML オブジェクト・音色のクラスとエラーの種類 |64
 |xref:command.adoc[`sxmml.command`] |文脈更新・計算・IR生成の共通処理 |18
 |xref:mml.adoc[`sxmml.mml`] |通常・リズム MML の PEG パーサー |74
-|xref:environment.adoc[`sxmml.environment`] |環境と登録表 |35
+|xref:environment.adoc[`sxmml.environment`] |環境と登録表 |38
 |xref:compiler.adoc[`sxmml.compiler`] |文字列の解析と登録マクロ |8
 |xref:processor.adoc[`sxmml.processor`] |反復・エコー・ディレイ |11
 |xref:output.adoc[`sxmml.output`] |出力準備・整列化・part検索 |3
@@ -127,6 +127,7 @@
 |`%most-frequent-ticks-find` |`sxmml.backend.pmd-source` |手続き・非公開 |xref:pmd-source.adoc#ref-pmd-source-internal-most-frequent-ticks-find[項目へ]
 |`%note-number->pmd-note` |`sxmml.backend.pmd-source` |手続き・非公開 |xref:pmd-source.adoc#ref-pmd-source-internal-note-number-to-pmd-note[項目へ]
 |`%optimizer-repeat-tree-compress` |`sxmml.optimizer` |手続き・非公開 |xref:optimizer.adoc#ref-optimizer-internal-optimizer-repeat-tree-compress[項目へ]
+|`%option-name-check` |`sxmml.environment` |手続き・非公開 |xref:environment.adoc#ref-environment-internal-option-name-check[項目へ]
 |`%pcm-track-output` |`sxmml.backend.pmd-source` |手続き・非公開 |xref:pmd-source.adoc#ref-pmd-source-internal-pcm-track-output[項目へ]
 |`%pmd-definition-values` |`sxmml.backend.pmd` |手続き・非公開 |xref:pmd.adoc#ref-pmd-internal-pmd-definition-values[項目へ]
 |`%pmd-detune-output` |`sxmml.backend.pmd-source` |手続き・非公開 |xref:pmd-source.adoc#ref-pmd-source-internal-pmd-detune-output[項目へ]
@@ -405,6 +406,8 @@
 |`sxmml-opm-list\->register` |`sxmml.voice` |手続き・非公開 |xref:voice.adoc#ref-voice-sxmml-opm-list-to-register[項目へ]
 |`sxmml-opmn-operator-zip` |`sxmml.voice` |手続き・公開 |xref:voice.adoc#ref-voice-sxmml-opmn-operator-zip[項目へ]
 |`sxmml-opn-voice-set!` |`sxmml.voice` |手続き・公開 |xref:voice.adoc#ref-voice-sxmml-opn-voice-set-bang[項目へ]
+|`sxmml-option-get` |`sxmml.environment` |手続き・公開 |xref:environment.adoc#ref-environment-sxmml-option-get[項目へ]
+|`sxmml-option-set!` |`sxmml.environment` |手続き・公開 |xref:environment.adoc#ref-environment-sxmml-option-set-bang[項目へ]
 |`sxmml-output-track-find` |`sxmml.output` |手続き・公開 |xref:output.adoc#ref-output-sxmml-output-track-find[項目へ]
 |`sxmml-pmd-binary-output` |`sxmml.backend.pmd-binary` |手続き・公開 |xref:pmd-binary.adoc#ref-pmd-binary-sxmml-pmd-binary-output[項目へ]
 |`sxmml-pmd-check-obsolete-metadata` |`sxmml.backend.pmd` |手続き・公開 |xref:pmd.adoc#ref-pmd-sxmml-pmd-check-obsolete-metadata[項目へ]

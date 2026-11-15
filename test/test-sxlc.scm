@@ -64,13 +64,59 @@
     (list (car result) (boolean (any pattern (cadr result)))
           (and (= (length (cadr result)) 1)
                (string-prefix? #"sxlc: error: ~|location|: " (caadr result)))))
-  (define (sxlc-report . args)
+  (define (command-report command args)
     (let* ([out (work-file "report.out")] [err (work-file "report.err")]
-           [p (run-process `(,@sxlc-command ,@args) :output out :error err :wait #t)])
+           [p (run-process `(,@command ,@args) :output out :error err :wait #t)])
       (list (sys-wait-exit-status (process-exit-status p))
             (file->string-list out) (file->string-list err))))
+  (define (sxlc-report . args)
+    (command-report sxlc-command args))
+  (define (option-output source report)
+    (let1 output (path-swap-extension source "mml")
+      (list (car report)
+            (and (file-exists? output)
+                 (find #/^G / (file->string-list output :encoding "cp932")))
+            (find #/^Track (soft|hard):/ (cadr report))
+            (caddr report))))
   (unwind-protect
       (begin
+        ;; モード初期設定から設定値を使い、実際のトラック構成と生成物を変える。
+        (let* ([setup (source-output "options-setup"
+                        "(use sxmml)\n(use sxmml.backend.pmd)\n(use sxmml.backend.pmd-source)\n(sxmml-mode-register!\n (make <sxmml-mode> :name 'test-options\n   :setup (lambda ()\n            (sxmml-pmd-setup!)\n            (sxmml-track-rename! 'G (sxmml-option-get 'variant)))\n   :backend (slot-ref (sxmml-mode-find 'pmd) 'backend)\n   :output-extension \"mml\"))\n")]
+               [source (source-output "options-mode"
+                         "(case (sxmml-option-get 'variant)\n [(soft) (mml soft \"c8\")]\n [(hard) (mml hard \"d8\")])\n")]
+               [command (append (drop-right sxlc-command 1)
+                                (list "-l" setup (last sxlc-command)))])
+          (test* "-Dを-mより前に指定し、初期設定とソースで利用する"
+                 '(0 "G l%12o4c" "Track soft: total: 12" ())
+                 (option-output source
+                   (command-report command (list "-D" "variant" "soft" "-m" "test-options" source))))
+          (test* "--defineを-mより後に指定し、同じソースから別の内容を生成する"
+                 '(0 "G l%12o4d" "Track hard: total: 12" ())
+                 (option-output source
+                   (command-report command (list "-m" "test-options" "--define" "variant" "hard" source)))))
+        (let* ([body "(mml G (case (sxmml-option-get 'variant) [(soft) \"c8\"] [(hard) \"d8\"]))\n"]
+               [source (source-output "options-last" body)]
+               [override (source-output "options-override"
+                           (string-append "(sxmml-option-set! 'variant 'soft)\n" body))]
+               [gain (source-output "options-gain" "(mml G \"v\" (sxmml-option-get 'gain) \"c8\")\n")])
+          (test* "同じ設定名のCLI指定は最後の値を使う" '(0 "G l%12o4d")
+                 (take (option-output source
+                         (sxlc-report "-m" "pmd" "-D" "variant" "soft" "-D" "variant" "hard" source)) 2))
+          (test* "ソースからCLIの設定値を変更できる" '(0 "G l%12o4c")
+                 (take (option-output override
+                         (sxlc-report "-m" "pmd" "-D" "variant" "hard" override)) 2))
+          (test* "-Dの値はGaucheの規約どおり先頭のデータを読む" '(0 #t)
+                 (let1 r (option-output gain (sxlc-report "-m" "pmd" "-D" "gain" "9 10" gain))
+                   (list (car r) (boolean (and (cadr r) (string-scan (cadr r) "v9")))))))
+        (dolist [c `(("-Dの値が不足していれば使用法の誤り"
+                       ("-D" "gain") ,#/running out the arguments/)
+                      ("-Dの値を読めなければ使用法の誤り"
+                       ("-D" "gain" "(") ,#/not valid sexp/))]
+          (test* (car c) '(2 #t #t)
+                 (let1 r (apply sxlc-report (cadr c))
+                   (list (car r) (boolean (any (caddr c) (caddr r)))
+                         (boolean (any #/^Usage:/ (cadr r)))))))
         (let* ([source (source-output "fileless"
                          "(sxmml-mode-register! (make <sxmml-mode> :name 'test-fileless :backend (lambda (out) (format #t \"request: ~s\\n\" (slot-ref out 'optimize)) (make <sxmml-output-result> :output #f :track-names '(lead)))))\n(sxmml-mode test-fileless)\n(define-track (lead unused))\n(mml lead \"c8\")\n(mml unused \"c4\")\n")]
                [r (sxlc-report "-O" "3" "-c" "false" source)])

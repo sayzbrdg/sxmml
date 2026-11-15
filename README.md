@@ -68,6 +68,24 @@ export GAUCHE_DYNLOAD_PATH="$sxmml_prefix/lib/sxmml${GAUCHE_DYNLOAD_PATH:+:$GAUC
 
 `mml` に文字列のリストを渡すと、要素を順につないだ MML として扱われます。MML 文字列の意味は [MML コマンドマニュアル](doc/sxmml-mml-manual.adoc)、ソース中のマクロは [MML 記述者向けリファレンス](doc/sxmml-reference-manual.adoc)を参照してください。
 
+## 同じソースを設定値で切り替える
+
+次を`variant.sxl`に保存すると、CLIから渡した値で音量を切り替えられます。
+
+```scheme
+(mml G (case (sxmml-option-get 'variant)
+         [(soft) "v8c8"]
+         [(hard) "v12c8"]
+         [else "c8"]))
+```
+
+```console
+sxlc -m pmd -D variant soft -o variant-soft.mml variant.sxl
+sxlc -m pmd --define variant hard -o variant-hard.mml variant.sxl
+```
+
+名前はsymbol、値はSchemeのデータとして渡します。ソースでは通常の`if`・`case`などを使えます。未登録の値と更新方法は[利用者定義の設定](doc/sxmml-reference-manual.adoc#利用者定義の設定)を参照してください。
+
 ## 最適化と出力の指定
 
 `-O` の既定値は `1` です。通常の最適化を避けるには `-O 0` を指定します。`-O 2` は追加の整理も行います。`-O 3` はさらに命令列を反復（`[ ]`・`[ : ]`）で圧縮し、`-O 4` は小さい既存のリピートを展開してから圧縮します。`-O 3` 以上は時間がかかります。最適化は、コンパイル後のオブジェクトリストに連結されたオブジェクト数を減らす処理です。生成テキストの長さを評価基準にはしません。`-m pmd` は PMD4 向け、`-m pmd3` は PMD3 向けのモードです。実験的な機能として、外部コンパイラを使わずに PMD のバイナリ（`.m`）を直接生成する `-m pmd-binary`（PMD4 向け）、`-m pmd4-binary`、`-m pmd3-binary` もあります。生成物が MC.EXE の出力と同じであることは保証しません。オプションと既知の制約は [`sxlc` マニュアル](doc/sxlc.1.md)を参照してください。
