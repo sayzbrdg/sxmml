@@ -10,3 +10,12 @@ sxlc.1
 
 # test
 test.log
+
+# C 拡張の生成物
+*.o
+*.obj
+*.so
+*.dll
+*.dylib
+sxmml_nativelib.c
+sxmml_optimizerlib.c

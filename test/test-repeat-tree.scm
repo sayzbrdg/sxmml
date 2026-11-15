@@ -178,6 +178,39 @@
            (and (< cost 600)
                 (list? (repeat-tree-inspect items (make-unit-weights 600) eqv? settings tree cost))))))
 
+;; C の費用範囲。期待する費用は圧縮器から算出せず、境界値から直接指定する。
+(let* ([u (- (ash 1 64) 1)]
+       [plain (make-repeat-tree-settings '() '() #f 256)])
+  (test* "費用の最大値を単一の葉として返す" (list u '(lit 0))
+         (compress-sexp #(a) (vector u) '() '() #f))
+  (test* "採用しない反復候補の巨大な費用を加算しない" '(4 (cat (lit 0) (lit 1)))
+         (compress-sexp #(a a) #(2 2) (list (cons 2 u)) '() #f))
+  (test* "重みの総和が最大値と等しければ受理する" (list u '(cat (lit 0) (lit 1)))
+         (compress-sexp #(a b) (vector (- u 1) 1) '() '() #f))
+  (for-each
+   (^[entry]
+     (test* (car entry) #t
+            (guard (e [else (boolean (string-scan (condition-message e) (cadr entry)))])
+              ((caddr entry)) #f)))
+   (list
+    (list "重みの上限超過を診断する" "weight out of range"
+          (^[] (repeat-tree-compress #(a) (vector (+ u 1)) eqv? plain)))
+    (list "制御費用の上限超過を診断する" "control fee out of range"
+          (^[] (repeat-tree-compress #(a a) #(1 1) eqv?
+                  (make-repeat-tree-settings (list (cons 2 (+ u 1))) '() #f 256))))
+    (list "重み総和の上限超過を診断する" "total weight out of range"
+          (^[] (repeat-tree-compress #(a b) (vector u 1) eqv? plain)))
+    (list "窓幅の上限超過を診断する" "window out of range"
+          (^[] (repeat-tree-compress #(a) #(1) eqv?
+                  (make-repeat-tree-settings '() '() #f (ash 1 64)))))))
+  (test* "汎用比較の真偽値以外の戻り値を拒否する" (test-error <error>)
+         (repeat-tree-compress #(a a) #(1 1) (^[a b] 'same) plain))
+  (let1 original (make <error> :message "比較中の例外")
+    (test* "汎用比較の例外を包み直さず伝える" #t
+           (guard (e [else (eq? e original)])
+             (repeat-tree-compress #(a a) #(1 1) (^[a b] (raise original)) plain)
+             #f))))
+
 ;; If you don't want `gosh' to exit with nonzero status even if
 ;; the test fails, pass #f to :exit-on-failure.
 (test-end :exit-on-failure #t)

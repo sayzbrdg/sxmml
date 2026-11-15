@@ -17,15 +17,23 @@ GAUCHE_CONFIG  = "@GAUCHE_CONFIG@"
 GAUCHE_PACKAGE = "@GAUCHE_PACKAGE@"
 PANDOC         = @PANDOC@
 INSTALL        = "@GAUCHE_INSTALL@" -S '$(srcdir)' -C
+CFLAGS         = @CFLAGS@
+CPPFLAGS       = @CPPFLAGS@ @WINDOWS_UNICODE_FLAG@
+LDFLAGS        = @LDFLAGS@
+LIBS           = @LIBS@
+SOEXT          = @SOEXT@
+LOCAL_PATHS    = "@LOCAL_PATHS@"
 
 # Module-specific stuff
 PACKAGE   = sxmml
 
 TARGET    = sxlc
+ARCHFILES = sxmml_native.$(SOEXT)
+NATIVE_SRCS = sxmml_native.c sxmml_nativelib.scm sxmml_repeat_tree.c
 MANPAGE   = sxlc.1
 SCMFILES  = sxmml.scm sxmml/classes.scm sxmml/environment.scm sxmml/voice.scm sxmml/command.scm sxmml/mml.scm \
             sxmml/output.scm sxmml/compiler.scm sxmml/processor.scm sxmml/optimizer.scm sxmml/repeat-tree.scm \
-            sxmml/util.scm sxmml/form.scm sxmml/backend/pmd.scm sxmml/backend/pmd-source.scm sxmml/backend/pmd-binary.scm
+            sxmml/util.scm sxmml/form.scm sxmml/backend/pmd.scm sxmml/backend/pmd-source.scm sxmml/backend/pmd-binary.scm sxmml/native.scm
 
 GENERATED = $(MANPAGE)
 CONFIG_GENERATED = Makefile config.cache config.log config.status \
@@ -37,7 +45,12 @@ GAUCHE_PKGINCDIR  = @GAUCHE_PKGINCDIR@
 GAUCHE_PKGLIBDIR  = @GAUCHE_PKGLIBDIR@
 GAUCHE_PKGARCHDIR = @GAUCHE_PKGARCHDIR@
 
-all : $(TARGET)
+all : $(TARGET) $(ARCHFILES)
+
+sxmml_native.$(SOEXT): $(srcdir)/src/lib/sxmml_native.c $(srcdir)/src/lib/sxmml_nativelib.scm $(srcdir)/src/lib/sxmml_repeat_tree.c $(srcdir)/src/lib/sxmml_native.h $(srcdir)/src/lib/sxmml_repeat_tree.h
+	$(GAUCHE_PACKAGE) compile --srcdir="$(srcdir)/src/lib" \
+	  --cppflags="$(CPPFLAGS)" --cflags="$(CFLAGS)" --ldflags="$(LDFLAGS)" \
+	  --libs="$(LIBS)" --local=$(LOCAL_PATHS) --verbose sxmml_native $(NATIVE_SRCS)
 
 # SXMML_SXLC でビルドした ./sxlc を検査対象に指定する。
 # tools は配布物に含めないので、その検査は tools があるときだけ行う。
