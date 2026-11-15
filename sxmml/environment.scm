@@ -34,6 +34,7 @@
   (export sxmml-environment sxmml-source-file sxmml-mode sxmml-mode-fixed
           sxmml-mode-register! sxmml-mode-find sxmml-mode-list
           sxmml-mode-select! sxmml-mode-get sxmml-mode-selected?
+          sxmml-option-get sxmml-option-set!
           define-metadata sxmml-metadata-get sxmml-metadata-set!
           sxmml-resolution sxmml-resolution-get sxmml-resolution-set!
           define-lfo sxmml-lfo-get sxmml-lfo-set!
@@ -59,6 +60,19 @@
   (slot-set! (sxmml-environment) 'resolution resolution))
 
 (define sxmml-resolution sxmml-resolution-set!)
+
+;; 利用者定義の設定は、現在の楽曲環境の表で保持する。
+(define (%option-name-check name)
+  (unless (symbol? name)
+    (errorf <sxmml-value-error> "invalid option name: ~s (expected a symbol)" name)))
+
+(define (sxmml-option-get name)
+  (%option-name-check name)
+  (hash-table-get (slot-ref (sxmml-environment) 'options) name (undefined)))
+
+(define (sxmml-option-set! name value)
+  (%option-name-check name)
+  (hash-table-set! (slot-ref (sxmml-environment) 'options) name value))
 
 ;; モードの登録情報はGaucheの実行環境で共有する。
 ;; 登録情報の変更は、それを参照する楽曲環境にも及ぶ。

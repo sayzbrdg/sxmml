@@ -43,6 +43,7 @@
 
 (define-class <sxmml-environment> ()
   ([resolution :init-keyword :resolution :init-value 24]
+   [options :init-form (make-hash-table eq-comparator)]
    [metadata :init-form (make-hash-table eq-comparator)]
    [lfo :init-form (make-hash-table eq-comparator)]
    [envelope :init-form (make-hash-table eq-comparator)]

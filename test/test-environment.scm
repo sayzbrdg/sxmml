@@ -15,6 +15,48 @@
 (use file.util)
 (use test.helpers)
 
+;; 利用者定義の設定は、現在の楽曲環境ごとに保持する。
+(test* "未登録の設定と登録済みの#fを区別する" '(#t #f)
+       (parameterize ([sxmml-environment (make <sxmml-environment>)])
+         (let1 absent (sxmml-option-get 'missing)
+           (sxmml-option-set! 'enabled #f)
+           (list (undefined? absent) (sxmml-option-get 'enabled)))))
+(test* "同じ設定名へ異なる種類の値を登録し直せる" '(9 10)
+       (parameterize ([sxmml-environment (make <sxmml-environment>)])
+         (sxmml-option-set! 'mix 8)
+         (sxmml-option-set! 'mix '(9 10))
+         (sxmml-option-get 'mix)))
+(test* "設定名の大文字と小文字を区別する" '(soft hard)
+       (parameterize ([sxmml-environment (make <sxmml-environment>)])
+         (sxmml-option-set! 'mix 'soft)
+         (sxmml-option-set! 'MIX 'hard)
+         (list (sxmml-option-get 'mix) (sxmml-option-get 'MIX))))
+(test* "別の楽曲環境の設定は共有せず、元の環境へ戻ると元の値を取得する"
+       '((#t hard) soft)
+       (parameterize ([sxmml-environment (make <sxmml-environment>)])
+         (sxmml-option-set! 'mix 'soft)
+         (let1 inner
+             (parameterize ([sxmml-environment (make <sxmml-environment>)])
+               (let1 absent (sxmml-option-get 'mix)
+                 (sxmml-option-set! 'mix 'hard)
+                 (list (undefined? absent) (sxmml-option-get 'mix))))
+           (list inner (sxmml-option-get 'mix)))))
+(test* "モードを変更しても利用者定義の設定を保持する" '(hard hard)
+       (parameterize ([sxmml-environment (make <sxmml-environment>)])
+         (sxmml-option-set! 'variant 'hard)
+         (sxmml-mode-select! 'pmd)
+         (let1 first (sxmml-option-get 'variant)
+           (sxmml-mode-select! 'pmd3)
+           (list first (sxmml-option-get 'variant)))))
+(test* "設定の取得名がsymbolでなければ値エラーにする"
+       '(#t "invalid option name: \"mix\" (expected a symbol)")
+       (guard (e [else (list (sxmml-value-error? e) (condition-message e))])
+         (sxmml-option-get "mix")))
+(test* "設定の登録名がsymbolでなければ値エラーにする"
+       '(#t "invalid option name: \"mix\" (expected a symbol)")
+       (guard (e [else (list (sxmml-value-error? e) (condition-message e))])
+         (sxmml-option-set! "mix" 8)))
+
 (let* ([workdir (sys-mkdtemp (build-path (temporary-directory) "sxmml-test"))])
   (define (work-file name) (build-path workdir name))
   ;; name.sxl に text を書いて返す
