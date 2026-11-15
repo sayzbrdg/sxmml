@@ -41,7 +41,7 @@
           make-repeat-tree-settings repeat-tree-settings?
           repeat-tree-settings-repeat-costs repeat-tree-settings-final-costs
           repeat-tree-settings-allow-final? repeat-tree-settings-window
-          repeat-tree-compress repeat-tree-inspect
+          repeat-tree-compress
           ))
 (select-module sxmml.repeat-tree)
 
@@ -106,80 +106,6 @@
                          (errorf "repeat-tree: weights must be exact integers > 0: ~s" w)))
                    weights))
 
-;; 比較手続きの結果は真偽値に限る
-(define (%same? same? a b)
-  (rlet1 v (same? a b)
-    (unless (boolean? v)
-      (errorf "repeat-tree: the comparison must return a boolean: ~s" v))))
-
-;;;
-;;; 独立検査
-;;;
-;; 木を直接たどり、LCP・DP は使わない。訪問は 2n-1 回、部分展開の長さは n までとし、
-;; 展開列は長さを確かめてから作る。通れば展開した添字のリストを返す。添字列は、後に続く
-;; 列を受け取って前に足す手続きで作り、全体で O(n) にする
-(define (repeat-tree-inspect items weights same? settings tree claimed-cost)
-  (%check-input items weights settings)
-  (let* ([n (vector-length items)]
-         [fee (^[costs r]
-                (or (and (exact-integer? r) (>= r 2) (assv-ref costs r))
-                    (errorf "repeat-tree: disallowed repeat count: ~s" r)))])
-    (define (fail message) (errorf "repeat-tree: inspection failed: ~a" message))
-    ;; 戻り値は (values 費用 長さ 添字列を tail の前に足す手続き 残りの訪問数)
-    (define (finish cost len indices remaining)
-      (unless (<= 1 len n) (fail "partial expansion length limit"))
-      (values cost len indices remaining))
-    (define (walk node remaining)
-      (when (<= remaining 0) (fail "node visit limit"))
-      (let1 left (- remaining 1)
-        (cond
-         [(literal? node)
-          (let1 index (literal-index node)
-            (unless (and (exact-integer? index) (<= 0 index) (< index n)) (fail "source index"))
-            (finish (vector-ref weights index) 1 (cut cons index <>) left))]
-         [(concat? node)
-          (receive (ca la ia ra) (walk (concat-left node) left)
-            (receive (cb lb ib rb) (walk (concat-right node) ra)
-              (finish (+ ca cb) (+ la lb) (^[tail] (ia (ib tail))) rb)))]
-         [(repeat? node)
-          (let* ([r (repeat-count node)]
-                 [h (fee (repeat-tree-settings-repeat-costs settings) r)])
-            (receive (ca la ia ra) (walk (repeat-body node) left)
-              (finish (+ h ca) (* r la)
-                      (^[tail] (let loop ([k r] [acc tail])
-                                 (if (zero? k) acc (loop (- k 1) (ia acc)))))
-                      ra)))]
-         [(final? node)
-          (unless (repeat-tree-settings-allow-final? settings) (fail "final disabled"))
-          (let* ([r (final-count node)]
-                 [h (fee (repeat-tree-settings-final-costs settings) r)])
-            (receive (ca la ia ra) (walk (final-prefix node) left)
-              (receive (cb lb ib rb) (walk (final-suffix node) ra)
-                (finish (+ h ca cb) (+ (* (- r 1) (+ la lb)) la)
-                        (^[tail] (let loop ([k (- r 1)] [acc (ia tail)])
-                                   (if (zero? k) acc (loop (- k 1) (ia (ib acc))))))
-                        rb))))]
-         [else (fail "tree node required")])))
-    (receive (cost len indices _) (walk tree (- (* 2 n) 1))
-      (unless (and (exact-integer? claimed-cost) (= claimed-cost cost))
-        (fail "claimed cost mismatch"))
-      (unless (= len n) (fail "expansion length mismatch"))
-      (rlet1 expanded (indices ())
-        (for-each-with-index (^[t index] (unless (%same? same? (vector-ref items t) (vector-ref items index))
-                                (fail "expanded value mismatch")))
-                  expanded)))))
-
-;;;
-;;; 圧縮
-;;;
-;; 全周期・LCP・区間 DP を、深さ無制限の 1 層で解く。区間 [i,i+m) を
-;; セル (i,m) とし、長さ m が窓幅 W 以下の区間だけを費用表と根の記述の表に持つ。
-;; 列全体は G(j) = min G(i) + F(i,j) (j-W <= i < j) でつなぐ。W >= n なら G(n) は
-;; F(0,n) となり、厳密な区間 DP と同じ費用・同じ木になる。時間 O(nW^2)、領域 O(nW)。
-;; 根の記述は割り当てを減らすため kind + 4x の整数に符号化する。kind は raw 0、
-;; cat 1 (x=k-i)、rep 2 (x=p)、final 3 (x=p*span+a)。回数は m と p から求め直す
 (define (repeat-tree-compress items weights same? settings)
   (%check-input items weights settings)
-  (receive (cost tree) (sxmml-native-repeat-tree-compress items weights same? settings)
-    (repeat-tree-inspect items weights same? settings tree cost)
-    (values cost tree)))
+  (sxmml-native-repeat-tree-compress items weights same? settings))

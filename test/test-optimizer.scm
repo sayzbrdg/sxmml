@@ -18,6 +18,7 @@
 (use gauche.process)
 (use file.util)
 (use test.helpers)
+(use test.optimizer-repeat-check)
 (define (test-level-number level)
   (case level [(#f) 0] [(#t) 1] [(:full) 2] [(:repeat) 3] [(:repeat-expand) 4] [else level]))
 
@@ -134,9 +135,16 @@
   (test* "C反復比較は仮想スロットの値を読む" #f (same? a b)))
 
 (define (test-optimize-track track :key (optimize #t))
-  (sxmml-pmd-ir-optimize
-   (sxmml-ir-flatten (slot-ref (sxmml-track-get track) 'compiled-data))
-   (test-level-number optimize)))
+  (let* ([ir (sxmml-ir-flatten (slot-ref (sxmml-track-get track) 'compiled-data))]
+         [level (test-level-number optimize)]
+         [result (sxmml-pmd-ir-optimize ir level)])
+    (when (>= level 3)
+      (let* ([input ((with-module sxmml.optimizer %repeat-structure) (sxmml-ir-optimize ir))]
+             [input (if (>= level 4)
+                      ((with-module sxmml.optimizer %repeat-expand-small) input 256)
+                      input)])
+        (check-repeat-ir result input)))
+    result))
 
 
 (let ()
@@ -361,6 +369,7 @@
   (let* ([input (append-map (^_ (list (note 0) (make <sxmml-mml-tie>)
                                     (make <sxmml-mml-tie>) (make <sxmml-mml-tie>) (note 2))) '(1 2 3))]
          [result (sxmml-ir-compress-repeats input)])
+    (check-repeat-ir result ((with-module sxmml.optimizer %repeat-structure) input))
     (test* "複数のタイをまとめても復元した命令の順序を保つ" #t
            (let1 expanded (expansion (structure result) '())
              (and (= (length input) (length expanded))
