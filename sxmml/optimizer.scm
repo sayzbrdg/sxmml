@@ -28,9 +28,11 @@
 
 (define-module sxmml.optimizer
   (use gauche.record)
+  (use gauche.sequence)
   (use srfi.1)
   (use sxmml.classes)
   (use sxmml.repeat-tree)
+  (use sxmml.native)
   (export sxmml-ir-optimize-local sxmml-ir-remove-redundant-settings sxmml-ir-merge-rests
           sxmml-ir-compress-repeats sxmml-ir-optimize sxmml-ir-optimize-with-repeats
           sxmml-ir-optimize-with-repeat-expansion
@@ -399,34 +401,13 @@
        (cons i tail)))
    tail items))
 
-;; クラスごとのスロット名。%repeat-same? は圧縮で何度も呼ぶので覚えておく
-(define %repeat-slot-names (make-hash-table eq-comparator))
+(define (%repeat-class-accessors class)
+  (map-to <vector>
+          (^[slot] (class-slot-accessor class (slot-definition-name slot)))
+          (class-slots class)))
 
-;; 圧縮で同じとみなすか。オブジェクトはクラスが同じで、全スロットが、両方とも未束縛か、
-;; 両方とも束縛されて equal? なら同じ。ブロックは回数と : の有無が同じで、本文の要素が
-;; 順に同じなら同じ。音符と & をまとめた要素（オブジェクトのリスト）は要素ごとに比べる
-(define (%repeat-same? a b)
-  (define (items-same? x y)
-    (let loop ([x x] [y y])
-      (cond [(null? x) (null? y)]
-            [(null? y) #f]
-            [else (and (%repeat-same? (car x) (car y)) (loop (cdr x) (cdr y)))])))
-  (cond [(and (%repeat-block? a) (%repeat-block? b))
-         (and (equal? (slot-ref (%repeat-block-end a) 'value) (slot-ref (%repeat-block-end b) 'value))
-              (eq? (not (%repeat-block-break a)) (not (%repeat-block-break b)))
-              (items-same? (%repeat-block-front a) (%repeat-block-front b))
-              (items-same? (or (%repeat-block-back a) ()) (or (%repeat-block-back b) ())))]
-        [(or (%repeat-block? a) (%repeat-block? b)) #f]
-        [(and (pair? a) (pair? b)) (items-same? a b)]
-        [(or (pair? a) (pair? b)) #f]
-        [else
-         (and (%ir-same-class? a b)
-              (every (^s (let ([ba (slot-bound? a s)] [bb (slot-bound? b s)])
-                           (and (eq? ba bb)
-                                (or (not ba) (equal? (slot-ref a s) (slot-ref b s))))))
-                     (or (hash-table-get %repeat-slot-names (class-of a) #f)
-                         (rlet1 names (map slot-definition-name (class-slots (class-of a)))
-                           (hash-table-put! %repeat-slot-names (class-of a) names)))))]))
+(define (%optimizer-repeat-tree-compress elements weights settings)
+  (sxmml-native-ir-compress elements weights settings))
 
 ;; 圧縮の上限と既定値。回数の上限 255 と入れ子の上限 32 は PMD の局所ループの範囲と
 ;; ネストの上限 (PMDMML.MAN §10-1)。展開すると周期が延びるので、展開するときは
@@ -511,7 +492,7 @@
               (vector-set! outputs index output)
               (vector-set! weights index (length output))
               (fill (cdr rest) (- index 1)))))
-        (receive (cost tree) (repeat-tree-compress elements weights %repeat-same? settings)
+        (receive (cost tree) (%optimizer-repeat-tree-compress elements weights settings)
           (let* ([compressed (%repeat-tree->ir tree outputs ())]
                  [compressed-depth (%repeat-depth compressed)])
             (if (> (+ depth compressed-depth) %repeat-depth-max)
@@ -571,6 +552,7 @@
 ;; 既存のリピートは展開すると大きくなるので、生成したループ（[ が入力にないもの）だけを
 ;; 展開し、既存のリピートは回数・: の有無・本文で比べる
 (define (%repeat-check output input)
+  (define same? (make-sxmml-native-ir-comparison))
   (define originals
     (rlet1 h (make-hash-table eq-comparator)
       (let mark ([items input])
@@ -605,7 +587,7 @@
                               (match? (unfold (%repeat-block-front x) ()) (%repeat-block-front y))
                               (match? (unfold (or (%repeat-block-back x) ()) ()) (or (%repeat-block-back y) ())))]
                         [(or (%repeat-block? x) (%repeat-block? y)) #f]
-                        [else (%repeat-same? x y)])
+                        [else (same? x y)])
                   (match? (cdr xs) (cdr ys))))]))
   (unless (match? (unfold (%repeat-structure output) ()) input)
     (error "repeat optimization changed the expanded objects")))

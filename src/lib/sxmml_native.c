@@ -137,8 +137,10 @@ ScmObj SxmmlNativeSchemeCompress(ScmObj items, ScmObj weights, ScmObj same, ScmO
 }
 
 extern void Scm_Init_sxmml_nativelib(void);
+extern void Scm_Init_sxmml_optimizerlib(void);
 void Scm_Init_sxmml_native(void)
 {
     SCM_INIT_EXTENSION(sxmml_native);
     Scm_Init_sxmml_nativelib();
+    Scm_Init_sxmml_optimizerlib();
 }

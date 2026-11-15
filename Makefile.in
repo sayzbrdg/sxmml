@@ -29,7 +29,7 @@ PACKAGE   = sxmml
 
 TARGET    = sxlc
 ARCHFILES = sxmml_native.$(SOEXT)
-NATIVE_SRCS = sxmml_native.c sxmml_nativelib.scm sxmml_repeat_tree.c
+NATIVE_SRCS = sxmml_native.c sxmml_nativelib.scm sxmml_optimizerlib.scm sxmml_repeat_tree.c
 MANPAGE   = sxlc.1
 SCMFILES  = sxmml.scm sxmml/classes.scm sxmml/environment.scm sxmml/voice.scm sxmml/command.scm sxmml/mml.scm \
             sxmml/output.scm sxmml/compiler.scm sxmml/processor.scm sxmml/optimizer.scm sxmml/repeat-tree.scm \
@@ -47,7 +47,7 @@ GAUCHE_PKGARCHDIR = @GAUCHE_PKGARCHDIR@
 
 all : $(TARGET) $(ARCHFILES)
 
-sxmml_native.$(SOEXT): $(srcdir)/src/lib/sxmml_native.c $(srcdir)/src/lib/sxmml_nativelib.scm $(srcdir)/src/lib/sxmml_repeat_tree.c $(srcdir)/src/lib/sxmml_native.h $(srcdir)/src/lib/sxmml_repeat_tree.h
+sxmml_native.$(SOEXT): $(srcdir)/src/lib/sxmml_native.c $(srcdir)/src/lib/sxmml_nativelib.scm $(srcdir)/src/lib/sxmml_optimizerlib.scm $(srcdir)/src/lib/sxmml_repeat_tree.c $(srcdir)/src/lib/sxmml_native.h $(srcdir)/src/lib/sxmml_repeat_tree.h
 	$(GAUCHE_PACKAGE) compile --srcdir="$(srcdir)/src/lib" \
 	  --cppflags="$(CPPFLAGS)" --cflags="$(CFLAGS)" --ldflags="$(LDFLAGS)" \
 	  --libs="$(LIBS)" --local=$(LOCAL_PATHS) --verbose sxmml_native $(NATIVE_SRCS)
