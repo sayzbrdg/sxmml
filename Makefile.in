@@ -23,6 +23,7 @@ LDFLAGS        = @LDFLAGS@
 LIBS           = @LIBS@
 SOEXT          = @SOEXT@
 LOCAL_PATHS    = "@LOCAL_PATHS@"
+TEST_ENV       = GAUCHE_DYNLOAD_PATH="$$(pwd)$${GAUCHE_DYNLOAD_PATH:+:$$GAUCHE_DYNLOAD_PATH}" SXMML_SXLC=./sxlc
 
 # Module-specific stuff
 PACKAGE   = sxmml
@@ -56,27 +57,28 @@ sxmml_native.$(SOEXT): $(srcdir)/src/lib/sxmml_native.c $(srcdir)/src/lib/sxmml_
 # tools は配布物に含めないので、その検査は tools があるときだけ行う。
 check : all
 	@rm -f test.log
-	SXMML_SXLC=./sxlc $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/test/test-helpers.scm" > test.log
-	SXMML_SXLC=./sxlc $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/test/test-classes.scm" >> test.log
-	SXMML_SXLC=./sxlc $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/test/test-command.scm" >> test.log
-	SXMML_SXLC=./sxlc $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/test/test-output.scm" >> test.log
-	SXMML_SXLC=./sxlc $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/test/test-compiler.scm" >> test.log
-	SXMML_SXLC=./sxlc $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/test/test-environment.scm" >> test.log
-	SXMML_SXLC=./sxlc $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/test/test-form.scm" >> test.log
-	SXMML_SXLC=./sxlc $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/test/test-mml.scm" >> test.log
-	SXMML_SXLC=./sxlc $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/test/test-ir-meaning.scm" >> test.log
-	SXMML_SXLC=./sxlc $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/test/test-optimizer.scm" >> test.log
-	SXMML_SXLC=./sxlc $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/test/test-pmd.scm" >> test.log
-	SXMML_SXLC=./sxlc $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/test/test-processor.scm" >> test.log
-	SXMML_SXLC=./sxlc $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/test/test-util.scm" >> test.log
-	SXMML_SXLC=./sxlc $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/test/test-voice.scm" >> test.log
-	SXMML_SXLC=./sxlc $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/test/test-sxlc.scm" >> test.log
-	SXMML_SXLC=./sxlc $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/test/test-integration.scm" >> test.log
-	SXMML_SXLC=./sxlc $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/test/test-sxmml.scm" >> test.log
-	SXMML_SXLC=./sxlc $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/test/test-repeat-tree.scm" >> test.log
-	SXMML_SXLC=./sxlc $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/test/test-pmd-binary.scm" >> test.log
+	$(TEST_ENV) $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/test/test-helpers.scm" > test.log
+	$(TEST_ENV) $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/test/test-classes.scm" >> test.log
+	$(TEST_ENV) $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/test/test-command.scm" >> test.log
+	$(TEST_ENV) $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/test/test-output.scm" >> test.log
+	$(TEST_ENV) $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/test/test-compiler.scm" >> test.log
+	$(TEST_ENV) $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/test/test-environment.scm" >> test.log
+	$(TEST_ENV) $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/test/test-form.scm" >> test.log
+	$(TEST_ENV) $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/test/test-mml.scm" >> test.log
+	$(TEST_ENV) $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/test/test-ir-meaning.scm" >> test.log
+	$(TEST_ENV) $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/test/test-optimizer.scm" >> test.log
+	$(TEST_ENV) $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/test/test-pmd.scm" >> test.log
+	$(TEST_ENV) $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/test/test-processor.scm" >> test.log
+	$(TEST_ENV) $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/test/test-util.scm" >> test.log
+	$(TEST_ENV) $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/test/test-voice.scm" >> test.log
+	$(TEST_ENV) $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/test/test-sxlc.scm" >> test.log
+	$(TEST_ENV) $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/test/test-integration.scm" >> test.log
+	$(TEST_ENV) $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/test/test-sxmml.scm" >> test.log
+	$(TEST_ENV) $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/test/test-native.scm" >> test.log
+	$(TEST_ENV) $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/test/test-repeat-tree.scm" >> test.log
+	$(TEST_ENV) $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/test/test-pmd-binary.scm" >> test.log
 	if test -f "$(srcdir)/tools/test-measure-optimize.scm"; then \
-	  $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/tools/test-measure-optimize.scm" >> test.log; \
+	  $(TEST_ENV) $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/tools/test-measure-optimize.scm" >> test.log; \
 	fi
 
 # man ページは生成と配置を別の行にする。GNU make は MAKE 変数を含む行を
@@ -84,6 +86,7 @@ check : all
 install : all
 	$(INSTALL) -m 555 -T "$(DESTDIR)$(bindir)" $(TARGET)
 	$(INSTALL) -m 444 -T "$(DESTDIR)$(GAUCHE_PKGLIBDIR)" $(SCMFILES)
+	$(INSTALL) -m 555 -T "$(DESTDIR)$(GAUCHE_PKGARCHDIR)" $(ARCHFILES)
 	$(INSTALL) -m 444 -T "$(DESTDIR)$(GAUCHE_PKGLIBDIR)/.packages" $(PACKAGE).gpd
 	@if test -n "$(PANDOC)"; then $(MAKE) $(MANPAGE); fi
 	@if test -n "$(PANDOC)"; then \
@@ -95,10 +98,12 @@ install : all
 uninstall :
 	$(INSTALL) -U "$(DESTDIR)$(bindir)" $(TARGET)
 	$(INSTALL) -U "$(DESTDIR)$(GAUCHE_PKGLIBDIR)" $(SCMFILES)
+	$(INSTALL) -U "$(DESTDIR)$(GAUCHE_PKGARCHDIR)" $(ARCHFILES)
 	$(INSTALL) -U "$(DESTDIR)$(GAUCHE_PKGLIBDIR)/.packages" $(PACKAGE).gpd
 	$(INSTALL) -U "$(DESTDIR)$(mandir)/man1" $(MANPAGE)
 
 clean :
+	$(GAUCHE_PACKAGE) compile --clean sxmml_native $(NATIVE_SRCS)
 	rm -rf core $(TARGET) $(GENERATED) *~ test.log so_locations
 
 distclean : clean
@@ -107,10 +112,10 @@ distclean : clean
 maintainer-clean : clean
 	rm -rf $(CONFIG_GENERATED)  VERSION
 
-sxlc : sxlc.in
+sxlc : $(srcdir)/src/sxlc.in
 	@rm -f sxlc
 	echo "#!$(GOSH)" > sxlc && \
-	cat $(srcdir)/sxlc.in >> sxlc
+	cat "$(srcdir)/src/sxlc.in" >> sxlc
 	@chmod -w+x sxlc
 
 man : $(MANPAGE)

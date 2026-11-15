@@ -278,7 +278,9 @@ step_install() {
         [ "$(find "$stage" -type f -name "$f" | wc -l)" -eq 1 ] \
             || fail "$f が 1 つだけ配置されていません" || return 1
     done
-    for f in sxmml/output.scm sxmml/backend/pmd.scm sxmml/backend/pmd-source.scm sxmml/backend/pmd-binary.scm .packages/sxmml.gpd; do
+    [ "$(find "$stage" -type f -name 'sxmml_native.*' | wc -l)" -eq 1 ] \
+        || fail "sxmml_native 共有ライブラリが 1 つだけ配置されていません" || return 1
+    for f in sxmml/native.scm sxmml/output.scm sxmml/backend/pmd.scm sxmml/backend/pmd-source.scm sxmml/backend/pmd-binary.scm .packages/sxmml.gpd; do
         [ -n "$(find "$stage" -type f -path "*/$f")" ] || fail "$f が配置されていません" || return 1
     done
     if [ "$pandoc_configured" = yes ]; then
@@ -296,11 +298,12 @@ run_step "DESTDIR によるステージング配置" step_install
 step_convert() {
     sxlc_path=$(find "$stage" -type f -name sxlc)
     lib_dir=$(dirname "$(find "$stage" -type f -name sxmml.scm)")
+    arch_dir=$(dirname "$(find "$stage" -type f -name 'sxmml_native.*')")
     t="$work/convert"
     mkdir "$t" || return 1
     printf '%s\n' '(define-metadata title "曲")' '(mml G "c8")' >"$t/japanese-title.sxl"
-    PATH="$(dirname "$sxlc_path"):$PATH" GAUCHE_LOAD_PATH="$lib_dir" \
-        sxlc -m pmd "$t/japanese-title.sxl" || return 1
+    PATH="$(dirname "$sxlc_path"):$PATH" GAUCHE_LOAD_PATH="$lib_dir" GAUCHE_DYNLOAD_PATH="$arch_dir" \
+        sxlc -m pmd -O 3 "$t/japanese-title.sxl" || return 1
     iconv -f CP932 -t UTF-8 "$t/japanese-title.mml" >"$t/decoded.txt" || return 1
     cat "$t/decoded.txt"
     grep -q '^#title  *曲' "$t/decoded.txt" || fail "復号結果に #title 曲 がありません" || return 1

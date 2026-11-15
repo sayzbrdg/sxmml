@@ -545,4 +545,3 @@
           [(is-a? (car rest) <sxmml-mml-repeat-start>) (loop (cdr rest) (+ depth 1) (max deepest (+ depth 1)))]
           [(is-a? (car rest) <sxmml-mml-repeat-end>) (loop (cdr rest) (- depth 1) deepest)]
           [else (loop (cdr rest) depth deepest)])))
-

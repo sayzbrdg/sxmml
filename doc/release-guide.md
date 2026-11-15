@@ -4,11 +4,11 @@
 
 ## 必要な環境と依存
 
-配布工程の検証には Gauche 0.9.15、GNU Make、`iconv` を使用する。man ページの生成には Pandoc (任意。ない場合は man ページの生成・配置を省く)、表示の確認には groff、コンテナーでの文書生成には Docker を使用する。`package.scm` の依存条件は Gauche 0.9.15 以上である。`configure` は `gauche.configure` により Gauche とパッケージ用のコマンドを検出する。
+配布工程の検証には Gauche 0.9.15 と開発用ヘッダ、C コンパイラ、GNU Make、`iconv` を使用する。man ページの生成には Pandoc (任意。ない場合は man ページの生成・配置を省く)、表示の確認には groff、コンテナーでの文書生成には Docker を使用する。`package.scm` の依存条件は Gauche 0.9.15 以上である。`configure` は `gauche.configure` により Gauche とパッケージ用のコマンドを検出する。
 
 ## 現行の生成・配置
 
-`./configure` は `Makefile`、`sxmml.gpd`、`VERSION` を生成する。`VERSION` と `sxmml.gpd` のバージョンは `package.scm` の `:version` の値である。`make check` は `sxlc` を作り、`test/` 配下のテストを実行する。検査の内容は[開発手順](developer-guide.md)を参照する。`Makefile.in` の `install` 規則は `sxlc`、`SCMFILES` に列挙された Scheme ファイル、`sxmml.gpd` をそれぞれ実行ファイルディレクトリ、Gauche のパッケージ用ライブラリ、`.packages` に配置する。Pandoc がある場合は、`sxlc.1` も `mandir` の `man1` に配置する ([man ページの生成と配置](#man-ページの生成と配置))。実際のインストール先は `./configure` の結果で変わるため、生成された `Makefile` を確認する。
+`./configure` は `Makefile`、`sxmml.gpd`、`VERSION` を生成する。`VERSION` と `sxmml.gpd` のバージョンは `package.scm` の `:version` の値である。`make check` は `sxlc` と必須の `sxmml_native` 共有ライブラリを作り、`test/` 配下のテストを実行する。検査の内容は[開発手順](developer-guide.md)を参照する。`Makefile.in` の `install` 規則は `sxlc`、`SCMFILES` に列挙された Scheme ファイル、共有ライブラリ、`sxmml.gpd` をそれぞれ実行ファイルディレクトリ、Gauche のパッケージ用ライブラリ、アーキテクチャ別ライブラリ、`.packages` に配置する。Pandoc がある場合は、`sxlc.1` も `mandir` の `man1` に配置する ([man ページの生成と配置](#man-ページの生成と配置))。実際のインストール先は `./configure` の結果で変わるため、生成された `Makefile` を確認する。
 
 配置先の変数は次のとおり決まる。いずれも `make` の引数で上書きできる。
 
@@ -16,9 +16,10 @@
 | --- | --- | --- |
 | `bindir` | `${exec_prefix}/bin` (`exec_prefix` の既定は `${prefix}`) | `--prefix`、`--exec_prefix`、`--bindir` |
 | `GAUCHE_PKGLIBDIR` | `gauche-config --pkglibdir` の値。Gauche 0.9.15 では `${datadir}/gauche-0.98/site/lib` | `--prefix`、`--datarootdir`、`--datadir` |
+| `GAUCHE_PKGARCHDIR` | `gauche-config --pkgarchdir` の値。Gauche のアーキテクチャ別配置先 | `--prefix`、`--libdir` |
 | `mandir` | `${datarootdir}/man` (`datarootdir` の既定は `${prefix}/share`) | `--prefix`、`--datarootdir`、`--mandir` |
 
-`--prefix` の既定値は `/usr/local` である。Gauche 0.9.15 の `configure` は、ヘルプに `--exec-prefix` と表示するが、実際に受け付けるのは `--exec_prefix` である。`GAUCHE_PKGLIBDIR` を Gauche 自体のインストール先と異なる場所にした場合、その場所は Gauche の標準の検索先に含まれないため、実行時に `GAUCHE_LOAD_PATH` などで指定する。
+`--prefix` の既定値は `/usr/local` である。Gauche 0.9.15 の `configure` は、ヘルプに `--exec-prefix` と表示するが、実際に受け付けるのは `--exec_prefix` である。`GAUCHE_PKGLIBDIR` を Gauche 自体のインストール先と異なる場所にした場合、その場所は Gauche の標準の検索先に含まれないため、実行時に `GAUCHE_LOAD_PATH` などで指定する。`GAUCHE_PKGARCHDIR` も標準の検索先と異なる場合は `GAUCHE_DYNLOAD_PATH` で指定する。
 
 ### DESTDIR によるステージング
 
@@ -35,19 +36,20 @@ find "$destdir" -type f
 
 ### 一時配置での実行確認
 
-配置した `sxlc` を実行して確かめる場合は、短いパスで扱えるよう配置先の変数を直接指定する。次の一時配置では `bindir` と `GAUCHE_PKGLIBDIR` の両方を明示し、配置先と実行時の検索先を合わせる。以下の `scratch_dir` は[開発手順](developer-guide.md#隔離したコピーでの確認)で作ったコピーを指す。`stage_dir` は毎回新しいパスにする。
+配置した `sxlc` を実行して確かめる場合は、短いパスで扱えるよう配置先の変数を直接指定する。次の一時配置では `bindir`・`GAUCHE_PKGLIBDIR`・`GAUCHE_PKGARCHDIR`を明示し、配置先と実行時の検索先を合わせる。以下の `scratch_dir` は[開発手順](developer-guide.md#隔離したコピーでの確認)で作ったコピーを指す。`stage_dir` は毎回新しいパスにする。
 
 ```console
 cd "$scratch_dir"
 stage_dir=$(mktemp -d /tmp/sxmml-stage.XXXXXX)
 mkdir -p "$stage_dir/bin"
-make bindir="$stage_dir/bin" GAUCHE_PKGLIBDIR="$stage_dir/share/sxmml" install
+make bindir="$stage_dir/bin" GAUCHE_PKGLIBDIR="$stage_dir/share/sxmml" GAUCHE_PKGARCHDIR="$stage_dir/lib/sxmml" install
 test -f "$stage_dir/bin/sxlc"
 export PATH="$stage_dir/bin:$PATH"
 export GAUCHE_LOAD_PATH="$stage_dir/share/sxmml${GAUCHE_LOAD_PATH:+:$GAUCHE_LOAD_PATH}"
+export GAUCHE_DYNLOAD_PATH="$stage_dir/lib/sxmml${GAUCHE_DYNLOAD_PATH:+:$GAUCHE_DYNLOAD_PATH}"
 ```
 
-この手順は `bin/sxlc`、`share/sxmml/sxmml.scm` と各 `sxmml/` モジュール、`share/sxmml/.packages/sxmml.gpd` を配置する。配置した `sxlc` は、その Scheme モジュールの場所を `GAUCHE_LOAD_PATH` に追加して起動する。これは一時配置用のディレクトリ構成であり、標準のインストール先は生成された `Makefile` に従う。配布時には生成された `Makefile` の `bindir`・`GAUCHE_PKGLIBDIR` とステージングの内容を照合する。
+この手順は `bin/sxlc`、`share/sxmml/sxmml.scm` と各 `sxmml/` モジュール、`share/sxmml/.packages/sxmml.gpd`、`lib/sxmml/sxmml_native` 共有ライブラリを配置する。配置した `sxlc` は、その Scheme モジュールの場所を `GAUCHE_LOAD_PATH`、共有ライブラリの場所を `GAUCHE_DYNLOAD_PATH` に追加して起動する。これは一時配置用のディレクトリ構成であり、標準のインストール先は生成された `Makefile` に従う。配布時には生成された `Makefile` の `bindir`・`GAUCHE_PKGLIBDIR`・`GAUCHE_PKGARCHDIR` とステージングの内容を照合する。
 
 ## 符号化と生成物の確認
 
@@ -69,6 +71,8 @@ iconv -f CP932 -t UTF-8 japanese-title.mml
 gauche-package make-tarball --dry-run
 gauche-package make-tarball
 ```
+
+アーカイブには `src/` の CLI 生成元と `src/lib/` の C・ヘッダ・CiSE 生成元を含める。展開先で C 拡張をビルドする。
 
 ソースの親ディレクトリに作成した `sxmml-<版>.tgz`（`<版>` は `package.scm` の `:version` の値）を別のディレクトリへ展開し、展開先で `./configure`、`make check`、一時配置への `make install` と変換例を実行する。標準配置への導入は、配置先の権限と Gauche の検索先を確認してから行う。これらの手順は [`tools/distcheck.sh`](#toolsdistchecksh) が自動で行う。
 
@@ -168,7 +172,7 @@ tools/distcheck.sh -m bmake
 
 ```console
 cd "$scratch_dir"
-make bindir="$stage_dir/bin" GAUCHE_PKGLIBDIR="$stage_dir/share/sxmml" mandir="$stage_dir/share/man" install
+make bindir="$stage_dir/bin" GAUCHE_PKGLIBDIR="$stage_dir/share/sxmml" GAUCHE_PKGARCHDIR="$stage_dir/lib/sxmml" mandir="$stage_dir/share/man" install
 test -f "$stage_dir/share/man/man1/sxlc.1"
 groff -Kutf8 -Tutf8 -man -rLL=120n "$stage_dir/share/man/man1/sxlc.1" > "$stage_dir/sxlc-rendered.txt"
 ```
@@ -189,4 +193,4 @@ docker run --rm -v "$PWD:/work:ro" -v "$man_stage_dir:/out" pandoc/core:latest \
 
 ## 関連資料
 
-[`Makefile.in`](../Makefile.in)、[`configure`](../configure)、[`package.scm`](../package.scm)、[`sxlc`](../sxlc.in)、[`sxmml/backend/pmd-source.scm`](../sxmml/backend/pmd-source.scm)、共通規則の[`sxmml/backend/pmd.scm`](../sxmml/backend/pmd.scm)を参照する。Gauche の生成と文字コード変換は [Gauche 0.9.15 Users’ Reference, 9.8 gauche.configure、9.5 Character code conversion](https://practical-scheme.net/vault/Gauche-0.9.15-refe.pdf)を参照する。
+[`Makefile.in`](../Makefile.in)、[`configure`](../configure)、[`package.scm`](../package.scm)、[`sxlc`](../src/sxlc.in)、[`sxmml/backend/pmd-source.scm`](../sxmml/backend/pmd-source.scm)、共通規則の[`sxmml/backend/pmd.scm`](../sxmml/backend/pmd.scm)を参照する。Gauche の生成と文字コード変換は [Gauche 0.9.15 Users’ Reference, 9.8 gauche.configure、9.5 Character code conversion](https://practical-scheme.net/vault/Gauche-0.9.15-refe.pdf)を参照する。
