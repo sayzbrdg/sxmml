@@ -11,7 +11,7 @@
 |===
 |クラス |親 |役割 |固有 slot と初期化 |ソース
 |[[ref-classes-class-sxmml-mode]]`<sxmml-mode>` |なし |モードの登録情報 |`name` (`:name`, `#f`、登録には必須)、`aliases` (`:aliases`, 空リスト)、`setup` (`:setup`, `#f`)、`backend` (`:backend`, `#f`、登録には必須)、`output-extension` (`:output-extension`, `#f`)。型・名前衝突は`sxmml-mode-register!`で検査。作成だけでは登録・初期設定しない |link:../../sxmml/classes.scm[classes.scm]
-|[[ref-classes-class-sxmml-environment]]`<sxmml-environment>` |なし |生成全体の設定と登録表 |`resolution` (`:resolution`, 24)、`options`・`metadata`・`lfo`・`envelope`・`voice`・`track` (各インスタンスごとの空のハッシュ表)、`mode` (`:mode`, `#f`。選択中の`<sxmml-mode>`) |link:../../sxmml/classes.scm[classes.scm]
+|[[ref-classes-class-sxmml-environment]]`<sxmml-environment>` |なし |生成全体の設定と登録表 |`resolution` (`:resolution`, 24)、`options`・`metadata`・`lfo`・`envelope`・`voice`・`track` (各インスタンスごとの空のハッシュ表)、`mode` (`:mode`, `#f`。選択中の`<sxmml-mode>`)、`default-output-path` (`#f`。ソースの既定出力先。最終決定はsxlcが担当) |link:../../sxmml/classes.scm[classes.scm]
 |[[ref-classes-class-sxmml-output-environment]]`<sxmml-output-environment>` |なし |出力用の定義表・設定・トラック |resolution=24、metadata・voice・envelope・lfo・trackは各インスタンスの新しい空表、optimize=0、output/source=#f。各slotに同名のinit-keyword。生成ヘルパーでは登録情報を埋め、output・optimizeの省略を許さない |link:../../sxmml/classes.scm[classes.scm]
 |[[ref-classes-class-sxmml-output-track]]`<sxmml-output-track>` |なし |整列済みIRと確定した集計 |name/part=#f、ir=空リスト、total-ticks/loop-ticks=0、loop-exists=#f、ticks-statisticsは新しい空表。各slotに同名のinit-keyword |link:../../sxmml/classes.scm[classes.scm]
 |[[ref-classes-class-sxmml-output-result]]`<sxmml-output-result>` |なし |バックエンドの出力結果 |output=#f、track-names=空リスト。同名のinit-keywordを持ち、実際の出力先と採用したsxmmlトラック名を保持 |link:../../sxmml/classes.scm[classes.scm]

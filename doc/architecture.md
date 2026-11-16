@@ -56,12 +56,12 @@ flowchart LR
 1. `sxlc`の`main`は引数から入力パス・モード・最適化水準と利用者設定を取得する。利用者設定は局所リストへ収集し、引数検査後・モード選択前に楽曲環境へ登録する。登録表から名前を解決してモードを選び、初期設定後にソースを`load`する。生成時には最終的なモード情報の`backend`を呼ぶ。`-m`指定中は`sxmml-mode-fixed`を真にしてソースの`sxmml-mode`を無視する。明示的な選択手続きは変更できる。
 2. バックエンドは読込み時に`<sxmml-mode>`を共有登録表へ登録する。情報は正規名・別名・初期設定・出力手続き・既定拡張子を持つ。`sxmml-mode-select!`は楽曲環境の`mode`を情報へ更新してから初期設定する。PMDの初期設定は既定トラックを登録する。
 3. `compiler.scm` の `mml` / `rhythm` は Scheme 式の結果を `write-tree` で文字列化する。`mml.scm`のパーサーは値を解析し、`command.scm`の共通手続きで文脈更新・IR生成・集計を行う。IRを生成しない命令は`#f`を返し、compilerが収集時に除く。結果はトラックの `compiled-data` に登録される。`processor.scm`の`mml-repeat`は反復IRを共通手続きで直接作って登録し、反復命令の文字列化・再解析を行わない。`mml-echo`・`mml-delay`はコンパイル結果を加工して登録する。
-4. sxlcは出力先を解決し、`make-sxmml-output-environment`で全登録トラックを準備する。`output.scm`がcons木から平坦な列を作り、NOPを除き、登録時のcurrent-ticksから集計を確定する。この段階では最適化しない。
+4. sxlcは`-o`、登録環境の`default-output-path`、入力名とモードによる既定値の順に出力先を選ぶ。相対パスはカレントディレクトリ基準で解決し、`make-sxmml-output-environment`へ決定済みのパスを渡して全登録トラックを準備する。`output.scm`がcons木から平坦な列を作り、NOPを除き、登録時のcurrent-ticksから集計を確定する。この段階では最適化しない。
 5. バックエンドは出力環境一つを受け、採用トラックと最適化処理を選ぶ。PMDでは共通の`sxmml-pmd-ir-optimize`が整数要求を解釈し、局所整理、状態追跡、休符結合、反復圧縮を組み合わせる。反復圧縮の前処理・重み・制御境界・IR復元はScheme、固定IR比較はCiSE、圧縮の探索はGauche非依存のCコアが担当する。Cノード配列からGaucheの木への変換は接続層で行い、IRそのものは複製しない。本体は、各バックエンドが共通IRをそのまま出力できることを保証しない。
 6. sourceは`pmd-source.scm`で全本文を文字列ポートへ生成して使用音色を集め、CP932の一時ファイルから生成先へ移す。binaryも明示した出力環境からバッファを構築し、一時ファイルから移す。両者とも出力先の補完や登録環境への書戻しを行わず、実際の出力先と採用トラック名を持つ出力結果を返す。
 7. sxlcは結果の名前に対応する出力トラックの集計を表示する。出力先が#fのバックエンドではTranslateと-cの後処理を省く。既存の使用法・変換・後処理の終了値と、失敗時の既存ファイル保護を維持する。
 
-`classes.scm` は `<sxmml-environment>` と `<sxmml-mml-context>` などのデータ構造を定義する。`<sxmml-environment>`は解像度・各定義表・利用者設定の`options`表・選択中のモード情報を持ち、各 `<sxmml-mml-context>` はトラック名、解析時の状態、登録列、tick 統計を持つ。解析結果の音符・休符は `value` と `ticks` を持ち、その他の slot はオブジェクト型ごとに異なる。Gauche のクラスと slot 操作は [Users’ Reference, 7 Object system](https://practical-scheme.net/vault/Gauche-0.9.15-refe.pdf)に従う。単一オブジェクトの slot 変更でトラック文脈の値も同期するとは限らない。slot を直接編集する場合は、関連する文脈値も更新する必要がある。文脈の構造は[トラック文脈](internal-reference/classes.adoc#ref-classes-class-sxmml-mml-context)を参照する。
+`classes.scm` は `<sxmml-environment>` と `<sxmml-mml-context>` などのデータ構造を定義する。`<sxmml-environment>`は解像度・各定義表・利用者設定の`options`表・ソースの既定出力先`default-output-path`・選択中のモード情報を持ち、各 `<sxmml-mml-context>` はトラック名、解析時の状態、登録列、tick 統計を持つ。解析結果の音符・休符は `value` と `ticks` を持ち、その他の slot はオブジェクト型ごとに異なる。Gauche のクラスと slot 操作は [Users’ Reference, 7 Object system](https://practical-scheme.net/vault/Gauche-0.9.15-refe.pdf)に従う。単一オブジェクトの slot 変更でトラック文脈の値も同期するとは限らない。slot を直接編集する場合は、関連する文脈値も更新する必要がある。文脈の構造は[トラック文脈](internal-reference/classes.adoc#ref-classes-class-sxmml-mml-context)を参照する。
 
 ## 公開境界と拡張点
 
@@ -84,7 +84,7 @@ Scheme ソースは `load` で Gauche のコードとして実行される（`sx
 | 通常・リズム MML の構文、音長 | `mml.scm`のパーサー、`command.scm`の計算・文脈更新、`classes.scm`の文脈 | `compiler.scm` の解析・登録、`optimizer.scm` の列、`backend/pmd.scm` の生成結果。通常・リズム双方の境界入力を確認 |
 | Scheme からのオブジェクト加工 | `processor.scm` のマクロと変換関数、`compiler.scm` の登録 | トラックの `compiled-data` と `current-ticks`、最適化前後の列、生成結果。`mml-repeat` 等の既知の差も参照 |
 | 最適化条件 | `optimizer.scm` の各水準と状態管理 | トラックの合計 tick、最適化前後の列、PMD 生成結果。[Q-01 の比較方法](verification.md#q-01-音楽的な意味の保持)を使う |
-| モード指定・生成先 | `sxlc`の選択・読込み順・出力先決定、共有モード登録表、楽曲環境の`mode`・`output`、モード情報の`backend`・`output-extension` | CLI表示、実際の生成パス、`-c`に渡す引数が一致すること |
+| モード指定・生成先 | `sxlc`の選択・読込み順・出力先決定、共有モード登録表、楽曲環境の`mode`・`default-output-path`、モード情報の`backend`・`output-extension` | CLI表示、実際の生成パス、`-c`に渡す引数が一致すること |
 | PMD 向け出力 | `backend/pmd.scm` のメタデータ・音色・型別出力 | CP932 のファイル内容、出力パス、代表トラックとリズム |
 
 ## 制約

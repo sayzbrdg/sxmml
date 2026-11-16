@@ -3,7 +3,7 @@
 
 解像度の既存の検査はvalue-error、独自マクロの形式違反はform-syntax-errorです。取得できるフォーム位置は既知のエラーだけへ独立したconditionとして添えます。値の式の未定義変数や引数個数など、Gauche由来の失敗は包み直しません。
 
-`sxmml.environment` には環境と登録表を操作する 38 の定義があり、そのうち 34 を公開します。パラメータ、マクロ、ハッシュ表の動作は Gauche 0.9.15 に従います。MML 記述者向けの使用例は xref:../sxmml-reference-manual.adoc[公開機能リファレンス]を参照してください。
+`sxmml.environment` には環境と登録表を操作する 40 の定義があり、そのうち 36 を公開します。パラメータ、マクロ、ハッシュ表の動作は Gauche 0.9.15 に従います。MML 記述者向けの使用例は xref:../sxmml-reference-manual.adoc[公開機能リファレンス]を参照してください。
 
 状態を保持する本体は xref:classes.adoc#ref-classes-class-sxmml-environment[`<sxmml-environment>`] です。`make-parameter` で作る束縛は手続きであり、引数なしで現在値を返し、値を一つ渡すと動的な現在値を変更して旧値を返します。表の設定手続きは、特記しない限り現在の環境オブジェクト内の slot または表を変更します。登録手続きの戻り値は呼び出し側では使用していません。`get` の未登録時の挙動は項目ごとに異なります。
 
@@ -27,6 +27,8 @@
 |[[ref-environment-sxmml-mode-selected-p]]`(sxmml-mode-selected? name)` |別名も解決して選択中か判定 |未登録・未選択は#f。名前の型違反はvalue-error |link:../../sxmml/environment.scm[environment.scm]
 |[[ref-environment-sxmml-option-get]]`(sxmml-option-get name)` |現在の環境の利用者設定を取得 |名前はsymbolで大小を区別。未登録はundefined、登録された#fは#f。値はコピーしない |link:../../sxmml/environment.scm[environment.scm]
 |[[ref-environment-sxmml-option-set-bang]]`(sxmml-option-set! name value)` |options表へ値を登録・置換 |値の種類は制限しない。別環境と共有せず、モード変更でも保持する。戻り値は未規定 |link:../../sxmml/environment.scm[environment.scm]
+|[[ref-environment-sxmml-default-output-path-get]]`(sxmml-default-output-path-get)` |ソースで指定した既定出力先を取得 |指定した文字列をそのまま返す。初期状態・解除後は#f。-oを含めて解決した出力先ではない |link:../../sxmml/environment.scm[environment.scm]
+|[[ref-environment-sxmml-default-output-path-set-bang]]`(sxmml-default-output-path-set! path)` |現在の環境のdefault-output-pathを設定 |文字列または#f。最後の指定を採用し、#fで解除。型違反は`invalid default output path: ~s (expected a string or #f)`のvalue-error。戻り値は未規定 |link:../../sxmml/environment.scm[environment.scm]
 |[[ref-environment-internal-option-name-check]]`(%option-name-check name)` |非公開の設定名検査 |symbol以外はinvalid option nameのvalue-error。get・set!が表へアクセスする前に呼ぶ |link:../../sxmml/environment.scm[environment.scm]
 |[[ref-environment-internal-mode-name-check]]`(%mode-name-check name)` |非公開の名前検査 |symbol以外はinvalid mode nameのvalue-error |link:../../sxmml/environment.scm[environment.scm]
 |[[ref-environment-internal-sxmml-mode-select]]`(%sxmml-mode-select location name)` |マクロの非公開展開先 |CLI固定中は正規名による位置付き警告で無視。それ以外は`sxmml-mode-select!`を呼ぶ |link:../../sxmml/environment.scm[environment.scm]
