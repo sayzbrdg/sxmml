@@ -450,7 +450,7 @@
       (begin
         ;; 最適化は、チャンネルの違う LFO の命令を互いに上書きしない (#64)。
         ;; 同じチャンネルの冗長な命令は落とす。チャンネルの省略と A は別に扱う
-        (let1 lfo-defs '((define-lfo L1 (1 2 -3 4)) (define-lfo L2 (5 6 7 8)))
+        (let1 lfo-defs '((define-lfo L1 (list 1 2 -3 4)) (define-lfo L2 (list 5 6 7 8)))
           (dolist (case `((#t "Mf Mf{B} c" "*0*B0o4c")
                           (#t "Mf{B} Mf c" "*B0*0o4c")
                           (#t "Mt Mt{B} c" "*1*B1o4c")

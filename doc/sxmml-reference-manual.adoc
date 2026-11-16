@@ -292,35 +292,66 @@ sxlcはソースの読み込み後、`-o`、ソースの既定値、入力名と
 
 === `define-lfo`、`define-envelope`
 
-書式: `(define-lfo 名前 (値 ...))`、`(define-envelope 名前 (値 ...))`。LFO・エンベロープの種類（波形の種類）を明示する `(define-lfo 名前 種類 (値 ...))` と `(define-envelope 名前 種類 (値 ...))` も受け付けます。種類は `triangle` のように単語をそのまま書き、省略すると `default` になります。
+書式: `(define-lfo 名前 [種類] 値の式)`、`(define-envelope 名前 [種類] 値の式)`。名前と種類はリテラルです。種類は`triangle`のように単語をそのまま書き、省略すると`default`になります。
 
-`M` と `E` のコマンドから参照する定義を作ります。次は PMD 向けの四値の例です。PMD 向け生成では LFO に四つ、エンベロープに四つ、五つまたは六つの値を使用します。エンベロープは値の数で形式が決まり、五つは六値形式の六つ目（省略時 0）を省いた形です。LFO の四値の許容範囲は順に 0～255、0～255、-128～127、0～255 です。エンベロープの四値形式は順に 0～255、-15～15、0～255、0～255、六値形式は順に 0～31、0～31、0～31、0～15、0～15、0～15 です。音響上の効果は生成先のドライバーに依存します。PMD 向け生成で使える種類は、LFO が `default` と `triangle`（同じ意味）、エンベロープが `default` です。定義を `M`・`E` で使うときに、種類、値の数、各値（整数で範囲の中）を検査し、`unsupported LFO type: sw in L1 (supported: default, triangle)` や `invalid LFO L1 value 2: 300 (expected an integer from 0 to 255)` のように、どの定義の何が誤っているかを示して変換の失敗になります。使わない定義と、最適化で取り除かれた命令（続けて書いた `M` のうち、効果のない前のものなど）の定義は検査しません。
+`M` と `E` のコマンドから参照する定義を作ります。次は PMD 向けの四値の例です。PMD 向け生成では LFO に四つ、エンベロープに四つ、五つまたは六つの値を使用します。エンベロープは値の数で形式が決まり、五つは六値形式の六つ目（省略時 0）を省いた形です。LFO の四値の許容範囲は順に 0～255、0～255、-128～127、0～255 です。エンベロープの四値形式は順に 0～255、-15～15、0～255、0～255、六値形式は順に 0～31、0～31、0～31、0～15、0～15、0～15 です。音響上の効果は生成先のドライバーに依存します。PMD 向け生成で使える種類は、LFO が `default` と `triangle`（同じ意味）、エンベロープが `default` です。定義を `M`・`E` で使うときに、種類、値の数、各値（整数で範囲の中）を検査し、`unsupported LFO type: sw in L1 (supported: default, triangle)` や `invalid LFO L1 value 2: 300 (expected an integer from 0 to 255)` のように、どの定義の何が誤っているかを示して変換の失敗になります。これらの内容の検査は、使わない定義と、最適化で取り除かれた命令（続けて書いた `M` のうち、効果のない前のものなど）の定義には行いません。登録時の外形検査とは区別します。
 
 [source,scheme]
 ----
-(define-lfo L1 (1 2 3 4))
-(define-envelope E1 (1 2 3 4))
+(define-lfo L1 (list 1 2 3 4))
+(define-envelope E1 '(1 2 3 4))
 (mml G "M{L1 A} E{E1} c8")
 ----
 
-括弧の中の値は式として評価されます。数値のほかに、変数や計算式も書けます。括弧の中にシンボルを書くと、変数の参照になります。値の括弧は 1 つだけ書きます。括弧そのものは書式の一部なので、括弧の代わりに変数や `(list …)` は書けません。
+v0.7.0で導入する書式では、標準の`list`・quote・準quoteと変数参照を使えます。値の式は一度だけ評価し、その結果を登録します。
 
 [source,scheme]
 ----
 (define depth 3)
-(define-lfo L2 (1 2 depth (* depth 2)))
-(mml G "M{L2 A} c8")
+(define-lfo L2 (list 1 2 depth (* depth 2)))
+(define parameters '(1 2 3 4))
+(define-envelope E2 parameters)
+(define-lfo L3 triangle `(1 2 ,depth ,(* depth 2)))
 ----
 
-書式の誤り（値の括弧がない、2 つ以上ある、など）は、`sxlc: error: /home/user/song.sxl:行: invalid define-lfo form: expected (define-lfo id [type] (value ...))` のように、その定義の開始位置を示して変換の失敗になります。種類の位置がシンボルでなければ `invalid define-lfo type: 1 (expected a symbol)` のように失敗します。対応する種類と、値の数や範囲は、生成先が検査します。
+パラメータ群の外枠はプロパーリストとし、空リストも受理します。リテラル・変数のいずれでも同じ検査を登録時に行い、未使用の定義も対象です。例えば`(define-lfo L1 17)`は構文としては受理しますが、`invalid LFO values: L1 is 17 (expected a proper list)`の値エラーになります。エンベロープの不適切な末尾を持つリストも、`invalid envelope values: E1 is (1 . 2) (expected a proper list)`のように拒否します。失敗時は既存の登録値を変更しません。要素数や個々の値の検査は、生成先のバックエンドが担当します。
 
-プログラムから登録するときは、手続き `(sxmml-lfo-set! 名前 種類 値のリスト)` と `(sxmml-envelope-set! 名前 種類 値のリスト)` を使います。名前と種類はシンボルで指定します。`define-lfo`・`define-envelope` は、これらの手続きの呼び出しに展開されます。
+値の省略や余分な引数は、`sxlc: error: /home/user/song.sxl:行: invalid define-lfo form: expected (define-lfo id [type] value)`のように、定義の開始位置を示すフォーム構文エラーになります。種類の位置がシンボルでなければ`invalid define-lfo type: 1 (expected a symbol)`のように失敗します。既知の登録時の値エラーにも位置が付きます。値の式で生じた未知のGauche例外は包み直しません。
+
+==== 旧書式からの移行
+
+従来の`(define-lfo L1 (1 2 3 4))`のような枠形式は当面受け付け、各要素を評価する規則も維持します。展開時に次のような警告を標準エラーへ表示します。位置が取れなければ位置だけを省き、同じ展開結果を実行するたびには繰り返しません。警告自体は成否を変えません。エンベロープも同じ形式です。旧書式の廃止時期は未定です。
+
+[source,text]
+----
+warning: /home/user/song.sxl:12: (define-lfo L1 (value ...)) is deprecated; use (list value ...)
+----
+
+式を含む旧書式は、先頭に`list`を加えて書き換えます。定数だけのリストにはquoteも使えますが、変数や計算式をquoteすると評価されなくなるため、同じ意味にはなりません。
 
 [source,scheme]
 ----
-(sxmml-lfo-set! 'L3 'default (list 1 2 3 4))
+;; 旧書式
+(define-lfo L4 (1 2 depth (* depth 2)))
+;; 移行先
+(define-lfo L4 (list 1 2 depth (* depth 2)))
+----
+
+新旧の識別は綴りではなく標準の束縛を比較します。例えば、利用者が`list`を1に束縛した`(list 2 3 4)`は旧書式として`(1 2 3 4)`を登録して警告します。
+
+一般の`(make-parameters ...)`のような手続き呼び出し形も、移行期間中は旧書式として扱うため、その手続きを呼び出した結果の登録にはなりません。計算でパラメータ群を作る場合は、次の登録手続きを使ってください。
+
+==== 手続きによる登録
+
+`(sxmml-lfo-set! 名前 種類 値のリスト)`と`(sxmml-envelope-set! 名前 種類 値のリスト)`を使います。名前と種類はシンボルで指定します。両マクロもこれらの手続きへ展開されるため、プロパーリストの検査と失敗時の既存値の保持は共通です。
+
+[source,scheme]
+----
+(define (make-parameters depth)
+  (list 1 2 depth (* depth 2)))
+(sxmml-lfo-set! 'L5 'default (make-parameters 3))
 (sxmml-envelope-set! 'E3 'default (list 1 2 3 4))
-(mml G "M{L3 A} E{E3} c8")
+(mml G "M{L5 A} E{E3} c8")
 ----
 
 === `define-opn-voice`

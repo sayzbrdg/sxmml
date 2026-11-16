@@ -45,18 +45,20 @@ CLIとソースのマクロ双方で指定した場合はCLI側を優先し、�
 
 定義名は `sxmml-form-name->symbol` でsymbol／identifier・数値からMML用の名前へ正規化します。種類は `identifier?` で検査し、quoteによって登録時にはsymbolになります。メタデータキーはsymbol／identifierだけを受け、元のsymbolの名前を小文字へそろえます。トラック名もsymbol／identifierを検査してquoteし、複数形式では全要素を検査します。登録手続きや、種類・キー・トラック名へMML定義名の文字制限は追加しません。
 
-`define-lfo` と `define-envelope` は、共通の `%define-lfo/envelope-expand` で展開し、実行時に対応する `set!` 手続きを呼びます。`type`（LFO・エンベロープの種類。波形の種類）はリテラルのシンボルで、省略すると `default` です。枠の中の値は式として評価し、`(list 値 …)` を登録します。形は展開時に検査し、誤りは xref:form.adoc[`sxmml.form`] の `sxmml-form-error` で定義の位置を付けて投げます。既知の入力エラーだけに `sxmml-form-call` が独立した位置conditionを添えます。値の式のGaucheエラーは包み直しません。未登録 ID の取得は、`get` に既定値を渡していないためハッシュ表の検索エラーになります。
+`define-lfo`と`define-envelope`は、共通の`%define-lfo/envelope-expand`へform・rename・id=?を渡して展開し、実行時に対応する登録手続きを呼びます。名前と種類はリテラルで、種類の省略時はdefaultです。標準のlist・quote・quasiquoteは束縛で識別し、変数参照やリテラルとともに一つの式として評価します。残る旧枠形式は標準のlistで構築し、展開時にsxmml-form-warnで位置付きの移行警告を出します。一般の手続き呼び出し形も旧書式になります。廃止時期は未定です。
+
+登録手続きは空リストを含むプロパーリストを要求します。未使用の定義でも外形を検査し、違反はvalue-errorとして既存値を保持します。要素の構造や値の制約はここで検査しません。バックエンドによる内容の検査は別の責務です。形の違反はform-syntax-errorとし、既知の値エラーにはsxmml-form-wrapによる既存の境界で位置conditionを添えます。未知のGauche例外は包み直しません。未登録IDの取得は従来どおりハッシュ表の検索エラーです。
 
 [cols="2,4,4,1",options="header"]
 |===
 |名前・書式 |引数と役割 |結果・副作用・失敗条件 |ソース
 |[[ref-environment-sxmml-lfo-get]]`(sxmml-lfo-get id)` |ID で LFO を検索 |登録済み `<sxmml-lfo>` を返す。未登録なら検索エラー |link:../../sxmml/environment.scm[environment.scm]
-|[[ref-environment-sxmml-lfo-set-bang]]`(sxmml-lfo-set! id type data)` |LFO オブジェクトを作り登録 |`lfo` 表の `id` を上書き |link:../../sxmml/environment.scm[environment.scm]
-|[[ref-environment-define-lfo]]`(define-lfo id [type] (value ...))` |LFO の ID、種類、値の列を指定するマクロ |`sxmml-lfo-set!` を呼ぶ式に展開。形が合わなければ `invalid define-lfo form` の `<sxmml-form-syntax-error>` |link:../../sxmml/environment.scm[environment.scm]
+|[[ref-environment-sxmml-lfo-set-bang]]`(sxmml-lfo-set! id type data)` |LFOを作り登録 |dataはプロパーリスト。違反は`invalid LFO values: L1 is 17 (expected a proper list)`のvalue-error。正常時はidを上書き、失敗時は既存値を保持 |link:../../sxmml/environment.scm[environment.scm]
+|[[ref-environment-define-lfo]]`(define-lfo id [type] value)` |LFOの名前・種類・値の式 |登録手続きへの呼出しに展開。新書式は一度評価、旧書式は各要素を評価して警告 |link:../../sxmml/environment.scm[environment.scm]
 |[[ref-environment-sxmml-envelope-get]]`(sxmml-envelope-get id)` |ID でエンベロープを検索 |登録済み `<sxmml-envelope>` を返す。未登録なら検索エラー |link:../../sxmml/environment.scm[environment.scm]
-|[[ref-environment-sxmml-envelope-set-bang]]`(sxmml-envelope-set! id type data)` |エンベロープオブジェクトを作り登録 |`envelope` 表の `id` を上書き |link:../../sxmml/environment.scm[environment.scm]
-|[[ref-environment-define-envelope]]`(define-envelope id [type] (value ...))` |エンベロープの ID、種類、値の列を指定するマクロ |`sxmml-envelope-set!` を呼ぶ式に展開。形が合わなければ `invalid define-envelope form` の `<sxmml-form-syntax-error>` |link:../../sxmml/environment.scm[environment.scm]
-|[[ref-environment-internal-define-lfo-envelope-expand]]`(%define-lfo/envelope-expand form rename name set-proc)` |2 つのマクロの共通の展開 |`(_ id (value ...))` と `(_ id type (value ...))`（`type` はsymbol／identifier）だけを受け、`sxmml-form-wrap` で `(sxmml-form-call 位置 (lambda () (set-proc 'id 'type (list value ...))))` を返す。枠の違反は `invalid <name> form: expected (<name> id [type] (value ...))`、名前・種類の違反は項目・指定値・条件を示すform-syntax-error |link:../../sxmml/environment.scm[environment.scm]
+|[[ref-environment-sxmml-envelope-set-bang]]`(sxmml-envelope-set! id type data)` |エンベロープを作り登録 |dataはプロパーリスト。違反は`invalid envelope values: E1 is (1 . 2) (expected a proper list)`のvalue-error。正常時はidを上書き、失敗時は既存値を保持 |link:../../sxmml/environment.scm[environment.scm]
+|[[ref-environment-define-envelope]]`(define-envelope id [type] value)` |エンベロープの名前・種類・値の式 |登録手続きへの呼出しに展開。新書式は一度評価、旧書式は各要素を評価して警告 |link:../../sxmml/environment.scm[environment.scm]
+|[[ref-environment-internal-define-lfo-envelope-expand]]`(%define-lfo/envelope-expand form rename id=? name set-proc)` |両マクロの共通展開 |標準束縛をid=?で比較。新書式は値をそのまま、旧書式はlistによる構築を登録手続きへ渡し、sxmml-form-wrapで包む。枠の違反は`invalid <name> form: expected (<name> id [type] value)`。名前・種類の既存診断を維持 |link:../../sxmml/environment.scm[environment.scm]
 |===
 
 == トラック表と登録済みオブジェクト
