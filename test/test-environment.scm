@@ -14,6 +14,7 @@
 (use gauche.process)
 (use file.util)
 (use test.helpers)
+(use util.match)
 
 (test* "ソースで既定の出力先を指定していなければ#fを返す" #f
        (parameterize ([sxmml-environment (make <sxmml-environment>)])
@@ -79,6 +80,22 @@
        '(#t "invalid option name: \"mix\" (expected a symbol)")
        (guard (e [else (list (sxmml-value-error? e) (condition-message e))])
          (sxmml-option-set! "mix" 8)))
+
+(for-each
+ (match-lambda
+   [(kind set-proc get-proc bad message)
+    (test* #"~|kind|の非リスト登録を拒否し、元の定義を保持する"
+           (list #t message '(1 2 3 4))
+           (parameterize ([sxmml-environment (make <sxmml-environment>)])
+             (set-proc 'X1 'default '(1 2 3 4))
+             (let1 e (guard (e [else e]) (set-proc 'X1 'default bad) #f)
+               (list (and e (sxmml-value-error? e))
+                     (and e (condition-message e))
+                     (slot-ref (get-proc 'X1) 'value)))))])
+ `(("LFO" ,sxmml-lfo-set! ,sxmml-lfo-get 17
+    "invalid LFO values: X1 is 17 (expected a proper list)")
+   ("エンベロープ" ,sxmml-envelope-set! ,sxmml-envelope-get (1 . 2)
+    "invalid envelope values: X1 is (1 . 2) (expected a proper list)")))
 
 (let* ([workdir (sys-mkdtemp (build-path (temporary-directory) "sxmml-test"))])
   (define (work-file name) (build-path workdir name))

@@ -190,6 +190,8 @@
 (define (sxmml-lfo-get id)
   (hash-table-get (slot-ref (sxmml-environment) 'lfo) id))
 (define (sxmml-lfo-set! id type data)
+  (unless (list? data)
+    (errorf <sxmml-value-error> "invalid LFO values: ~a is ~s (expected a proper list)" id data))
   (hash-table-set! (slot-ref (sxmml-environment) 'lfo) id
                    (make <sxmml-lfo> :id id :type type :value data)))
 
@@ -206,6 +208,8 @@
 (define (sxmml-envelope-get id)
   (hash-table-get (slot-ref (sxmml-environment) 'envelope) id))
 (define (sxmml-envelope-set! id type data)
+  (unless (list? data)
+    (errorf <sxmml-value-error> "invalid envelope values: ~a is ~s (expected a proper list)" id data))
   (hash-table-set! (slot-ref (sxmml-environment) 'envelope) id
                    (make <sxmml-envelope> :id id :type type :value data)))
 
