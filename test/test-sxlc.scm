@@ -261,8 +261,79 @@
                        (file-exists? (work-file "explicit-mode.m"))
                        (file-exists? (work-file "explicit-mode.mml")))))
         ;; 出力先の決定 (#4)
-        ;; 出力先は sxlc の -o、なければ入力名の拡張子を .mml に替えたものとし、
+        ;; 出力先は -o、ソースの既定値、入力名とモードの既定値の順に選び、
         ;; Translate の表示、生成先、-c に渡す名前が一致すること
+        (let* ([soft (work-file "variant-soft.mml")]
+               [hard (work-file "variant-hard.mml")]
+               [source (source-output "default-options"
+                         (with-output-to-string
+                           (^[] (for-each write
+                                  `((define variant (sxmml-option-get 'variant))
+                                    (sxmml-default-output-path-set!
+                                     (format #f ,(work-file "variant-~a.mml") variant))
+                                    (mml G (case variant
+                                             [(soft) "v8c8"]
+                                             [(hard) "v12c8"])))))))])
+          (test* "設定値softに応じた既定の出力先へ生成し、表示と後処理も同じパスを使う"
+                 (list 0 (list soft soft #f) "G l%12v8o4c" #f '())
+                 (let1 r (sxlc-report "-m" "pmd" "-D" "variant" "soft"
+                                     "-c" "printf '<%s>\\n'" source)
+                   (list (car r) (output-report (cadr r))
+                         (and (file-exists? soft)
+                              (find #/^G / (file->string-list soft :encoding "cp932")))
+                         (file-exists? (work-file "default-options.mml")) (caddr r))))
+          (test* "同じソースの設定値hardでは別の生成先と音量を使い、softの生成物を保持する"
+                 (list 0 (list hard hard #f) "G l%12v12o4c" #t '())
+                 (let* ([before (and (file-exists? soft) (file->string soft))]
+                        [r (sxlc-report "-m" "pmd" "-D" "variant" "hard"
+                                        "-c" "printf '<%s>\\n'" source)])
+                   (list (car r) (output-report (cadr r))
+                         (and (file-exists? hard)
+                              (find #/^G / (file->string-list hard :encoding "cp932")))
+                         (boolean (and before (file-exists? soft)
+                                       (equal? before (file->string soft))))
+                         (caddr r)))))
+        (let* ([text "(sxmml-default-output-path-set! (sxmml-source-file))\n(mml G \"c8\")\n"]
+               [source (source-output "default-overridden" text)]
+               [out (work-file "explicit-default.mml")]
+               [r (sxlc-report "-m" "pmd" "-o" out source)])
+          (test* "ソースの既定値が入力自身でも-oで別の出力先を指定できる" '(0 () #t #t)
+                 (list (car r) (caddr r) (file-exists? out)
+                       (equal? (file->string source) text))))
+        (let* ([unused (work-file "cleared-unused.mml")]
+               [default (work-file "cleared-default.mml")]
+               [r (run-output-check "cleared-default"
+                    `((sxmml-default-output-path-set! ,unused)
+                      (sxmml-default-output-path-set! #f)
+                      (mml G "c8")))])
+          (test* "ソースの指定を解除すると入力名とモードによる既定の出力先を使う"
+                 (list (list default default #f) #t #f)
+                 (list r (file-exists? default) (file-exists? unused))))
+        (let* ([source (begin (make-directory* (work-file "default-source"))
+                             (source-output "default-source/relative"
+                               "(sxmml-default-output-path-set! \"relative-default.mml\")\n(mml G \"c8\")\n"))]
+               [lines (process-output->string-list
+                       `(,@sxlc-command "-m" "pmd" ,source)
+                       :directory workdir :error :merge)])
+          (test* "ソースの相対出力先は入力の所在でなくカレントディレクトリを基準にする"
+                 (list (work-file "relative-default.mml") #t #f)
+                 (list (car (output-report lines))
+                       (file-exists? (work-file "relative-default.mml"))
+                       (file-exists? (work-file "default-source/relative-default.mml")))))
+        (let* ([text "(sxmml-default-output-path-set! (sxmml-source-file))\n(mml G \"c8\")\n"]
+               [source (source-output "default-same-source" text)]
+               [r (sxlc-report "-m" "pmd" source)])
+          (test* "ソースの既定値が入力自身なら使用法の誤りとして拒否する" '(2 #t #t #t)
+                 (list (car r) (boolean (any #/^Usage:/ (cadr r)))
+                       (equal? (caddr r) (list #"output file is the same as the source file: ~source"))
+                       (equal? (file->string source) text))))
+        (let* ([source (source-output "default-invalid"
+                         "(sxmml-default-output-path-set! 17)\n(mml G \"c8\")\n")]
+               [r (sxlc-report "-m" "pmd" source)])
+          (test* "既定の出力先の値エラーは既知の診断で報告し、生成物を作らない"
+                 '(1 () ("sxlc: error: invalid default output path: 17 (expected a string or #f)") #f)
+                 (list (car r) (cadr r) (caddr r)
+                       (file-exists? (work-file "default-invalid.mml")))))
         (let1 out (work-file "custom-out.mml")
           (test* "-o sets the output file"
                  (list out out #f #t #f)
