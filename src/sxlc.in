@@ -106,11 +106,11 @@
           (if (sxmml-track-context? e)
             (format #f " on ~a track" (sxmml-track-context-track e)) "")))
 
-;; 出力先を決める。-o の指定、なければ入力ファイル名の拡張子を、選んだモードが
-;; 登録した拡張子に替えたものとする。拡張子が登録されていなければ #f を返し、
-;; ファイルを出力しないバックエンドへ渡す
+;; -o、ソースの既定値、入力名とモードの既定拡張子の順で出力先を選ぶ。
+;; 指定も既定拡張子もなければ #f を返し、ファイルを出力しないバックエンドへ渡す。
 (define (%output-file-resolve output)
-  (rlet1 file (cond [output (sys-normalize-pathname output :absolute #t)]
+  (rlet1 file (cond [(or output (sxmml-default-output-path-get))
+                    => (cut sys-normalize-pathname <> :absolute #t)]
                     [(slot-ref (sxmml-mode-get) 'output-extension)
                      => (cut path-swap-extension (sxmml-source-file) <>)]
                     [else #f])

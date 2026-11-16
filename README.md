@@ -70,21 +70,25 @@ export GAUCHE_DYNLOAD_PATH="$sxmml_prefix/lib/sxmml${GAUCHE_DYNLOAD_PATH:+:$GAUC
 
 ## 同じソースを設定値で切り替える
 
-次を`variant.sxl`に保存すると、CLIから渡した値で音量を切り替えられます。
+次を`variant.sxl`に保存すると、CLIから渡した値で音量と既定の出力ファイル名を切り替えられます。
 
 ```scheme
-(mml G (case (sxmml-option-get 'variant)
-         [(soft) "v8c8"]
-         [(hard) "v12c8"]
-         [else "c8"]))
+(case (sxmml-option-get 'variant)
+  [(soft)
+   (sxmml-default-output-path-set! "variant-soft.mml")
+   (mml G "v8c8")]
+  [(hard)
+   (sxmml-default-output-path-set! "variant-hard.mml")
+   (mml G "v12c8")]
+  [else (mml G "c8")])
 ```
 
 ```console
-sxlc -m pmd -D variant soft -o variant-soft.mml variant.sxl
-sxlc -m pmd --define variant hard -o variant-hard.mml variant.sxl
+sxlc -m pmd -D variant soft variant.sxl
+sxlc -m pmd --define variant hard variant.sxl
 ```
 
-名前はsymbol、値はSchemeのデータとして渡します。ソースでは通常の`if`・`case`などを使えます。未登録の値と更新方法は[利用者定義の設定](doc/sxmml-reference-manual.adoc#利用者定義の設定)を参照してください。
+名前はsymbol、値はSchemeのデータとして渡します。ソースでは通常の`if`・`case`などを使えます。出力先は`-o`の明示指定が優先します。ソースの既定値もなければ、入力名とモードから決まります。未登録の値と更新方法は[利用者定義の設定](doc/sxmml-reference-manual.adoc#利用者定義の設定)、出力先の取得・解除は[ソースの既定出力先](doc/sxmml-reference-manual.adoc#ソースの既定出力先)を参照してください。
 
 ## 最適化と出力の指定
 

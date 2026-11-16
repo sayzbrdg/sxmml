@@ -35,6 +35,7 @@
           sxmml-mode-register! sxmml-mode-find sxmml-mode-list
           sxmml-mode-select! sxmml-mode-get sxmml-mode-selected?
           sxmml-option-get sxmml-option-set!
+          sxmml-default-output-path-get sxmml-default-output-path-set!
           define-metadata sxmml-metadata-get sxmml-metadata-set!
           sxmml-resolution sxmml-resolution-get sxmml-resolution-set!
           define-lfo sxmml-lfo-get sxmml-lfo-set!
@@ -60,6 +61,14 @@
   (slot-set! (sxmml-environment) 'resolution resolution))
 
 (define sxmml-resolution sxmml-resolution-set!)
+
+(define (sxmml-default-output-path-get)
+  (slot-ref (sxmml-environment) 'default-output-path))
+
+(define (sxmml-default-output-path-set! path)
+  (unless (or (string? path) (not path))
+    (errorf <sxmml-value-error> "invalid default output path: ~s (expected a string or #f)" path))
+  (slot-set! (sxmml-environment) 'default-output-path path))
 
 ;; 利用者定義の設定は、現在の楽曲環境の表で保持する。
 (define (%option-name-check name)

@@ -2,6 +2,8 @@
 
 ## 未リリース
 
+- ソースから既定の出力先を指定する`sxmml-default-output-path-get`・`sxmml-default-output-path-set!`を追加した。出力先はCLIの`-o`、ソースの既定値、入力名とモードによる既定値の順に選ぶ。相対パスはカレントディレクトリ基準とし、`#f`で指定を解除できる（#175）。
+
 - CLIの`-D 名前 値`／`--define 名前 値`と、`sxmml-option-get`・`sxmml-option-set!`を追加した。設定は楽曲環境ごとに保持し、モード選択前に登録する。同名のCLI指定は最後が有効で、ソースからも更新できる。未登録はundefined、登録した#fは#fとして返す（#147）。
 
 - O3・O4で使用する反復圧縮の探索と固定IR比較をCへ移した。前処理・IR復元はSchemeに残し、派生IRの実際のクラスと全スロットを比較する。汎用`repeat-tree-compress`の比較手続きは暫定維持する。

@@ -15,6 +15,29 @@
 (use file.util)
 (use test.helpers)
 
+(test* "ソースで既定の出力先を指定していなければ#fを返す" #f
+       (parameterize ([sxmml-environment (make <sxmml-environment>)])
+         (sxmml-default-output-path-get)))
+(test* "指定した既定の出力先を正規化せずに取得する" "./song-hard.mml"
+       (parameterize ([sxmml-environment (make <sxmml-environment>)])
+         (sxmml-default-output-path-set! "./song-hard.mml")
+         (sxmml-default-output-path-get)))
+(test* "既定の出力先は最後の指定を取得する" "song-hard.mml"
+       (parameterize ([sxmml-environment (make <sxmml-environment>)])
+         (sxmml-default-output-path-set! "song-soft.mml")
+         (sxmml-default-output-path-set! "song-hard.mml")
+         (sxmml-default-output-path-get)))
+(test* "#fで既定の出力先の指定を解除する" #f
+       (parameterize ([sxmml-environment (make <sxmml-environment>)])
+         (sxmml-default-output-path-set! "song-hard.mml")
+         (sxmml-default-output-path-set! #f)
+         (sxmml-default-output-path-get)))
+(test* "既定の出力先が文字列でも#fでもなければ値エラーにする"
+       '(#t "invalid default output path: 17 (expected a string or #f)")
+       (parameterize ([sxmml-environment (make <sxmml-environment>)])
+         (guard (e [else (list (sxmml-value-error? e) (condition-message e))])
+           (sxmml-default-output-path-set! 17))))
+
 ;; 利用者定義の設定は、現在の楽曲環境ごとに保持する。
 (test* "未登録の設定と登録済みの#fを区別する" '(#t #f)
        (parameterize ([sxmml-environment (make <sxmml-environment>)])
