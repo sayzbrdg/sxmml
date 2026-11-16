@@ -141,7 +141,7 @@
           (test* "C03 実際の出力先を表示し、後処理へ一引数で渡す" (list 0 actual actual)
                  (cons (car r) (take (output-report (cadr r)) 2))))
         (let* ([op0 "(0 0 0 0 0 0 0 0 0)"]
-               [defs #"(define-opn-voice TONE (0 0) ~op0 ~op0 ~op0 ~op0)\n(define-lfo MOD triangle (1 2 3 4))\n(define-envelope ENV default (1 2 3 4))\n(define-metadata TITLE \"name test\")\n(define-track A)\n"]
+               [defs #"(define-opn-voice TONE (0 0) ~op0 ~op0 ~op0 ~op0)\n(define-lfo MOD triangle (list 1 2 3 4))\n(define-envelope ENV default (list 1 2 3 4))\n(define-metadata TITLE \"name test\")\n(define-track A)\n"]
                [normal (source-output "names-comparison" #"~defs(mml A \"@{TONE}M{MOD A}E{ENV}c8\")\n")]
                [normal-out (work-file "names-normal.mml")]
                [generated-out (work-file "names-generated.mml")]
@@ -375,6 +375,29 @@
                    (status-with-location (sxlc-status "-m" "pmd" "-o" (work-file "voice-sxlc-location.mml") source)
                                        (string->regexp
                                       (regexp-quote #"invalid voice @V1 operator(2) AR:")) #"~|source|:4"))))
+        (let* ([source (source-output "definition-old"
+                         "(define-lfo L1 (1 2 3 4))\n(define-envelope E1 (1 2 3 4))\n(mml G \"M{L1 A}E{E1}c8\")\n")]
+               [r (sxlc-report "-m" "pmd" source)]
+               [output (work-file "definition-old.mml")]
+               [line (and (file-exists? output)
+                          (find #/^G / (file->string-list output :encoding "cp932")))])
+          (test* "旧定義の位置付き警告を表示してもLFOとエンベロープを正常に生成する"
+                 (list 0
+                       (list #"warning: ~|source|:1: (define-lfo L1 (value ...)) is deprecated; use (list value ...)"
+                             #"warning: ~|source|:2: (define-envelope E1 (value ...)) is deprecated; use (list value ...)")
+                       #t #t)
+                 (list (car r) (caddr r)
+                       (boolean (and line (string-scan line "M1,2,3,4")))
+                       (boolean (and line (string-scan line "E1,2,3,4"))))))
+        (let* ([source (source-output "definition-non-list"
+                         "(define-envelope E1 '(1 . 2))\n(mml G \"c8\")\n")]
+               [r (sxlc-report "-m" "pmd" source)])
+          (test* "定義値の外形エラーを位置付きで報告し、生成物を作らない"
+                 (list 1 '()
+                       (list #"sxlc: error: ~|source|:1: invalid envelope values: E1 is (1 . 2) (expected a proper list)")
+                       #f)
+                 (list (car r) (cadr r) (caddr r)
+                       (file-exists? (work-file "definition-non-list.mml")))))
         (dolist [def '((define-lfo lfo) (define-envelope envelope))]
           (let ([macro (car def)])
             (let1 source (source-output #"~|macro|-sxlc-location" #"(mml G \"c8\")\n(~macro X1)\n")

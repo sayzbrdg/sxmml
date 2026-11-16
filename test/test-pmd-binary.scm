@@ -98,8 +98,8 @@
     (sxmml-mode-select! 'pmd-binary)
     (sxmml-resolution-set! 48)
     (define-metadata title "明示した環境")
-    (define-lfo effect (1 2 3 4))
-    (define-envelope shape (1 2 3 4))
+    (define-lfo effect (list 1 2 3 4))
+    (define-envelope shape (list 1 2 3 4))
     (mml G "M{effect A}E{shape}v8t120c8")
     (rename-track G lead)
     (define-track unused)
@@ -357,11 +357,11 @@
                    ("ループ" "loop" ((mml A "o4c8Ld8")) A
                     "30 0c f6 32 0c 80")
                    ("LFO の定義・切り替え" "lfo"
-                    ((define-lfo L1 (1 2 -3 4)) (mml A "M{L1 A}Mto4c8M{L1 B}Mt{B}c8Mfc8Mf{B}c8")) A
+                    ((define-lfo L1 (list 1 2 -3 4)) (mml A "M{L1 A}Mto4c8M{L1 B}Mt{B}c8Mfc8Mf{B}c8")) A
                     ;; チャンネル A は f2・f1、B は bf・be。
                     "f2 01 02 fd 04 f1 01 30 0c bf 01 02 fd 04 be 01 30 0c f1 00 30 0c be 00 30 0c 80")
                    ("4 値と 6 値のエンベロープ" "envelope"
-                    ((define-envelope E4 (1 -2 3 4)) (define-envelope E6 (1 2 3 4 5 6))
+                    ((define-envelope E4 (list 1 -2 3 4)) (define-envelope E6 (list 1 2 3 4 5 6))
                      (mml G "E{E4}o4c8E{E6}c8")) G
                     ;; 6 値の 4・5 番目は 1 バイトにまとめる
                     "f0 01 fe 03 04 30 0c cd 01 02 03 54 06 30 0c 80")
@@ -565,22 +565,22 @@
                           (make-binary-data name mode forms)
                           'generated))])
           (dolist [case `(("lfo-type" pmd-binary
-                           ((define-lfo L1 sw (1 2 3 4)) (mml A "M{L1 A}c8"))
+                           ((define-lfo L1 sw (list 1 2 3 4)) (mml A "M{L1 A}c8"))
                            "unsupported LFO type: sw in L1 (supported: default, triangle)")
                           ("envelope-count" pmd-binary
-                           ((define-envelope E1 (1 2 3)) (mml G "E{E1}c8"))
+                           ((define-envelope E1 (list 1 2 3)) (mml G "E{E1}c8"))
                            "invalid envelope values: E1 has 3 values (expected 4, 5 or 6)")
                           ("lfo-inexact" pmd-binary
-                           ((define-lfo L1 (1 1.5 3 4)) (mml A "M{L1 A}c8"))
+                           ((define-lfo L1 (list 1 1.5 3 4)) (mml A "M{L1 A}c8"))
                            "invalid LFO L1 value 2: 1.5 (expected an integer from 0 to 255)")
                           ("pmd3-lfo-b" pmd3-binary
-                           ((define-lfo L1 (1 2 3 4)) (mml A "M{L1 B}c8"))
+                           ((define-lfo L1 (list 1 2 3 4)) (mml A "M{L1 B}c8"))
                            "invalid LFO channel: B")
                           ("pmd3-lfo-switch-b" pmd3-binary
                            ((mml A "Mt{B}c8"))
                            "invalid LFO channel: B")
                           ("pmd3-envelope-6" pmd3-binary
-                           ((define-envelope E6 (1 2 3 4 5 6)) (mml G "E{E6}c8"))
+                           ((define-envelope E6 (list 1 2 3 4 5 6)) (mml G "E{E6}c8"))
                            "unsupported envelope values in PMD3: E6 has 6 values (expected 4)"))]
             (test* #"pmd-binary の LFO・エンベロープの検査: ~(car case)"
                    (cadddr case)
@@ -588,13 +588,13 @@
 
           (test* "pmd-binary の LFO の triangle は default と同じバイト内容になる"
                  (section-hex (make-binary-data "lfo-default" 'pmd-binary
-                                               '((define-lfo L1 (1 2 -3 4)) (mml A "M{L1 A}c8")))
+                                               '((define-lfo L1 (list 1 2 -3 4)) (mml A "M{L1 A}c8")))
                               'A)
                  (section-hex (make-binary-data "lfo-triangle" 'pmd-binary
-                                               '((define-lfo L1 triangle (1 2 -3 4)) (mml A "M{L1 A}c8")))
+                                               '((define-lfo L1 triangle (list 1 2 -3 4)) (mml A "M{L1 A}c8")))
                               'A))
           (let* ([source (source-output (work-file "check-cli.sxl")
-                                       '((define-lfo L1 sw (1 2 3 4)) (mml A "M{L1 A}c8")))]
+                                       '((define-lfo L1 sw (list 1 2 3 4)) (mml A "M{L1 A}c8")))]
                  [output (work-file "check-cli.m")]
                  [result (run-sxlc source "-m" "pmd-binary" "-o" output)])
             (test* "pmd-binary の LFO の種類の誤りは、終了値 1 で生成物を作らない"
