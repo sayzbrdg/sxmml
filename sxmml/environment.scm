@@ -198,7 +198,7 @@
 (define-syntax define-lfo
   (er-macro-transformer
     (^[form rename id=?]
-      (%define-lfo/envelope-expand form rename "define-lfo" 'sxmml-lfo-set!))))
+      (%define-lfo/envelope-expand form rename id=? "define-lfo" 'sxmml-lfo-set!))))
 
 
 ;;
@@ -216,22 +216,39 @@
 (define-syntax define-envelope
   (er-macro-transformer
     (^[form rename id=?]
-      (%define-lfo/envelope-expand form rename "define-envelope" 'sxmml-envelope-set!))))
+      (%define-lfo/envelope-expand form rename id=? "define-envelope" 'sxmml-envelope-set!))))
 
-;; define-lfo・define-envelope の展開。枠の中の値は式として評価し、種類 (type) は
-;; リテラルのシンボルとする。形は展開時に検査し、誤りと既知の値の誤りには定義の位置を付ける
-(define (%define-lfo/envelope-expand form rename name set-proc)
-  (define (expand id type exprs)
+;; 新書式の値は式として評価する。旧書式は要素の評価を維持し、展開時に警告する。
+;; 名前・種類と形は展開時に検査し、既知の値エラーには定義の位置を付ける。
+(define (%define-lfo/envelope-expand form rename id=? name set-proc)
+  (define (invalid-form)
+    (sxmml-form-error form "invalid ~a form: expected (~a id [type] value)" name name))
+  (define (new-value-form? value)
+    (match value
+      [(head . _)
+       (and (identifier? head)
+            (or (id=? head (rename 'list))
+                (id=? head (rename 'quote))
+                (id=? head (rename 'quasiquote))))]
+      [() #f]
+      [_ #t]))
+  (define (expand id type value)
     (let1 idsym (sxmml-form-name->symbol form name id)
       (unless (identifier? type)
         (sxmml-form-error form "invalid ~a type: ~s (expected a symbol)" name (unwrap-syntax type)))
-      (sxmml-form-wrap form rename
-        (quasirename rename
-          `(,(rename set-proc) ',idsym ',type (list ,@exprs))))))
+      (let1 expression
+          (cond [(new-value-form? value) value]
+                [(list? value)
+                 (sxmml-form-warn form "(~a ~s (value ...)) is deprecated; use (list value ...)" name idsym)
+                 (quasirename rename `(list ,@value))]
+                [else (invalid-form)])
+        (sxmml-form-wrap form rename
+          (quasirename rename
+            `(,(rename set-proc) ',idsym ',type ,expression))))))
   (match form
-    [(_ id (? list? exprs)) (expand id 'default exprs)]
-    [(_ id (? (^[x] (not (list? x))) type) (? list? exprs)) (expand id type exprs)]
-    [_ (sxmml-form-error form "invalid ~a form: expected (~a id [type] (value ...))" name name)]))
+    [(_ id value) (expand id 'default value)]
+    [(_ id (? (^[x] (not (list? x))) type) value) (expand id type value)]
+    [_ (invalid-form)]))
 
 ;;
 ;;  track

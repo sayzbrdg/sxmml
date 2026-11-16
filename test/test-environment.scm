@@ -122,18 +122,18 @@
             (and (hash-table? (cadr r)) (hash-table-get (cadr r) id #f)))
           (define (lfo-report r id)
             (and-let1 obj (named-object r id)
-              (list (slot-ref obj 'id) (slot-ref obj 'type) (slot-ref obj 'value))))
+              (list (slot-ref obj 'id) (slot-ref obj 'type) (slot-ref obj 'value) (caddr r))))
           (define (name-error macro value expected)
             #"invalid ~|macro| name: ~|value| (expected ~|expected|)")
           (dolist [case '((define-lfo lfo triangle) (define-envelope envelope default))]
             (let* ([macro (car case)] [table (cadr case)] [type (caddr case)]
                    [r (named-load #"~|macro|-generated"
-                        #"(let ([depth 7])\n (define-syntax inner-name (syntax-rules () [(_) (~|macro| FIXED ~|type| (1 2 depth 4))]))\n (define-syntax outer-name (syntax-rules () [(_) (inner-name)]))\n (outer-name))\n" table)])
+                        #"(let ([depth 7])\n (define-syntax inner-name (syntax-rules () [(_) (~|macro| FIXED ~|type| (list 1 2 depth 4))]))\n (define-syntax outer-name (syntax-rules () [(_) (inner-name)]))\n (outer-name))\n" table)])
               (test* #"利用者マクロから~|macro|の固定名と種類を登録する"
-                     (list 'FIXED type '(1 2 7 4)) (lfo-report r 'FIXED))
+                     (list 'FIXED type '(1 2 7 4) "") (lfo-report r 'FIXED))
               (test* #"~|macro|の数値名0をsymbolで登録する"
-                     '(|0| default (1 2 3 4))
-                     (lfo-report (named-load #"~|macro|-number" #"(~|macro| 0 (1 2 3 4))\n" table) '|0|))))
+                     '(|0| default (1 2 3 4) "")
+                     (lfo-report (named-load #"~|macro|-number" #"(~|macro| 0 (list 1 2 3 4))\n" table) '|0|))))
           (dolist [case `((define-lfo lfo "\"L1\"" #f "a symbol or number")
                           (define-envelope envelope "#t" #f "a symbol or number")
                           (define-lfo lfo "|a b|" #f "a non-empty name without whitespace or braces")
@@ -400,54 +400,118 @@
                #f
                (boolean (memq 'sxmml-output-file
                               (module-exports (find-module 'sxmml.environment)))))
-        ;; define-lfo・define-envelope の枠の中の値は式として評価し、種類はリテラルとする。
-        ;; 既知の入力エラーには定義位置を添え、値の式の未知の例外は通す (#28)
-        (dolist [def '((define-lfo lfo) (define-envelope envelope))]
-          (let* ([macro (car def)]
-                 [table (cadr def)]
-                 [load-result (^[name text]
-                                (let1 source (source-output name text)
-                                  (parameterize ([sxmml-environment (make <sxmml-environment>)]
-                                                 [sxmml-source-file source])
-                                    (guard (e [else (cons source e)])
-                                      (load source)
-                                      (cons source (hash-table-get (slot-ref (sxmml-environment) table) 'X1 #f))))))]
-                 [registered (^[name text]
-                               (let1 obj (cdr (load-result name text))
-                                 (list (slot-ref obj 'type) (slot-ref obj 'value))))]
-                 [form-message #"invalid ~|macro| form: expected (~|macro| id [type] (value ...))"])
-            (test* #"elements of ~macro are evaluated"
-                   '(default (1 2 3 4))
-                   (registered #"~|macro|-evaluated"
-                               #"(define %test-depth 3)\n(~macro X1 (1 2 %test-depth (+ 1 3)))\n"))
-            (test* #"~macro takes a literal type"
-                   '(sw (1 2 3 4))
-                   (registered #"~|macro|-type" #"(define sw 1)\n(~macro X1 sw (1 2 3 4))\n"))
-            (test* #"~macro accepts an empty frame"
-                   '(default ())
-                   (registered #"~|macro|-empty" #"(~macro X1 ())\n"))
-            (dolist [case '(("no-frame" "") ("not-list" " 1") ("two-frames" " (1 2) (3 4)")
-                            ("non-symbol-type" " 1 (1 2)") ("too-many" " sw (1 2) 3"))]
-              (let1 r (load-result #"~|macro|-~(car case)" #"; def\n(begin\n  (~macro X1~(cadr case))\n  1)\n")
-                (test* #"a wrong ~macro form fails with its location: ~(car case)"
-                       (list #t (if (equal? (car case) "non-symbol-type")
-                                     #"invalid ~macro type: 1 (expected a symbol)"
-                                     form-message) #"~(car r):3" #t)
-                       (let1 e (cdr r)
-                         (list (sxmml-form-syntax-error? e) (condition-message e)
-                               (sxmml-source-context-location e) (sxmml-form-syntax-error? e))))))
-            (let1 r (load-result #"~|macro|-undefined" #"; def\n(begin\n  (~macro X1 (1 %test-undefined-value))\n  1)\n")
-              (test* #"~|macro|内の未定義変数はGaucheのエラーとして通過する"
-                     '(#t #f #f)
-                     (let1 e (cdr r)
-                       (list (condition-has-type? e <unbound-variable-error>)
-                             (sxmml-error? e) (sxmml-source-context? e)))))
-            (test* #"~macro without a location registers"
-                   '(5 6)
+        ;; 新書式は値の式を一度評価し、旧書式は要素の評価と位置付き警告を維持する。
+        (let ()
+          (define (load-result label text table)
+            (let1 source (source-output label text)
+              (parameterize ([sxmml-environment (make <sxmml-environment>)]
+                             [sxmml-source-file source])
+                (let ([result #f])
+                  (let1 warnings
+                      (call-with-output-string
+                       (^p (with-error-to-port p
+                             (^[] (set! result
+                                       (guard (e [else e])
+                                         (load source)
+                                         (hash-table-get (slot-ref (sxmml-environment) table) 'X1 #f)))))))
+                    (list source result (filter #/^warning:/ (string-split warnings "\n"))))))))
+          (define (report r)
+            (let1 obj (cadr r)
+              (if (is-a? obj <condition>)
+                (list 'error (condition-message obj) (caddr r))
+                (list (slot-ref obj 'type) (slot-ref obj 'value) (caddr r)))))
+          (define (old-warning macro id location)
+            #"warning: ~|location|(~|macro| ~|id| (value ...)) is deprecated; use (list value ...)")
+          (dolist [def '((define-lfo lfo "LFO") (define-envelope envelope "envelope"))]
+            (match-let1 (macro table kind) def
+              (let1 r (load-result #"~|macro|-evaluated"
+                         #"(define %test-depth 3)\n(~macro X1 (1 2 %test-depth (+ 1 3)))\n" table)
+                (test* #"~|macro|の旧書式は要素を評価し、定義位置で警告する"
+                       (list 'default '(1 2 3 4) (list (old-warning macro 'X1 #"~(car r):2: ")))
+                       (report r)))
+              (let1 r (load-result #"~|macro|-type"
+                         #"(define sw 1)\n(~macro X1 sw (1 2 3 4))\n" table)
+                (test* #"~|macro|の種類はリテラルとして保持する"
+                       (list 'sw '(1 2 3 4) (list (old-warning macro 'X1 #"~(car r):2: ")))
+                       (report r)))
+              (let1 r (load-result #"~|macro|-empty" #"(~macro X1 ())\n" table)
+                (test* #"~|macro|の空の旧書式も登録して警告する"
+                       (list 'default '() (list (old-warning macro 'X1 #"~(car r):1: ")))
+                       (report r)))
+              (dolist [case '(("no-frame" "") ("not-list" " 1") ("two-frames" " (1 2) (3 4)")
+                              ("non-symbol-type" " 1 (1 2)") ("too-many" " sw (1 2) 3"))]
+                (let* ([r (load-result #"~|macro|-~(car case)"
+                                      #"; def\n(begin\n  (~macro X1~(cadr case))\n  1)\n" table)]
+                       [value-error? (equal? (car case) "not-list")]
+                       [predicate (if value-error? sxmml-value-error? sxmml-form-syntax-error?)]
+                       [message (cond [value-error? #"invalid ~kind values: X1 is 1 (expected a proper list)"]
+                                      [(equal? (car case) "non-symbol-type")
+                                       #"invalid ~macro type: 1 (expected a symbol)"]
+                                      [else #"invalid ~macro form: expected (~macro id [type] value)"])])
+                  (test* #"~|macro|の不正な指定を分類し、定義位置を付ける: ~(car case)"
+                         (list #t message #"~(car r):3")
+                         (let1 e (cadr r)
+                           (list (predicate e) (condition-message e) (sxmml-source-context-location e))))))
+              (let1 r (load-result #"~|macro|-undefined"
+                                   #"; def\n(begin\n  (~macro X1 (list 1 %test-undefined-value))\n  1)\n" table)
+                (test* #"~|macro|内の未定義変数はGaucheのエラーとして通過する"
+                       '(#t #f #f)
+                       (let1 e (cadr r)
+                         (list (condition-has-type? e <unbound-variable-error>)
+                               (sxmml-error? e) (sxmml-source-context? e)))))
+              (test* #"~|macro|の位置なしの旧書式は位置なしで警告する"
+                     (list '(5 6) (list (old-warning macro 'X2 "")))
+                     (parameterize ([sxmml-environment (make <sxmml-environment>)])
+                       (let* ([obj #f]
+                              [warnings (call-with-output-string
+                                         (^p (with-error-to-port p
+                                               (^[] (eval (list macro 'X2 '(5 6)) (interaction-environment))
+                                                    (set! obj (hash-table-get
+                                                               (slot-ref (sxmml-environment) table) 'X2))))))])
+                         (list (slot-ref obj 'value)
+                               (filter #/^warning:/ (string-split warnings "\n"))))))))
+          (let1 r (load-result "lfo-list"
+                     "(define %test-definition-evals 0)\n(let ([depth 7])\n (define-lfo X1 (list 1 2 (begin (inc! %test-definition-evals) depth) (* depth 2))))\n" 'lfo)
+            (test* "LFOのlist指定を一度評価し、局所変数と計算結果を登録する"
+                   '((default (1 2 7 14) ()) 1)
+                   (list (report r) (eval '%test-definition-evals (interaction-environment)))))
+          (for-each
+           (match-lambda
+             [(label table text expected)
+              (test* label expected (report (load-result label text table)))])
+           '(("エンベロープのquote指定を警告なしで登録する" envelope
+              "(define-envelope X1 default '(1 2 3 4))\n" (default (1 2 3 4) ()))
+             ("LFOの準quoteとunquoteを警告なしで評価する" lfo
+              "(let ([depth 7]) (define-lfo X1 triangle `(1 2 ,depth ,(* depth 2))))\n"
+              (triangle (1 2 7 14) ()))
+             ("エンベロープの局所変数を警告なしで参照する" envelope
+              "(let ([parameters '(1 2 3 4)]) (define-envelope X1 parameters))\n"
+              (default (1 2 3 4) ()))))
+          (let1 r (load-result "lfo-shadow-list"
+                     "(let ([list 1])\n (define-lfo X1 (list 2 3 4)))\n" 'lfo)
+            (test* "利用者のlist束縛は標準手続きと区別して旧書式として扱う"
+                   (list 'default '(1 2 3 4) (list (old-warning 'define-lfo 'X1 #"~(car r):2: ")))
+                   (report r)))
+          (let1 source (source-output "lfo-expansion-warning"
+                        "(define (%test-old-definition)\n (define-lfo X1 (1 2 3 4)))\n")
+            (test* "旧書式の警告は未実行でも展開時に出て、2回実行しても増えない" '(1 1)
                    (parameterize ([sxmml-environment (make <sxmml-environment>)])
-                     (eval `(,macro X2 (5 6)) (interaction-environment))
-                     (slot-ref (hash-table-get (slot-ref (sxmml-environment) table) 'X2) 'value)))
-            ))
+                     (let* ([before #f]
+                            [warnings (call-with-output-string
+                                       (^p (with-error-to-port p
+                                             (^[] (load source)
+                                               (set! before (length (filter #/^warning:/
+                                                                            (string-split (get-output-string p) "\n"))))
+                                               (eval '(%test-old-definition) (interaction-environment))
+                                               (eval '(%test-old-definition) (interaction-environment))))))])
+                       (list before (length (filter #/^warning:/ (string-split warnings "\n"))))))))
+          (let* ([r (load-result "envelope-procedure-form"
+                      "(define %test-procedure-calls 0)\n(define (make-parameters a b) (inc! %test-procedure-calls) (list a b))\n(define-envelope X1 (make-parameters 1 2))\n" 'envelope)]
+                 [data (slot-ref (cadr r) 'value)])
+            (test* "一般の手続き呼び出し形は旧書式として警告し、手続きを呼ばない"
+                   (list 0 #t '(1 2) (list (old-warning 'define-envelope 'X1 #"~(car r):3: ")))
+                   (list (eval '%test-procedure-calls (interaction-environment))
+                         (procedure? (car data)) (cdr data) (caddr r)))))
         (let ()
           (define (register-mode name . params)
             (rlet1 info (apply make <sxmml-mode> :name name :backend (^[] #f) params)
