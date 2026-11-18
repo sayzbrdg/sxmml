@@ -18,7 +18,15 @@
           (remainder index 10)))
 
 (define (sxmml-fmp7-tracks-prepare env)
-  (let* ([tracks (hash-table-values (slot-ref env 'track))]
+  (define (collect name track tracks)
+    (let1 kind (slot-ref track 'sound-source)
+      (cond [(memq kind '(opn opm ssg pcm)) (cons track tracks)]
+            [(not kind)
+             (errorf <sxmml-value-error> "invalid FMP7 track ~a sound-source: ~s" name kind)]
+            [else
+             (format (current-error-port) "warning: fmp7-source: ignoring track ~a (unsupported sound-source: ~s)~%" name kind)
+             tracks])))
+  (let* ([tracks (hash-table-fold (slot-ref env 'track) collect '())]
          [occupied (make-hash-table string-comparator)]
          [counts (make-hash-table eq-comparator)])
     (define (entry track part)
@@ -28,9 +36,6 @@
     (let1 pending
         (filter (^[track]
                   (let ([kind (slot-ref track 'sound-source)] [part (slot-ref track 'part)])
-                    (unless (memq kind '(opn opm ssg pcm))
-                      (errorf <sxmml-value-error> "invalid FMP7 track ~a sound-source: ~s"
-                              (slot-ref track 'name) kind))
                     (when (> (hash-table-update! counts kind (cut + 1 <>) 0) 32)
                       (errorf <sxmml-value-error> "too many FMP7 ~a tracks (max 32)" kind))
                     (when part

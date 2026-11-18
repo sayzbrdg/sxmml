@@ -39,6 +39,25 @@
     (define-lfo 1 '(0 1 2 3)))
   (unwind-protect
       (begin
+        (parameterize ([sxmml-environment (make <sxmml-environment>)])
+          (define (output)
+            (sxmml-fmp7-source-output (make-sxmml-output-environment (sxmml-environment) :output path :optimize 0)))
+          (define-track drums :part 'A0 :sound-source 'rhythm)
+          (rhythm drums "@b8@s8")
+          (define-track lead :sound-source 'ssg)
+          (mml lead "c8")
+          (let1 err (open-output-string)
+            (test* "未対応のリズムを1回警告しA0を空ける"
+                   '(("warning: fmp7-source: ignoring track drums (unsupported sound-source: rhythm)") (lead) #t)
+                   (let1 result (parameterize ([current-error-port err]) (output))
+                     (list (string-split (string-trim-right (get-output-string err)) "\n")
+                           (slot-ref result 'track-names)
+                           (has (file->string path) "PartSSG=A0" "'A0 o4c#12")))))
+          (for-each (^[kind n] (dotimes [i n] (sxmml-track-set! (string->symbol (format #f "~a~a" kind i)) :sound-source kind)))
+                    '(opm ssg) '(32 31))
+          (test* "未対応音源は合計64の枠を使わない" 64
+                 (parameterize ([current-error-port (open-output-string)])
+                   (length (slot-ref (output) 'track-names)))))
         (test* "分解能とパート属性" #t (has (render 'opn "") "ClockCount=96" "VolumeExtend=1" "PartOPNA=A0"))
         (test* "音符・休符・相対音量" #t (has (render 'ssg "v8c8r8v*2v*-1v*0") "v8o4c#12r#12)2(1"))
         (test* "テンポ・パン・ゲート・デチューン・移調" #t

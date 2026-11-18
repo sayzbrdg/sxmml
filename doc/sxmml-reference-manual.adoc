@@ -422,7 +422,7 @@ DTの−1・−2・−3は、それぞれ5・6・7へ直して登録します。
 
 == FMP7のトラックと音色
 
-`(define-track lead :sound-source 'opm)` は音源を指定してトラックを登録します。種類は opn、opm、ssg、pcm です。パートを固定する場合は `:part 'A0` を加えます。AはA0と同じパートです。未指定のトラックを名前順にA0、A1、…、Z9の空きへ割り当てます。音源ごとに32、全体で64までです。手動出力は `sxmml.backend.fmp7-source` の `(sxmml-fmp7-source-output 出力環境)` を呼び出します。
+`(define-track lead :sound-source 'opm)` は音源を指定してトラックを登録します。種類は opn、opm、ssg、pcm です。パートを固定する場合は `:part 'A0` を加えます。AはA0と同じパートです。未指定のトラックを名前順にA0、A1、…、Z9の空きへ割り当てます。出力対象は音源ごとに32、全体で64までです。FMP7、pmd-source、pmd-binary は、明示した音源がそのバックエンドの未対応音源なら標準エラーに警告し、そのトラックを出力対象から外します。音源を省略すると FMP7 ではエラーになり、PMD では固定パートの音源を使います。PMD が対応する音源でも、固定パートと種類が合わなければエラーになります。手動出力は `sxmml.backend.fmp7-source` の `(sxmml-fmp7-source-output 出力環境)` を呼び出します。
 
 `(define-opm-voice 名前 alfb op1 op2 op3 op4)` は通常のScheme式を受け付けます。alfbはAL、FBの2値、各オペレータはAR、D1R、D2R、RR、D1L、TL、KS、ML、DT1、DT2、AMの11値です。OPNとOPMは音色番号0～255を共有し、PCMとエンベロープにはそれぞれ独立の番号枠があります。FAではDT2とSEG、FCではSEGを出力しません。
 

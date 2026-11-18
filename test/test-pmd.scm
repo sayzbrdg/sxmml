@@ -205,6 +205,30 @@
                (test-error <sxmml-value-error> #/invalid FM volume: 128/)
                (pmd-ir-text "typed-volume" 'A
                             (range-ir (make <sxmml-mml-volume> :value 128) 'A)))
+        (parameterize ([sxmml-environment (make <sxmml-environment>)])
+          (define (generate)
+            (sxmml-pmd-source-output
+             (make-sxmml-output-environment (sxmml-environment) :output (work-file "sources.mml") :optimize 0)))
+          (sxmml-pmd-setup!)
+          (define-track extra :sound-source 'opm)
+          (test* "固定パート外の未対応音源も警告する"
+                 "warning: pmd-source: ignoring track extra (unsupported sound-source: opm)\n"
+                 (let1 err (open-output-string)
+                   (parameterize ([current-error-port err]) (generate))
+                   (get-output-string err)))
+          (sxmml-track-delete! 'extra)
+          (define-track A :sound-source 'opm)
+          (define-track lead :part 'A :sound-source 'opn)
+          (mml lead "c8")
+          (test* "未対応音源を実効パートの競合検査より先に除く" '(lead "A l%12o4c")
+                 (parameterize ([current-error-port (open-output-string)])
+                   (let1 result (generate)
+                     (list (car (slot-ref result 'track-names))
+                           (find #/^A / (file->string-list (work-file "sources.mml") :encoding "cp932"))))))
+          (define-track lead :part 'A :sound-source 'ssg)
+          (test* "対応音源と固定パートの矛盾はエラー"
+                 (test-error <sxmml-value-error> #/expected opn for part A/)
+                 (parameterize ([current-error-port (open-output-string)]) (generate))))
         (test* "公開pmd-source出力の未定義音色は参照エラーになる"
                (test-error <sxmml-reference-error> #/undefined voice/)
                (pmd-ir-text "typed-reference" 'A

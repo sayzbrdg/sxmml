@@ -95,33 +95,33 @@
   (let ([work (make <sxmml-pmd-binary-environment>
                 :offset 26 :head-length 26 :mode mode :environment env
                 :voice-numbers (sxmml-pmd-voice-number-table-compute (or (sxmml-voice-table-find env 'opn) (make-hash-table eq-comparator))))]
-        [tracks (sxmml-pmd-output-tracks-select env)])
+        [tracks (sxmml-pmd-output-tracks-select env 'pmd-binary)])
     (define (optimized track)
-      (sxmml-pmd-ir-optimize (slot-ref track 'ir) (slot-ref env 'optimize)))
+      (if track (sxmml-pmd-ir-optimize (slot-ref track 'ir) (slot-ref env 'optimize)) '()))
     (u8vector-set! (slot-ref work 'head) 0 (slot-ref work 'head-length))
     (for-each (^[track i h]
-                (parameterize ([%pmd-section (format #f "track ~a" (or (slot-ref track 'part) (slot-ref track 'name)))])
+                (parameterize ([%pmd-section (format #f "track ~a" (integer->char (+ (char->integer #\A) i)))])
                   (%fm-track-u8vector-set! work i h (optimized track)))
-                (%ticks-update! work track))
+                (when track (%ticks-update! work track)))
               (take tracks 6) (iota 6) (iota 6 2 2))
     (for-each (^[track i h]
-                (parameterize ([%pmd-section (format #f "track ~a" (or (slot-ref track 'part) (slot-ref track 'name)))])
+                (parameterize ([%pmd-section (format #f "track ~a" (integer->char (+ (char->integer #\A) i)))])
                   (%ssg-track-u8vector-set! work i h (optimized track)))
-                (%ticks-update! work track))
+                (when track (%ticks-update! work track)))
               (take (drop tracks 6) 3) (iota 3 6) (iota 3 14 2))
     (let1 track (list-ref tracks 9)
       (parameterize ([%pmd-section "track J"])
         (%pcm-track-u8vector-set! work 9 20 (optimized track)))
-      (%ticks-update! work track))
+      (when track (%ticks-update! work track)))
     ;; リズム末尾へ書く前に、採用した全トラックの集計を確定する。
     (let1 track (list-ref tracks 10)
-      (%ticks-update! work track)
+      (when track (%ticks-update! work track))
       (parameterize ([%pmd-section "track L"])
         (%pmd-rhythm-track-u8vector-set! work (optimized track))))
     (%pmd-meta-track-u8vector-set! work)
     (%size-check (slot-ref work 'offset))
     (make <sxmml-output-result> :output (%pmd-binary-output work)
-          :track-names (map (cut slot-ref <> 'name) tracks))))
+          :track-names (filter-map (^[t] (and t (slot-ref t 'name))) tracks))))
 
 
 (define (%fm-track-u8vector-set! work index hoffset lis)

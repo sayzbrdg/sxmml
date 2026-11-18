@@ -49,8 +49,8 @@
                (sxmml-track-set! part :part part :sound-source source :volume-delta delta)])
             %pmd-parts))
 
-(define (sxmml-pmd-output-tracks-select env)
-  (define tracks (slot-ref env 'track))
+(define (sxmml-pmd-output-tracks-select env :optional (backend 'pmd-source))
+  (define tracks (make-hash-table eq-comparator))
   (define (select part source)
     (let* ([explicit (hash-table-find tracks (^[name track] (and (eq? part (slot-ref track 'part)) track)))]
            [named (hash-table-get tracks part #f)]
@@ -65,6 +65,12 @@
             (errorf <sxmml-value-error> "invalid track ~s sound-source: ~s (expected ~s for part ~s)"
                     (slot-ref track 'name) requested source part))))
       track))
+  (hash-table-for-each (slot-ref env 'track)
+    (^[name track]
+      (let1 kind (slot-ref track 'sound-source)
+        (if (or (not kind) (memq kind '(opn ssg pcm rhythm)))
+          (hash-table-put! tracks name track)
+          (format (current-error-port) "warning: ~a: ignoring track ~a (unsupported sound-source: ~s)~%" backend name kind)))))
   (map (match-lambda [(part source _) (select part source)]) %pmd-parts))
 
 (define (sxmml-pmd-pcm-voice-number env name)

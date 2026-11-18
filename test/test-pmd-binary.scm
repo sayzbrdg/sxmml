@@ -247,6 +247,21 @@
                                  (make-sxmml-output-environment (sxmml-environment)
                                    :output (work-file "library.m") :optimize 1 :source source))
                      (list (slot-ref result 'output) (file-exists? (slot-ref result 'output)))))))
+        (parameterize ([sxmml-environment (make <sxmml-environment>)])
+          (define path (work-file "ignored-source.m"))
+          (define (generate)
+            (sxmml-pmd-binary-output
+             (make-sxmml-output-environment (sxmml-environment) :output path :optimize 0)))
+          (sxmml-pmd-setup!)
+          (generate)
+          (let ([empty (file->bytevector path)] [err (open-output-string)])
+            (define-track A :sound-source 'opm)
+            (mml A "c1")
+            (test* "未対応音源の枠は空パートと同じバイト列になり集計対象から外れる"
+                   (list empty '(B C D E F G H I J L)
+                         "warning: pmd-binary: ignoring track A (unsupported sound-source: opm)\n")
+                   (let1 result (parameterize ([current-error-port err]) (generate))
+                     (list (file->bytevector path) (slot-ref result 'track-names) (get-output-string err))))))
         ;; 公開生成関数は、モード手続きを呼ばずにトラックを登録しても使える。
         (dolist [case (list (list "pmd-binary" sxmml-pmd-binary-output)
                            (list "pmd3-binary" sxmml-pmd3-binary-output)

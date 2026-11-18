@@ -11,7 +11,7 @@
 `(%part-index->name index)`:: 空き番号をパート名に変換する。
 
 [[ref-fmp7-sxmml-fmp7-tracks-prepare]]
-`(sxmml-fmp7-tracks-prepare env)`:: 全登録トラックをパート順の（トラック、パート名、音源種別）の列にする。
+`(sxmml-fmp7-tracks-prepare env)`:: 未対応音源のトラックを警告して除き、対応音源のトラックをパート順の（トラック、パート名、音源種別）の列にする。
 
 [[ref-fmp7-internal-repeat-sequence]]
 `(%repeat-sequence ir)`:: 有限反復の区切りとLの位置を検査して木を返す。
