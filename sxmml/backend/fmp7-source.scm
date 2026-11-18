@@ -6,6 +6,7 @@
   (use sxmml.classes)
   (use sxmml.environment)
   (use sxmml.voice)
+  (use sxmml.optimizer)
   (use sxmml.backend.fmp7)
   (export sxmml-fmp7-source-output))
 (select-module sxmml.backend.fmp7-source)
@@ -64,7 +65,12 @@
     (pulse5 . "2,5") (pulse6 . "2,6") (pulse7 . "2,7") (pulse8 . "2,8")
     (pulse9 . "2,9") (sawtooth1 . "3,1") (sawtooth2 . "3,2")))
 
-(define (%track-output env track part kind number)
+(define (%with-track-context track thunk)
+  (guard (e [(sxmml-error? e)
+             (raise (make-compound-condition e (make-condition <sxmml-track-context> 'track-name (slot-ref track 'name))))])
+    (thunk)))
+
+(define (%track-output env ir part kind number)
   (define (ticks obj) (%integer "duration" (slot-ref obj 'ticks) 1 65535))
   (define (v obj) (slot-ref obj 'value))
   (define (command text obj low high)
@@ -114,12 +120,9 @@
       (display (vector-ref '#("" "m1,0" "m0,1" "m1,1") (%integer "output switch" (v obj) 1 3)))]
      [(and (eq? kind 'ssg) (is-a? obj <sxmml-mml-noise-frequency>)) (command "w" obj 0 31)]
      [else (errorf <sxmml-value-error> "unsupported FMP7 ~a command: ~s" kind obj)]))
-  (guard (e [(sxmml-error? e)
-             (raise (make-compound-condition e (make-condition <sxmml-track-context> 'track-name (slot-ref track 'name))))])
-    (format #t "'~a " part)
-    (for-each emit (sxmml-fmp7-lfo-output-prepare
-                    (sxmml-fmp7-ir-optimize (slot-ref track 'ir) (slot-ref env 'optimize))))
-    (display "\r\n")))
+  (format #t "'~a " part)
+  (for-each emit (sxmml-fmp7-lfo-output-prepare ir))
+  (display "\r\n"))
 
 (define (sxmml-fmp7-source-output env)
   (let ([path (slot-ref env 'output)] [tracks (sxmml-fmp7-tracks-prepare env)]
@@ -134,9 +137,28 @@
               (hash-table-put! counts bank (+ n 1))
               (hash-table-put! numbers key n)
               n))))
+    (define level (slot-ref env 'optimize))
+    (define jobs (slot-ref env 'jobs))
+    (define (prepare row)
+      (let1 track (car row)
+        (%with-track-context track (cut sxmml-fmp7-ir-prepare (slot-ref track 'ir)))))
+    (define (emit row ir)
+      (match-let1 (track part kind) row
+        (%with-track-context track (cut %track-output env ir part kind number))))
+    (define (emit-tracks)
+      (if (and (>= level 3) (> jobs 1)
+               (> (count (^[row] (pair? (slot-ref (car row) 'ir))) tracks) 1))
+        (for-each emit tracks
+                  (sxmml-ir-compress-repeats-batch (map prepare tracks)
+                                                   :jobs jobs :expand-small (> level 3)))
+        (for-each (match-lambda
+                    [(track part kind)
+                     (%with-track-context
+                      track (^[] (%track-output env (sxmml-fmp7-ir-optimize (slot-ref track 'ir) level)
+                                                part kind number)))])
+                  tracks)))
     (unless path (error <sxmml-value-error> "output file is not specified"))
-    (let1 text (with-output-to-string
-                 (^[] (for-each (match-lambda [(t p k) (%track-output env t p k number)]) tracks)))
+    (let1 text (with-output-to-string emit-tracks)
       (call-with-temporary-file
        (^[port name]
          (with-output-conversion port

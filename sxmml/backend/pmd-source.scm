@@ -66,9 +66,8 @@
 (define (sxmml-pmd-source-output env)
   (%pmd-source-output env #f))
 
-(define (%track-output env track part voice-proc! vol-set-proc! vol-change-proc!)
-  (let ([lis (sxmml-pmd-ir-optimize (slot-ref track 'ir) (slot-ref env 'optimize))]
-        [mode (%most-frequent-ticks-find track)])
+(define (%track-output env track lis part voice-proc! vol-set-proc! vol-change-proc!)
+  (let1 mode (%most-frequent-ticks-find track)
     (unless (null? lis)
       (let1 state (make <sxmml-pmd-track-environment> :mode (or mode 0)
                        :voice-output voice-proc! :volume-output vol-set-proc!
@@ -81,14 +80,14 @@
         (%pmd-track-output! state lis)
         (display "\r\n\r\n")))))
 
-(define (%fm-track-output env track part voice-proc)
-  (%track-output env track part voice-proc %pmd-fm-volume-output %pmd-fm-volume-change-output))
+(define (%fm-track-output env track lis part voice-proc)
+  (%track-output env track lis part voice-proc %pmd-fm-volume-output %pmd-fm-volume-change-output))
 
-(define (%ssg-track-output env track part)
-  (%track-output env track part %pmd-ssg-voice-output %pmd-ssg-volume-output %pmd-ssg-volume-change-output))
+(define (%ssg-track-output env track lis part)
+  (%track-output env track lis part %pmd-ssg-voice-output %pmd-ssg-volume-output %pmd-ssg-volume-change-output))
 
-(define (%pcm-track-output env track part)
-  (%track-output env track part (cut %pmd-pcm-voice-output env <>) %pmd-pcm-volume-output %pmd-pcm-volume-change-output))
+(define (%pcm-track-output env track lis part)
+  (%track-output env track lis part (cut %pmd-pcm-voice-output env <>) %pmd-pcm-volume-output %pmd-pcm-volume-change-output))
 
 (define (%pmd-track-output! state lis)
   (let loop ([rest lis] [loop-seen? #f] [depth 0])
@@ -173,10 +172,9 @@
         [else
          (values loop-seen? depth)]))
 
-(define (%pmd-rhythm-track-output env track)
-  (let* ([lis (sxmml-pmd-ir-optimize (slot-ref track 'ir) (slot-ref env 'optimize))]
-         [has-loop? (boolean (find (^o (is-a? o <sxmml-mml-loop>)) lis))]
-         [state (make <sxmml-pmd-track-environment>)])
+(define (%pmd-rhythm-track-output track lis)
+  (let ([has-loop? (boolean (find (^o (is-a? o <sxmml-mml-loop>)) lis))]
+        [state (make <sxmml-pmd-track-environment>)])
     (%pmd-rhythm-definition-track-output state has-loop? lis)
     (%pmd-rhythm-deploy-track-output! state track has-loop? lis)))
 
@@ -259,12 +257,15 @@
               (let1 text
                   (with-output-to-string
                     (^[]
-                      (for-each (^[t part] (when t (%fm-track-output env t part fm-voice-output)))
-                                (take tracks 6) '(A B C D E F))
-                      (for-each (^[t part] (when t (%ssg-track-output env t part)))
-                                (take (drop tracks 6) 3) '(G H I))
-                      (and-let1 t (list-ref tracks 9) (%pcm-track-output env t 'J))
-                      (and-let1 t (list-ref tracks 10) (%pmd-rhythm-track-output env t))))
+                      (sxmml-pmd-for-each-track-ir
+                       (^[_ part source track ir]
+                         (when track
+                           (case source
+                             [(opn) (%fm-track-output env track ir part fm-voice-output)]
+                             [(ssg) (%ssg-track-output env track ir part)]
+                             [(pcm) (%pcm-track-output env track ir part)]
+                             [(rhythm) (%pmd-rhythm-track-output track ir)])))
+                       tracks env)))
                 (%pmd-source-voice-output voices voice-numbers used-voice-ids)
                 (display text))
               (when pmd3? (display #\x1a)))

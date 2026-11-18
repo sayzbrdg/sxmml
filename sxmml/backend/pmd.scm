@@ -34,7 +34,7 @@
   (use sxmml.classes)
   (use sxmml.environment)
   (use sxmml.optimizer)
-  (export sxmml-pmd-output-tracks-select sxmml-pmd-pcm-voice-number sxmml-pmd-setup! sxmml-pmd-ir-optimize sxmml-pmd-voice-number-table-compute
+  (export sxmml-pmd-for-each-track-ir sxmml-pmd-output-tracks-select sxmml-pmd-pcm-voice-number sxmml-pmd-setup! sxmml-pmd-ir-optimize sxmml-pmd-voice-number-table-compute
           sxmml-pmd-metadata-value sxmml-pmd-lfo-values sxmml-pmd-envelope-values
           sxmml-pmd-check-obsolete-metadata))
 (select-module sxmml.backend.pmd)
@@ -158,6 +158,20 @@
   (when (hash-table-get metadata 'filename #f)
     (format (current-error-port)
             "warning: metadata 'filename' is ignored; use the -o option of sxlc to set the output file\n")))
+
+(define (sxmml-pmd-for-each-track-ir emit tracks env)
+  (define level (slot-ref env 'optimize))
+  (define jobs (slot-ref env 'jobs))
+  (define (ir track) (if track (slot-ref track 'ir) '()))
+  (define (output i spec track commands)
+    (emit i (car spec) (cadr spec) track commands))
+  (if (and (>= level 3) (> jobs 1) (> (count (^[t] (pair? (ir t))) tracks) 1))
+    (let1 compressed (sxmml-ir-compress-repeats-batch
+                      (map (^[t] (sxmml-ir-optimize (ir t))) tracks)
+                      :jobs jobs :expand-small (> level 3))
+      (for-each output (iota (length tracks)) %pmd-parts tracks compressed))
+    (for-each (^[i spec t] (output i spec t (if t (sxmml-pmd-ir-optimize (ir t) level) '())))
+              (iota (length tracks)) %pmd-parts tracks)))
 
 (define (sxmml-pmd-ir-optimize ir level)
   (cond [(<= level 0) ir]

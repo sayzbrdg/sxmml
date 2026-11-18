@@ -42,11 +42,13 @@
            [else (recur (cdr rest) (cons (car rest) result))]))))
 
 (define (make-sxmml-output-environment registered-environment
-                                      :key (output (undefined)) (optimize (undefined)) (source #f))
+                                      :key (output (undefined)) (optimize (undefined)) (source #f) (jobs 1))
   (when (undefined? output)
     (error <sxmml-value-error> "make-sxmml-output-environment requires :output"))
   (when (undefined? optimize)
     (error <sxmml-value-error> "make-sxmml-output-environment requires :optimize"))
+  (unless (and (exact-integer? jobs) (positive? jobs))
+    (error <sxmml-value-error> "jobs must be a positive integer"))
   (rlet1 prepared
       (make <sxmml-output-environment>
         :resolution (slot-ref registered-environment 'resolution)
@@ -54,7 +56,7 @@
         :voice (slot-ref registered-environment 'voice)
         :envelope (slot-ref registered-environment 'envelope)
         :lfo (slot-ref registered-environment 'lfo)
-        :output output :optimize optimize :source source)
+        :output output :jobs jobs :optimize optimize :source source)
     (hash-table-for-each
      (slot-ref registered-environment 'track)
      (^[name context]

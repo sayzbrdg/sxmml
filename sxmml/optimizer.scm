@@ -27,6 +27,8 @@
 ;;; SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 (define-module sxmml.optimizer
+  (use control.thread-pool)
+  (use control.job)
   (use gauche.record)
   (use gauche.sequence)
   (use srfi.1)
@@ -34,7 +36,7 @@
   (use sxmml.repeat-tree)
   (use sxmml.native)
   (export sxmml-ir-optimize-local sxmml-ir-remove-redundant-settings sxmml-ir-merge-rests
-          sxmml-ir-compress-repeats sxmml-ir-optimize sxmml-ir-optimize-with-repeats
+          sxmml-ir-compress-repeats sxmml-ir-compress-repeats-batch sxmml-ir-optimize sxmml-ir-optimize-with-repeats
           sxmml-ir-optimize-with-repeat-expansion
           ))
 (select-module sxmml.optimizer)
@@ -320,6 +322,25 @@
 
 (define (sxmml-ir-compress-repeats ir :key (expand-small #f))
   (%sxmml-optimize-repeat ir expand-small))
+
+(define (sxmml-ir-compress-repeats-batch ir-lists :key (jobs 1) (expand-small #f))
+  (define (compress ir)
+    (sxmml-ir-compress-repeats ir :expand-small expand-small))
+  (define (result job)
+    (cond [(not job) '()]
+          [(eq? (job-status job) 'error) (raise (job-result job))]
+          [else (job-result job)]))
+  (unless (and (exact-integer? jobs) (positive? jobs))
+    (error <sxmml-value-error> "jobs must be a positive integer"))
+  (let1 workers (min jobs (count pair? ir-lists))
+    (if (<= workers 1)
+      (map (^[ir] (if (null? ir) '() (compress ir))) ir-lists)
+      (let1 pool (make-thread-pool workers)
+        ;; 受付順のジョブを残し、全ワーカーの終了後に同じ順で結果を読む。
+        (map result
+             (unwind-protect
+                 (map (^[ir] (and (pair? ir) (add-job! pool (cut compress ir)))) ir-lists)
+               (terminate-all! pool)))))))
 
 (define (sxmml-ir-optimize ir)
   (sxmml-ir-merge-rests

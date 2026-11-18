@@ -640,4 +640,13 @@
       )
     (remove-directory* workdir)))
 
+(let* ([a (make <sxmml-mml-note> :value 48 :ticks 12)]
+       [b (make <sxmml-mml-note> :value 50 :ticks 24)]
+       [tracks (list (list a) '() (list b))])
+  (test* "並列圧縮は空列の位置と入力順を保つ" (map sxmml-ir-compress-repeats tracks)
+         (sxmml-ir-compress-repeats-batch tracks :jobs 2))
+  (test* "ワーカーで発生した圧縮エラー" (test-error <error> "MML terminated before repeat end")
+         (sxmml-ir-compress-repeats-batch
+           (list (list a) (list (make <sxmml-mml-repeat-start>))) :jobs 2)))
+
 (test-end :exit-on-failure #t)

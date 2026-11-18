@@ -40,6 +40,7 @@
     (let-args (cdr argv)
         ([mode "m|mode=y" #f]
          [optimize "O|optimize=i" 1]
+         [jobs "j|jobs=i" #f]
          [cmd "c|command=s" #f]
          [output "o|output=s" #f]
          [wsl "w|wsl" #f]
@@ -49,6 +50,8 @@
          [#f "h|help" => (^[] (%usage 0))]
          [#f "v|version" => %version-output]
          . args)
+      (when (and jobs (not (and (exact-integer? jobs) (positive? jobs))))
+        (%usage-error "jobs must be a positive integer"))
       (when (null? args)
         (%usage-error "no source file specified"))
       ;; 入力ファイルは 1 つに限る。オプションの解析は最初の入力ファイルで止まるため、
@@ -80,6 +83,7 @@
           (let* ([output-path (%output-file-resolve output)]
                  [prepared (%convert (^[] (make-sxmml-output-environment
                                            (sxmml-environment) :output output-path
+                                           :jobs (or jobs (%default-jobs))
                                            :optimize optimize :source (sxmml-source-file))))]
                  [result (%convert (^[] ((slot-ref (sxmml-mode-get) 'backend) prepared)))]
                  [actual-output (slot-ref result 'output)])
@@ -177,12 +181,17 @@
 (define (%error-message e)
   (if (condition? e) (condition-message e) e))
 
+(define (%default-jobs)
+  (let1 cpus (guard (e [else #f]) (sys-available-processors))
+    (if (exact-integer? cpus) (clamp (quotient cpus 2) 1 4) 1)))
+
 (define (%usage code)
-  (display "Usage: sxlc [-whlv] [-D NAME VALUE] [-O opt_lv] [-m mode] [-o output] [-c command] file\n\n")
+  (display "Usage: sxlc [-whlv] [-D NAME VALUE] [-O opt_lv] [-j jobs] [-m mode] [-o output] [-c command] file\n\n")
   (display "Options:\n")
   (format #t "    ~12a 利用者定義の値をモードの初期設定前に登録する。\n" "-D NAME VALUE")
   (format #t "    ~12a Set the optimize level to \"opt_lv\".\n" "-O opt_lv")
   (format #t "    ~12a 0: none, 1-2: basic, 3: repeat, 4: repeat with expansion.\n" "")
+  (format #t "    ~12a 同時に反復圧縮するトラック数の上限。\n" "-j jobs")
   (format #t "    ~12a Set the processing to \"mode\".\n" "-m mode")
   (format #t "    ~12a Write the generated file to \"output\".\n" "-o output")
   (format #t "    ~12a Execute \"command\" as a post process.\n" "-c command")

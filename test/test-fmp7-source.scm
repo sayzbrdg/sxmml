@@ -58,6 +58,22 @@
           (test* "未対応音源は合計64の枠を使わない" 64
                  (parameterize ([current-error-port (open-output-string)])
                    (length (slot-ref (output) 'track-names)))))
+        (parameterize ([sxmml-environment (make <sxmml-environment>)])
+          (define (render-jobs jobs)
+            (sxmml-fmp7-source-output
+             (make-sxmml-output-environment (sxmml-environment) :output path :optimize 4 :jobs jobs))
+            (file->bytevector path))
+          (define-track (a b) :sound-source 'pcm)
+          (define-pcm-voice kick '("drums" 1))
+          (define-pcm-voice snare '("drums" 2))
+          (mml a "@{snare}[cc]3")
+          (mml b "@{kick}dd")
+          (test* "音色の初出順を含めて生成物が一致" #t (equal? (render-jobs 1) (render-jobs 2)))
+          (sxmml-ir-register! (list (make <sxmml-mml-lfo> :channel 'X :value 'bad)) 'b)
+          (test* "前処理のエラーにトラック名が付く" '("invalid LFO channel: X (expected A, B, C or D)" b)
+                 (guard (e [(sxmml-value-error? e)
+                            (list (condition-message e) (sxmml-track-context-track e))])
+                   (render-jobs 2))))
         (test* "分解能とパート属性" #t (has (render 'opn "") "ClockCount=96" "VolumeExtend=1" "PartOPNA=A0"))
         (test* "音符・休符・相対音量" #t (has (render 'ssg "v8c8r8v*2v*-1v*0") "v8o4c#12r#12)2(1"))
         (test* "テンポ・パン・ゲート・デチューン・移調" #t

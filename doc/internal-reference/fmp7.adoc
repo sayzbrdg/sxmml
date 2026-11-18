@@ -19,6 +19,9 @@
 [[ref-fmp7-internal-canonical-lfo]]
 `(%canonical-lfo obj)`:: 省略チャネルをAとするIRを返す。
 
+[[ref-fmp7-sxmml-fmp7-ir-prepare]]
+`(sxmml-fmp7-ir-prepare ir)`:: 反復構造を検査して LFO チャネルを正規化した列を返す。逐次・並列共通の前処理。
+
 [[ref-fmp7-sxmml-fmp7-ir-optimize]]
 `(sxmml-fmp7-ir-optimize ir level)`:: 構造を検査し、水準に応じた反復圧縮を行う。
 

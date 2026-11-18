@@ -194,6 +194,17 @@
                               "from named-input.sxl")))))
   (unwind-protect
       (begin
+        (parameterize ([sxmml-environment (make <sxmml-environment>)])
+          (define (render jobs)
+            (let1 path (work-file "jobs-output")
+              (sxmml-pmd-source-output
+               (make-sxmml-output-environment (sxmml-environment) :output path :optimize 3 :jobs jobs))
+              (file->bytevector path)))
+          (sxmml-pmd-setup!)
+          (sxmml-track-delete! 'B)
+          (mml A "cdecdecd")
+          (mml G "[fg]4")
+          (test* "反復圧縮の逐次・並列で生成物が一致" #t (equal? (render 1) (render 2))))
         (test* "未定義LFOを名前付きの参照エラーで通知する"
                (test-error <sxmml-reference-error> "undefined LFO: UNKNOWN")
                (pmd-text "undefined-lfo" '((mml A "M{UNKNOWN A}c8")) 'pmd-source #f))

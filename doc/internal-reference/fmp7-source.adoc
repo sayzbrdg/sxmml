@@ -25,8 +25,11 @@
 [[ref-fmp7-source-internal-definition-output]]
 `(%definition-output env kind id number)`:: 使用定義を番号付きで書く。
 
+[[ref-fmp7-source-internal-with-track-context]]
+`(%with-track-context track thunk)`:: 前処理や出力中の sxmml エラーにトラック名を付ける。
+
 [[ref-fmp7-source-internal-track-output]]
-`(%track-output env track part kind number)`:: トラックの設定・反復・音符をMMLとして書く。
+`(%track-output env ir part kind number)`:: トラックの設定・反復・音符をMMLとして書く。
 
 [[ref-fmp7-source-sxmml-fmp7-source-output]]
 `(sxmml-fmp7-source-output env)`:: 入力環境から.mwiを生成して出力結果を返す。
