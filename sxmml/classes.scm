@@ -61,6 +61,7 @@
    [envelope :init-keyword :envelope :init-form (make-hash-table eq-comparator)]
    [lfo :init-keyword :lfo :init-form (make-hash-table eq-comparator)]
    [track :init-keyword :track :init-form (make-hash-table eq-comparator)]
+   [jobs :init-keyword :jobs :init-value 1]
    [optimize :init-keyword :optimize :init-value 0]
    [output :init-keyword :output :init-value #f]
    [source :init-keyword :source :init-value #f]))

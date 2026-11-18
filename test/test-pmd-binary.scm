@@ -128,6 +128,17 @@
                                        (sxmml-ir-flatten original)) 'ticks)))))))
   (unwind-protect
       (begin
+        (parameterize ([sxmml-environment (make <sxmml-environment>)])
+          (define (render jobs)
+            (let1 path (work-file "jobs-output")
+              (sxmml-pmd-binary-output
+               (make-sxmml-output-environment (sxmml-environment) :output path :optimize 4 :jobs jobs))
+              (file->bytevector path)))
+          (sxmml-pmd-setup!)
+          (sxmml-track-delete! 'B)
+          (mml A "cdecdecd")
+          (mml G "[fg]4")
+          (test* "反復圧縮の逐次・並列で生成物が一致" #t (equal? (render 1) (render 2))))
         (dolist [case '(("SSG" G 16 "invalid SSG volume: 16 (expected an integer from 0 to 15)")
                         ("PCM" J 256 "invalid PCM volume: 256 (expected an integer from 0 to 255)"))]
           (test* #"同じ命令コードでも~(car case)の音量範囲を示す"

@@ -117,6 +117,15 @@
                  (let1 r (apply sxlc-report (cadr c))
                    (list (car r) (boolean (any (caddr c) (caddr r)))
                          (boolean (any #/^Usage:/ (cadr r)))))))
+        (let1 source (source-output "jobs" "(sxmml-mode-register! (make <sxmml-mode> :name 'jobs :backend (lambda (out) (print (list 'jobs (slot-ref out 'jobs))) (make <sxmml-output-result> :output #f :track-names '())))) (sxmml-mode jobs)")
+          (define (reported args expected)
+            (let1 report (apply sxlc-report (append args (list source)))
+              (and (= (car report) 0) (member (format #f "(jobs ~a)" expected) (cadr report)) #t)))
+          (test* "利用可能CPU数で自動設定" #t
+                 (reported '() (min 4 (max 1 (quotient (sys-available-processors) 2)))))
+          (test* "明示した並列上限" #t (reported '("--jobs" "8") 8))
+          (test* "圧縮しなくても不正な上限は使用法エラー" '(2 #t)
+                 (status-and-message (sxlc-status "-O" "0" "-j" "0" source) #/jobs must be a positive integer/)))
         (let* ([source (source-output "fileless"
                          "(sxmml-mode-register! (make <sxmml-mode> :name 'test-fileless :backend (lambda (out) (format #t \"request: ~s\\n\" (slot-ref out 'optimize)) (make <sxmml-output-result> :output #f :track-names '(lead)))))\n(sxmml-mode test-fileless)\n(define-track (lead unused))\n(mml lead \"c8\")\n(mml unused \"c4\")\n")]
                [r (sxlc-report "-O" "3" "-c" "false" source)])

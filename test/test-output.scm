@@ -9,6 +9,8 @@
 
 (define (prepare env :key (output #f) (optimize 0) (source #f))
   (make-sxmml-output-environment env :output output :optimize optimize :source source))
+(test* "手動出力の既定は逐次" 1
+       (slot-ref (prepare (make <sxmml-environment>)) 'jobs))
 (define (output-track env name)
   (hash-table-get (slot-ref env 'track) name))
 

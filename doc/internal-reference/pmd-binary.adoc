@@ -26,7 +26,7 @@ FM音色表へ書く直前に `%opn-voice-form->register-data form id` が使用
 |[[ref-pmd-binary-sxmml-pmd4-binary-output]]`(sxmml-pmd4-binary-output env)` |PMD4 向け生成 |出力環境を受け、PMD4の形式で生成して出力結果を返す |link:../../sxmml/backend/pmd-binary.scm[pmd-binary.scm]
 |===
 
-共通の生成処理は、出力環境からA～J・Lの出力トラックを`sxmml-output-track-find`で探します。モード選択は不要ですが、必要なトラック情報は呼出し側で用意します。最適化は整数要求から共通PMD手続きで選びます。現在の登録環境・モード・入力ファイルパラメータを出力中に参照しません。
+共通の生成処理は、出力環境からA～J・Lの出力トラックを `sxmml-pmd-output-tracks-select` で選びます。反復圧縮には `jobs` の上限を適用し、採用した列を固定パート順に符号化します。モード選択は不要ですが、必要なトラック情報は呼出し側で用意します。最適化は整数要求から共通PMD手続きで選びます。現在の登録環境・モード・入力ファイルパラメータを出力中に参照しません。
 
 出力先は出力環境のoutputへ明示指定し、#fを補完しません。結果のoutputは実際の出力先、track-namesは採用したsxmmlトラック名です。filenameメタデータの警告は維持し、生成先には使用しません。一時ファイルからの改名によって、途中で失敗しても既存出力を保持します。
 

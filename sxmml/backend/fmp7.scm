@@ -3,7 +3,7 @@
   (use util.match)
   (use sxmml.classes)
   (use sxmml.optimizer)
-  (export sxmml-fmp7-tracks-prepare sxmml-fmp7-ir-optimize sxmml-fmp7-lfo-output-prepare
+  (export sxmml-fmp7-ir-prepare sxmml-fmp7-tracks-prepare sxmml-fmp7-ir-optimize sxmml-fmp7-lfo-output-prepare
           sxmml-fmp7-lfo-values sxmml-fmp7-envelope-values sxmml-fmp7-pcm-reference-resolve))
 (select-module sxmml.backend.fmp7)
 
@@ -99,11 +99,14 @@
           [(memq ch '(A B C D)) obj]
           [else (errorf <sxmml-value-error> "invalid LFO channel: ~s (expected A, B, C or D)" ch)])))
 
-(define (sxmml-fmp7-ir-optimize ir level)
+(define (sxmml-fmp7-ir-prepare ir)
   (%repeat-sequence ir)
-  (let1 normalized (if (any (cut is-a? <> <sxmml-mml-lfo>) ir)
-                     (map (^[obj] (if (is-a? obj <sxmml-mml-lfo>) (%canonical-lfo obj) obj)) ir)
-                     ir)
+  (if (any (cut is-a? <> <sxmml-mml-lfo>) ir)
+    (map (^[obj] (if (is-a? obj <sxmml-mml-lfo>) (%canonical-lfo obj) obj)) ir)
+    ir))
+
+(define (sxmml-fmp7-ir-optimize ir level)
+  (let1 normalized (sxmml-fmp7-ir-prepare ir)
     (if (< level 3) normalized
         (sxmml-ir-compress-repeats normalized :expand-small (> level 3)))))
 
