@@ -27,3 +27,5 @@ PMD両バックエンドで使う7つの公開手続きと、非公開の定義�
 
 [[ref-pmd-sxmml-pmd-pcm-voice-number]]
 `(sxmml-pmd-pcm-voice-number env name)`:: PCMの定義名または従来の数値名をネイティブ番号へ解決する。
+
+PMDの固定パート選択時、名前で補完するトラックと明示partのトラックが競合した場合は、パートと両名を示すvalue-errorとします。

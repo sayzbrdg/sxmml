@@ -61,7 +61,7 @@ LFO・エンベロープの種類、`define-metadata` のキー、`define-track`
 
 一つまたは複数のトラックを登録します。`mml` と `rhythm` で使う名前は登録済みである必要があります。`設定` には `:volume-delta 数値` を指定でき、通常 MML の `)` と `(` の変化幅になります。省略時の幅は 1 です。PMD モードを選ぶと A～J と L が登録されるため、通常は個別登録を要しません。モードを選ばずに `define-track` だけを記しても、`sxlc` の生成にはバックエンドの選択が必要です。
 
-トラック名と、バックエンドで使うpartは独立しています。partを省略すると未指定のまま登録します。PMDは出力時のトラック名を使い、FMP7は空きパートを割り当てます。単一トラックでは、partが空いていれば `(define-track melody :part 'A)` のように異なる名前を対応させられます。手続き `(sxmml-track-set! 'melody :part 'A)` も同じ規則です。別トラックが使用中のpartへの登録は、`invalid track melody part: A (already assigned to track A)` のような値エラーになります。モードが登録した既定トラックを別名で使う場合は、次の `rename-track` を使います。
+トラック名と、バックエンドで使うpartは独立しています。partを省略すると未指定のまま登録します。PMDは出力時のトラック名を使い、FMP7は空きパートを割り当てます。PMDでは、未指定トラックの現在名と別トラックの明示partが同じパートを指すと、出力時に両トラック名を示すエラーになります。単一トラックでは、partが空いていれば `(define-track melody :part 'A)` のように異なる名前を対応させられます。手続き `(sxmml-track-set! 'melody :part 'A)` も同じ規則です。別トラックが使用中のpartへの登録は、`invalid track melody part: A (already assigned to track A)` のような値エラーになります。モードが登録した既定トラックを別名で使う場合は、次の `rename-track` を使います。
 
 同名の再定義では新しいcontextを作り、以前の設定・登録済みMML・partを引き継ぎません。再定義でもpartの省略値は#fです。空いている別partへ再定義すると旧partは解放されます。検査に失敗した登録手続きは、以前の登録を変更しません。
 

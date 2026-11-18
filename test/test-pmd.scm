@@ -631,6 +631,11 @@
     (car (sxmml-pmd-output-tracks-select
           (make-sxmml-output-environment (sxmml-environment) :output #f :optimize 0))))
   (define-track A)
+  (define-track lead :part 'A)
+  (test* "PMD出力時に名前の補完と明示partが衝突した両名を示す"
+         (test-error <sxmml-value-error> "conflicting PMD part A: track A (implicit) and track lead (explicit)")
+         (first-track))
+  (sxmml-track-delete! 'lead)
   (test* "PMDは未指定パートに改名時点の名前を使う" '(A #f)
          (let1 name (slot-ref (first-track) 'name)
            (rename-track A lead)

@@ -50,17 +50,22 @@
             %pmd-parts))
 
 (define (sxmml-pmd-output-tracks-select env)
-  (map (match-lambda
-         [(part source _)
-          (hash-table-find (slot-ref env 'track)
-            (^[name track]
-              (and (eq? part (or (slot-ref track 'part) name))
-                   (let1 requested (slot-ref track 'sound-source)
-                     (when (and requested (not (eq? requested source)))
-                       (errorf <sxmml-value-error> "invalid track ~s sound-source: ~s (expected ~s for part ~s)"
-                               name requested source part))
-                     track))))])
-       %pmd-parts))
+  (define tracks (slot-ref env 'track))
+  (define (select part source)
+    (let* ([explicit (hash-table-find tracks (^[name track] (and (eq? part (slot-ref track 'part)) track)))]
+           [named (hash-table-get tracks part #f)]
+           [implicit (and named (not (slot-ref named 'part)) named)]
+           [track (or explicit implicit)])
+      (when (and explicit implicit)
+        (errorf <sxmml-value-error> "conflicting PMD part ~s: track ~s (implicit) and track ~s (explicit)"
+                part part (slot-ref explicit 'name)))
+      (when track
+        (let1 requested (slot-ref track 'sound-source)
+          (when (and requested (not (eq? requested source)))
+            (errorf <sxmml-value-error> "invalid track ~s sound-source: ~s (expected ~s for part ~s)"
+                    (slot-ref track 'name) requested source part))))
+      track))
+  (map (match-lambda [(part source _) (select part source)]) %pmd-parts))
 
 (define (sxmml-pmd-pcm-voice-number env name)
   (define (sample n)
