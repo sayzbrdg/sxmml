@@ -216,7 +216,7 @@
                    (apply sxmml-opn-voice-set! (string->symbol #"V~n") '(0 0)
                           (make-list 4 '(0 0 0 0 0 0 0 0 0))))
                  (guard (e [else (eq? (class-of e) <sxmml-error>)])
-                   (sxmml-pmd-voice-number-table-compute (slot-ref (sxmml-environment) 'voice)))))
+                   (sxmml-pmd-voice-number-table-compute (sxmml-voice-table-find (sxmml-environment) 'opn)))))
 
         (test* "通常トラックの直接IR入力で2個目のLを拒否する"
                (test-error <sxmml-mml-syntax-error> "loop command can be used only once in a track")
@@ -504,7 +504,7 @@
               [ir (range-ir (make <sxmml-mml-voice> :value 'tone) 'A)])
           (define (voice-result name alfb op :optional (used? #t))
             (pmd-ir-result name 'A (if used? ir (cdr ir))
-                           (^[] (hash-table-put! (slot-ref (sxmml-environment) 'voice) 'tone
+                           (^[] (sxmml-voice-set! 'opn
                                                 (make <sxmml-opn-voice> :id 'tone
                                                       :value (cons alfb (make-list 4 op)))))))
           (test* "FM音色の出力パラメータ上限を受理する"
@@ -596,9 +596,32 @@
             (test* #"a voice ~(cadr case) on track ~(car case) fails"
                    '(1 #t)
                    (status-and-message (sxlc-status "-m" "pmd" "-o" (work-file "voice-invalid.mml") source)
+                                       (if (equal? case '("J" "x")) #/undefined PCM voice: x$/
                                        (string->regexp
-                                        #"invalid ~(if (equal? (car case) \"J\") \"PCM\" \"SSG\") voice number: ~(regexp-quote (cadr case)) \\(expected an integer from 0 to ~(if (equal? (car case) \"J\") 255 9)\\)$")))))
+                                        #"invalid ~(if (equal? (car case) \"J\") \"PCM\" \"SSG\") voice number: ~(regexp-quote (cadr case)) \\(expected an integer from 0 to ~(if (equal? (car case) \"J\") 255 9)\\)$"))))))
       )
     (remove-directory* workdir)))
+
+(parameterize ([sxmml-environment (make <sxmml-environment>)])
+  (define (resolve value)
+    (sxmml-pcm-voice-set! 'kick value)
+    (sxmml-pmd-pcm-voice-number (sxmml-environment) 'kick))
+  (test* "PCM番号と先頭ファイル位置はファイル指定を必要としない"
+         '(25 26) (list (resolve 25) (resolve '(0 26))))
+  (define-metadata pcmfile "drums.ppc")
+  (test* "登録ファイル名を完全一致で解決する" 25 (resolve '("drums.ppc" 25)))
+  (test* "ファイル名の大小文字を区別する" (test-error <sxmml-value-error>) (resolve '("Drums.ppc" 25)))
+  (test* "Jのファイル位置は0だけ" (test-error <sxmml-value-error>) (resolve '(1 25)))
+  (define-pcm-voice 0 25)
+  (test* "数値名の定義を直指定より優先する" '(25 1)
+         (map (cut sxmml-pmd-pcm-voice-number (sxmml-environment) <>) '(|0| |1|)))
+  (let1 metadata (slot-ref (sxmml-environment) 'metadata)
+    (define (setting key value)
+      (hash-table-put! metadata key value)
+      (sxmml-pmd-metadata-value metadata key))
+    (test* "PPZ文字列とファイルリスト" '("a" "a,b" "a, b")
+           (list (setting 'pcmfile '("a")) (setting 'ppzfile '("a" "b")) (setting 'ppzfile "a, b")))
+    (test* "PCMファイルは最大1個" (test-error <sxmml-value-error>) (setting 'pcmfile '("a" "b")))
+    (test* "PPZファイルは最大2個" (test-error <sxmml-value-error>) (setting 'ppzfile '("a" "b" "c")))))
 
 (test-end :exit-on-failure #t)

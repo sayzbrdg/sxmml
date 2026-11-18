@@ -88,7 +88,7 @@
   (%track-output env track part %pmd-ssg-voice-output %pmd-ssg-volume-output %pmd-ssg-volume-change-output))
 
 (define (%pcm-track-output env track part)
-  (%track-output env track part %pmd-pcm-voice-output %pmd-pcm-volume-output %pmd-pcm-volume-change-output))
+  (%track-output env track part (cut %pmd-pcm-voice-output env <>) %pmd-pcm-volume-output %pmd-pcm-volume-change-output))
 
 (define (%pmd-track-output! state lis)
   (let loop ([rest lis] [loop-seen? #f] [depth 0])
@@ -240,10 +240,10 @@
 
 (define (%pmd-source-output env pmd3?)
   (let ([output-file (slot-ref env 'output)]
-        [voices (slot-ref env 'voice)]
-        [voice-numbers (sxmml-pmd-voice-number-table-compute (slot-ref env 'voice))]
+        [voices (or (sxmml-voice-table-find env 'opn) (make-hash-table eq-comparator))]
+        [voice-numbers (sxmml-pmd-voice-number-table-compute (or (sxmml-voice-table-find env 'opn) (make-hash-table eq-comparator)))]
         [used-voice-ids (make-hash-table eq-comparator)]
-        [tracks (map (cut sxmml-output-track-find env <>) '(A B C D E F G H I J L))])
+        [tracks (sxmml-pmd-output-tracks-select env)])
     (define (fm-voice-output obj)
       (%pmd-fm-voice-output voices voice-numbers obj)
       (hash-table-put! used-voice-ids (slot-ref obj 'value) #t))
@@ -538,8 +538,8 @@
 (define (%pmd-ssg-voice-output obj)
   (format #t "@~d" (%pmd-voice-number obj 9 "SSG voice number")))
 
-(define (%pmd-pcm-voice-output obj)
-  (format #t "@~d" (%pmd-voice-number obj 255 "PCM voice number")))
+(define (%pmd-pcm-voice-output env obj)
+  (format #t "@~d" (sxmml-pmd-pcm-voice-number env (slot-ref obj 'value))))
 
 ;; SSG・PCM の音色の値は PMD の @ の数値としてそのまま出力するので、0 から max までの
 ;; 整数に限る。数でない値は、エラーに書かれた値を示す

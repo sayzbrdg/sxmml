@@ -94,18 +94,18 @@
     (error <sxmml-value-error> "output file is not specified"))
   (let ([work (make <sxmml-pmd-binary-environment>
                 :offset 26 :head-length 26 :mode mode :environment env
-                :voice-numbers (sxmml-pmd-voice-number-table-compute (slot-ref env 'voice)))]
-        [tracks (map (cut sxmml-output-track-find env <>) '(A B C D E F G H I J L))])
+                :voice-numbers (sxmml-pmd-voice-number-table-compute (or (sxmml-voice-table-find env 'opn) (make-hash-table eq-comparator))))]
+        [tracks (sxmml-pmd-output-tracks-select env)])
     (define (optimized track)
       (sxmml-pmd-ir-optimize (slot-ref track 'ir) (slot-ref env 'optimize)))
     (u8vector-set! (slot-ref work 'head) 0 (slot-ref work 'head-length))
     (for-each (^[track i h]
-                (parameterize ([%pmd-section (format #f "track ~a" (slot-ref track 'part))])
+                (parameterize ([%pmd-section (format #f "track ~a" (or (slot-ref track 'part) (slot-ref track 'name)))])
                   (%fm-track-u8vector-set! work i h (optimized track)))
                 (%ticks-update! work track))
               (take tracks 6) (iota 6) (iota 6 2 2))
     (for-each (^[track i h]
-                (parameterize ([%pmd-section (format #f "track ~a" (slot-ref track 'part))])
+                (parameterize ([%pmd-section (format #f "track ~a" (or (slot-ref track 'part) (slot-ref track 'name)))])
                   (%ssg-track-u8vector-set! work i h (optimized track)))
                 (%ticks-update! work track))
               (take (drop tracks 6) 3) (iota 3 6) (iota 3 14 2))
@@ -138,7 +138,7 @@
 
 (define (%pcm-track-u8vector-set! work index hoffset lis)
   (%pmd-track-u8vector-set! work index hoffset lis
-                            %pmd-pcm-voice-set!
+                            (cut %pmd-pcm-voice-set! (slot-ref work 'environment) <> <> <>)
                             %pmd-pcm-volume-set!
                             %pmd-pcm-volume-change-set!))
 
@@ -325,7 +325,7 @@
              (loop (cdr rest) next-offset loop-seen? next-stack))])))
 
 (define (%pmd-meta-track-u8vector-set! work)
-  (define voice-ht (slot-ref (slot-ref work 'environment) 'voice))
+  (define voice-ht (or (sxmml-voice-table-find (slot-ref work 'environment) 'opn) (make-hash-table eq-comparator)))
   (define t12u8vec (vector-ref (slot-ref work 'track) 11))
   (define t13u8vec (vector-ref (slot-ref work 'track) 12))
   (define track-start-pos (slot-ref work 'offset))
@@ -444,7 +444,7 @@
              (+ cur 2)))))
 
 (define (%pmd-fm-voice-set! work u8vec offset obj)
-  (let1 inst (hash-table-get (slot-ref (slot-ref work 'environment) 'voice) (slot-ref obj 'value) #f)
+  (let1 inst (hash-table-get (or (sxmml-voice-table-find (slot-ref work 'environment) 'opn) (make-hash-table eq-comparator)) (slot-ref obj 'value) #f)
     (unless inst
       (errorf <sxmml-reference-error> "undefined voice: ~a" (slot-ref obj 'value)))
     (hash-table-put! (slot-ref work 'used-fm-voices) inst #t)
@@ -655,13 +655,9 @@
       [else
        (errorf <sxmml-value-error> "invalid SSG voice number: ~s (expected an integer from 0 to 9)" value)])))
 
-(define (%pmd-pcm-voice-set! u8vec offset obj)
-  ;; sxmml.backend.pmd と同じく 0 から 255 までの整数に限り、数でない値は書かれた値を示す
-  (let* ([name (slot-ref obj 'value)]
-         [value (or (string->number (symbol->string name)) name)])
-    (unless (and (exact-integer? value) (<= 0 value 255))
-      (errorf <sxmml-value-error> "invalid PCM voice number: ~s (expected an integer from 0 to 255)" value))
-    (%pmd-1byte-set! u8vec offset #xff value 255 0 "PCM voice number")))
+(define (%pmd-pcm-voice-set! env u8vec offset obj)
+  (%pmd-1byte-set! u8vec offset #xff (sxmml-pmd-pcm-voice-number env (slot-ref obj 'value))
+                   255 0 "PCM voice number"))
 
 (define (%pmd-noise-freq-set! u8vec offset obj)
   (%pmd-1byte-set! u8vec offset #xee (slot-ref obj 'value) 31 0 "noise frequency"))

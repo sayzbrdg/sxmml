@@ -28,31 +28,74 @@
 
 (define-module sxmml.backend.pmd
   (use srfi.1)
+  (use util.match)
+  (use sxmml.voice)
   (use gauche.sequence)
   (use sxmml.classes)
   (use sxmml.environment)
   (use sxmml.optimizer)
-  (export sxmml-pmd-setup! sxmml-pmd-ir-optimize sxmml-pmd-voice-number-table-compute
+  (export sxmml-pmd-output-tracks-select sxmml-pmd-pcm-voice-number sxmml-pmd-setup! sxmml-pmd-ir-optimize sxmml-pmd-voice-number-table-compute
           sxmml-pmd-metadata-value sxmml-pmd-lfo-values sxmml-pmd-envelope-values
           sxmml-pmd-check-obsolete-metadata))
 (select-module sxmml.backend.pmd)
 
+(define %pmd-parts
+  '((A opn 4) (B opn 4) (C opn 4) (D opn 4) (E opn 4) (F opn 4)
+    (G ssg 1) (H ssg 1) (I ssg 1) (J pcm 16) (L rhythm 1)))
+
 (define (sxmml-pmd-setup!)
-  (define-track (A B C D E F) :volume-delta 4)
-  (define-track (G H I L))
-  (define-track J :volume-delta 16))
+  (for-each (match-lambda
+              [(part source delta)
+               (sxmml-track-set! part :part part :sound-source source :volume-delta delta)])
+            %pmd-parts))
+
+(define (sxmml-pmd-output-tracks-select env)
+  (map (match-lambda
+         [(part source _)
+          (hash-table-find (slot-ref env 'track)
+            (^[name track]
+              (and (eq? part (or (slot-ref track 'part) name))
+                   (let1 requested (slot-ref track 'sound-source)
+                     (when (and requested (not (eq? requested source)))
+                       (errorf <sxmml-value-error> "invalid track ~s sound-source: ~s (expected ~s for part ~s)"
+                               name requested source part))
+                     track))))])
+       %pmd-parts))
+
+(define (sxmml-pmd-pcm-voice-number env name)
+  (define (sample n)
+    (unless (and (exact-integer? n) (<= 0 n 255))
+      (errorf <sxmml-value-error> "invalid PCM voice number: ~s (expected an integer from 0 to 255)" n))
+    n)
+  (if-let1 voice (and-let* ([table (sxmml-voice-table-find env 'pcm)]) (hash-table-get table name #f))
+    (match (slot-ref voice 'value)
+      [(0 n) (sample n)]
+      [((? string? file) n)
+       (unless (equal? file (sxmml-pmd-metadata-value (slot-ref env 'metadata) 'pcmfile))
+         (errorf <sxmml-value-error> "unknown PCM file: ~s" file))
+       (sample n)]
+      [(? number? n) (sample n)]
+      [other (errorf <sxmml-value-error> "invalid PCM definition ~a: ~s" name other)])
+    (if-let1 n (string->number (symbol->string name))
+      (sample n)
+      (errorf <sxmml-reference-error> "undefined PCM voice: ~a" name))))
 
 (define (sxmml-pmd-metadata-value metadata key)
   (let1 value (hash-table-get metadata key #f)
-    (if (eq? key 'memo)
+    (cond [(and value (memq key '(pcmfile ppzfile)) (not (string? value)))
+           (let1 limit (if (eq? key 'pcmfile) 1 2)
+             (unless (and (list? value) (every string? value) (<= (length value) limit))
+               (errorf <sxmml-value-error> "invalid metadata value: ~a is ~s (expected a string or a list of up to ~a strings)" key value limit))
+             (string-join value ","))]
+          [(eq? key 'memo)
       (cond [(not value) ()]
             [(string? value) (list value)]
             [(and (list? value) (every string? value)) value]
-            [else (errorf <sxmml-value-error> "invalid metadata value: memo is ~s (expected a string or a list of strings)" value)])
-      (begin
+            [else (errorf <sxmml-value-error> "invalid metadata value: memo is ~s (expected a string or a list of strings)" value)])]
+      [else
         (unless (or (not value) (string? value))
           (errorf <sxmml-value-error> "invalid metadata value: ~a is ~s (expected a string)" key value))
-        value))))
+        value])))
 
 (define (sxmml-pmd-voice-number-table-compute voices)
   (let* ([ids (sort (hash-table-keys voices)

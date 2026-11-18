@@ -89,7 +89,7 @@
          :output (work-file #"direct-loop-~|track|.m") :optimize 0))))
   (define (raw-voice-data name alfb op :optional (used? #t))
     (make-binary-data name 'pmd-binary
-                      `((hash-table-put! (slot-ref (sxmml-environment) 'voice) 'tone
+                      `((sxmml-voice-set! 'opn
                                          (make <sxmml-opn-voice> :id 'tone
                                                :value ',(cons alfb (make-list 4 op))))
                         (mml A ,(if used? "@{tone}o4c%12" "o4c%12"))) #f))
@@ -611,8 +611,9 @@
             (test* #"PCM の音色が 0 から 255 までの整数でなければ失敗する: ~(car case)"
                    '(1 #t #f)
                    (list (car result)
-                         (boolean (any (string->regexp
-                                        #"invalid PCM voice number: ~(regexp-quote (cadr case)) \\(expected an integer from 0 to 255\\)$")
+                         (boolean (any (if (equal? (cadr case) "x") #/undefined PCM voice: x$/
+                                     (string->regexp
+                                        #"invalid PCM voice number: ~(regexp-quote (cadr case)) \\(expected an integer from 0 to 255\\)$"))
                                        (cadr result)))
                          (file-exists? output)))))
         ;; SSG のミックスは 1 から 3 までで、範囲外は値と範囲を示して失敗する (#55)
