@@ -28,6 +28,7 @@ LFO・エンベロープの種類、`define-metadata` のキー、`define-track`
 [cols="2,3",options="header"]
 |===
 |正規名 |別名
+|`fmp7` |なし
 |`pmd-source` |`pmd`、`pmd4-source`
 |`pmd3-source` |`pmd3`
 |`pmd-binary` |`pmd4-binary`
@@ -62,7 +63,7 @@ LFO・エンベロープの種類、`define-metadata` のキー、`define-track`
 
 トラック名と、バックエンドで使うpartは独立しています。partを省略すると未指定のまま登録します。PMDは出力時のトラック名を使い、FMP7は空きパートを割り当てます。単一トラックでは、partが空いていれば `(define-track melody :part 'A)` のように異なる名前を対応させられます。手続き `(sxmml-track-set! 'melody :part 'A)` も同じ規則です。別トラックが使用中のpartへの登録は、`invalid track melody part: A (already assigned to track A)` のような値エラーになります。モードが登録した既定トラックを別名で使う場合は、次の `rename-track` を使います。
 
-同名の再定義では新しいcontextを作り、以前の設定・登録済みMML・partを引き継ぎません。part省略時は再定義した名前を使います。空いている別partへ再定義すると旧partは解放されます。検査に失敗した登録手続きは、以前の登録を変更しません。
+同名の再定義では新しいcontextを作り、以前の設定・登録済みMML・partを引き継ぎません。再定義でもpartの省略値は#fです。空いている別partへ再定義すると旧partは解放されます。検査に失敗した登録手続きは、以前の登録を変更しません。
 
 複数トラック形式ではpartを未指定として登録します。`:part`を指定すると、登録前に `invalid define-track form: :part requires a single track` のフォーム構文エラーになります。名前の指定順に登録し、設定値の式はトラックごとに評価します。後の登録が失敗しても先に成功した登録は残します。
 
@@ -276,7 +277,7 @@ sxlcはソースの読み込み後、`-o`、ソースの既定値、入力名と
 
 書式: `(define-metadata キー 値)`
 
-メタデータを定義します。キーは単語をそのまま書き、大文字は小文字にそろえます。値は式として評価されます。文字列のほか、文字列を入れた変数や、複数の値を持たせる `(list "練習用" "2小節")` や `'("練習用" "2小節")` を書けます。値に何を使えるかは生成先が決めます。PMD 向け生成物では `title`、`composer`、`arranger`、`pcmfile`、`ppzfile`、`ppsfile`、`memo` が出力対象です。`memo` は文字列 1 つか文字列のリストで（リストの要素ごとに 1 件）、それ以外のキーは文字列です。それ以外の値は、`invalid metadata value: title is 1 (expected a string)` のように、キーと値を示して変換の失敗になります。PMD3 のバイナリ（`pmd3-binary`）はメタデータを書かないので、値を検査しません。
+メタデータを定義します。キーは単語をそのまま書き、大文字は小文字にそろえます。値は式として評価されます。文字列のほか、文字列を入れた変数や、複数の値を持たせる `(list "練習用" "2小節")` や `'("練習用" "2小節")` を書けます。値に何を使えるかは生成先が決めます。PMD 向け生成物では `title`、`composer`、`arranger`、`pcmfile`、`ppzfile`、`ppsfile`、`memo` が出力対象です。`memo` は文字列 1 つか文字列のリスト（リストの要素ごとに 1 件）です。`pcmfile`・`ppzfile` は文字列または文字列リスト（それぞれ最大1件・2件）、ほかのキーは文字列です。それ以外の値は、`invalid metadata value: title is 1 (expected a string)` のように、キーと値を示して変換の失敗になります。PMD3 のバイナリ（`pmd3-binary`）はメタデータを書かないので、値を検査しません。
 
 [source,scheme]
 ----

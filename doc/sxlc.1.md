@@ -28,7 +28,7 @@ sxlc は *file* を Scheme ソースとして読み込み、トラックに登�
 複数回指定でき、同じ名前は最後の値を使う。`-m`との位置関係によらずモード初期設定前に登録され、ソースの`sxmml-option-get`で取得できる。ソースの`sxmml-option-set!`による後続の変更も有効。未登録名の取得はundefinedであり、登録済みの#fと区別する。
 
 **-m** *mode*, `--mode` *mode*
-:   変換モードを選ぶ。PMD4 向けには `pmd`、PMD3 向けには `pmd3` を指定する。PMD のバイナリを直接生成するPMD4 向けの `pmd-binary` と `pmd4-binary`、PMD3 向けの `pmd3-binary` がある。省略した場合はソース中の `(sxmml-mode pmd)` などが必要。CLI とソースの両方で指定すると、この指定が有効になり、ソース中の `sxmml-mode` は警告を表示して無視される（名前は評価・検索しない。書式と名前の型は検査する）。
+:   変換モードを選ぶ。PMD4 向けには `pmd`、PMD3 向けには `pmd3` を指定する。PMD のバイナリを直接生成するモードとして、PMD4 向けの `pmd-binary` と `pmd4-binary`、PMD3 向けの `pmd3-binary` がある。省略した場合はソース中の `(sxmml-mode pmd)` などが必要。CLI とソースの両方で指定すると、この指定が有効になり、ソース中の `sxmml-mode` は警告を表示して無視される（名前は評価・検索しない。書式と名前の型は検査する）。
 
 正規名は`pmd-source`、`pmd3-source`、`pmd-binary`、`pmd3-binary`。`pmd`と`pmd4-source`は`pmd-source`、`pmd3`は`pmd3-source`、`pmd4-binary`は`pmd-binary`の別名である。通常表示と警告には正規名を使う。未登録のCLI名は`undefined mode: 名前`として終了値2、初期設定の失敗は終了値1になる。ソースから明示的に`sxmml-mode-select!`を呼ぶ変更はCLI指定後も有効である。
 
