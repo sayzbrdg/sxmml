@@ -63,6 +63,7 @@
           (slot-ref prepared 'track) name
           (make <sxmml-output-track>
             :name (slot-ref context 'track) :part (slot-ref context 'part)
+            :sound-source (slot-ref context 'sound-source)
             :ir (sxmml-ir-flatten (slot-ref context 'compiled-data))
             :total-ticks (car ticks) :loop-ticks (- (car ticks) (cdr ticks))
             :loop-exists (slot-ref context 'loop-exists)
@@ -70,4 +71,4 @@
 
 (define (sxmml-output-track-find output-environment part)
   (hash-table-find (slot-ref output-environment 'track)
-                   (^[name track] (and (eq? (slot-ref track 'part) part) track))))
+                   (^[name track] (and part (eq? (slot-ref track 'part) part) track))))
