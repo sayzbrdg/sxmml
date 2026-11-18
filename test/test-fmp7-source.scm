@@ -140,12 +140,15 @@
         (test* "省略とA、B、C、Dのチャネル" #t
                (has (render 'opm "M0M{0 A}M{0 B}M{0 C}M{0 D}" lfo-setup)
                     "MPV8,2,1,24,0,1,0MPV" "MQV" "MRV" "MSV"))
-        (test* "日本語のCP932、CRLF、メモと作成者" #t
+        (test* "曲情報をCP932で出力し、各値の次の行で定義を閉じる" #t
                (let1 text (render 'pcm ""
-                            (^[] (define-metadata creator "作成者")
+                            (^[] (define-metadata title "曲名")
+                                 (define-metadata composer "作曲者")
+                                 (define-metadata creator "作成者")
                                  (define-metadata arranger "編曲者")
                                  (define-metadata memo '("その一" "その二"))))
-                 (and (has text "DataCreator=作成者" "Comment=その一 / その二" "\r\n")
+                 (and (has text "Title=曲名\r\n}\r\n" "Composer=作曲者\r\n}\r\n"
+                                "DataCreator=作成者\r\n}\r\n" "Comment=その一 / その二\r\n}\r\n")
                       (not (string-contains text "編曲者")))))
         (test* "出力先未指定" (test-error <sxmml-value-error>)
                (sxmml-fmp7-source-output (make <sxmml-output-environment>))))

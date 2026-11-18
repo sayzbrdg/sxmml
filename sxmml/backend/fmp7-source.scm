@@ -153,7 +153,7 @@
                                      (string-join value " / ") value)
                              (unless (and (string? s) (not (#/[\r\n]/ s)))
                                (errorf <sxmml-value-error> "invalid FMP7 metadata ~a: ~s" key value))
-                             (format #t "'{ ~a=~a }\r\n" field s))))
+                             (format #t "'{ ~a=~a\r\n}\r\n" field s))))
                        '(title composer creator memo) '(Title Composer DataCreator Comment))
              (display (get-output-string defs)) (display text))
            :encoding "cp932")
