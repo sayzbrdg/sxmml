@@ -34,7 +34,7 @@ LFO・エンベロープの種類、`define-metadata` のキー、`define-track`
 |`pmd3-binary` |なし
 |===
 
-binaryの各モードは実験的機能です。生成物がMC.EXEの出力と同じであることは保証しません。利用可能なモードは`sxlc -l`で確認できます。
+生成物がMC.EXEの出力と同じであることは保証しません。利用可能なモードは`sxlc -l`で確認できます。
 
 `sxlc -m`を指定済みなら、正しい書式のマクロを位置付き警告`warning: /home/user/song.sxl:1: sxmml-mode in source is ignored; mode is already set to pmd-source`で無視します。名前は検索しないため、未登録名でも無視できます。書式と名前の型は展開時に検査します。
 
@@ -60,11 +60,11 @@ binaryの各モードは実験的機能です。生成物がMC.EXEの出力と�
 
 一つまたは複数のトラックを登録します。`mml` と `rhythm` で使う名前は登録済みである必要があります。`設定` には `:volume-delta 数値` を指定でき、通常 MML の `)` と `(` の変化幅になります。省略時の幅は 1 です。PMD モードを選ぶと A～J と L が登録されるため、通常は個別登録を要しません。モードを選ばずに `define-track` だけを記しても、`sxlc` の生成にはバックエンドの選択が必要です。
 
-トラック名と、バックエンドで使うpartは独立しています。partを省略するとトラック名と同じpartになります。単一トラックでは、partが空いていれば `(define-track melody :part 'A)` のように異なる名前を対応させられます。手続き `(sxmml-track-set! 'melody :part 'A)` も同じ規則です。別トラックが使用中のpartへの登録は、`invalid track melody part: A (already assigned to track A)` のような値エラーになります。モードが登録した既定トラックを別名で使う場合は、次の `rename-track` を使います。
+トラック名と、バックエンドで使うpartは独立しています。partを省略すると未指定のまま登録します。PMDは出力時のトラック名を使い、FMP7は空きパートを割り当てます。単一トラックでは、partが空いていれば `(define-track melody :part 'A)` のように異なる名前を対応させられます。手続き `(sxmml-track-set! 'melody :part 'A)` も同じ規則です。別トラックが使用中のpartへの登録は、`invalid track melody part: A (already assigned to track A)` のような値エラーになります。モードが登録した既定トラックを別名で使う場合は、次の `rename-track` を使います。
 
 同名の再定義では新しいcontextを作り、以前の設定・登録済みMML・partを引き継ぎません。part省略時は再定義した名前を使います。空いている別partへ再定義すると旧partは解放されます。検査に失敗した登録手続きは、以前の登録を変更しません。
 
-複数トラック形式では各名前と同じpartを使います。`:part`を指定すると、登録前に `invalid define-track form: :part requires a single track` のフォーム構文エラーになります。名前の指定順に登録し、設定値の式はトラックごとに評価します。後の登録が失敗しても先に成功した登録は残します。
+複数トラック形式ではpartを未指定として登録します。`:part`を指定すると、登録前に `invalid define-track form: :part requires a single track` のフォーム構文エラーになります。名前の指定順に登録し、設定値の式はトラックごとに評価します。後の登録が失敗しても先に成功した登録は残します。
 
 手続き `(sxmml-track-list)` は、現在登録されているトラック名のリストを返します。戻り値の順序は保証しません。順序が処理結果に影響する場合は、利用側で必要な順序に並べ替えてください。
 
@@ -418,3 +418,19 @@ DTの−1・−2・−3は、それぞれ5・6・7へ直して登録します。
 == 対応範囲
 
 ここで説明したマクロは PMD 向けの生成に使用できます。MML オブジェクトの slot は直接変更できますが、関連する時間情報などの文脈値は自動では更新されません。slot を直接変更する場合、関連する値との整合は利用者が保ってください。本書で扱う加工マクロの操作と制約を確認してください。
+
+== FMP7のトラックと音色
+
+`(define-track lead :sound-source 'opm)` は音源を指定してトラックを登録します。種類は opn、opm、ssg、pcm です。パートを固定する場合は `:part 'A0` を加えます。AはA0と同じパートです。未指定のトラックを名前順にA0、A1、…、Z9の空きへ割り当てます。音源ごとに32、全体で64までです。手動出力は `sxmml.backend.fmp7-source` の `(sxmml-fmp7-source-output 出力環境)` を呼び出します。
+
+`(define-opm-voice 名前 alfb op1 op2 op3 op4)` は通常のScheme式を受け付けます。alfbはAL、FBの2値、各オペレータはAR、D1R、D2R、RR、D1L、TL、KS、ML、DT1、DT2、AMの11値です。OPNとOPMは音色番号0～255を共有し、PCMとエンベロープにはそれぞれ独立の番号枠があります。FAではDT2とSEG、FCではSEGを出力しません。
+
+[source,scheme]
+----
+(define-metadata pcmfile '("drums1" "drums2"))
+(define-pcm-voice 0 '(1 25))
+(define-track drums :sound-source 'pcm)
+(mml drums "@0 c8")
+----
+
+ファイル位置は0始まりです。この例はdrums2のサンプル25を選びます。数値25だけなら先頭ファイル、'("drums2" 25)なら直接指定です。FMP7のサンプルは0～65535です。PMDのJでは数値または位置0が使え、ファイル名はpcmfileと完全一致させます。未定義の数値名はPMDでは従来の番号として扱います。PMDのpcmfileとppzfileは文字列のほか、各1個・2個までの文字列リストを受け付けます。

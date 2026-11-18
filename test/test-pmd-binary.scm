@@ -268,6 +268,8 @@
           (let* ([source (source-output (work-file #"voices-~|mode|.sxl")
                                       `(,(voice-form 'z 3) ,(voice-form 'a 1)
                                         ,(voice-form 'm 2) ,(voice-form 'unused 7)
+                                        (define-pcm-voice 0 12)
+                                        (let1 op (make-list 11 0) (define-opm-voice 0 '(0 0) op op op op))
                                         (mml A "@{m}c8@{z}c8@{a}c8")))]
                  [output (work-file #"voices-~|mode|.m")])
             ;; 番号は定義した全ての音色に id の辞書順で振る (#27)。a 0、m 1、unused 2、z 3

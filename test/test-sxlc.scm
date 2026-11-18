@@ -138,7 +138,14 @@
                         (sxmml-mode test-actual))]
                [source (source-output "actual-result" (with-output-to-string (^[] (for-each write forms))))]
                [r (sxlc-report "-o" (work-file "requested.bin") "-c" "printf '<%s>\\n'" source)])
-          (test* "C03 実際の出力先を表示し、後処理へ一引数で渡す" (list 0 actual actual)
+          (let* ([source (source-output "fmp" "(define-track lead :sound-source 'ssg) (mml lead \"c8\")")]
+               [path (work-file "fmp.mwi")] [override (work-file "override.dat")])
+          (test* "FMP7の既定出力と採用トラック" (list 0 #t '("Track lead: total: 12"))
+                 (let1 result (sxlc-report "-m" "fmp7" source)
+                   (list (car result) (file-exists? path) (filter #/^Track / (cadr result)))))
+          (test* "FMP7の-oには拡張子を付加しない" '(0 #t)
+                 (list (car (sxlc-report "-m" "fmp7" "-o" override source)) (file-exists? override))))
+        (test* "C03 実際の出力先を表示し、後処理へ一引数で渡す" (list 0 actual actual)
                  (cons (car r) (take (output-report (cadr r)) 2))))
         (let* ([op0 "(0 0 0 0 0 0 0 0 0)"]
                [defs #"(define-opn-voice TONE (0 0) ~op0 ~op0 ~op0 ~op0)\n(define-lfo MOD triangle (list 1 2 3 4))\n(define-envelope ENV default (list 1 2 3 4))\n(define-metadata TITLE \"name test\")\n(define-track A)\n"]
@@ -242,7 +249,7 @@
                        (find #/^Processing Mode:/ lines)
                        (generated-mode-line "cli-mode"))))
         (test* "C03 登録済みモードの一覧を正規名順に表示する"
-               '(0 ("sxmml available modes:" "" "  pmd-binary (aliases: pmd4-binary)"
+               '(0 ("sxmml available modes:" "" "  fmp7" "  pmd-binary (aliases: pmd4-binary)"
                      "  pmd-source (aliases: pmd, pmd4-source)" "  pmd3-binary"
                      "  pmd3-source (aliases: pmd3)" "") ())
                (sxlc-report "-l"))

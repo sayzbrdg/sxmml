@@ -3,7 +3,8 @@
   (use util.match)
   (use sxmml.classes)
   (use sxmml.optimizer)
-  (export sxmml-fmp7-tracks-prepare sxmml-fmp7-ir-optimize sxmml-fmp7-lfo-output-prepare))
+  (export sxmml-fmp7-tracks-prepare sxmml-fmp7-ir-optimize sxmml-fmp7-lfo-output-prepare
+          sxmml-fmp7-lfo-values sxmml-fmp7-envelope-values sxmml-fmp7-pcm-reference-resolve))
 (select-module sxmml.backend.fmp7)
 
 (define (%part-name part)
@@ -164,3 +165,47 @@
         (if (null? tail) head
             (let* ([cycle (%lfo-region tail)] [entry (%after (car first) initial)])
               (append! head ((cdr cycle) (%join entry (%after (car cycle) entry))))))))))
+
+(define (%bounded label value low high)
+  (unless (and (exact-integer? value) (<= low value high))
+    (errorf <sxmml-value-error> "invalid ~a: ~s (expected an integer from ~a to ~a)" label value low high))
+  value)
+
+(define (sxmml-fmp7-lfo-values lfo)
+  (let* ([type (slot-ref lfo 'type)]
+         [wave (assq type '((default . 0) (triangle . 0) (saw . 1) (square . 2) (one-shot . 3) (random . 4)))]
+         [data (slot-ref lfo 'value)])
+    (unless wave (errorf <sxmml-value-error> "unsupported LFO type: ~s" type))
+    (unless (and (list? data) (<= 4 (length data) 6))
+      (errorf <sxmml-value-error> "invalid LFO values: ~s (expected 4 to 6 values)" data))
+    (match-let1 (delay speed rate depth . options) data
+      (list (%bounded "LFO delay" delay 0 128) (%bounded "LFO speed" speed 1 255)
+            (%bounded "LFO rate" rate -32768 32767) (%bounded "LFO depth" depth -32768 32767)
+            (cdr wave) (%bounded "LFO sync" (list-ref options 0 1) 0 1)
+            (%bounded "LFO offset" (list-ref options 1 0) -32768 32767)))))
+
+(define (sxmml-fmp7-envelope-values env)
+  (let* ([type (slot-ref env 'type)] [data (slot-ref env 'value)]
+         [spec (assq type '((default E 6) (extended EX 13)))])
+    (unless spec (errorf <sxmml-value-error> "unsupported envelope type: ~s" type))
+    (unless (and (list? data) (= (length data) (caddr spec)))
+      (errorf <sxmml-value-error> "invalid envelope values: ~s (expected ~a values)" data (caddr spec)))
+    (for-each (cut %bounded "envelope value" <> 0 255) data)
+    (list (cadr spec) data)))
+
+(define (sxmml-fmp7-pcm-reference-resolve env voice)
+  (define (indexed index)
+    (let* ([files (hash-table-get (slot-ref env 'metadata) 'pcmfile '())]
+           [names (if (string? files) (list files) files)])
+      (unless (and (list? names) (every string? names) (exact-integer? index) (<= 0 index) (< index (length names)))
+        (errorf <sxmml-value-error> "invalid PCM file index: ~s for pcmfile ~s" index files))
+      (list-ref names index)))
+  (define (reference file sample)
+    (unless (and (string? file) (not (#/[\/\\"\r\n]/ file)))
+      (errorf <sxmml-value-error> "invalid PCM filename: ~s" file))
+    (list file (%bounded "PCM sample" sample 0 65535)))
+  (match (slot-ref voice 'value)
+    [((? string? file) sample) (reference file sample)]
+    [(index sample) (reference (indexed index) sample)]
+    [(? exact-integer? sample) (reference (indexed 0) sample)]
+    [other (errorf <sxmml-value-error> "invalid PCM definition: ~s" other)]))

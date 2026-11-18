@@ -1,4 +1,4 @@
-= `sxmml.backend.pmd-binary` の生成処理（実験的）
+= `sxmml.backend.pmd-binary` の生成処理
 :toc: left
 
 各モード情報はモジュール読込み時に登録し、初期設定は選択時だけに実行します。選択は`(sxmml-mode-select! 'pmd-binary)`、出力手続きは選択情報のbackendから取得します。旧選択手続きは廃止しました。
@@ -7,11 +7,11 @@
 
 既存の数値・定義形式の検査はvalue-error、未定義の音色・LFO・エンベロープはreference-error、重複Lはmml-syntax-errorです。生成物サイズとトラック長の上限は基底sxmml-errorで通知します。I/Oや内部のGaucheエラーは包み直しません。
 
-`sxmml.backend.pmd-binary` は、外部コンパイラ（MC.EXE）を介さずに PMD のバイナリ（`.m`）を直接生成する実験的なバックエンドです。生成物が MC.EXE の出力と同じであることは保証しません（`sxmml.backend.pmd-source` の出力を MC.EXE でコンパイルした結果と一致するとは限りません）。正式機能とするかどうかは https://github.com/sayzbrdg/sxmml/issues/54[issue #54] で判断します。
+`sxmml.backend.pmd-binary` は、外部コンパイラ（MC.EXE）を介さずに PMD のバイナリ（`.m`）を直接生成するバックエンドです。生成物が MC.EXE の出力と同じであることは保証しません（`sxmml.backend.pmd-source` の出力を MC.EXE でコンパイルした結果と一致するとは限りません）。
 
 このモジュールは、PMD 4.8s のソースで命令コードの対応を確認し、MC.EXE の生成物の差分から形式を解析した独自実装です。処理の移植・翻訳はしていません。解析の経緯と謝辞は link:../../README.md#謝辞[README の謝辞]を参照してください。
 
-実験的な機能であるため、このページでは公開名 4 件だけを項目として記載します。`%` で始まる内部手続きは、群ごとの概要とバイナリの配置の概要に留めます。既知の欠陥は、ラベル `pmd-binary` の付いた link:https://github.com/sayzbrdg/sxmml/issues?q=is%3Aissue%20is%3Aopen%20label%3Apmd-binary%20label%3Abug[開いている不具合の issue] を参照してください。パラメータ、オブジェクト、文字コード変換、一時ファイル、ファイル名操作は Gauche 0.9.15 の動作に従います。
+このページでは公開名 4 件だけを項目として記載します。`%` で始まる内部手続きは、群ごとの概要とバイナリの配置の概要に留めます。既知の欠陥は、ラベル `pmd-binary` の付いた link:https://github.com/sayzbrdg/sxmml/issues?q=is%3Aissue%20is%3Aopen%20label%3Apmd-binary%20label%3Abug[開いている不具合の issue] を参照してください。パラメータ、オブジェクト、文字コード変換、一時ファイル、ファイル名操作は Gauche 0.9.15 の動作に従います。
 
 FM音色表へ書く直前に `%opn-voice-form->register-data form id` が使用音色の出力項目を検査します。AL・FB・DT=0～7、AR・DR・SR=0～31、RR・SL・ML=0～15、TL=0～127、KS=0～3、AMS=0～1の正確な整数に限り、不正なら音色名・演算子番号・項目名・指定値・範囲を示すvalue-errorとします。DTの負数正規化は共通登録の責務であり、直接渡された負のDTは拒否します。DT2・SEGと未使用の手作り音色は新しい出力時検査の対象に加えません。検査後のbit結合と生成バイトは維持します。
 
@@ -83,3 +83,5 @@ MC.EXE 4.8s で、同じ MML を PMD4 向けと PMD3 向けにコンパイルし
 PMD3 向けで、2 回以上の反復の値は確かめていません。
 
 PMD3 向けの MC.EXE の生成物は、`#memo` を 0～3 件書いた MML でも同じでした。PMD3 向けの pmd-binary がメタ情報を置かないことと合っています。
+
+音色表はopnの定義を対象とし、PCMの番号解決にはpmd-sourceと同じ手続きを使います。

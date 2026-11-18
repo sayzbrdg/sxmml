@@ -63,13 +63,13 @@ CLIとソースのマクロ双方で指定した場合はCLI側を優先し、�
 
 == トラック表と登録済みオブジェクト
 
-各トラックは xref:classes.adoc#ref-classes-class-sxmml-mml-context[`<sxmml-mml-context>`] に格納されます。名前→contextの表とcontextのpartを対応情報の本体とし、partは`eq?`で比較します。登録のpart省略時はトラック名を使い、自身以外の所有者がいないことを表の走査で確認します。未登録contextのクラス既定値は`#f`のままです。
+各トラックは xref:classes.adoc#ref-classes-class-sxmml-mml-context[`<sxmml-mml-context>`] に格納されます。名前→contextの表とcontextのpartを対応情報の本体とし、partは`eq?`で比較します。登録時にpartを省略すると#fになります。明示partだけを重複検査します。未登録contextのクラス既定値は`#f`のままです。
 
 [cols="2,4,4,1",options="header"]
 |===
 |名前・書式 |引数と役割 |結果・副作用・失敗条件 |ソース
 |[[ref-environment-sxmml-track-get]]`(sxmml-track-get track)` |名前でトラックを検索 |未登録なら `#f` |link:../../sxmml/environment.scm[environment.scm]
-|[[ref-environment-sxmml-track-set-bang]]`(sxmml-track-set! track . params)` |`:part` などの初期化引数から context を作る |part省略時はtrack。自身以外が使用中のpartは`invalid track <名前> part: <値> (already assigned to track <所有者>)`のvalue-error。検査後に新contextで同名項目を置換し、設定・MML・旧partは引き継がない。不正な初期化引数は`make`で失敗 |link:../../sxmml/environment.scm[environment.scm]
+|[[ref-environment-sxmml-track-set-bang]]`(sxmml-track-set! track . params)` |`:part` などの初期化引数から context を作る |part省略時は#f。:sound-sourceはsymbolまたは#f。自身以外が使用中のpartは`invalid track <名前> part: <値> (already assigned to track <所有者>)`のvalue-error。検査後に新contextで同名項目を置換し、設定・MML・旧partは引き継がない。不正な初期化引数は`make`で失敗 |link:../../sxmml/environment.scm[environment.scm]
 |[[ref-environment-sxmml-track-rename-bang]]`(sxmml-track-rename! old-name new-name)` |symbolの登録名を変更 |同じcontextのtrackと表のキーを変更し、part・設定・IR・全コンパイル状態を保持。未登録元はreference-error、登録済み先（同名も含む）・名前の型違反はvalue-error。検査失敗時は既存状態を変更しない。戻り値は規定しない |link:../../sxmml/environment.scm[environment.scm]
 |[[ref-environment-sxmml-track-delete-bang]]`(sxmml-track-delete! track)` |指定したトラックを削除 |`track` 表からその key を削除 |link:../../sxmml/environment.scm[environment.scm]
 |[[ref-environment-sxmml-track-clear-bang]]`(sxmml-track-clear!)` |トラック表を全件削除 |引数なしで `track` 表を空にする。一件だけ削除する場合は `sxmml-track-delete!` を使う |link:../../sxmml/environment.scm[environment.scm]

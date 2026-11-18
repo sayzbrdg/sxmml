@@ -272,7 +272,9 @@
             (test* "voice numbers follow the dictionary order of ids"
                    '("A l%12@2o4c" ((2 3)))
                    (list (a-line text) (voice-lines text))))
-          (let1 forms (append (map voice-form '(a b c) '(0 1 2))
+          (let1 forms (append '((define-pcm-voice 0 12)
+                                (let1 op (make-list 11 0) (define-opm-voice 0 '(0 0) op op op op)))
+                              (map voice-form '(a b c) '(0 1 2))
                               '((mml A "@{b}@{c}c8")))
             (let1 text (pmd-text "used-voices-O0" forms 'pmd-source #f)
               (test* "最適化なしでは生成する全音色指定の定義だけを出力する"
@@ -623,5 +625,15 @@
            (list (setting 'pcmfile '("a")) (setting 'ppzfile '("a" "b")) (setting 'ppzfile "a, b")))
     (test* "PCMファイルは最大1個" (test-error <sxmml-value-error>) (setting 'pcmfile '("a" "b")))
     (test* "PPZファイルは最大2個" (test-error <sxmml-value-error>) (setting 'ppzfile '("a" "b" "c")))))
+
+(parameterize ([sxmml-environment (make <sxmml-environment>)])
+  (define (first-track)
+    (car (sxmml-pmd-output-tracks-select
+          (make-sxmml-output-environment (sxmml-environment) :output #f :optimize 0))))
+  (define-track A)
+  (test* "PMDは未指定パートに改名時点の名前を使う" '(A #f)
+         (let1 name (slot-ref (first-track) 'name)
+           (rename-track A lead)
+           (list name (first-track)))))
 
 (test-end :exit-on-failure #t)

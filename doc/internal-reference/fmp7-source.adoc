@@ -1,0 +1,32 @@
+= MML生成とファイル出力
+
+トラックを文字列ポートへ出力するときに使用定義へ番号を付けます。設定・定義・本文をCP932、CRLFで一時ファイルに書き、成功後に出力先を置き換えます。
+
+== 手続きと構文
+
+[[ref-fmp7-source-internal-integer]]
+`(%integer kind value low high)`:: 出力値の整数範囲を検査する。
+
+[[ref-fmp7-source-internal-csv]]
+`(%csv values)`:: 数値列をカンマで連結する。
+
+[[ref-fmp7-source-internal-pitch]]
+`(%pitch n)`:: IR音高から絶対オクターブ付き音名を返す。
+
+[[ref-fmp7-source-internal-channel]]
+`(%channel obj)`:: 正規化済みチャネルからFMP7の記号を返す。
+
+[[ref-fmp7-source-internal-lookup]]
+`(%lookup table id label)`:: 名前から定義を取得する。
+
+[[ref-fmp7-source-internal-fm-definition]]
+`(%fm-definition kind number data)`:: 4オペレータとAL/FBをFAまたはFCへ書く。
+
+[[ref-fmp7-source-internal-definition-output]]
+`(%definition-output env kind id number)`:: 使用定義を番号付きで書く。
+
+[[ref-fmp7-source-internal-track-output]]
+`(%track-output env track part kind number)`:: トラックの設定・反復・音符をMMLとして書く。
+
+[[ref-fmp7-source-sxmml-fmp7-source-output]]
+`(sxmml-fmp7-source-output env)`:: 入力環境から.mwiを生成して出力結果を返す。
