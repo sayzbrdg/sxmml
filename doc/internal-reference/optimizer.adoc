@@ -1,7 +1,7 @@
 = `sxmml.optimizer` のIR列最適化
 :toc: left
 
-59手続きとrecord型3件を定義し、8手続きを公開します。入力は整列済みの有効な共通IR列、出力も平坦なIR列です。登録環境の検索、整列化、集計確定、最適化要求の数値解釈は行いません。
+63手続きとrecord型3件を定義し、10手続きを公開します。入力は整列済みの有効な共通IR列、出力も平坦なIR列です。登録環境の検索、整列化、集計確定、最適化要求の数値解釈は行いません。
 
 各処理は単独で使え、前の最適化処理の実行を前提にしません。他の処理の削減能力を包含する必要もありません。入力のリスト構造・IRを変更せず、変更するIRを新しく作り、未変更部分は共有できます。局所処理で自分が生成した設定IRの組立てに更新を使うこととは区別します。
 
@@ -19,6 +19,10 @@
 [cols="2,4,4,1",options="header"]
 |===
 |名前・書式 |引数と役割 |戻り値・副作用・失敗条件 |ソース
+|[[ref-optimizer-sxmml-ir-optimize-full-repeat]]`(sxmml-ir-optimize-full-repeat ir :optional notify)` |基本整理と展開の順を変えた全幅探索。短い列を選び、同数なら基本整理を先に行った列を選ぶ |入力のIRは変更しない |link:../../sxmml/optimizer.scm[optimizer.scm]
+|[[ref-optimizer-sxmml-run-compression-jobs]]`(sxmml-run-compression-jobs tasks jobs)` |各トラックの圧縮手続きと空トラックを表す#fを受付順に処理し、対応するIR列を返す |入力のIRは変更しない |link:../../sxmml/optimizer.scm[optimizer.scm]
+|[[ref-optimizer-internal-large-search-notifier]]`(%large-search-notifier notify)` |区間長を受け取り、3,072を超える最初の探索を通知する手続きを返す |入力のIRは変更しない |link:../../sxmml/optimizer.scm[optimizer.scm]
+|[[ref-optimizer-internal-repeat-settings]]`(%repeat-settings window)` |指定した探索幅と共通の反復費用で設定を作る |入力のIRは変更しない |link:../../sxmml/optimizer.scm[optimizer.scm]
 |[[ref-optimizer-sxmml-ir-optimize-local]]`(sxmml-ir-optimize-local ir)` |区間内の上書き削除と設定更新の合成 |反復や未知IR等の境界を保ち、実行順の効果を保持する。新しい列を返す |link:../../sxmml/optimizer.scm[optimizer.scm]
 |[[ref-optimizer-sxmml-ir-remove-redundant-settings]]`(sxmml-ir-remove-redundant-settings ir)` |既に成立している設定の再指定を削除 |平坦な有効IRを構造化して状態を追跡。不明な初期値を仮定しない。休符結合はしない |link:../../sxmml/optimizer.scm[optimizer.scm]
 |[[ref-optimizer-sxmml-ir-merge-rests]]`(sxmml-ir-merge-rests ir)` |隣接する休符の結合 |変更が必要な休符を新しく作る。入力のticksや未束縛のvalueを変更・不用意に参照しない |link:../../sxmml/optimizer.scm[optimizer.scm]
@@ -72,12 +76,12 @@
 [[ref-optimizer-internal-repeat-block-end]]`(%repeat-block-end b)` |既存のリピートのブロック（record 型）。`start`・`break`・`end` は `[`・`:`・`]` のオブジェクト、`front`・`back` は `:` の前後の要素のリスト。`:` がなければ `break`・`back` は `#f` |フィールドは変更できない |link:../../sxmml/optimizer.scm[optimizer.scm]
 |[[ref-optimizer-internal-repeat-structure]]`(%repeat-structure lis)` |平坦なオブジェクトのリストを、オブジェクトとブロックの要素のリストにする |新しいリストを返す。`]` が足りなければ `MML terminated before repeat end`、`[` のない `]` は `repeat end appeared before repeat start` エラー |link:../../sxmml/optimizer.scm[optimizer.scm]
 |[[ref-optimizer-internal-repeat-flatten]]`(%repeat-flatten items tail)` |`%repeat-structure` の逆 |平坦なオブジェクトのリストを返す |link:../../sxmml/optimizer.scm[optimizer.scm]
-|[[ref-optimizer-internal-repeat-expansion]]`(%repeat-expansion items tail)` |要素のリストを展開する。反復回数 r はコンパイラが保証する正の正確な整数を前提とし、ブロックは (front back)^r−1^ front |展開したオブジェクトのリストを返す。元のインスタンスを並べ、複製しない |link:../../sxmml/optimizer.scm[optimizer.scm]
+|[[ref-optimizer-internal-repeat-expansion]]`(%repeat-expansion items tail :optional expand?)` |要素のリストを展開する。expand?が偽を返すブロックは構造を残す。反復回数 r はコンパイラが保証する正の正確な整数を前提とし、ブロックは (front back)^r−1^ front |展開したオブジェクトのリストを返す。元のインスタンスを並べ、複製しない |link:../../sxmml/optimizer.scm[optimizer.scm]
 |[[ref-optimizer-internal-repeat-expanded-length]]`(%repeat-expanded-length items)` |`%repeat-expansion` の長さを、展開せずに求める |整数を返す |link:../../sxmml/optimizer.scm[optimizer.scm]
 |[[ref-optimizer-internal-repeat-expand-small]]`(%repeat-expand-small items limit)` |回数が 1 以上で、展開後の長さが `limit` 以下のブロックを、内側から順に展開する。`L` を含むブロックと、2 個目以降の `:` を持つブロックは展開しない |新しい要素のリストを返す |link:../../sxmml/optimizer.scm[optimizer.scm]
 |[[ref-optimizer-internal-repeat-class-accessors]]`(%repeat-class-accessors class)` |実際のクラスの全スロットアクセサをベクタへまとめる |固定C比較が一回の比較文脈内でクラスごとに取得する。圧縮を越えるキャッシュは持たない |link:../../sxmml/optimizer.scm[optimizer.scm]
 |[[ref-optimizer-internal-optimizer-repeat-tree-compress]]`(%optimizer-repeat-tree-compress elements weights settings)` |前提を検査して固定C比較による圧縮へ渡す |`(values cost tree)`。任意の比較手続きや反復型は受け取らない。比較の契約は xref:native.adoc[C接続]を参照 |link:../../sxmml/optimizer.scm[optimizer.scm]
-|[[ref-optimizer-internal-repeat-compress]]`(%repeat-compress items depth settings)` |要素のリストを圧縮する。ブロックは本文を圧縮した原子とし、重みを出力の長さとする。`&` は直前の音符と一つの要素にまとめ、間にループの境界を入れない（`&` は音符の直後に置く）。`L`、`L` を含むブロック、ブロックの 2 個目以降の `:` の前後は別の区間として `%optimizer-repeat-tree-compress` に渡し、これらを生成するループに入れない |平坦なオブジェクトのリストを返す。入れ子の深さ（外側の `depth` を含む）が 32 を超え、圧縮前より深くなる区間は圧縮しない |link:../../sxmml/optimizer.scm[optimizer.scm]
+|[[ref-optimizer-internal-repeat-compress]]`(%repeat-compress items depth settings :optional before-search)` |要素のリストを圧縮する。ブロックは本文を圧縮した原子とし、重みを出力の長さとする。`&` は直前の音符と一つの要素にまとめ、間にループの境界を入れない（`&` は音符の直後に置く）。探索直前にbefore-searchへ区間の論理要素数を渡す。`L`、`L` を含むブロック、ブロックの 2 個目以降の `:` の前後は別の区間として `%optimizer-repeat-tree-compress` に渡し、これらを生成するループに入れない |平坦なオブジェクトのリストを返す。入れ子の深さ（外側の `depth` を含む）が 32 を超え、圧縮前より深くなる区間は圧縮しない |link:../../sxmml/optimizer.scm[optimizer.scm]
 |[[ref-optimizer-internal-repeat-loop-p]]`(%repeat-loop? block)` |ブロックの本文（入れ子を含む）に `L` があるか |真偽値を返す |link:../../sxmml/optimizer.scm[optimizer.scm]
 |[[ref-optimizer-internal-repeat-tree-to-ir]]`(%repeat-tree\->ir tree outputs tail)` |圧縮した木をオブジェクトのリストにする |葉は `outputs` の出力に置き換え、反復には新しい `[`・`:`・`]` のオブジェクトを作る |link:../../sxmml/optimizer.scm[optimizer.scm]
 |[[ref-optimizer-internal-repeat-depth]]`(%repeat-depth lis)` |平坦なオブジェクトのリストの、リピートの入れ子の最大の深さ |整数を返す |link:../../sxmml/optimizer.scm[optimizer.scm]

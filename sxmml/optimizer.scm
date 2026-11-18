@@ -37,7 +37,8 @@
   (use sxmml.native)
   (export sxmml-ir-optimize-local sxmml-ir-remove-redundant-settings sxmml-ir-merge-rests
           sxmml-ir-compress-repeats sxmml-ir-compress-repeats-batch sxmml-ir-optimize sxmml-ir-optimize-with-repeats
-          sxmml-ir-optimize-with-repeat-expansion
+          sxmml-ir-optimize-with-repeat-expansion sxmml-ir-optimize-full-repeat
+          sxmml-run-compression-jobs
           ))
 (select-module sxmml.optimizer)
 
@@ -324,22 +325,27 @@
   (%sxmml-optimize-repeat ir expand-small))
 
 (define (sxmml-ir-compress-repeats-batch ir-lists :key (jobs 1) (expand-small #f))
-  (define (compress ir)
-    (sxmml-ir-compress-repeats ir :expand-small expand-small))
+  (sxmml-run-compression-jobs
+   (map (^[ir] (and (pair? ir) (cut sxmml-ir-compress-repeats ir :expand-small expand-small)))
+        ir-lists)
+   jobs))
+
+;; 空トラックは #f、それ以外は引数なしの圧縮手続き。結果は受付順。
+(define (sxmml-run-compression-jobs tasks jobs)
   (define (result job)
     (cond [(not job) '()]
           [(eq? (job-status job) 'error) (raise (job-result job))]
           [else (job-result job)]))
   (unless (and (exact-integer? jobs) (positive? jobs))
     (error <sxmml-value-error> "jobs must be a positive integer"))
-  (let1 workers (min jobs (count pair? ir-lists))
+  (let1 workers (min jobs (count identity tasks))
     (if (<= workers 1)
-      (map (^[ir] (if (null? ir) '() (compress ir))) ir-lists)
+      (map (^[task] (if task (task) '())) tasks)
       (let1 pool (make-thread-pool workers)
         ;; 受付順のジョブを残し、全ワーカーの終了後に同じ順で結果を読む。
         (map result
              (unwind-protect
-                 (map (^[ir] (and (pair? ir) (add-job! pool (cut compress ir)))) ir-lists)
+                 (map (^[task] (and task (add-job! pool task))) tasks)
                (terminate-all! pool)))))))
 
 (define (sxmml-ir-optimize ir)
@@ -406,21 +412,25 @@
    tail items))
 
 ;; ブロックは (front back)^(r-1) front。展開した本文は各出現のセルの構築に再利用する。
-(define (%repeat-expansion items tail)
-  (fold-right
-   (^[i tail]
-     (if (%repeat-block? i)
-       (let1 count (slot-ref (%repeat-block-end i) 'value)
-         (if (= count 1)
-           (%repeat-expansion (%repeat-block-front i) tail)
-           (let ([front (%repeat-expansion (%repeat-block-front i) ())]
-                 [back (%repeat-expansion (or (%repeat-block-back i) ()) ())])
-             (let loop ([remaining (- count 1)] [result (fold-right cons tail front)])
-               (if (zero? remaining)
-                 result
-                 (loop (- remaining 1) (fold-right cons (fold-right cons result back) front)))))))
-       (cons i tail)))
-   tail items))
+(define (%repeat-expansion items tail :optional (expand? (constantly #t)))
+  (define (expand block tail)
+    (let ([n (slot-ref (%repeat-block-end block) 'value)]
+          [front (%repeat-block-front block)]
+          [back (%repeat-block-back block)])
+      (cond [(not (expand? block))
+             (cons (%make-repeat-block (%repeat-block-start block) (sequence front '())
+                                       (%repeat-block-break block) (and back (sequence back '()))
+                                       (%repeat-block-end block))
+                   tail)]
+            [(= n 1) (sequence front tail)]
+            [else
+             (let ([prefix (sequence front '())] [suffix (sequence (or back '()) '())])
+               (let loop ([remaining (- n 1)] [result (fold-right cons tail prefix)])
+                 (if (zero? remaining) result
+                     (loop (- remaining 1) (fold-right cons (fold-right cons result suffix) prefix)))))])))
+  (define (sequence xs tail)
+    (fold-right (^[i tail] (if (%repeat-block? i) (expand i tail) (cons i tail))) tail xs))
+  (sequence items tail))
 
 (define (%repeat-class-accessors class)
   (map-to <vector>
@@ -439,17 +449,44 @@
 (define %repeat-expand-window 1024)
 (define %repeat-expand-limit 256)
 
+(define (%repeat-settings window)
+  (let1 counts (iota (- %repeat-count-max 1) 2)
+    (make-repeat-tree-settings (map (cut cons <> 2) counts) (map (cut cons <> 3) counts) #t window)))
+
 ;; 平坦なIR列を、反復で圧縮する。既存のリピートはひとまとめ（原子）にし、
 ;; その本文も同じように圧縮する。expand? なら、展開後の長さが %repeat-expand-limit
 ;; 以下の既存のリピートを先に展開し、窓幅 %repeat-expand-window で圧縮する
 (define (%sxmml-optimize-repeat lis expand?)
-  (let* ([input (let1 items (%repeat-structure lis)
-                  (if expand? (%repeat-expand-small items %repeat-expand-limit) items))]
-         [counts (iota (- %repeat-count-max 1) 2)]
-         [settings (make-repeat-tree-settings (map (cut cons <> 2) counts) (map (cut cons <> 3) counts)
-                                              #t (if expand? %repeat-expand-window %repeat-window))]
-         [output (%repeat-compress input 0 settings)])
-    output))
+  (let1 items (%repeat-structure lis)
+    (%repeat-compress (if expand? (%repeat-expand-small items %repeat-expand-limit) items)
+                      0 (%repeat-settings (if expand? %repeat-expand-window %repeat-window)))))
+
+(define (%large-search-notifier notify)
+  (^[count]
+    (when (and notify (> count 3072))
+      (notify count)
+      (set! notify #f))))
+
+(define (sxmml-ir-optimize-full-repeat ir :optional (notify #f))
+  ;; C側の実際の探索幅は区間長と設定値の小さい方。
+  (define settings (%repeat-settings (greatest-fixnum)))
+  (define before-search (%large-search-notifier notify))
+  (define (compress items) (%repeat-compress items 0 settings before-search))
+  (define (expandable? block)
+    (and (positive? (slot-ref (%repeat-block-end block) 'value))
+         (not (%repeat-loop? block))
+         (not (any (cut is-a? <> <sxmml-mml-repeat-break>) (or (%repeat-block-back block) '())))))
+  (let* ([basic (%repeat-structure (sxmml-ir-optimize ir))]
+         [first (compress (%repeat-expansion basic '() expandable?))])
+    (if (not (any (cut is-a? <> <sxmml-mml-repeat-start>) ir))
+      first
+      (let* ([expanded? #f]
+             [items (%repeat-expansion (%repeat-structure ir) '()
+                      (^[block] (and (expandable? block) (begin (set! expanded? #t) #t))))])
+        (if expanded?
+          (let1 second (compress (%repeat-structure (sxmml-ir-optimize (%repeat-flatten items '()))))
+            (if (< (length second) (length first)) second first))
+          first)))))
 
 ;; 回数が 1 以上で、展開後の長さが limit 以下のブロックを、内側から順に展開する。
 ;; 展開した列は元のインスタンスを並べ、複製しない
@@ -488,14 +525,14 @@
 ;; ブロックの深さ。L、L を含むブロック、ブロックの 2 個目以降の : の前後は別の区間として
 ;; 圧縮し、これらをループに入れない。& は音符の直後に置くので、音符と後に続く & を
 ;; 一つの要素（オブジェクトのリスト）にまとめ、間にループの境界を入れない
-(define (%repeat-compress items depth settings)
+(define (%repeat-compress items depth settings :optional (before-search #f))
   ;; ブロックは本文を圧縮した出力を持つ原子にする。(要素 . 出力)
   (define (atom i)
     (cons i (if (%repeat-block? i)
-              `(,(%repeat-block-start i) ,@(%repeat-compress (%repeat-block-front i) (+ depth 1) settings)
+              `(,(%repeat-block-start i) ,@(%repeat-compress (%repeat-block-front i) (+ depth 1) settings before-search)
                 ,@(if (%repeat-block-break i)
                     `(,(%repeat-block-break i)
-                      ,@(%repeat-compress (%repeat-block-back i) (+ depth 1) settings))
+                      ,@(%repeat-compress (%repeat-block-back i) (+ depth 1) settings before-search))
                     ())
                 ,(%repeat-block-end i))
               (list i))))
@@ -512,6 +549,7 @@
               (vector-set! outputs index output)
               (vector-set! weights index (length output))
               (fill (cdr rest) (- index 1)))))
+        (when before-search (before-search count))
         (receive (cost tree) (%optimizer-repeat-tree-compress elements weights settings)
           (let* ([compressed (%repeat-tree->ir tree outputs ())]
                  [compressed-depth (%repeat-depth compressed)])
