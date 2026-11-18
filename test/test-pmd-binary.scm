@@ -89,7 +89,7 @@
          :output (work-file #"direct-loop-~|track|.m") :optimize 0))))
   (define (raw-voice-data name alfb op :optional (used? #t))
     (make-binary-data name 'pmd-binary
-                      `((hash-table-put! (slot-ref (sxmml-environment) 'voice) 'tone
+                      `((sxmml-voice-set! 'opn
                                          (make <sxmml-opn-voice> :id 'tone
                                                :value ',(cons alfb (make-list 4 op))))
                         (mml A ,(if used? "@{tone}o4c%12" "o4c%12"))) #f))
@@ -247,6 +247,21 @@
                                  (make-sxmml-output-environment (sxmml-environment)
                                    :output (work-file "library.m") :optimize 1 :source source))
                      (list (slot-ref result 'output) (file-exists? (slot-ref result 'output)))))))
+        (parameterize ([sxmml-environment (make <sxmml-environment>)])
+          (define path (work-file "ignored-source.m"))
+          (define (generate)
+            (sxmml-pmd-binary-output
+             (make-sxmml-output-environment (sxmml-environment) :output path :optimize 0)))
+          (sxmml-pmd-setup!)
+          (generate)
+          (let ([empty (file->bytevector path)] [err (open-output-string)])
+            (define-track A :sound-source 'opm)
+            (mml A "c1")
+            (test* "未対応音源の枠は空パートと同じバイト列になり集計対象から外れる"
+                   (list empty '(B C D E F G H I J L)
+                         "warning: pmd-binary: ignoring track A (unsupported sound-source: opm)\n")
+                   (let1 result (parameterize ([current-error-port err]) (generate))
+                     (list (file->bytevector path) (slot-ref result 'track-names) (get-output-string err))))))
         ;; 公開生成関数は、モード手続きを呼ばずにトラックを登録しても使える。
         (dolist [case (list (list "pmd-binary" sxmml-pmd-binary-output)
                            (list "pmd3-binary" sxmml-pmd3-binary-output)
@@ -268,6 +283,8 @@
           (let* ([source (source-output (work-file #"voices-~|mode|.sxl")
                                       `(,(voice-form 'z 3) ,(voice-form 'a 1)
                                         ,(voice-form 'm 2) ,(voice-form 'unused 7)
+                                        (define-pcm-voice 0 12)
+                                        (let1 op (make-list 11 0) (define-opm-voice 0 '(0 0) op op op op))
                                         (mml A "@{m}c8@{z}c8@{a}c8")))]
                  [output (work-file #"voices-~|mode|.m")])
             ;; 番号は定義した全ての音色に id の辞書順で振る (#27)。a 0、m 1、unused 2、z 3
@@ -611,8 +628,9 @@
             (test* #"PCM の音色が 0 から 255 までの整数でなければ失敗する: ~(car case)"
                    '(1 #t #f)
                    (list (car result)
-                         (boolean (any (string->regexp
-                                        #"invalid PCM voice number: ~(regexp-quote (cadr case)) \\(expected an integer from 0 to 255\\)$")
+                         (boolean (any (if (equal? (cadr case) "x") #/undefined PCM voice: x$/
+                                     (string->regexp
+                                        #"invalid PCM voice number: ~(regexp-quote (cadr case)) \\(expected an integer from 0 to 255\\)$"))
                                        (cadr result)))
                          (file-exists? output)))))
         ;; SSG のミックスは 1 から 3 までで、範囲外は値と範囲を示して失敗する (#55)

@@ -3,7 +3,7 @@
 
 直接登録手続きの形式・値検査はvalue-error、マクロの構文上の枠の誤りはform-syntax-errorです。既知のエラーにだけ取得済みのフォーム位置を添え、未定義のScheme変数はGaucheのエラーのまま通します。
 
-`sxmml.voice` には八つの定義と範囲規則の二つの表があり、`define-opn-voice`、`sxmml-opn-voice-set!`、`sxmml-opmn-operator-zip` を公開します。音色の基底クラスは xref:classes.adoc#ref-classes-class-sxmml-voice[`<sxmml-voice>`] を参照してください。`util.match`、マクロ展開、ハッシュ表は Gauche 0.9.15 の動作に従います。
+`sxmml.voice` には十四の定義と範囲規則の二つの表があり、`define-opn-voice`、`sxmml-opn-voice-set!`、`sxmml-opmn-operator-zip` に加え、種類別の登録・検索とOPM・PCMの登録を公開します。音色の基底クラスは xref:classes.adoc#ref-classes-class-sxmml-voice[`<sxmml-voice>`] を参照してください。`util.match`、マクロ展開、ハッシュ表は Gauche 0.9.15 の動作に従います。
 
 [cols="2,4,4,1",options="header"]
 |===
@@ -35,3 +35,23 @@
 $ gosh -I. -e '(use sxmml)' -e '(define-opn-voice 0 (0 0) (0 0 0 0 0 0 0 0 0) (0 0 0 0 0 0 0 0 0) (0 0 0 0 0 0 0 0 0) (0 0 0 0 0 0 0 0 0))' -e '(print (hash-table-size (slot-ref (sxmml-environment) (quote voice))))'
 1
 ----
+
+== 手続きと構文
+
+[[ref-voice-sxmml-voice-table-find]]
+`(sxmml-voice-table-find env kind)`:: 種類別の共有表または#fを返す。
+
+[[ref-voice-sxmml-voice-set-bang]]
+`(sxmml-voice-set! kind voice)`:: 現在の登録環境に種類、名前別に定義を格納する。
+
+[[ref-voice-sxmml-pcm-voice-set-bang]]
+`(sxmml-pcm-voice-set! id value)`:: PCM参照値を名前付きで保存する。
+
+[[ref-voice-sxmml-opm-voice-set-bang]]
+`(sxmml-opm-voice-set! id alfb op1 op2 op3 op4)`:: OPMの11値を検査・正規化して登録する。
+
+[[ref-voice-define-opm-voice]]
+`(define-opm-voice name alfb op1 op2 op3 op4)`:: 名前と通常の式によるOPM音色を登録する。
+
+[[ref-voice-define-pcm-voice]]
+`(define-pcm-voice name value)`:: 名前と値式によるPCM音色を登録する。

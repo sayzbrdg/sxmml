@@ -3,7 +3,7 @@
 
 この索引は、sxmml を保守・改修する際に内部定義を名前から探すためのものです。動作環境は Gauche 0.9.15 です。内部の名前は MML 記述者向け API を示しません。公開機能の使い方は xref:../sxmml-reference-manual.adoc[MML 記述者向けリファレンス]、MML 文字列の記法は xref:../sxmml-mml-manual.adoc[MML コマンドマニュアル]を参照してください。
 
-モジュール直下の手続き 322 件、クラス 64 件、マクロ 13 件、合計 399 件を掲載します。実験的な `sxmml.backend.pmd-binary` は公開名 4 件だけを掲載し、内部定義は xref:pmd-binary.adoc[本文]に概要だけを記します。`sxmml.scm` は各モジュールを継承し、独自の直下定義はありません。`sxmml.backend.pmd-binary` の `initialize` と `sxmml.form` の `report-additional-condition` のメソッドは、手続き件数へ重複計上しません。局所関数と `sxlc` の直下定義は範囲外です。呼び出せない表（ハッシュ表やリスト）は対象外です。
+モジュール直下の手続き 351 件、クラス 64 件、マクロ 15 件、合計 430 件を掲載します。 `sxmml.backend.pmd-binary` は公開名 4 件だけを掲載し、内部定義は xref:pmd-binary.adoc[本文]に概要だけを記します。`sxmml.scm` は各モジュールを継承し、独自の直下定義はありません。`sxmml.backend.pmd-binary` の `initialize` と `sxmml.form` の `report-additional-condition` のメソッドは、手続き件数へ重複計上しません。局所関数と `sxlc` の直下定義は範囲外です。呼び出せない表（ハッシュ表やリスト）は対象外です。
 
 識別子の命名と改名の判断は xref:naming-conventions.adoc[命名規約]を参照してください。
 
@@ -22,12 +22,14 @@
 |xref:optimizer.adoc[`sxmml.optimizer`] |オブジェクト列の最適化 |61
 |xref:native.adoc[`sxmml.native`] |必須C拡張との接続 |3
 |xref:repeat-tree.adoc[`sxmml.repeat-tree`] |局所反復木による列の圧縮 |31
-|xref:voice.adoc[`sxmml.voice`] |音色定義 |8
+|xref:voice.adoc[`sxmml.voice`] |音色定義 |14
 |xref:util.adoc[`sxmml.util`] |BPM の補助計算 |1
 |xref:form.adoc[`sxmml.form`] |エラー文脈・フォーム位置・定義名 |9
-|xref:pmd.adoc[`sxmml.backend.pmd`] |PMD共通規則・初期設定・最適化選択 |8
+|xref:fmp7.adoc[`sxmml.backend.fmp7`] |パートとIRの準備 |14
+|xref:fmp7-source.adoc[`sxmml.backend.fmp7-source`] |FMP7のMML生成 |9
+|xref:pmd.adoc[`sxmml.backend.pmd`] |PMD共通規則・初期設定・最適化選択 |10
 |xref:pmd-source.adoc[`sxmml.backend.pmd-source`] |PMD向けMML生成 |56
-|xref:pmd-binary.adoc[`sxmml.backend.pmd-binary`] |PMD バイナリ生成（実験的・公開名のみ） |4
+|xref:pmd-binary.adoc[`sxmml.backend.pmd-binary`] |PMD バイナリ生成（公開名のみ） |4
 |===
 
 == 掲載範囲と読み方
@@ -101,15 +103,26 @@
 |`$volume-up` |`sxmml.mml` |手続き・非公開 |xref:mml.adoc#ref-mml-parser-volume-up[項目へ]
 |`%$return` |`sxmml.mml` |マクロ・非公開 |xref:mml.adoc#ref-mml-internal-parser-return[項目へ]
 |`%4op-voice-shape` |`sxmml.voice` |手続き・非公開 |xref:voice.adoc#ref-voice-internal-4op-voice-shape[項目へ]
+|`%after` |`sxmml.backend.fmp7` |手続き・非公開 |xref:fmp7.adoc#ref-fmp7-internal-after[項目へ]
+|`%bounded` |`sxmml.backend.fmp7` |手続き・非公開 |xref:fmp7.adoc#ref-fmp7-internal-bounded[項目へ]
+|`%canonical-lfo` |`sxmml.backend.fmp7` |手続き・非公開 |xref:fmp7.adoc#ref-fmp7-internal-canonical-lfo[項目へ]
+|`%channel` |`sxmml.backend.fmp7-source` |手続き・非公開 |xref:fmp7-source.adoc#ref-fmp7-source-internal-channel[項目へ]
 |`%check-input` |`sxmml.repeat-tree` |手続き・非公開 |xref:repeat-tree.adoc#ref-repeat-tree-internal-check-input[項目へ]
 |`%check-note-length` |`sxmml.command` |手続き・非公開 |xref:command.adoc#ref-command-check-note-length[項目へ]
 |`%compose-setting-effects` |`sxmml.optimizer` |手続き・非公開 |xref:optimizer.adoc#ref-optimizer-internal-compose-setting-effects[項目へ]
 |`%copy-costs` |`sxmml.repeat-tree` |手続き・非公開 |xref:repeat-tree.adoc#ref-repeat-tree-internal-copy-costs[項目へ]
+|`%csv` |`sxmml.backend.fmp7-source` |手続き・非公開 |xref:fmp7-source.adoc#ref-fmp7-source-internal-csv[項目へ]
 |`%define-lfo/envelope-expand` |`sxmml.environment` |手続き・非公開 |xref:environment.adoc#ref-environment-internal-define-lfo-envelope-expand[項目へ]
+|`%definition-output` |`sxmml.backend.fmp7-source` |手続き・非公開 |xref:fmp7-source.adoc#ref-fmp7-source-internal-definition-output[項目へ]
+|`%fm-definition` |`sxmml.backend.fmp7-source` |手続き・非公開 |xref:fmp7-source.adoc#ref-fmp7-source-internal-fm-definition[項目へ]
 |`%fm-track-output` |`sxmml.backend.pmd-source` |手続き・非公開 |xref:pmd-source.adoc#ref-pmd-source-internal-fm-track-output[項目へ]
-|`%ir-same-class?` |`sxmml.optimizer` |手続き・非公開 |xref:optimizer.adoc#ref-optimizer-internal-ir-same-class-p[項目へ]
+|`%integer` |`sxmml.backend.fmp7-source` |手続き・非公開 |xref:fmp7-source.adoc#ref-fmp7-source-internal-integer[項目へ]
 |`%ir-copy-except` |`sxmml.optimizer` |手続き・非公開 |xref:optimizer.adoc#ref-optimizer-internal-ir-copy-except[項目へ]
+|`%ir-same-class?` |`sxmml.optimizer` |手続き・非公開 |xref:optimizer.adoc#ref-optimizer-internal-ir-same-class-p[項目へ]
 |`%ir-setting-effects-fold` |`sxmml.optimizer` |手続き・非公開 |xref:optimizer.adoc#ref-optimizer-internal-ir-setting-effects-fold[項目へ]
+|`%join` |`sxmml.backend.fmp7` |手続き・非公開 |xref:fmp7.adoc#ref-fmp7-internal-join[項目へ]
+|`%lfo-region` |`sxmml.backend.fmp7` |手続き・非公開 |xref:fmp7.adoc#ref-fmp7-internal-lfo-region[項目へ]
+|`%lookup` |`sxmml.backend.fmp7-source` |手続き・非公開 |xref:fmp7-source.adoc#ref-fmp7-source-internal-lookup[項目へ]
 |`%make-mml-command-parser` |`sxmml.mml` |手続き・非公開 |xref:mml.adoc#ref-mml-internal-make-mml-command-parser[項目へ]
 |`%make-mml-context-value-parser` |`sxmml.mml` |手続き・非公開 |xref:mml.adoc#ref-mml-internal-make-mml-context-value-parser[項目へ]
 |`%make-mml-slots-parser` |`sxmml.mml` |手続き・非公開 |xref:mml.adoc#ref-mml-internal-make-mml-slots-parser[項目へ]
@@ -128,7 +141,10 @@
 |`%note-number->pmd-note` |`sxmml.backend.pmd-source` |手続き・非公開 |xref:pmd-source.adoc#ref-pmd-source-internal-note-number-to-pmd-note[項目へ]
 |`%optimizer-repeat-tree-compress` |`sxmml.optimizer` |手続き・非公開 |xref:optimizer.adoc#ref-optimizer-internal-optimizer-repeat-tree-compress[項目へ]
 |`%option-name-check` |`sxmml.environment` |手続き・非公開 |xref:environment.adoc#ref-environment-internal-option-name-check[項目へ]
+|`%part-index->name` |`sxmml.backend.fmp7` |手続き・非公開 |xref:fmp7.adoc#ref-fmp7-internal-part-index-to-name[項目へ]
+|`%part-name` |`sxmml.backend.fmp7` |手続き・非公開 |xref:fmp7.adoc#ref-fmp7-internal-part-name[項目へ]
 |`%pcm-track-output` |`sxmml.backend.pmd-source` |手続き・非公開 |xref:pmd-source.adoc#ref-pmd-source-internal-pcm-track-output[項目へ]
+|`%pitch` |`sxmml.backend.fmp7-source` |手続き・非公開 |xref:fmp7-source.adoc#ref-fmp7-source-internal-pitch[項目へ]
 |`%pmd-definition-values` |`sxmml.backend.pmd` |手続き・非公開 |xref:pmd.adoc#ref-pmd-internal-pmd-definition-values[項目へ]
 |`%pmd-detune-output` |`sxmml.backend.pmd-source` |手続き・非公開 |xref:pmd-source.adoc#ref-pmd-source-internal-pmd-detune-output[項目へ]
 |`%pmd-envelope-output` |`sxmml.backend.pmd-source` |手続き・非公開 |xref:pmd-source.adoc#ref-pmd-source-internal-pmd-envelope-output[項目へ]
@@ -196,6 +212,7 @@
 |`%repeat-expansion` |`sxmml.optimizer` |手続き・非公開 |xref:optimizer.adoc#ref-optimizer-internal-repeat-expansion[項目へ]
 |`%repeat-flatten` |`sxmml.optimizer` |手続き・非公開 |xref:optimizer.adoc#ref-optimizer-internal-repeat-flatten[項目へ]
 |`%repeat-loop?` |`sxmml.optimizer` |手続き・非公開 |xref:optimizer.adoc#ref-optimizer-internal-repeat-loop-p[項目へ]
+|`%repeat-sequence` |`sxmml.backend.fmp7` |手続き・非公開 |xref:fmp7.adoc#ref-fmp7-internal-repeat-sequence[項目へ]
 |`%repeat-structure` |`sxmml.optimizer` |手続き・非公開 |xref:optimizer.adoc#ref-optimizer-internal-repeat-structure[項目へ]
 |`%repeat-tree->ir` |`sxmml.optimizer` |手続き・非公開 |xref:optimizer.adoc#ref-optimizer-internal-repeat-tree-to-ir[項目へ]
 |`%rhythm-setting-effects->ir` |`sxmml.optimizer` |手続き・非公開 |xref:optimizer.adoc#ref-optimizer-internal-rhythm-setting-effects-to-ir[項目へ]
@@ -210,13 +227,13 @@
 |`%setting-effect-value` |`sxmml.optimizer` |手続き・非公開 |xref:optimizer.adoc#ref-optimizer-internal-setting-effect-value[項目へ]
 |`%setting-effect?` |`sxmml.optimizer` |手続き・非公開 |xref:optimizer.adoc#ref-optimizer-internal-setting-effect-p[項目へ]
 |`%setting-effects->ir` |`sxmml.optimizer` |手続き・非公開 |xref:optimizer.adoc#ref-optimizer-internal-setting-effects-to-ir[項目へ]
+|`%single-setting-effect->ir` |`sxmml.optimizer` |手続き・非公開 |xref:optimizer.adoc#ref-optimizer-internal-single-setting-effect-to-ir[項目へ]
+|`%single-setting-effect-fold` |`sxmml.optimizer` |手続き・非公開 |xref:optimizer.adoc#ref-optimizer-internal-single-setting-effect-fold[項目へ]
 |`%ssg-track-output` |`sxmml.backend.pmd-source` |手続き・非公開 |xref:pmd-source.adoc#ref-pmd-source-internal-ssg-track-output[項目へ]
+|`%state-effect-compose` |`sxmml.optimizer` |手続き・非公開 |xref:optimizer.adoc#ref-optimizer-internal-state-effect-compose[項目へ]
 |`%state-effect-relative?` |`sxmml.optimizer` |手続き・非公開 |xref:optimizer.adoc#ref-optimizer-internal-state-effect-relative-p[項目へ]
 |`%state-effect-value` |`sxmml.optimizer` |手続き・非公開 |xref:optimizer.adoc#ref-optimizer-internal-state-effect-value[項目へ]
 |`%state-effect?` |`sxmml.optimizer` |手続き・非公開 |xref:optimizer.adoc#ref-optimizer-internal-state-effect-p[項目へ]
-|`%single-setting-effect->ir` |`sxmml.optimizer` |手続き・非公開 |xref:optimizer.adoc#ref-optimizer-internal-single-setting-effect-to-ir[項目へ]
-|`%single-setting-effect-fold` |`sxmml.optimizer` |手続き・非公開 |xref:optimizer.adoc#ref-optimizer-internal-single-setting-effect-fold[項目へ]
-|`%state-effect-compose` |`sxmml.optimizer` |手続き・非公開 |xref:optimizer.adoc#ref-optimizer-internal-state-effect-compose[項目へ]
 |`%state-effects-apply` |`sxmml.optimizer` |手続き・非公開 |xref:optimizer.adoc#ref-optimizer-internal-state-effects-apply[項目へ]
 |`%state-effects-compose` |`sxmml.optimizer` |手続き・非公開 |xref:optimizer.adoc#ref-optimizer-internal-state-effects-compose[項目へ]
 |`%state-effects-power` |`sxmml.optimizer` |手続き・非公開 |xref:optimizer.adoc#ref-optimizer-internal-state-effects-power[項目へ]
@@ -230,6 +247,7 @@
 |`%sxmml-mode-select` |`sxmml.environment` |手続き・非公開 |xref:environment.adoc#ref-environment-internal-sxmml-mode-select[項目へ]
 |`%sxmml-optimize-repeat` |`sxmml.optimizer` |手続き・非公開 |xref:optimizer.adoc#ref-optimizer-internal-sxmml-optimize-repeat[項目へ]
 |`%track-output` |`sxmml.backend.pmd-source` |手続き・非公開 |xref:pmd-source.adoc#ref-pmd-source-internal-track-output[項目へ]
+|`%track-output` |`sxmml.backend.fmp7-source` |手続き・非公開 |xref:fmp7-source.adoc#ref-fmp7-source-internal-track-output[項目へ]
 |`%track-spec?` |`sxmml.processor` |手続き・非公開 |xref:processor.adoc#ref-processor-internal-track-spec-p[項目へ]
 |`%track\->track-list` |`sxmml.processor` |手続き・非公開 |xref:processor.adoc#ref-processor-internal-track-to-track-list[項目へ]
 |`%voice-alfb-form?` |`sxmml.voice` |手続き・非公開 |xref:voice.adoc#ref-voice-internal-voice-alfb-form-p[項目へ]
@@ -306,7 +324,9 @@
 |`define-envelope` |`sxmml.environment` |マクロ・公開 |xref:environment.adoc#ref-environment-define-envelope[項目へ]
 |`define-lfo` |`sxmml.environment` |マクロ・公開 |xref:environment.adoc#ref-environment-define-lfo[項目へ]
 |`define-metadata` |`sxmml.environment` |マクロ・公開 |xref:environment.adoc#ref-environment-define-metadata[項目へ]
+|`define-opm-voice` |`sxmml.voice` |マクロ・公開 |xref:voice.adoc#ref-voice-define-opm-voice[項目へ]
 |`define-opn-voice` |`sxmml.voice` |マクロ・公開 |xref:voice.adoc#ref-voice-define-opn-voice[項目へ]
+|`define-pcm-voice` |`sxmml.voice` |マクロ・公開 |xref:voice.adoc#ref-voice-define-pcm-voice[項目へ]
 |`define-track` |`sxmml.environment` |マクロ・公開 |xref:environment.adoc#ref-environment-define-track[項目へ]
 |`final-count` |`sxmml.repeat-tree` |手続き・公開 |xref:repeat-tree.adoc#ref-repeat-tree-final-count[項目へ]
 |`final-prefix` |`sxmml.repeat-tree` |手続き・公開 |xref:repeat-tree.adoc#ref-repeat-tree-final-prefix[項目へ]
@@ -370,6 +390,13 @@
 |`sxmml-environment` |`sxmml.environment` |手続き・公開 |xref:environment.adoc#ref-environment-sxmml-environment[項目へ]
 |`sxmml-error-with-context` |`sxmml.form` |手続き・公開 |xref:form.adoc#ref-form-sxmml-error-with-context[項目へ]
 |`sxmml-error?` |`sxmml.classes` |手続き・公開 |xref:classes.adoc#ref-classes-sxmml-error-p[項目へ]
+|`sxmml-fmp7-envelope-values` |`sxmml.backend.fmp7` |手続き・公開 |xref:fmp7.adoc#ref-fmp7-sxmml-fmp7-envelope-values[項目へ]
+|`sxmml-fmp7-ir-optimize` |`sxmml.backend.fmp7` |手続き・公開 |xref:fmp7.adoc#ref-fmp7-sxmml-fmp7-ir-optimize[項目へ]
+|`sxmml-fmp7-lfo-output-prepare` |`sxmml.backend.fmp7` |手続き・公開 |xref:fmp7.adoc#ref-fmp7-sxmml-fmp7-lfo-output-prepare[項目へ]
+|`sxmml-fmp7-lfo-values` |`sxmml.backend.fmp7` |手続き・公開 |xref:fmp7.adoc#ref-fmp7-sxmml-fmp7-lfo-values[項目へ]
+|`sxmml-fmp7-pcm-reference-resolve` |`sxmml.backend.fmp7` |手続き・公開 |xref:fmp7.adoc#ref-fmp7-sxmml-fmp7-pcm-reference-resolve[項目へ]
+|`sxmml-fmp7-source-output` |`sxmml.backend.fmp7-source` |手続き・公開 |xref:fmp7-source.adoc#ref-fmp7-source-sxmml-fmp7-source-output[項目へ]
+|`sxmml-fmp7-tracks-prepare` |`sxmml.backend.fmp7` |手続き・公開 |xref:fmp7.adoc#ref-fmp7-sxmml-fmp7-tracks-prepare[項目へ]
 |`sxmml-form-call` |`sxmml.form` |手続き・公開 |xref:form.adoc#ref-form-sxmml-form-call[項目へ]
 |`sxmml-form-error` |`sxmml.form` |手続き・公開 |xref:form.adoc#ref-form-sxmml-form-error[項目へ]
 |`sxmml-form-location` |`sxmml.form` |手続き・公開 |xref:form.adoc#ref-form-sxmml-form-location[項目へ]
@@ -406,17 +433,21 @@
 |`sxmml-native-ir-compress` |`sxmml.native` |手続き・公開 |xref:native.adoc#ref-native-sxmml-native-ir-compress[項目へ]
 |`sxmml-native-repeat-tree-compress` |`sxmml.native` |手続き・公開 |xref:native.adoc#ref-native-sxmml-native-repeat-tree-compress[項目へ]
 |`sxmml-opm-list\->register` |`sxmml.voice` |手続き・非公開 |xref:voice.adoc#ref-voice-sxmml-opm-list-to-register[項目へ]
+|`sxmml-opm-voice-set!` |`sxmml.voice` |手続き・公開 |xref:voice.adoc#ref-voice-sxmml-opm-voice-set-bang[項目へ]
 |`sxmml-opmn-operator-zip` |`sxmml.voice` |手続き・公開 |xref:voice.adoc#ref-voice-sxmml-opmn-operator-zip[項目へ]
 |`sxmml-opn-voice-set!` |`sxmml.voice` |手続き・公開 |xref:voice.adoc#ref-voice-sxmml-opn-voice-set-bang[項目へ]
 |`sxmml-option-get` |`sxmml.environment` |手続き・公開 |xref:environment.adoc#ref-environment-sxmml-option-get[項目へ]
 |`sxmml-option-set!` |`sxmml.environment` |手続き・公開 |xref:environment.adoc#ref-environment-sxmml-option-set-bang[項目へ]
 |`sxmml-output-track-find` |`sxmml.output` |手続き・公開 |xref:output.adoc#ref-output-sxmml-output-track-find[項目へ]
+|`sxmml-pcm-voice-set!` |`sxmml.voice` |手続き・公開 |xref:voice.adoc#ref-voice-sxmml-pcm-voice-set-bang[項目へ]
 |`sxmml-pmd-binary-output` |`sxmml.backend.pmd-binary` |手続き・公開 |xref:pmd-binary.adoc#ref-pmd-binary-sxmml-pmd-binary-output[項目へ]
 |`sxmml-pmd-check-obsolete-metadata` |`sxmml.backend.pmd` |手続き・公開 |xref:pmd.adoc#ref-pmd-sxmml-pmd-check-obsolete-metadata[項目へ]
 |`sxmml-pmd-envelope-values` |`sxmml.backend.pmd` |手続き・公開 |xref:pmd.adoc#ref-pmd-sxmml-pmd-envelope-values[項目へ]
 |`sxmml-pmd-ir-optimize` |`sxmml.backend.pmd` |手続き・公開 |xref:pmd.adoc#ref-pmd-sxmml-pmd-ir-optimize[項目へ]
 |`sxmml-pmd-lfo-values` |`sxmml.backend.pmd` |手続き・公開 |xref:pmd.adoc#ref-pmd-sxmml-pmd-lfo-values[項目へ]
 |`sxmml-pmd-metadata-value` |`sxmml.backend.pmd` |手続き・公開 |xref:pmd.adoc#ref-pmd-sxmml-pmd-metadata-value[項目へ]
+|`sxmml-pmd-output-tracks-select` |`sxmml.backend.pmd` |手続き・公開 |xref:pmd.adoc#ref-pmd-sxmml-pmd-output-tracks-select[項目へ]
+|`sxmml-pmd-pcm-voice-number` |`sxmml.backend.pmd` |手続き・公開 |xref:pmd.adoc#ref-pmd-sxmml-pmd-pcm-voice-number[項目へ]
 |`sxmml-pmd-setup!` |`sxmml.backend.pmd` |手続き・公開 |xref:pmd.adoc#ref-pmd-sxmml-pmd-setup-bang[項目へ]
 |`sxmml-pmd-source-output` |`sxmml.backend.pmd-source` |手続き・公開 |xref:pmd-source.adoc#ref-pmd-source-sxmml-pmd-source-output[項目へ]
 |`sxmml-pmd-voice-number-table-compute` |`sxmml.backend.pmd` |手続き・公開 |xref:pmd.adoc#ref-pmd-sxmml-pmd-voice-number-table-compute[項目へ]
@@ -442,6 +473,8 @@
 |`sxmml-track-rename!` |`sxmml.environment` |手続き・公開 |xref:environment.adoc#ref-environment-sxmml-track-rename-bang[項目へ]
 |`sxmml-track-set!` |`sxmml.environment` |手続き・公開 |xref:environment.adoc#ref-environment-sxmml-track-set-bang[項目へ]
 |`sxmml-value-error?` |`sxmml.classes` |手続き・公開 |xref:classes.adoc#ref-classes-sxmml-value-error-p[項目へ]
+|`sxmml-voice-set!` |`sxmml.voice` |手続き・公開 |xref:voice.adoc#ref-voice-sxmml-voice-set-bang[項目へ]
+|`sxmml-voice-table-find` |`sxmml.voice` |手続き・公開 |xref:voice.adoc#ref-voice-sxmml-voice-table-find[項目へ]
 |===
 
 課題の現行内容・影響・対応状況は https://github.com/sayzbrdg/sxmml/issues[既知の課題（GitHub の issue）]を参照してください。

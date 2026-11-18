@@ -20,7 +20,7 @@
   ;; 作業ディレクトリ name に既存の生成物 out.mml と空のディレクトリ adir を置き、
   ;; text を書いた入力を -o output で変換して、終了値が 0 以外か、
   ;; ディレクトリの内容（名前と中身）が変換前と同じかを返す
-  (define (run-failure-check name text output)
+  (define (run-failure-check name text output :optional (mode "pmd"))
     (let* ([dir (work-file name)]
            [source (build-path dir "in.sxl")]
            [snapshot (^[] (map (^f (let1 path (build-path dir f)
@@ -33,7 +33,7 @@
       (with-output-to-file (build-path dir "out.mml") (^[] (display "existing output\n")))
       (let* ([before (snapshot)]
              [p (run-process `(,@sxlc-command
-                               "-m" "pmd" "-o" ,output ,source)
+                               "-m" ,mode "-o" ,output ,source)
                              :directory dir :output :null :error :null :wait #t)])
         (list (not (zero? (process-exit-status p)))
               (equal? before (snapshot))))))
@@ -52,6 +52,8 @@
     (list (car result) (boolean (any pattern (cadr result)))))
   (unwind-protect
       (begin
+        (test* "FMP7の改行を含む曲名は既存ファイルを保持して失敗する" '(#t #t)
+               (run-failure-check "fmp-title" "(define-metadata title \"a\\nb\")" "out.mml" "fmp7"))
         ;; 失敗時の生成物 (#16)
         ;; 読み込み・生成・出力のいずれで失敗しても、0 以外の終了値で終了し、
         ;; 既存の生成物を変更せず、途中までの生成物や一時ファイルを残さないこと

@@ -68,6 +68,7 @@
 (define-class <sxmml-output-track> ()
   ([name :init-keyword :name :init-value #f]
    [part :init-keyword :part :init-value #f]
+   [sound-source :init-keyword :sound-source :init-value #f]
    [ir :init-keyword :ir :init-value ()]
    [total-ticks :init-keyword :total-ticks :init-value 0]
    [loop-ticks :init-keyword :loop-ticks :init-value 0]
@@ -129,6 +130,7 @@
 (define-class <sxmml-mml-context> ()
   ([track :init-value #f :init-keyword :track]
    [part :init-value #f :init-keyword :part]
+   [sound-source :init-keyword :sound-source :init-value #f]
    [default-length :init-value 4 :init-keyword :default-length]
    [volume-delta :init-value 1 :init-keyword :volume-delta]
    [current-octave :init-value 4 :init-keyword :current-octave]

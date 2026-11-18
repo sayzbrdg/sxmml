@@ -29,7 +29,8 @@
     (test* "O03 反復命令をそのまま保つ" repeat-ir (sxmml-ir-flatten repeat-ir))))
 
 (parameterize ([sxmml-environment (make <sxmml-environment>)])
-  (define-track (A B C))
+  (define-track (A C))
+  (define-track B :part 'B :sound-source 'opm)
   (mml A "c2Lc1.")
   (mml B "c4")
   (mml C "c8c8d4")
@@ -63,6 +64,10 @@
                (eq? statistics (slot-ref (output-track out 'C) 'ticks-statistics))))
   (sxmml-track-rename! 'B 'lead)
   (let1 renamed (prepare registered)
+    (test* "改名後も音源種別を出力環境へ渡す" 'opm
+           (slot-ref (sxmml-output-track-find renamed 'B) 'sound-source))
+    (test* "未指定partは検索しない" '(#f #f)
+           (list (sxmml-track-find #f) (sxmml-output-track-find renamed #f)))
     (test* "F01 partから名前変更後の出力トラックを得る" 'lead
            (slot-ref (sxmml-output-track-find renamed 'B) 'name))
     (test* "F02 見つからないpartは#f" #f (sxmml-output-track-find renamed 'missing)))))

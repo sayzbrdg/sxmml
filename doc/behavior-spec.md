@@ -30,7 +30,7 @@ CLI指定は引数の検査後・モード初期設定前に登録し、同じ�
 
 処理順は、オプションを読む → `-m` があればモードを選ぶ → 入力ファイルを読み込む → 出力形式の設定を確認する → 整数の`-O`要求・出力先・入力元から全トラックの出力環境を準備する → バックエンドが採用トラックを最適化して生成する → 出力名・処理モード・最適化水準を表示する → トラックの tick 数を表示する → `-c` があれば後処理を起動する、である。入力ファイルの読み込み中にエラーが起きれば、出力形式の確認より先にそのエラーが出る。`-m pmd` がなくても、ソース中の `(sxmml-mode pmd)` で PMD モードを選べる。両方を指定すると `-m` の指定が有効になり、ソース中の `sxmml-mode` は無視される。このとき標準エラー出力に `warning: /home/user/song.sxl:1: sxmml-mode in source is ignored; mode is already set to モード名` のように、その `sxmml-mode` の位置を示す警告を表示する。モード名は評価せず、無視する場合は検索もしない。書式は`(sxmml-mode 名前)`、名前はシンボルに限る。追加引数や名前の型違反はCLI指定時もフォーム構文エラーとなる。
 
-PMD4 向けには `pmd`、PMD3 向けには `pmd3` を指定する。実験的なモードとして、PMD のバイナリを直接生成する `pmd-binary`・`pmd4-binary`（PMD4 向け）と `pmd3-binary`（PMD3 向け）がある。ソース内でモードを選ぶ場合、`sxlc` は起動時に利用可能なバックエンドを読み込む。各モードの出力差は「PMD 向け生成物」と「PMD バイナリ生成物（実験的）」に示す。
+PMD4 向けには `pmd`、PMD3 向けには `pmd3` を指定する。PMD のバイナリを直接生成する `pmd-binary`・`pmd4-binary`（PMD4 向け）と `pmd3-binary`（PMD3 向け）がある。ソース内でモードを選ぶ場合、`sxlc` は起動時に利用可能なバックエンドを読み込む。各モードの出力差は「PMD 向け生成物」と「PMD バイナリ生成物」に示す。
 
 モードの登録表は共有し、楽曲環境には選択した`<sxmml-mode>`を保持する。登録時には初期設定せず、選択情報の更新後に初期設定する。同じモードの再選択でも実行する。未登録選択は状態を変更せず、初期設定失敗時には選択と成功済み変更を保持する。PMDの再選択では既定トラックのMMLを引き継がない。明示的な`sxmml-mode-select!`はCLI指定後も変更を行える。
 
@@ -106,7 +106,7 @@ DT=−1・−2・−3は5・6・7へ正規化し、既存の0～7は4も含め�
 
 ### トラック名とpartの対応
 
-トラック名とバックエンドのpartは独立した名前とし、管理用手続きが一対一対応を維持する。`define-track`と`sxmml-track-set!`はpart省略時にトラック名を使い、明示partは指定どおり使う。他のトラックが使用中のpartへの登録は値エラーとする。同名再定義は自身を重複確認から除外し、新しいcontextに置き換える。以前の設定・MML・partを引き継がず、空いている別partへの再定義では旧partを解放する。
+トラック名とバックエンドのpartは独立した名前とし、管理用手続きが一対一対応を維持する。`define-track`と`sxmml-track-set!`はpart省略時は未指定（#f）とし、明示partは指定どおり使う。他のトラックが使用中のpartへの登録は値エラーとする。同名再定義は自身を重複確認から除外し、新しいcontextに置き換える。以前の設定・MML・partを引き継がず、空いている別partへの再定義では旧partを解放する。
 
 `rename-track`と`sxmml-track-rename!`は同じcontextを保持して登録名とcontextのtrackを変更する。part・設定・IR・コンパイル状態を保持し、旧名を除去する。変更元がなければ参照エラー、変更先が登録済みなら同名への変更も含め値エラーとする。マクロの名前は評価せずsymbol／identifierを受け、手続きはsymbolを受ける。形式・名前の型に違反するマクロはフォーム構文エラーとする。取得できるフォーム位置は既知の実行時エラーにも添える。
 
@@ -116,7 +116,7 @@ contextや登録表の直接編集は引き続き可能で、検索時の重複�
 
 ## PMD 向け生成物
 
-PMD 向けの生成では、`-o`、ソースの既定値、入力ファイル名の拡張子を `.mml` に替えた名前の順に生成先を選ぶ。`filename` メタデータは生成先の指定に使わず、指定されていれば標準エラー出力に `warning: metadata 'filename' is ignored; use the -o option of sxlc to set the output file` を表示して無視する。生成物は CP932 で書かれ、行末は CRLF。先頭に元の入力ファイル名と `PMDver4.8` または `PMDver3.3` のモード行を含む。設定されたメタデータ、音色定義、データのあるトラックの行が続く。音色定義は、最適化レベルにかかわらず、生成する FM 音色指定から参照されるものだけを PMD の音色番号の順に出力する。実際の発音に寄与するかは追加解析しない。未使用の定義を省いても番号を詰め直さない。音色番号は、定義した全ての FM 音色に、音色の名前の辞書順（文字コードの順）で 0 から振る。音色が 256 を超える場合は、`too many voices: 257 (max 256)` のように音色の数と上限を表示して、変換の失敗とする。PMD が使うメタデータ（`title`・`composer`・`arranger`・`pcmfile`・`ppzfile`・`ppsfile`・`memo`）の値は、書くときに検査する。`memo` は文字列 1 つか文字列のリスト、それ以外は文字列に限り、それ以外の値は `invalid metadata value: title is 1 (expected a string)` のようにキーと値を表示して変換の失敗とする。PMD3 の MML（`-m pmd3`）は値をコメントとして書くので、同じく検査する。LFO・エンベロープの定義は、`M`・`E` で使うときに検査する。種類は LFO が `default`・`triangle`（同じ意味）、エンベロープが `default` に限る。値の数は LFO が 4、エンベロープが 4・5・6 で、各値は範囲の中の整数に限る。誤りは `unsupported LFO type: sw in L1 (supported: default, triangle)`、`invalid envelope values: E1 has 3 values (expected 4, 5 or 6)`、`invalid LFO L1 value 2: 300 (expected an integer from 0 to 255)` のように、定義と誤りを表示して変換の失敗とする。種類・要素数・値の範囲の検査は、使わない定義と、最適化で取り除かれた命令の定義には行わない。登録時の外形検査とは区別する。同じ条件で変換した生成物はバイト単位で一致する（要求仕様の Q-03）。PMD3 形式は末尾に `0x1A` を付ける。日本語のタイトルも CP932 で出力する。リズムの楽器別のパン（`p楽器 数値`）の値は、1 が右、2 が左、3 が中央で、それ以外は `invalid rhythm pan: 4 (expected an integer from 1 to 3)` のように値と範囲を表示して変換の失敗とする。PMD バイナリ生成物でも同じである。
+PMD 向けの生成では、`-o`、ソースの既定値、入力ファイル名の拡張子を `.mml` に替えた名前の順に生成先を選ぶ。`filename` メタデータは生成先の指定に使わず、指定されていれば標準エラー出力に `warning: metadata 'filename' is ignored; use the -o option of sxlc to set the output file` を表示して無視する。生成物は CP932 で書かれ、行末は CRLF。先頭に元の入力ファイル名と `PMDver4.8` または `PMDver3.3` のモード行を含む。設定されたメタデータ、音色定義、データのあるトラックの行が続く。音色定義は、最適化レベルにかかわらず、生成する FM 音色指定から参照されるものだけを PMD の音色番号の順に出力する。実際の発音に寄与するかは追加解析しない。未使用の定義を省いても番号を詰め直さない。音色番号は、定義した全ての OPN 音色に、音色の名前の辞書順（文字コードの順）で 0 から振る。音色が 256 を超える場合は、`too many voices: 257 (max 256)` のように音色の数と上限を表示して、変換の失敗とする。PMD が使うメタデータ（`title`・`composer`・`arranger`・`pcmfile`・`ppzfile`・`ppsfile`・`memo`）の値は、書くときに検査する。`memo` は文字列 1 つか文字列のリストを受け付ける。`pcmfile`・`ppzfile` は文字列または文字列リスト（各最大1・2件）、ほかのキーは文字列を受け付ける。型が違う場合は `invalid metadata value: title is 1 (expected a string)` のようにキーと値を表示して変換の失敗とする。PMD3 の MML（`-m pmd3`）は値をコメントとして書くので、同じく検査する。LFO・エンベロープの定義は、`M`・`E` で使うときに検査する。種類は LFO が `default`・`triangle`（同じ意味）、エンベロープが `default` に限る。値の数は LFO が 4、エンベロープが 4・5・6 で、各値は範囲の中の整数に限る。誤りは `unsupported LFO type: sw in L1 (supported: default, triangle)`、`invalid envelope values: E1 has 3 values (expected 4, 5 or 6)`、`invalid LFO L1 value 2: 300 (expected an integer from 0 to 255)` のように、定義と誤りを表示して変換の失敗とする。種類・要素数・値の範囲の検査は、使わない定義と、最適化で取り除かれた命令の定義には行わない。登録時の外形検査とは区別する。同じ条件で変換した生成物はバイト単位で一致する（要求仕様の Q-03）。PMD3 形式は末尾に `0x1A` を付ける。日本語のタイトルも CP932 で出力する。リズムの楽器別のパン（`p楽器 数値`）の値は、1 が右、2 が左、3 が中央で、それ以外は `invalid rhythm pan: 4 (expected an integer from 1 to 3)` のように値と範囲を表示して変換の失敗とする。PMD バイナリ生成物でも同じである。
 
 モードごとの出力を比較するには、まず `mkdir -p /tmp/sxmml-examples/pmd-output` を実行し、`/tmp/sxmml-examples/pmd-output/modes.sxl` に `(mml G "c8")` を保存する。次のコマンドは同じ `modes.mml` を上書きするため、各回の出力を別名に保存する。
 
@@ -166,9 +166,9 @@ FM・SSG・PCM の3区分で範囲が異なるものは分け、区分内の細�
 
 範囲外・非整数は、項目名・値・範囲を示して変換に失敗する。終了値と既存生成物の保護は従来どおり。pmd-binary の符号化や検査範囲はこの変更で揃えず、既存の制約を維持する。
 
-## PMD バイナリ生成物（実験的）
+## PMD バイナリ生成物
 
-`pmd-binary`・`pmd4-binary`・`pmd3-binary` は実験的な機能であり、外部コンパイラを使わずに PMD のバイナリを直接生成する。生成物が MC.EXE の出力と同じであることは保証しない（PMD 向け MML を MC.EXE でコンパイルした結果と一致するとは限らない）。正式機能とするかどうかは [issue #54](https://github.com/sayzbrdg/sxmml/issues/54)で判断する。既知の欠陥は、ラベル `pmd-binary` の付いた[開いている不具合の issue](https://github.com/sayzbrdg/sxmml/issues?q=is%3Aissue%20is%3Aopen%20label%3Apmd-binary%20label%3Abug)を参照する。
+`pmd-binary`・`pmd4-binary`・`pmd3-binary` は外部コンパイラを使わずに PMD のバイナリを直接生成する。生成物が MC.EXE の出力と同じであることは保証しない（PMD 向け MML を MC.EXE でコンパイルした結果と一致するとは限らない）。既知の欠陥は、ラベル `pmd-binary` の付いた[開いている不具合の issue](https://github.com/sayzbrdg/sxmml/issues?q=is%3Aissue%20is%3Aopen%20label%3Apmd-binary%20label%3Abug)を参照する。
 
 生成先は、`-o`、ソースの既定値、入力ファイル名の拡張子を `.m` に替えた名前の順に選ぶ。拡張子 `.m` の入力を `-o`もソースの既定値もなしで変換すると、出力先が入力ファイルと同じになるため使用法の誤り（終了値 2）となる。`filename` メタデータは PMD 向け生成物と同じく生成先の指定に使わず、警告を表示して無視する。トラックの登録（A～F が FM、G～I が SSG、J が PCM、L がリズム）も PMD 向けのモードと同じである。生成物はバイナリであり、生成先と同じディレクトリの一時ファイルに書いてから生成先へ移す。
 
@@ -262,8 +262,14 @@ sxlc /tmp/sxmml-examples/melody-and-rhythm.sxl
 | R-01 柔軟な MML 記述 | 入力と実行順、MML ソース、失敗条件、使用例 | Scheme 式から MML を組み立てられるが、全ての定義マクロが式を値に受けるわけではない。tick 指定はゼロ埋めした正の整数も受け付け、0 は拒否する |
 | R-02 MML オブジェクト操作 | MML ソース、[公開マクロの範囲](sxmml-reference-manual.adoc) | 複数トラックのエコーはトラックごとに `mml-echo` を呼ぶ。[issue #6](https://github.com/sayzbrdg/sxmml/issues/6) |
 | R-03 自動最適化 | CLI、PMD 向け生成物、[オブジェクト数の比較](verification.md#r-03-オブジェクト数の削減) | 最適化水準によって削減処理が異なる。音楽的な意味の判定は要求仕様の Q-01 に従う |
-| R-04 生成物 | 入力と実行順、PMD 向け生成物、PMD バイナリ生成物（実験的）、使用例 | 現在は PMD 向け MML と、実験的な PMD バイナリを生成する。PMD バイナリは MC.EXE の出力と同じであることを保証しない。[issue #54](https://github.com/sayzbrdg/sxmml/issues/54) |
+| R-04 生成物 | 入力と実行順、PMD 向け生成物、PMD バイナリ生成物、使用例 | 現在は PMD・FMP7 向け MML と PMD バイナリを生成する。PMD バイナリは MC.EXE の出力と同じであることを保証しない。[issue #54](https://github.com/sayzbrdg/sxmml/issues/54) |
 
 各差の現行内容・影響・対応状況は [既知の課題（GitHub の issue）](https://github.com/sayzbrdg/sxmml/issues)にまとめる。
 
 変更時の確認手順は[検証方針](verification.md)を参照する。
+
+PMD と FMP7 は、明示した音源が未対応のトラックごとに標準エラーへ一度警告する。そのトラックをパート割り当て、上限判定、出力結果のトラック名から除く。PMD バイナリでは、空いた固定パートを空パートとして符号化する。
+
+## FMP7 向け生成物
+
+モード fmp7 は対応音源を指定したトラックを採用する。音源種別の省略はエラーとする。音源種別ごとに32、合計64までとし、空トラックも数える。明示パートを先に確保し、未指定分をトラック名順に空きへ対応付ける。パート名順に出力し、FM・PCM・エンベロープの各番号枠で初出順に採番する。出力先への反映は全トラックの変換成功後に行う。

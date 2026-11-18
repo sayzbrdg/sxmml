@@ -205,6 +205,30 @@
                (test-error <sxmml-value-error> #/invalid FM volume: 128/)
                (pmd-ir-text "typed-volume" 'A
                             (range-ir (make <sxmml-mml-volume> :value 128) 'A)))
+        (parameterize ([sxmml-environment (make <sxmml-environment>)])
+          (define (generate)
+            (sxmml-pmd-source-output
+             (make-sxmml-output-environment (sxmml-environment) :output (work-file "sources.mml") :optimize 0)))
+          (sxmml-pmd-setup!)
+          (define-track extra :sound-source 'opm)
+          (test* "固定パート外の未対応音源も警告する"
+                 "warning: pmd-source: ignoring track extra (unsupported sound-source: opm)\n"
+                 (let1 err (open-output-string)
+                   (parameterize ([current-error-port err]) (generate))
+                   (get-output-string err)))
+          (sxmml-track-delete! 'extra)
+          (define-track A :sound-source 'opm)
+          (define-track lead :part 'A :sound-source 'opn)
+          (mml lead "c8")
+          (test* "未対応音源を実効パートの競合検査より先に除く" '(lead "A l%12o4c")
+                 (parameterize ([current-error-port (open-output-string)])
+                   (let1 result (generate)
+                     (list (car (slot-ref result 'track-names))
+                           (find #/^A / (file->string-list (work-file "sources.mml") :encoding "cp932"))))))
+          (define-track lead :part 'A :sound-source 'ssg)
+          (test* "対応音源と固定パートの矛盾はエラー"
+                 (test-error <sxmml-value-error> #/expected opn for part A/)
+                 (parameterize ([current-error-port (open-output-string)]) (generate))))
         (test* "公開pmd-source出力の未定義音色は参照エラーになる"
                (test-error <sxmml-reference-error> #/undefined voice/)
                (pmd-ir-text "typed-reference" 'A
@@ -216,7 +240,7 @@
                    (apply sxmml-opn-voice-set! (string->symbol #"V~n") '(0 0)
                           (make-list 4 '(0 0 0 0 0 0 0 0 0))))
                  (guard (e [else (eq? (class-of e) <sxmml-error>)])
-                   (sxmml-pmd-voice-number-table-compute (slot-ref (sxmml-environment) 'voice)))))
+                   (sxmml-pmd-voice-number-table-compute (sxmml-voice-table-find (sxmml-environment) 'opn)))))
 
         (test* "通常トラックの直接IR入力で2個目のLを拒否する"
                (test-error <sxmml-mml-syntax-error> "loop command can be used only once in a track")
@@ -272,7 +296,9 @@
             (test* "voice numbers follow the dictionary order of ids"
                    '("A l%12@2o4c" ((2 3)))
                    (list (a-line text) (voice-lines text))))
-          (let1 forms (append (map voice-form '(a b c) '(0 1 2))
+          (let1 forms (append '((define-pcm-voice 0 12)
+                                (let1 op (make-list 11 0) (define-opm-voice 0 '(0 0) op op op op)))
+                              (map voice-form '(a b c) '(0 1 2))
                               '((mml A "@{b}@{c}c8")))
             (let1 text (pmd-text "used-voices-O0" forms 'pmd-source #f)
               (test* "最適化なしでは生成する全音色指定の定義だけを出力する"
@@ -504,7 +530,7 @@
               [ir (range-ir (make <sxmml-mml-voice> :value 'tone) 'A)])
           (define (voice-result name alfb op :optional (used? #t))
             (pmd-ir-result name 'A (if used? ir (cdr ir))
-                           (^[] (hash-table-put! (slot-ref (sxmml-environment) 'voice) 'tone
+                           (^[] (sxmml-voice-set! 'opn
                                                 (make <sxmml-opn-voice> :id 'tone
                                                       :value (cons alfb (make-list 4 op)))))))
           (test* "FM音色の出力パラメータ上限を受理する"
@@ -596,9 +622,47 @@
             (test* #"a voice ~(cadr case) on track ~(car case) fails"
                    '(1 #t)
                    (status-and-message (sxlc-status "-m" "pmd" "-o" (work-file "voice-invalid.mml") source)
+                                       (if (equal? case '("J" "x")) #/undefined PCM voice: x$/
                                        (string->regexp
-                                        #"invalid ~(if (equal? (car case) \"J\") \"PCM\" \"SSG\") voice number: ~(regexp-quote (cadr case)) \\(expected an integer from 0 to ~(if (equal? (car case) \"J\") 255 9)\\)$")))))
+                                        #"invalid ~(if (equal? (car case) \"J\") \"PCM\" \"SSG\") voice number: ~(regexp-quote (cadr case)) \\(expected an integer from 0 to ~(if (equal? (car case) \"J\") 255 9)\\)$"))))))
       )
     (remove-directory* workdir)))
+
+(parameterize ([sxmml-environment (make <sxmml-environment>)])
+  (define (resolve value)
+    (sxmml-pcm-voice-set! 'kick value)
+    (sxmml-pmd-pcm-voice-number (sxmml-environment) 'kick))
+  (test* "PCM番号と先頭ファイル位置はファイル指定を必要としない"
+         '(25 26) (list (resolve 25) (resolve '(0 26))))
+  (define-metadata pcmfile "drums.ppc")
+  (test* "登録ファイル名を完全一致で解決する" 25 (resolve '("drums.ppc" 25)))
+  (test* "ファイル名の大小文字を区別する" (test-error <sxmml-value-error>) (resolve '("Drums.ppc" 25)))
+  (test* "Jのファイル位置は0だけ" (test-error <sxmml-value-error>) (resolve '(1 25)))
+  (define-pcm-voice 0 25)
+  (test* "数値名の定義を直指定より優先する" '(25 1)
+         (map (cut sxmml-pmd-pcm-voice-number (sxmml-environment) <>) '(|0| |1|)))
+  (let1 metadata (slot-ref (sxmml-environment) 'metadata)
+    (define (setting key value)
+      (hash-table-put! metadata key value)
+      (sxmml-pmd-metadata-value metadata key))
+    (test* "PPZ文字列とファイルリスト" '("a" "a,b" "a, b")
+           (list (setting 'pcmfile '("a")) (setting 'ppzfile '("a" "b")) (setting 'ppzfile "a, b")))
+    (test* "PCMファイルは最大1個" (test-error <sxmml-value-error>) (setting 'pcmfile '("a" "b")))
+    (test* "PPZファイルは最大2個" (test-error <sxmml-value-error>) (setting 'ppzfile '("a" "b" "c")))))
+
+(parameterize ([sxmml-environment (make <sxmml-environment>)])
+  (define (first-track)
+    (car (sxmml-pmd-output-tracks-select
+          (make-sxmml-output-environment (sxmml-environment) :output #f :optimize 0))))
+  (define-track A)
+  (define-track lead :part 'A)
+  (test* "PMD出力時に名前の補完と明示partが衝突した両名を示す"
+         (test-error <sxmml-value-error> "conflicting PMD part A: track A (implicit) and track lead (explicit)")
+         (first-track))
+  (sxmml-track-delete! 'lead)
+  (test* "PMDは未指定パートに改名時点の名前を使う" '(A #f)
+         (let1 name (slot-ref (first-track) 'name)
+           (rename-track A lead)
+           (list name (first-track)))))
 
 (test-end :exit-on-failure #t)

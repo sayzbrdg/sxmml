@@ -258,13 +258,15 @@
   (hash-table-get (slot-ref (sxmml-environment) 'track) track #f))
 (define (sxmml-track-set! track . params)
   (let* ([tracks (slot-ref (sxmml-environment) 'track)]
-         [ctx (apply make <sxmml-mml-context> :track track
-                     :part (get-keyword :part params track) params)]
+         [ctx (apply make <sxmml-mml-context> :track track params)]
          [part (slot-ref ctx 'part)]
-         [owner (hash-table-find tracks
+         [source (slot-ref ctx 'sound-source)]
+         [owner (and part (hash-table-find tracks
                   (^[name other]
                     (and (not (eq? name track)) (eq? (slot-ref other 'part) part)
-                         (cons name other))))])
+                         (cons name other)))))])
+    (unless (or (not source) (symbol? source))
+      (errorf <sxmml-value-error> "invalid track ~s sound-source: ~s (expected a symbol or #f)" track source))
     (when owner
       (errorf <sxmml-value-error> "invalid track ~s part: ~s (already assigned to track ~s)"
               track part (car owner)))
@@ -291,7 +293,7 @@
   (hash-table-keys (slot-ref (sxmml-environment) 'track)))
 (define (sxmml-track-find part)
   (hash-table-find (slot-ref (sxmml-environment) 'track)
-                   (^[k v] (and (eq? (slot-ref v 'part) part) k))))
+                   (^[k v] (and part (eq? (slot-ref v 'part) part) k))))
 
 (define (sxmml-ir-register! ir track)
   (if-let1 ctx (sxmml-track-get track)

@@ -19,3 +19,13 @@ PMD両バックエンドで使う7つの公開手続きと、非公開の定義�
 |===
 
 呼び出せない規則表は索引件数に含めません。`%pmd-lfo-types`・`%pmd-lfo-ranges`・`%pmd-envelope-types`・`%pmd-envelope-ranges`の4表で、従来の種類・個数・範囲を定めます。共通登録の検査は、手作りIRも受け取るバックエンドの検査の代わりにはしません。
+
+== 手続きと構文
+
+[[ref-pmd-sxmml-pmd-output-tracks-select]]
+`(sxmml-pmd-output-tracks-select env [backend])`:: 未対応音源を警告して除き、固定パートに対応するトラックを選び、音源種別を照合する。
+
+[[ref-pmd-sxmml-pmd-pcm-voice-number]]
+`(sxmml-pmd-pcm-voice-number env name)`:: PCMの定義名または従来の数値名をネイティブ番号へ解決する。
+
+PMDの固定パート選択時、名前で補完するトラックと明示partのトラックが競合した場合は、パートと両名を示すvalue-errorとします。

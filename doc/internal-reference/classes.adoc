@@ -117,3 +117,5 @@
 $ gosh -I. -e '(use sxmml.classes) (write (slot-ref (make <sxmml-mml-context>) (quote default-length))) (newline)'
 4
 ----
+
+登録contextと出力trackの `sound-source` は音源種別のシンボルまたは未指定の `#f` です。`voice` は種類をキー、名前別の定義表を値とするハッシュ表です。

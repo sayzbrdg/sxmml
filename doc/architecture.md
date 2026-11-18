@@ -4,7 +4,7 @@
 
 ## システム境界
 
-入力は `sxlc` の引数と、Gauche が評価する Scheme ソースファイルである。ソースには MML 文字列を作る式、トラック・音色・メタデータの定義、モード指定などを記せる。現在の出力は CP932 符号化の PMD 向け MML ファイルである（実験的な機能として、PMD のバイナリも生成できる）。
+入力は `sxlc` の引数と、Gauche が評価する Scheme ソースファイルである。ソースには MML 文字列を作る式、トラック・音色・メタデータの定義、モード指定などを記せる。現在の出力は CP932 符号化の PMD・FMP7 向け MML と PMD バイナリである。
 
 ```mermaid
 flowchart LR
@@ -45,7 +45,7 @@ flowchart LR
 | [`sxmml/native.scm`](../sxmml/native.scm)、[`src/lib/`](../src/lib/) | Gauche と必須 C 拡張の接続。C コアは LCP・区間 DP・全体連結・圧縮木の復元を担当 | 汎用コアは IR を知らず C の比較関数を使う。IR 固定比較は optimizer 所属の CiSE が持つ |
 | [`sxmml/backend/pmd.scm`](../sxmml/backend/pmd.scm) | PMD共通規則・初期トラック設定・最適化選択 | 明示された定義表やIRを使う |
 | [`sxmml/backend/pmd-source.scm`](../sxmml/backend/pmd-source.scm) | sourceモードの登録とMML出力 | 出力環境からCP932ファイルを生成し、出力結果を返す |
-| [`sxmml/backend/pmd-binary.scm`](../sxmml/backend/pmd-binary.scm) | PMD バイナリモード（実験的）の登録、トラック列から PMD の命令列・音色表・メタ情報への変換 | 最適化結果と環境から `.m` を生成。生成物が MC.EXE の出力と同じであることは保証しない |
+| [`sxmml/backend/pmd-binary.scm`](../sxmml/backend/pmd-binary.scm) | PMD バイナリモードの登録、トラック列から PMD の命令列・音色表・メタ情報への変換 | 最適化結果と環境から `.m` を生成。生成物が MC.EXE の出力と同じであることは保証しない |
 | [`sxmml/util.scm`](../sxmml/util.scm) | BPM から PMD 向け Timer-B 値への計算 | バックエンドが使用 |
 | [`sxmml/form.scm`](../sxmml/form.scm) | 定義のマクロの誤りに、フォームの開始位置（ファイルと行）を付けて投げる | `sxmml.voice`・`sxmml.environment` が使用。`sxmml` の継承対象に含まれない |
 
@@ -97,3 +97,5 @@ Scheme ソースは `load` で Gauche のコードとして実行される（`sx
 ## 技術資料
 
 公開名は[内部リファレンス](internal-reference/index.adoc)、要求との対応と未検証部分は[検証方針](verification.md)を参照する。Gauche のモジュール継承、マクロ、オブジェクト、パラメータ、PEG、文字列生成、ファイル読み込み・文字コード変換・CLI・プロセスの仕様は [Gauche 0.9.15 Users’ Reference](https://practical-scheme.net/vault/Gauche-0.9.15-refe.pdf)に従う。
+
+コアの音色表は種類から名前別の表を引く。sxmml.backend.fmp7 は登録済みトラックをパート順に並べ、反復構造からLFOの到達状態を求める。sxmml.backend.fmp7-source はその列を文字列ポートへ書きながら定義番号を割り当て、使用定義と本文をファイルへ書く。

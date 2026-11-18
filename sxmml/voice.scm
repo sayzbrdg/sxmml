@@ -32,6 +32,8 @@
   (use sxmml.environment)
   (use sxmml.form)
   (export define-opn-voice sxmml-opn-voice-set!
+          sxmml-voice-set! sxmml-voice-table-find
+          define-opm-voice sxmml-opm-voice-set! define-pcm-voice sxmml-pcm-voice-set!
           sxmml-opmn-operator-zip))
 (select-module sxmml.voice)
 
@@ -90,7 +92,7 @@
          [checked-ops (map (^[op openum]
                              (%voice-values-check op %voice-operator-ranges id #"operator(~openum)"))
                            ops '(1 2 3 4))])
-    (hash-table-set! (slot-ref (sxmml-environment) 'voice) id
+    (sxmml-voice-set! 'opn
                     (make <sxmml-opn-voice> :id id :value (cons checked-alfb checked-ops)))))
 
 (define (%voice-values-check values ranges id place)
@@ -133,3 +135,59 @@
                `(sxmml-opn-voice-set! ',idsym (list ,@alfb)
                                       ,@(map (^[op] (cons (rename 'list) op)) ops)))))]
         [_ (form-error)]))))
+
+(define (sxmml-voice-table-find env kind)
+  (hash-table-get (slot-ref env 'voice) kind #f))
+
+(define (sxmml-voice-set! kind voice)
+  (unless (symbol? kind)
+    (errorf <sxmml-value-error> "invalid voice kind: ~s (expected a symbol)" kind))
+  (unless (is-a? voice <sxmml-voice>)
+    (errorf <sxmml-value-error> "invalid voice definition: ~s" voice))
+  (let1 id (slot-ref voice 'id)
+    (unless (symbol? id)
+      (errorf <sxmml-value-error> "invalid voice id: ~s (expected a symbol)" id))
+    (let* ([tables (slot-ref (sxmml-environment) 'voice)]
+           [voices (or (hash-table-get tables kind #f)
+                       (let1 ht (make-hash-table eq-comparator)
+                         (hash-table-put! tables kind ht)
+                         ht))])
+      (hash-table-put! voices id voice))))
+
+(define (sxmml-pcm-voice-set! id value)
+  (sxmml-voice-set! 'pcm (make <sxmml-voice> :id id :value value)))
+
+(define (sxmml-opm-voice-set! id alfb op1 op2 op3 op4)
+  (define (operator op index)
+    (match op
+      [(ar dr sr rr sl tl ks ml dt dt2 am)
+       (%voice-values-check (list ar dr sr rr sl tl ks ml dt dt2 0 am)
+                            %voice-operator-ranges id #"operator(~index)")]
+      [_ (errorf <sxmml-value-error> "invalid voice @~a operator(~a): ~s (expected a list of 11 values)"
+                 id index op)]))
+  (unless (%voice-alfb-form? alfb)
+    (errorf <sxmml-value-error> "invalid voice @~a al/fb: ~s (expected a list of 2 values)" id alfb))
+  (sxmml-voice-set! 'opm
+    (make <sxmml-opm-voice> :id id
+          :value (cons (%voice-values-check alfb %voice-alfb-ranges id #f)
+                       (map operator (list op1 op2 op3 op4) '(1 2 3 4))))))
+
+(define-syntax define-opm-voice
+  (er-macro-transformer
+   (^[form rename id=?]
+     (match form
+       [(_ id af op1 op2 op3 op4)
+        (let1 name (sxmml-form-name->symbol form "define-opm-voice" id)
+          (sxmml-form-wrap form rename
+            (quasirename rename `(sxmml-opm-voice-set! ',name ,af ,op1 ,op2 ,op3 ,op4))))]
+       [_ (sxmml-form-error form "invalid define-opm-voice form: expected id al/fb and four operators")]))))
+
+(define-syntax define-pcm-voice
+  (er-macro-transformer
+   (^[form rename id=?]
+     (match form
+       [(_ id value)
+        (let1 name (sxmml-form-name->symbol form "define-pcm-voice" id)
+          (sxmml-form-wrap form rename
+            (quasirename rename `(sxmml-pcm-voice-set! ',name ,value))))]
+       [_ (sxmml-form-error form "invalid define-pcm-voice form: expected id and value")]))))

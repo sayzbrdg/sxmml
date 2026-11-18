@@ -1,0 +1,47 @@
+= パート割当と反復・LFOの解析
+
+反復の前半・脱出後半が各チャネルに及ぼす効果を求め、初回と次回の入口状態を合流します。4チャネルはすべて有効で始まります。
+
+== 手続きと構文
+
+[[ref-fmp7-internal-part-name]]
+`(%part-name part)`:: 明示パートを正規化する。
+
+[[ref-fmp7-internal-part-index-to-name]]
+`(%part-index->name index)`:: 空き番号をパート名に変換する。
+
+[[ref-fmp7-sxmml-fmp7-tracks-prepare]]
+`(sxmml-fmp7-tracks-prepare env)`:: 未対応音源のトラックを警告して除き、対応音源のトラックをパート順の（トラック、パート名、音源種別）の列にする。
+
+[[ref-fmp7-internal-repeat-sequence]]
+`(%repeat-sequence ir)`:: 有限反復の区切りとLの位置を検査して木を返す。
+
+[[ref-fmp7-internal-canonical-lfo]]
+`(%canonical-lfo obj)`:: 省略チャネルをAとするIRを返す。
+
+[[ref-fmp7-sxmml-fmp7-ir-optimize]]
+`(sxmml-fmp7-ir-optimize ir level)`:: 構造を検査し、水準に応じた反復圧縮を行う。
+
+[[ref-fmp7-internal-after]]
+`(%after effect state)`:: 区間効果を入口状態へ適用する。
+
+[[ref-fmp7-internal-join]]
+`(%join a b)`:: 二つの入口から到達可能な状態の和集合を返す。
+
+[[ref-fmp7-internal-lfo-region]]
+`(%lfo-region nodes)`:: 区間効果と、入口状態から出力列を求める手続きを返す。
+
+[[ref-fmp7-sxmml-fmp7-lfo-output-prepare]]
+`(sxmml-fmp7-lfo-output-prepare ir)`:: 反復とLの到達状態を解析してLFO設定に注釈を付ける。
+
+[[ref-fmp7-internal-bounded]]
+`(%bounded label value low high)`:: 正確な整数の範囲を検査する。
+
+[[ref-fmp7-sxmml-fmp7-lfo-values]]
+`(sxmml-fmp7-lfo-values lfo)`:: 振動波形と省略値を補った7値を返す。
+
+[[ref-fmp7-sxmml-fmp7-envelope-values]]
+`(sxmml-fmp7-envelope-values env)`:: 種類に応じてEまたはEXと値列を返す。
+
+[[ref-fmp7-sxmml-fmp7-pcm-reference-resolve]]
+`(sxmml-fmp7-pcm-reference-resolve env voice)`:: ファイル位置または直接名をファイル名とサンプル番号へ解決する。

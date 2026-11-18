@@ -34,7 +34,7 @@ NATIVE_SRCS = sxmml_native.c sxmml_nativelib.scm sxmml_optimizerlib.scm sxmml_re
 MANPAGE   = sxlc.1
 SCMFILES  = sxmml.scm sxmml/classes.scm sxmml/environment.scm sxmml/voice.scm sxmml/command.scm sxmml/mml.scm \
             sxmml/output.scm sxmml/compiler.scm sxmml/processor.scm sxmml/optimizer.scm sxmml/repeat-tree.scm \
-            sxmml/util.scm sxmml/form.scm sxmml/backend/pmd.scm sxmml/backend/pmd-source.scm sxmml/backend/pmd-binary.scm sxmml/native.scm
+            sxmml/util.scm sxmml/form.scm sxmml/backend/fmp7.scm sxmml/backend/fmp7-source.scm sxmml/backend/pmd.scm sxmml/backend/pmd-source.scm sxmml/backend/pmd-binary.scm sxmml/native.scm
 
 GENERATED = $(MANPAGE)
 CONFIG_GENERATED = Makefile config.cache config.log config.status \
@@ -69,6 +69,8 @@ check : all
 	$(TEST_ENV) $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/test/test-ir-meaning.scm" >> test.log
 	$(TEST_ENV) $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/test/test-optimizer.scm" >> test.log
 	$(TEST_ENV) $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/test/test-pmd.scm" >> test.log
+	$(TEST_ENV) $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/test/test-fmp7.scm" >> test.log
+	$(TEST_ENV) $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/test/test-fmp7-source.scm" >> test.log
 	$(TEST_ENV) $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/test/test-processor.scm" >> test.log
 	$(TEST_ENV) $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/test/test-util.scm" >> test.log
 	$(TEST_ENV) $(GOSH) -I. -I"$(srcdir)" "$(srcdir)/test/test-voice.scm" >> test.log

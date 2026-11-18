@@ -30,7 +30,7 @@
 ;; sxmml-opn-voice-set! は実行時に検査して登録し、define-opn-voice はその呼び出しに展開する
 (let* ([op0 '(0 0 0 0 0 0 0 0 0)]
        [ops (make-list 4 op0)]
-       [voice-value (^[env id] (slot-ref (hash-table-get (slot-ref env 'voice) id) 'value))])
+       [voice-value (^[env id] (slot-ref (hash-table-get (sxmml-voice-table-find env 'opn) id) 'value))])
   (define (with-new-environment thunk)
     (parameterize ([sxmml-environment (make <sxmml-environment>)])
       (thunk)))
@@ -144,7 +144,7 @@
               (parameterize ([sxmml-environment (make <sxmml-environment>)])
                 (guard (e [else (cons source e)])
                   (load source)
-                  (cons source (slot-ref (sxmml-environment) 'voice))))))
+                  (cons source (sxmml-voice-table-find (sxmml-environment) 'opn))))))
           (define (voice-with-name r id)
             (and (hash-table? (cdr r)) (hash-table-get (cdr r) id #f)))
           (let* ([r (named-voice "voice-generated-name"
@@ -175,7 +175,7 @@
                  '|a b|
                  (parameterize ([sxmml-environment (make <sxmml-environment>)])
                    (apply sxmml-opn-voice-set! '|a b| '(0 0) (make-list 4 (make-list 9 0)))
-                   (slot-ref (hash-table-get (slot-ref (sxmml-environment) 'voice) '|a b|) 'id))))
+                   (slot-ref (hash-table-get (sxmml-voice-table-find (sxmml-environment) 'opn) '|a b|) 'id))))
         ;; define-opn-voice の枠の中の要素は式として評価する。定義の誤りは、展開時でも
         ;; 実行時でも、フォームの開始位置を独立したconditionとして付ける (#28)
         (let* ([op0 "(0 0 0 0 0 0 0 0 0)"]
@@ -187,7 +187,7 @@
                                                [sxmml-source-file source])
                                   (guard (e [else (cons source e)])
                                     (load source)
-                                    (cons source (hash-table-get (slot-ref (sxmml-environment) 'voice) 'V1 #f))))))]
+                                    (cons source (hash-table-get (sxmml-voice-table-find (sxmml-environment) 'opn) 'V1 #f))))))]
                [error-report (^[r] (let1 e (cdr r)
                                      (list (sxmml-error? e) (condition-message e)
                                            (sxmml-source-context-location e))))])
@@ -235,5 +235,31 @@
           )
       )
     (remove-directory* workdir)))
+
+(parameterize ([sxmml-environment (make <sxmml-environment>)])
+  (define (lookup kind id)
+    (hash-table-get (sxmml-voice-table-find (sxmml-environment) kind) id))
+  (test* "未知の種類の検索は表を作らない" '(#f 0)
+         (list (sxmml-voice-table-find (sxmml-environment) 'custom)
+               (hash-table-num-entries (slot-ref (sxmml-environment) 'voice))))
+  (let ([v (make <sxmml-voice> :id 'tone :value 7)])
+    (sxmml-voice-set! 'custom v)
+    (sxmml-pcm-voice-set! 'tone 2)
+    (sxmml-pcm-voice-set! 'tone 3)
+    (test* "独自種類と同名のPCMを個別に登録できる" (list v 3)
+           (list (lookup 'custom 'tone) (slot-ref (lookup 'pcm 'tone) 'value))))
+  (let ([calls 0])
+    (define-pcm-voice 0 (begin (inc! calls) 25))
+    (test* "PCMの数値名と値式" '(1 25)
+           (list calls (slot-ref (lookup 'pcm '|0|) 'value))))
+  (let ([op (^[dt] (list 31 31 31 15 15 127 3 15 dt 3 1))])
+    (define-opm-voice tone '(7 7) (op -1) (op -2) (op -3) (op 7))
+    (let1 original (lookup 'opm 'tone)
+      (test* "OPMのDT1、DT2、SEGとAM" '((5 3 0 1) (6 3 0 1) (7 3 0 1) (7 3 0 1))
+             (map (cut list-tail <> 8) (cdr (slot-ref original 'value))))
+      (dolist [invalid (list (cdr (op 0)) (cons 32 (cdr (op 0))))]
+        (test* "不正なOPM音色は同名定義を置換しない" original
+               (guard (e [(is-a? e <sxmml-value-error>) (lookup 'opm 'tone)])
+                 (sxmml-opm-voice-set! 'tone '(0 0) invalid (op 0) (op 0) (op 0))))))))
 
 (test-end :exit-on-failure #t)
