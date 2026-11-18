@@ -1,6 +1,8 @@
 (use gauche.test)
 (use sxmml)
+(use srfi.1)
 (use test.ir-meaning)
+(use util.match)
 (test-start "sxmml.backend.fmp7")
 (use sxmml.backend.fmp7)
 (test-module 'sxmml.backend.fmp7)
@@ -49,5 +51,25 @@
          (sxmml-fmp7-ir-optimize (list start (make <sxmml-mml-repeat-end> :value 0)) 3))
   (test* "33段の既存反復を受理する" #t
          (pair? (sxmml-fmp7-ir-optimize (append (make-list 33 start) cd (make-list 33 end)) 3))))
+
+(define (lfo-settings phrase)
+  (define (settings nodes)
+    (append-map (match-lambda
+                  [('repeat _ front _ back _) (append (settings front) (settings back))]
+                  [('lfo-set _ enabled switch)
+                   (list (if switch (if (slot-ref switch 'value) 'on 'off) enabled))]
+                  [_ '()])
+                nodes))
+  (parameterize ([sxmml-environment (make <sxmml-environment>)])
+    (define-track lead)
+    (mml lead phrase)
+    (let* ([out (make-sxmml-output-environment (sxmml-environment) :output #f :optimize 0)]
+           [ir (slot-ref (hash-table-get (slot-ref out 'track) 'lead) 'ir)])
+      (settings (sxmml-fmp7-lfo-output-prepare (sxmml-fmp7-ir-optimize ir 0))))))
+
+(for-each (^[phrase expected] (test* phrase expected (lfo-settings phrase)))
+          '("Mf M0 c8 Mt" "Mf[c8 M0Mtd8]2" "M0Mt[c8 d8 M1]2" "M0Mf[c8 Mtd8]2"
+            "Mf[M0 c8 Mt d8]2" "Mf L c8 M0Mt d8" "Mf[c8:M0d8Mt]2")
+          (list '(#f) '(on) '(on #t) '(off) (test-error <sxmml-value-error>) '(on) '(#f)))
 
 (test-end :exit-on-failure #t)

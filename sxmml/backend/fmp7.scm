@@ -1,8 +1,9 @@
 (define-module sxmml.backend.fmp7
   (use srfi.1)
+  (use util.match)
   (use sxmml.classes)
   (use sxmml.optimizer)
-  (export sxmml-fmp7-tracks-prepare sxmml-fmp7-ir-optimize))
+  (export sxmml-fmp7-tracks-prepare sxmml-fmp7-ir-optimize sxmml-fmp7-lfo-output-prepare))
 (select-module sxmml.backend.fmp7)
 
 (define (%part-name part)
@@ -99,3 +100,67 @@
                      ir)
     (if (< level 3) normalized
         (sxmml-ir-compress-repeats normalized :expand-small (> level 3)))))
+
+;; 効果は各チャネルの最後のスイッチ値。0は変更なし、1は無効、2は有効。
+;; 到達状態では両方の可能性を3で表し、到達しない区間を#fとする。
+(define %channels '(A B C D))
+(define %keep '(0 0 0 0))
+(define (%after effect state)
+  (and state (map (^[new old] (if (zero? new) old new)) effect state)))
+(define (%join a b)
+  (cond [(not a) b] [(not b) a] [else (map logior a b)]))
+
+;; 区間は効果と、入口状態から注釈付きの列を求める手続きの対。
+(define (%lfo-region nodes)
+  (define (sequence regions)
+    (cons (fold (^[r s] (%after (car r) s)) %keep regions)
+          (^[entry]
+            (let loop ([rest regions] [state entry] [rev '()])
+              (if (null? rest) (reverse! rev)
+                  (let1 r (car rest)
+                    (loop (cdr rest) (%after (car r) state)
+                          (cons ((cdr r) state) rev))))))))
+  (define (repeat-region start front escape back end)
+    (let* ([f (%lfo-region front)] [b (%lfo-region back)]
+           [cycle (%after (car b) (car f))] [n (slot-ref end 'value)])
+      (cons (if (= n 1) (car f) (%after (car f) cycle))
+            (^[s]
+              (let* ([later (%after cycle s)]
+                     [front-in (if (= n 1) s (%join s later))]
+                     [back-in (case n [(1) #f] [(2) (%after (car f) s)]
+                                    [else (%after (car f) front-in)])])
+                (list 'repeat start ((cdr f) front-in) escape ((cdr b) back-in) end))))))
+  (define (switch-effect obj)
+    (map (^[ch] (if (eq? ch (slot-ref obj 'channel))
+                  (if (slot-ref obj 'value) 2 1) 0)) %channels))
+  (define (setting obj switch)
+    (let1 index (list-index (cut eq? <> (slot-ref obj 'channel)) %channels)
+      (cons (if switch (switch-effect switch) %keep)
+            (^[s]
+              (let1 state (and s (list-ref s index))
+                (when (and (eqv? state 3) (not switch))
+                  (errorf <sxmml-value-error> "ambiguous LFO switch state: ~a" (slot-ref obj 'channel)))
+                (list 'lfo-set obj (eqv? state 2) switch))))))
+  (let loop ([xs nodes] [acc '()])
+    (match xs
+      [() (sequence (reverse! acc))]
+      [(('repeat start f escape b end) . rest)
+       (loop rest (cons (repeat-region start f escape b end) acc))]
+      [(obj . rest)
+       (cond [(is-a? obj <sxmml-mml-lfo-switch>)
+              (loop rest (cons (cons (switch-effect obj) (^_ obj)) acc))]
+             [(is-a? obj <sxmml-mml-lfo>)
+              (let1 paired (and (pair? rest) (is-a? (car rest) <sxmml-mml-lfo-switch>)
+                                (eq? (slot-ref obj 'channel) (slot-ref (car rest) 'channel))
+                                (car rest))
+                (loop (if paired (cdr rest) rest) (cons (setting obj paired) acc)))]
+             [else (loop rest (cons (cons %keep (^_ obj)) acc))])])))
+
+(define (sxmml-fmp7-lfo-output-prepare ir)
+  (let1 nodes (%repeat-sequence ir)
+    (receive (prefix tail) (break (cut is-a? <> <sxmml-mml-loop>) nodes)
+      (let* ([first (%lfo-region prefix)] [initial '(2 2 2 2)]
+             [head ((cdr first) initial)])
+        (if (null? tail) head
+            (let* ([cycle (%lfo-region tail)] [entry (%after (car first) initial)])
+              (append! head ((cdr cycle) (%join entry (%after (car cycle) entry))))))))))
