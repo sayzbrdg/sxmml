@@ -1,13 +1,13 @@
 = `sxmml.backend.pmd-source` の生成処理
 :toc: left
 
-PMD向けMML出力の56定義（手続き55件・クラス1件）を持ちます。モード情報は読込み時に登録し、初期トラック設定は選択時に共通setup!で実行します。定義の規則と最適化選択は xref:pmd.adoc[PMD共通処理]を使います。
+PMD向けMML出力の54定義（手続き53件・クラス1件）を持ちます。モード情報は読込み時に登録し、初期トラック設定は選択時に共通setup!で実行します。定義の規則と最適化選択は xref:pmd.adoc[PMD共通処理]を使います。
 
-公開出力は出力環境一つを受け、出力結果を返します。A～J・Lに対応する出力トラックが必要です。出力中に現在の登録環境・モード・sxmml-source-fileを参照せず、入力を変更しません。作業用のトラック状態は明示引数、音色番号表・使用id表と定義参照は局所状態とクロージャで渡します。
+公開出力は出力環境一つを受け、出力結果を返します。A～J・Lに対応する出力トラックが必要です。出力中に現在の登録環境・モード・sxmml-source-fileを参照せず、入力を変更しません。作業用のトラック状態は明示引数、FM音色の採番状態は出力ごとに作り、音色指定の出力手続きに渡します。
 
 出力先#fは`<sxmml-value-error>`、本文`output file is not specified`で報告し、入力名から補完しません。出力先と同じディレクトリの一時ファイルへCP932で書き、成功後に改名します。失敗時は既存出力を保持し、一時ファイルを破棄します。入力元source=#fならヘッダーのfromだけを省き、改行・モード行・PMD3終端は維持します。
 
-本文全体を一つの文字列ポートへ出力し、FM音色指定の出力時に使用idを記録します。使用定義を番号順に書いた後で本文を出力し、使用音色収集のためのIR追加全件走査は行いません。最適化水準で音色省略の有無を分けません。
+本文全体を一つの文字列ポートへ出力し、FM音色指定の出力時に初出の音色に番号を割り当てます。使用定義を番号順に書いた後で本文を出力し、使用音色収集のためのIR追加全件走査は行いません。最適化水準で音色省略の有無を分けません。
 
 [cols="2,4,4,1",options="header"]
 |===
@@ -28,13 +28,11 @@ PMD向けMML出力の56定義（手続き55件・クラス1件）を持ちます
 |[[ref-pmd-source-internal-pmd-source-output]]`(%pmd-source-output env pmd3?)` |source出力の共通処理 |出力先#fは出力開始前に値エラー。文字列ポートへ全本文を生成して使用FM音色を集め、一時ファイルから生成先へ改名。出力結果を返す |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
 |[[ref-pmd-source-internal-pmd-source-head-output]]`(%pmd-source-head-output env pmd3?)` |入力元とPMDバージョンのヘッダー |source=#fではfrom部分だけを省く。明示された入力元のbasenameを使う |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
 |[[ref-pmd-source-internal-pmd-source-meta-output]]`(%pmd-source-meta-output env pmd3?)` |明示されたメタデータを出力 |共通検査を使用する。PMD3ではメタデータ行をコメントにする |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
-|[[ref-pmd-source-internal-pmd-source-voice-output]]`(%pmd-source-voice-output voices numbers used-voice-ids)` |使用FM音色だけを番号順に出力 |音色表・番号表・使用id表を明示引数で受け、各オペレータをfor-eachで出力する |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
+|[[ref-pmd-source-internal-pmd-source-voice-output]]`(%pmd-source-voice-output voices)` |使用FM音色だけを番号順に出力 |採番状態を受け取り、各オペレータをfor-eachで出力する |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
 |[[ref-pmd-source-internal-pmd-value-check]]`(%pmd-value-check kind value min max)` |出力値を検査する内部手続き |正確な整数で `min` 以上 `max` 以下なら元の値を返す。それ以外は項目名・値・許容範囲を示すエラー |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
 |[[ref-pmd-source-internal-pmd-note-check]]`(%pmd-note-check note :optional (kind "note"))` |音高を検査して返す |12～107の正確な整数に限る。範囲外は音名と `o1c - o8b`、非整数は数値と整数の条件を示す。`kind` は通常音符・ポルタメント始点・終点の区別 |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
 |[[ref-pmd-source-internal-pmd-rest-output]]`(%pmd-rest-output state obj)` |休符の `ticks` を `r` または `r%数` で書く |255 を超える長さは複数に分割。既定音長と一致すれば数値を省略 |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
 |[[ref-pmd-source-internal-pmd-note-output]]`(%pmd-note-output! state obj)` |音高をオクターブ指定と音名、長さで書く |トラック状態の `octave` を更新。255 超の長さは `&` で分割 |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
-|[[ref-pmd-source-internal-pmd-fm-voice-output]]`(%pmd-fm-voice-output voices numbers obj)` |FM音色指定を出力 |明示した音色表と番号表を参照。不在は既存の参照エラー |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
-|[[ref-pmd-source-internal-pmd-fm-voice-number]]`(%pmd-fm-voice-number numbers voice)` |FM音色の割当番号を取得 |明示した番号表からidを検索する |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
 |[[ref-pmd-source-internal-pmd-gate-time-output]]`(%pmd-gate-time-output obj)` |ゲート時間を `q数` で書く |`value` が必要 |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
 |[[ref-pmd-source-internal-pmd-fm-volume-output]]`(%pmd-fm-volume-output obj)` |FM 音量を `V数` で書く |`value` が必要 |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
 |[[ref-pmd-source-internal-pmd-ssg-volume-output]]`(%pmd-ssg-volume-output obj)` |SSG 音量を `v数` で書く |`value` が必要 |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
@@ -70,6 +68,6 @@ PMD向けMML出力の56定義（手続き55件・クラス1件）を持ちます
 |[[ref-pmd-source-internal-most-frequent-ticks-find]]`(%most-frequent-ticks-find track)` |解析時に最も多かった音長を求める |出力トラックのticks-statisticsからfind-maxで探す。空なら#f |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
 |===
 
-数値・定義形式の違反は値エラー、未定義の音色・LFO・エンベロープは参照エラー、重複LはMML構文エラーです。音色数の上限は基底sxmml-errorとし、既存の本文・範囲・優先順位を維持します。範囲は link:../behavior-spec.md#pmd-source-の出力値の検査[外部動作仕様]を参照してください。
+数値・定義形式の違反は値エラー、未定義の音色・LFO・エンベロープは参照エラー、重複LはMML構文エラーです。定義済みのFM音色のうち257種類目を初めて参照したときは、基底の `<sxmml-error>` で報告します。範囲は link:../behavior-spec.md#pmd-source-の出力値の検査[外部動作仕様]を参照してください。
 
-出力環境のopn表に登録された全音色へ名前順に番号を付け、参照された音色だけを出力します。PCM出力は環境とIRを受け、共通手続きでJの番号を解決します。
+FMパートA～Fで参照されたOPN音色を初出順に出力します。PCM出力は環境とIRを受け、共通手続きでJの番号を解決します。

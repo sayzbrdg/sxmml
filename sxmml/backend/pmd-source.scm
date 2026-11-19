@@ -238,13 +238,10 @@
 
 (define (%pmd-source-output env pmd3?)
   (let ([output-file (slot-ref env 'output)]
-        [voices (or (sxmml-voice-table-find env 'opn) (make-hash-table eq-comparator))]
-        [voice-numbers (sxmml-pmd-voice-number-table-compute (or (sxmml-voice-table-find env 'opn) (make-hash-table eq-comparator)))]
-        [used-voice-ids (make-hash-table eq-comparator)]
+        [voices (make <sxmml-pmd-fm-voices> :definitions (sxmml-voice-table-find env 'opn))]
         [tracks (sxmml-pmd-output-tracks-select env)])
     (define (fm-voice-output obj)
-      (%pmd-fm-voice-output voices voice-numbers obj)
-      (hash-table-put! used-voice-ids (slot-ref obj 'value) #t))
+      (format #t "@~d" (sxmml-pmd-fm-voice-number! voices (slot-ref obj 'value))))
     (unless output-file
       (error <sxmml-value-error> "output file is not specified"))
     (sxmml-pmd-check-obsolete-metadata (slot-ref env 'metadata))
@@ -266,7 +263,7 @@
                              [(pcm) (%pcm-track-output env track ir part)]
                              [(rhythm) (%pmd-rhythm-track-output track ir)])))
                        tracks env)))
-                (%pmd-source-voice-output voices voice-numbers used-voice-ids)
+                (%pmd-source-voice-output voices)
                 (display text))
               (when pmd3? (display #\x1a)))
             :encoding "cp932")
@@ -300,18 +297,12 @@
 ;; -m pmd と pmd-binary が使う
 
 
-;; PMD は音色を 0 から 255 の番号で指定するので、定義した全ての音色に、id の
-;; 辞書順で 0 から番号を振る。id から番号への表を返す
-
-
-;; 同じ入力から同じ生成物を得るため、音色表の反復順ではなく番号順に出力する
-(define (%pmd-source-voice-output voices numbers used-voice-ids)
+(define (%pmd-source-voice-output voices)
   (define (check kind value high)
     (%pmd-value-check (string-append "FM voice " kind) value 0 high))
-  (for-each
-    (^[voice]
-      (let ([number (%pmd-fm-voice-number numbers voice)]
-            [value (slot-ref voice 'value)])
+  (sxmml-pmd-for-each-fm-voice
+    (^[number voice]
+      (let1 value (slot-ref voice 'value)
         (format #t "@~3,'0d" number)
         (match (car value)
           [(al fb)
@@ -326,9 +317,7 @@
                       (check "KS" ks 3) (check "ML" ml 15) (check "DT" dt 7)
                       (check "AMS" ams 1))]))
          (cdr value))))
-    (sort (filter (^[voice] (hash-table-exists? used-voice-ids (slot-ref voice 'id)))
-                  (hash-table-values voices))
-          (^[a b] (< (%pmd-fm-voice-number numbers a) (%pmd-fm-voice-number numbers b)))))
+    voices)
   (display "\r\n"))
 
 ;;;
@@ -381,15 +370,6 @@
            (recur note (- ticks 255) (car note))]
           [(not (= ticks (slot-ref state 'mode)))
            (format #t "%~d" ticks)])))
-
-(define (%pmd-fm-voice-output voices numbers obj)
-  (let1 inst (hash-table-get voices (slot-ref obj 'value) #f)
-    (unless inst
-      (errorf <sxmml-reference-error> "undefined voice: ~a" (slot-ref obj 'value)))
-    (format #t "@~d" (%pmd-fm-voice-number numbers inst))))
-
-(define (%pmd-fm-voice-number numbers voice)
-  (hash-table-get numbers (slot-ref voice 'id)))
 
 (define (%pmd-gate-time-output obj)
   (format #t "q~d" (%pmd-value-check "gate time" (slot-ref obj 'value) 0 255)))

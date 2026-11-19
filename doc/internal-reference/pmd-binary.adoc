@@ -20,7 +20,7 @@ FM音色表へ書く直前に `%opn-voice-form->register-data form id` が使用
 [cols="2,4,4,1",options="header"]
 |===
 |名前・書式 |役割・引数 |結果・状態・失敗条件 |ソース
-|[[ref-pmd-binary-class-sxmml-pmd-binary-environment]]`<sxmml-pmd-binary-environment>` |生成中のバイナリの状態クラス |`(make <sxmml-pmd-binary-environment> :offset 値 :environment 出力環境 :voice-numbers 番号表 [:mode 値] [:head-length 値])`。slot は、現在の書き込み位置 `offset`、PMD3 向けを示す `mode`（`fc88` または `#f`）、26 バイトのヘッダ `head` とその長さ `head-length`、A～J・K・R の 12 トラックと、音色表・メタ情報に使う 13 個のバッファ `track` とその長さ `track-length`、最大の合計 tick `max-total-ticks`・loop tick `max-loop-ticks`、使用した FM 音色の表 `used-fm-voices`、明示して渡す音色番号表 `voice-numbers` と読み取り用の出力環境 `environment`。`initialize` メソッドが各バッファに 65600 バイトの `u8vector` を確保する |link:../../sxmml/backend/pmd-binary.scm[pmd-binary.scm]
+|[[ref-pmd-binary-class-sxmml-pmd-binary-environment]]`<sxmml-pmd-binary-environment>` |生成中のバイナリの状態クラス |`(make <sxmml-pmd-binary-environment> :offset 値 :environment 出力環境 :fm-voices 採番状態 [:mode 値] [:head-length 値])`。slot は、現在の書き込み位置 `offset`、PMD3 向けを示す `mode`（`fc88` または `#f`）、26 バイトのヘッダ `head` とその長さ `head-length`、A～J・K・R の 12 トラックと、音色表・メタ情報に使う 13 個のバッファ `track` とその長さ `track-length`、最大の合計 tick `max-total-ticks`・loop tick `max-loop-ticks`、出力中のFM音色の採番状態 `fm-voices` と読み取り用の出力環境 `environment`。`initialize` メソッドが各バッファに 65600 バイトの `u8vector` を確保する |link:../../sxmml/backend/pmd-binary.scm[pmd-binary.scm]
 |[[ref-pmd-binary-sxmml-pmd-binary-output]]`(sxmml-pmd-binary-output env)` |出力環境からPMD4向け生成 |出力結果を返す。環境のoutput=#fは値エラー`output file is not specified`。入力を変更しない |link:../../sxmml/backend/pmd-binary.scm[pmd-binary.scm]
 |[[ref-pmd-binary-sxmml-pmd3-binary-output]]`(sxmml-pmd3-binary-output env)` |PMD3 向け生成 |出力環境を受け、`fc88`の形式で生成して出力結果を返す |link:../../sxmml/backend/pmd-binary.scm[pmd-binary.scm]
 |[[ref-pmd-binary-sxmml-pmd4-binary-output]]`(sxmml-pmd4-binary-output env)` |PMD4 向け生成 |出力環境を受け、PMD4の形式で生成して出力結果を返す |link:../../sxmml/backend/pmd-binary.scm[pmd-binary.scm]
@@ -62,7 +62,7 @@ FM音色表へ書く直前に `%opn-voice-form->register-data form id` が使用
 . 各トラックの命令列が続きます。A～J の各トラックは `0x80` で終わります。
 . K トラックは、L が空なら `0x80` だけです。L にループがあれば `0x00 0xf6 0x01 0x80`、なければ `0x00 0x80` になります。
 . R トラックは、パターンの位置（ループがあればループ位置も）に続いてリズムの命令列を置き、`0xff` で終わります。L トラックが空のときは、パターンを作らず、位置も命令列も置きません。PMD4 向けでは、続く 12 バイトに、2 バイトずつ、L トラックを含む全トラックについての最大の合計 tick、`0`、`L` のあるトラックについての最大の loop tick（`L` のあるトラックがなければ 0）、`0`、メタ情報の位置の表へのポインタ、固定値 `0x48 0xfe` を置きます。
-. 音色表は、使用した FM 音色ごとに、音色番号 1 バイトと音色データ 25 バイトを並べます。PMD4 向けでは `0x00 0xff` で終わり、PMD3 向けでは終端を置きません。
+. 音色表は、FMパートA～Fで参照された音色の初出順に、音色番号 1 バイトと音色データ 25 バイトを並べます。PMD4 向けでは `0x00 0xff` で終わり、PMD3 向けでは終端を置きません。
 . PMD4 向けでは、最後にメタ情報を置きます。`ppzfile`・`ppsfile`・`pcmfile`・`title`・`composer`・`arranger`・`memo`（0 件以上）の順に、CP932 の NUL 終端文字列を並べ、それぞれへの位置の表を `0x00 0x00` で終えます。値は `sxmml.backend.pmd` の `sxmml-pmd-metadata-value` で、`-m pmd` と同じ規則で検査します。`memo` 以外の定義のない項目は、空文字列になります。`memo` は要素の数だけ書き、定義がないときと空のリストのときは書きません（位置の表にも項目を置きません）。
 
 PMD3 向け（`fc88`）では、メタ情報と R トラックの 12 バイトを置かず、LFO のチャンネル `B`（`invalid LFO channel`）と 5 値・6 値のエンベロープ（`unsupported envelope values in PMD3`）を失敗とします。LFO・エンベロープの種類と値は、`sxmml.backend.pmd` の `sxmml-pmd-lfo-values`・`sxmml-pmd-envelope-values` で、`-m pmd` と同じ規則で検査します。

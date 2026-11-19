@@ -34,7 +34,8 @@
   (use sxmml.classes)
   (use sxmml.environment)
   (use sxmml.optimizer)
-  (export sxmml-pmd-for-each-track-ir sxmml-pmd-output-tracks-select sxmml-pmd-pcm-voice-number sxmml-pmd-setup! sxmml-pmd-ir-optimize sxmml-pmd-voice-number-table-compute
+  (export sxmml-pmd-for-each-track-ir sxmml-pmd-output-tracks-select sxmml-pmd-pcm-voice-number sxmml-pmd-setup! sxmml-pmd-ir-optimize
+          <sxmml-pmd-fm-voices> sxmml-pmd-fm-voice-number! sxmml-pmd-for-each-fm-voice
           sxmml-pmd-metadata-value sxmml-pmd-lfo-values sxmml-pmd-envelope-values
           sxmml-pmd-check-obsolete-metadata))
 (select-module sxmml.backend.pmd)
@@ -108,15 +109,30 @@
           (errorf <sxmml-value-error> "invalid metadata value: ~a is ~s (expected a string)" key value))
         value])))
 
-(define (sxmml-pmd-voice-number-table-compute voices)
-  (let* ([ids (sort (hash-table-keys voices)
-                    (^[a b] (string<? (symbol->string a) (symbol->string b))))]
-         [count (length ids)]
-         [table (make-hash-table eq-comparator)])
-    (when (> count 256)
-      (errorf <sxmml-error> "too many voices: ~a (max 256)" count))
-    (for-each-with-index (^[number id] (hash-table-put! table id number)) ids)
-    table))
+(define-class <sxmml-pmd-fm-voices> ()
+  ([definitions :init-keyword :definitions]
+   [numbers :init-form (make-hash-table eq-comparator)]
+   [ordered :init-form (make-vector 256 #f)]))
+
+(define (sxmml-pmd-fm-voice-number! voices id)
+  (let1 numbers (slot-ref voices 'numbers)
+    (or (hash-table-get numbers id #f)
+        (let* ([definitions (slot-ref voices 'definitions)]
+               [voice (and definitions (hash-table-get definitions id #f))]
+               [number (hash-table-num-entries numbers)])
+          (unless voice (errorf <sxmml-reference-error> "undefined voice: ~a" id))
+          (when (= number 256)
+            (errorf <sxmml-error> "too many voices: ~a (max 256)" (+ number 1)))
+          (vector-set! (slot-ref voices 'ordered) number voice)
+          (hash-table-put! numbers id number)
+          number))))
+
+(define (sxmml-pmd-for-each-fm-voice proc voices)
+  (let ([count (hash-table-num-entries (slot-ref voices 'numbers))]
+        [ordered (slot-ref voices 'ordered)])
+    (dotimes (number count)
+      (proc number (vector-ref ordered number)))
+    count))
 
 (define %pmd-lfo-types '(default triangle))
 

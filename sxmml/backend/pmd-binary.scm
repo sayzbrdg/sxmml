@@ -51,9 +51,7 @@
    [head :init-form (make-u8vector 26 0)] [head-length :init-keyword :head-length :init-value 26]
    [track :init-form (make-vector 13)] [track-length :init-form (make-vector 13 0)]
    [max-total-ticks :init-value 0] [max-loop-ticks :init-value 0]
-   [used-fm-voices :init-form (make-hash-table eq-comparator)]
-   ;; 音色番号の表。環境は生成の最初に作るので、何かを書く前に番号が決まる
-   [voice-numbers :init-keyword :voice-numbers]
+   [fm-voices :init-keyword :fm-voices]
    [environment :init-keyword :environment]))
 
 (define-class <sxmml-pmd-binary-track-environment> ()
@@ -94,7 +92,7 @@
     (error <sxmml-value-error> "output file is not specified"))
   (let ([work (make <sxmml-pmd-binary-environment>
                 :offset 26 :head-length 26 :mode mode :environment env
-                :voice-numbers (sxmml-pmd-voice-number-table-compute (or (sxmml-voice-table-find env 'opn) (make-hash-table eq-comparator))))]
+                :fm-voices (make <sxmml-pmd-fm-voices> :definitions (sxmml-voice-table-find env 'opn)))]
         [tracks (sxmml-pmd-output-tracks-select env 'pmd-binary)])
     (u8vector-set! (slot-ref work 'head) 0 (slot-ref work 'head-length))
     (sxmml-pmd-for-each-track-ir
@@ -316,26 +314,21 @@
              (loop (cdr rest) next-offset loop-seen? next-stack))])))
 
 (define (%pmd-meta-track-u8vector-set! work)
-  (define voice-ht (or (sxmml-voice-table-find (slot-ref work 'environment) 'opn) (make-hash-table eq-comparator)))
   (define t12u8vec (vector-ref (slot-ref work 'track) 11))
   (define t13u8vec (vector-ref (slot-ref work 'track) 12))
   (define track-start-pos (slot-ref work 'offset))
   (define (write-voices!)
+    (define (write-voice! number voice)
+      (let1 offset (* number 26)
+        (%size-check (+ track-start-pos offset 26))
+        (u8vector-set! t13u8vec offset number)
+        (u8vector-copy! t13u8vec (+ offset 1)
+                        (list->u8vector
+                         (%opn-voice-form->register-data (slot-ref voice 'value)
+                                                         (slot-ref voice 'id))))))
     (let1 track-offset
         (parameterize ([%pmd-section "voice table"])
-          (fold (^[value offset]
-                  (%size-check (+ track-start-pos offset 26))
-                  (u8vector-set! t13u8vec offset (%pmd-fm-voice-number work value))
-                  (u8vector-copy! t13u8vec (+ offset 1)
-                                  (list->u8vector
-                                   (%opn-voice-form->register-data (slot-ref value 'value)
-                                                                   (slot-ref value 'id))))
-                  (+ offset 26))
-                0
-                (sort (filter (cut hash-table-exists? (slot-ref work 'used-fm-voices) <>)
-                              (hash-table-values voice-ht))
-                      ;; 番号順に並べ、音色表の反復順に依存させない。
-                      (^[x y] (< (%pmd-fm-voice-number work x) (%pmd-fm-voice-number work y))))))
+          (* 26 (sxmml-pmd-for-each-fm-voice write-voice! (slot-ref work 'fm-voices))))
       (if (eq? (slot-ref work 'mode) 'fc88)
         (begin (vector-set! (slot-ref work 'track-length) 12 track-offset)
                (slot-set! work 'offset (+ track-start-pos track-offset))
@@ -435,14 +428,8 @@
              (+ cur 2)))))
 
 (define (%pmd-fm-voice-set! work u8vec offset obj)
-  (let1 inst (hash-table-get (or (sxmml-voice-table-find (slot-ref work 'environment) 'opn) (make-hash-table eq-comparator)) (slot-ref obj 'value) #f)
-    (unless inst
-      (errorf <sxmml-reference-error> "undefined voice: ~a" (slot-ref obj 'value)))
-    (hash-table-put! (slot-ref work 'used-fm-voices) inst #t)
-    (%pmd-1byte-set! u8vec offset #xff (%pmd-fm-voice-number work inst) 255 0 "FM voice number")))
-
-(define (%pmd-fm-voice-number work voice)
-  (hash-table-get (slot-ref work 'voice-numbers) (slot-ref voice 'id)))
+  (let1 number (sxmml-pmd-fm-voice-number! (slot-ref work 'fm-voices) (slot-ref obj 'value))
+    (%pmd-1byte-set! u8vec offset #xff number 255 0 "FM voice number")))
 
 (define (%pmd-gate-time-set! u8vec offset obj)
   (%pmd-1byte-set! u8vec offset #xfe (slot-ref obj 'value) 255 0 "gate time"))

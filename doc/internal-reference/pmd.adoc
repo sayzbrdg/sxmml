@@ -1,16 +1,18 @@
 = `sxmml.backend.pmd` の共通処理
 :toc: left
 
-PMD両バックエンドで使う10個の公開手続きと、非公開の定義値検査1件を持ちます。モード登録とファイル出力は xref:pmd-source.adoc[source]・xref:pmd-binary.adoc[binary]へ分離しています。
+PMD両バックエンドで使う11個の公開手続き、FM採番用の公開クラス1件、非公開の定義値検査1件を持ちます。モード登録とファイル出力は xref:pmd-source.adoc[source]・xref:pmd-binary.adoc[binary]へ分離しています。
 
-現在の登録環境を更新するのはsetup!だけです。他の入口は定義表・IR列等を明示的に受け取り、入力を変更しません。最適化要求の整数からどの処理を選ぶかは、このPMD共通層が決めます。CLIはその対応を解釈しません。
+現在の登録環境を更新するのはsetup!だけです。FM音色の番号割り当ては出力ごとの採番状態を更新します。最適化要求の整数からどの処理を選ぶかは、このPMD共通層が決めます。CLIはその対応を解釈しません。
 
 [cols="2,4,4,1",options="header"]
 |===
 |名前・書式 |役割・引数 |結果・状態・失敗条件 |ソース
 |[[ref-pmd-sxmml-pmd-setup-bang]]`(sxmml-pmd-setup!)` |PMD共通の初期トラック登録 |現在の登録環境へA～J・Lを登録。FMのvolume-deltaは4、PCMは16 |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-sxmml-pmd-metadata-value]]`(sxmml-pmd-metadata-value metadata key)` |明示したメタデータ表から値を検査して返す |memoは文字列のリスト、他の対応キーは文字列または#f。不正な値は既存の値エラー |link:../../sxmml/backend/pmd.scm[pmd.scm]
-|[[ref-pmd-sxmml-pmd-voice-number-table-compute]]`(sxmml-pmd-voice-number-table-compute voices)` |明示した音色表から番号表を作る |idの辞書順に0～255。256音色を超える場合は既存の基底sxmml-error |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-class-sxmml-pmd-fm-voices]]`<sxmml-pmd-fm-voices>` |出力1回分のFM音色の採番状態 |`:definitions` にOPN定義表または `#f` を渡す。IDから番号を引く表と、番号から定義を引く256要素のベクタを持つ |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-sxmml-pmd-fm-voice-number-bang]]`(sxmml-pmd-fm-voice-number! voices id)` |参照済みなら番号を返し、初出なら次の番号を割り当てて返す |未定義なら参照エラー、257種類目なら基底の `<sxmml-error>` |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-sxmml-pmd-for-each-fm-voice]]`(sxmml-pmd-for-each-fm-voice proc voices)` |使用定義を番号順に列挙する |各定義について `(proc 番号 定義)` を呼び、使用定義の件数を返す |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-sxmml-pmd-lfo-values]]`(sxmml-pmd-lfo-values lfo)` |LFOの種類と値を検査する |値のリストを返す。default・triangleを受理し、既存の項目別範囲を維持 |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-sxmml-pmd-envelope-values]]`(sxmml-pmd-envelope-values envelope)` |エンベロープの種類と値を検査する |4・5・6値のリストを返し、既存の項目別範囲を維持 |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-internal-pmd-definition-values]]`(%pmd-definition-values kind obj types ranges expected)` |LFO・エンベロープの共通の値検査 |種類、値の数、正確な整数性、項目別の範囲を検査。入力を変更しない |link:../../sxmml/backend/pmd.scm[pmd.scm]
