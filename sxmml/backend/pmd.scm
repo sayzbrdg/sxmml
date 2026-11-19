@@ -183,7 +183,7 @@
 (define (sxmml-pmd-ir-optimize ir level :optional (track-name #f))
   (define (warn count)
     (format (current-error-port)
-            "warning: ~afull-width repeat search over ~a elements may take a long time. Press Ctrl-C to cancel.\n"
+            "warning: ~afull-width repeat search over ~a elements may take a long time. Press Ctrl-C to interrupt. If there is no response, press Ctrl-C again.\n"
             (if track-name (format #f "track ~a: " track-name) "") count))
   (cond [(<= level 0) ir]
         [(= level 9) (sxmml-ir-optimize-full-repeat ir warn)]
