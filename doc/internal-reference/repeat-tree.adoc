@@ -68,6 +68,6 @@ ABABA を、Final の回数 3（制御費用 0）で圧縮します。sxmml の�
 
 [source,console]
 ----
-$ GAUCHE_DYNLOAD_PATH="$PWD${GAUCHE_DYNLOAD_PATH:+:$GAUCHE_DYNLOAD_PATH}" gosh -I. -e '(use sxmml.repeat-tree)' -e '(receive (cost tree) (repeat-tree-compress #(a b a b a) #(1 1 1 1 1) eq? (make-repeat-tree-settings (quote ()) (quote ((3 . 0))) #t 256)) (print cost " " (final? tree) " " (final-count tree)))'
+$ GAUCHE_DYNLOAD_PATH="$PWD/build${GAUCHE_DYNLOAD_PATH:+:$GAUCHE_DYNLOAD_PATH}" gosh -I. -e '(use sxmml.repeat-tree)' -e '(receive (cost tree) (repeat-tree-compress #(a b a b a) #(1 1 1 1 1) eq? (make-repeat-tree-settings (quote ()) (quote ((3 . 0))) #t 256)) (print cost " " (final? tree) " " (final-count tree)))'
 2 #t 3
 ----
