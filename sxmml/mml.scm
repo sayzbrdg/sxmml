@@ -252,13 +252,13 @@
 (define-inline $output-switch (%make-mml-value-parser $number-parameter <sxmml-mml-output-switch> rope->number))
 (hash-table-set! *note-command* #\P $output-switch)
 
+(define ($registered-command table)
+  ($let ([cmd ($any)]
+         [$space])
+        (or (hash-table-get table cmd #f)
+            ($raise (format #f "unknown MML command: \"~a\"" cmd)))))
 (define-inline $note-commands
-  ($seq $space ($or $note
-                  ($let ([cmd ($any)]
-                         [$space])
-                        (guard (e [(is-a? e <error>)
-                                   ($raise (format #f "unknown MML command: \"~a\"" cmd))])
-                          (hash-table-get *note-command* cmd))))))
+  ($seq $space ($or $note ($registered-command *note-command*))))
 
 ;; rhythm command
 (define (%make-rhythm-command-parser param class proc)
@@ -325,8 +325,4 @@
 (hash-table-set! *rhythm-command* #\l $length)
 
 (define-inline $rhythm-commands
-  ($seq $space ($let ([cmd ($any)]
-                    [$space])
-                   (guard (e [(is-a? e <error>)
-                              ($raise (format #f "unknown MML command: \"~a\"" cmd))])
-                     (hash-table-get *rhythm-command* cmd)))))
+  ($seq $space ($registered-command *rhythm-command*)))
