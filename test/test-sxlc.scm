@@ -449,10 +449,22 @@
           (test* "-O 3 converts with the repeat optimization"
                  (list "Optimize level: 3" (cadr (converted "cli-o2-hand" "[cd:e]3" "2")))
                  (converted "cli-o3" "cdecdecd" "3"))
-          (dolist (level '("4" "9"))
+          (dolist (level '("4" "8" "10"))
             (test* #"-O ~level expands small repeats"
                    (list #"Optimize level: ~level" "A l%24[o4a]16")
                    (converted #"cli-o~level" "[aaaaaaaa]2" level)))
+          (dolist (level '("8" "9" "10"))
+            (test* #"PMD の -O ~level で反復休符を処理する"
+                   (if (equal? level "9") "A l%24r%96" "A l%24[r]4")
+                   (cadr (converted #"cli-rest~level" "[r]4" level))))
+          (let ([forms '((mml A "[r8]4") (mml B "[r8]4"))])
+            (define (tracks jobs)
+              (let1 name #"cli-o9-j~jobs"
+                (run-sxlc name forms "-m" "pmd" "-O" "9" "-j" jobs)
+                (filter #/^[AB] / (file->string-list (work-file #"~|name|.mml") :encoding "shift_jis"))))
+            (test* "O9の逐次・並列で同じ休符を出力する"
+                   '(("A l%12r%48" "B l%12r%48") ("A l%12r%48" "B l%12r%48"))
+                   (list (tracks "1") (tracks "2"))))
           (test* "-O 2 is unchanged"
                  '("Optimize level: 2" "A l%24[o4aaaaaaaa]2")
                  (converted "cli-o2" "[aaaaaaaa]2" "2")))

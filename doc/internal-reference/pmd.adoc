@@ -15,7 +15,7 @@ PMD両バックエンドで使う10個の公開手続きと、非公開の定義
 |[[ref-pmd-sxmml-pmd-envelope-values]]`(sxmml-pmd-envelope-values envelope)` |エンベロープの種類と値を検査する |4・5・6値のリストを返し、既存の項目別範囲を維持 |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-internal-pmd-definition-values]]`(%pmd-definition-values kind obj types ranges expected)` |LFO・エンベロープの共通の値検査 |種類、値の数、正確な整数性、項目別の範囲を検査。入力を変更しない |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-sxmml-pmd-check-obsolete-metadata]]`(sxmml-pmd-check-obsolete-metadata metadata)` |明示した表のfilenameメタデータを確認 |指定があれば既存の警告を標準エラーへ出す。出力先には使用しない |link:../../sxmml/backend/pmd.scm[pmd.scm]
-|[[ref-pmd-sxmml-pmd-ir-optimize]]`(sxmml-pmd-ir-optimize ir level)` |整数要求に応じた最適化を選ぶ |0以下は入力列、1は局所整理、2は基本組合せ、3は通常反復圧縮付き、4以上は展開付き。入力を変更しない |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-sxmml-pmd-ir-optimize]]`(sxmml-pmd-ir-optimize ir level :optional track-name)` |整数要求に応じた最適化を選ぶ |0以下は入力列、1は局所整理、2は基本組合せ、3は通常反復圧縮付き、9は全幅の2候補比較、その他の4以上は小さい反復の展開付き。長時間探索の警告にトラック名を使う。入力を変更しない |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |===
 
 呼び出せない規則表は索引件数に含めません。`%pmd-lfo-types`・`%pmd-lfo-ranges`・`%pmd-envelope-types`・`%pmd-envelope-ranges`の4表で、従来の種類・個数・範囲を定めます。共通登録の検査は、手作りIRも受け取るバックエンドの検査の代わりにはしません。
@@ -23,7 +23,7 @@ PMD両バックエンドで使う10個の公開手続きと、非公開の定義
 == 手続きと構文
 
 [[ref-pmd-sxmml-pmd-for-each-track-ir]]
-`(sxmml-pmd-for-each-track-ir emit tracks env)`:: 固定パートの順に `(emit index part source track ir)` を呼ぶ。反復圧縮を並列化するときだけ、対象トラックの基本整理を先に行う。
+`(sxmml-pmd-for-each-track-ir emit tracks env)`:: 固定パートの順に `(emit index part source track ir)` を呼ぶ。O9は逐次・並列とも元のIR列を渡し、各トラックの中で2候補を順に処理する。その他の反復圧縮を並列化するときは対象トラックの基本整理を先に行う。
 
 [[ref-pmd-sxmml-pmd-output-tracks-select]]
 `(sxmml-pmd-output-tracks-select env [backend])`:: 未対応音源を警告して除き、固定パートに対応するトラックを選び、音源種別を照合する。

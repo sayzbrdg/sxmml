@@ -165,16 +165,28 @@
   (define (ir track) (if track (slot-ref track 'ir) '()))
   (define (output i spec track commands)
     (emit i (car spec) (cadr spec) track commands))
-  (if (and (>= level 3) (> jobs 1) (> (count (^[t] (pair? (ir t))) tracks) 1))
-    (let1 compressed (sxmml-ir-compress-repeats-batch
-                      (map (^[t] (sxmml-ir-optimize (ir t))) tracks)
-                      :jobs jobs :expand-small (> level 3))
-      (for-each output (iota (length tracks)) %pmd-parts tracks compressed))
-    (for-each (^[i spec t] (output i spec t (if t (sxmml-pmd-ir-optimize (ir t) level) '())))
-              (iota (length tracks)) %pmd-parts tracks)))
+  (define (task track)
+    (and (pair? (ir track))
+         (cut sxmml-pmd-ir-optimize (ir track) level (slot-ref track 'name))))
+  (cond [(= level 9)
+         (for-each output (iota (length tracks)) %pmd-parts tracks
+                   (sxmml-run-compression-jobs (map task tracks) jobs))]
+        [(and (>= level 3) (> jobs 1) (> (count (^[t] (pair? (ir t))) tracks) 1))
+         (let1 compressed (sxmml-ir-compress-repeats-batch
+                           (map (^[t] (sxmml-ir-optimize (ir t))) tracks)
+                           :jobs jobs :expand-small (> level 3))
+           (for-each output (iota (length tracks)) %pmd-parts tracks compressed))]
+        [else
+         (for-each (^[i spec t] (output i spec t (if t (sxmml-pmd-ir-optimize (ir t) level) '())))
+                   (iota (length tracks)) %pmd-parts tracks)]))
 
-(define (sxmml-pmd-ir-optimize ir level)
+(define (sxmml-pmd-ir-optimize ir level :optional (track-name #f))
+  (define (warn count)
+    (format (current-error-port)
+            "warning: ~afull-width repeat search over ~a elements may take a long time. Press Ctrl-C to interrupt. If there is no response, press Ctrl-C again.\n"
+            (if track-name (format #f "track ~a: " track-name) "") count))
   (cond [(<= level 0) ir]
+        [(= level 9) (sxmml-ir-optimize-full-repeat ir warn)]
         [(= level 1) (sxmml-ir-optimize-local ir)]
         [(= level 2) (sxmml-ir-optimize ir)]
         [(= level 3) (sxmml-ir-optimize-with-repeats ir)]

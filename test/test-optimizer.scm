@@ -528,6 +528,9 @@
                                         [else (string (string-ref "c d ef g a b" (slot-ref o 'value)))]))
                               lis)))]
                 [optimize-repeat (lambda (ir expand?) (sxmml-ir-compress-repeats ir :expand-small expand?))])
+            (dolist (phrase '("[cLd]3" "[c:d:e]3"))
+              (test* #"O9で展開対象外の反復を保つ: ~phrase" phrase
+                     (text (sxmml-pmd-ir-optimize (objects phrase) 9))))
             (dolist (case '(("cdefgab[dLe]2cdefgab" #f "cdefgab[dLe]2cdefgab")
                             ("[cdcdcdLcdcdcd]2" #f "[[cd]3L[cd]3]2")
                             ("[cdLcd]2" #t "[cdLcd]2")
@@ -648,5 +651,29 @@
   (test* "ワーカーで発生した圧縮エラー" (test-error <error> "MML terminated before repeat end")
          (sxmml-ir-compress-repeats-batch
            (list (list a) (list (make <sxmml-mml-repeat-start>))) :jobs 2)))
+
+(let ()
+  (define (ir phrase)
+    (parameterize ([sxmml-environment (make <sxmml-environment>)])
+      (define-track A)
+      (mml A phrase)
+      (sxmml-ir-flatten (slot-ref (sxmml-track-get 'A) 'compiled-data))))
+  (define same? (make-sxmml-native-ir-comparison))
+  (define (check phrase expected)
+    (let ([result (sxmml-pmd-ir-optimize (ir phrase) 9)]
+          [want (ir expected)])
+      (test* (format #f "PMD O9: ~a → ~a" phrase expected) #t
+             (and (= (length want) (length result)) (every same? want result)))))
+  (check "[rcr]4" "[rcr]4")
+  (check "[r8]4" "r2")
+  (check "[v8c]5" "[v8c]5")
+  (check "r8r8c" "r4c"))
+
+(test* "全幅探索の警告は3,072を超える最初の区間で1回" '(3073)
+       (let* ([counts '()]
+              [before ((with-module sxmml.optimizer %large-search-notifier)
+                       (^[n] (push! counts n)))])
+         (for-each before '(3072 3073 4000))
+         counts))
 
 (test-end :exit-on-failure #t)
