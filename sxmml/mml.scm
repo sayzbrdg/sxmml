@@ -101,14 +101,14 @@
 (define-inline $space ($many_ ($. #[\s])))
 (define-inline $number ($many1 ($. #[0-9])))
 (define-inline $integer ($list* ($optional ($. #[-+])) ($many1 ($. #[0-9]))))
-(define (%make-braced-parameter-parser parser)
+(define ($braced-parameter parser)
   ($between ($seq ($. #\{) $space) parser ($seq $space ($. #\}))))
 (define-inline $parameter
-  ($or $number (%make-braced-parameter-parser ($many1 ($. #[^\s{}])))))
+  ($or $number ($braced-parameter ($many1 ($. #[^\s{}])))))
 (define-inline $number-parameter
-  ($or $number (%make-braced-parameter-parser $number)))
+  ($or $number ($braced-parameter $number)))
 (define-inline $integer-parameter
-  ($or $integer (%make-braced-parameter-parser $integer)))
+  ($or $integer ($braced-parameter $integer)))
 (define-inline $multiple-parameters ($between ($seq ($. #\{)) ($many1 ($seq $space ($many1 ($. #[^\s{}])))) ($seq $space ($. #\}))))
 
 

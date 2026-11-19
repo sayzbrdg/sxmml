@@ -45,6 +45,7 @@
 [cols="2,2,1,1",options="header"]
 |===
 |名前 |定義モジュール |種類・公開 |本文
+|`$braced-parameter` |`sxmml.mml` |手続き・非公開 |xref:mml.adoc#ref-mml-internal-braced-parameter[項目へ]
 |`$detune` |`sxmml.mml` |手続き・非公開 |xref:mml.adoc#ref-mml-parser-detune[項目へ]
 |`$duration` |`sxmml.mml` |手続き・非公開 |xref:mml.adoc#ref-mml-parser-duration[項目へ]
 |`$envelope` |`sxmml.mml` |手続き・非公開 |xref:mml.adoc#ref-mml-parser-envelope[項目へ]
@@ -124,7 +125,6 @@
 |`%large-search-notifier` |`sxmml.optimizer` |手続き・非公開 |xref:optimizer.adoc#ref-optimizer-internal-large-search-notifier[項目へ]
 |`%lfo-region` |`sxmml.backend.fmp7` |手続き・非公開 |xref:fmp7.adoc#ref-fmp7-internal-lfo-region[項目へ]
 |`%lookup` |`sxmml.backend.fmp7-source` |手続き・非公開 |xref:fmp7-source.adoc#ref-fmp7-source-internal-lookup[項目へ]
-|`%make-braced-parameter-parser` |`sxmml.mml` |手続き・非公開 |xref:mml.adoc#ref-mml-internal-make-braced-parameter-parser[項目へ]
 |`%make-mml-command-parser` |`sxmml.mml` |手続き・非公開 |xref:mml.adoc#ref-mml-internal-make-mml-command-parser[項目へ]
 |`%make-mml-context-value-parser` |`sxmml.mml` |手続き・非公開 |xref:mml.adoc#ref-mml-internal-make-mml-context-value-parser[項目へ]
 |`%make-mml-slots-parser` |`sxmml.mml` |手続き・非公開 |xref:mml.adoc#ref-mml-internal-make-mml-slots-parser[項目へ]
