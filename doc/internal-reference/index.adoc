@@ -3,7 +3,7 @@
 
 この索引は、sxmml を保守・改修する際に内部定義を名前から探すためのものです。動作環境は Gauche 0.9.15 です。内部の名前は MML 記述者向け API を示しません。公開機能の使い方は xref:../sxmml-reference-manual.adoc[MML 記述者向けリファレンス]、MML 文字列の記法は xref:../sxmml-mml-manual.adoc[MML コマンドマニュアル]を参照してください。
 
-モジュール直下の手続き 360 件、クラス 64 件、マクロ 15 件、合計 439 件を掲載します。 `sxmml.backend.pmd-binary` は公開名 4 件だけを掲載し、内部定義は xref:pmd-binary.adoc[本文]に概要だけを記します。`sxmml.scm` は各モジュールを継承し、独自の直下定義はありません。`sxmml.backend.pmd-binary` の `initialize` と `sxmml.form` の `report-additional-condition` のメソッドは、手続き件数へ重複計上しません。局所関数と `sxlc` の直下定義は範囲外です。呼び出せない表（ハッシュ表やリスト）は対象外です。
+モジュール直下の手続き 359 件、クラス 64 件、マクロ 15 件、合計 438 件を掲載します。 `sxmml.backend.pmd-binary` は公開名 4 件だけを掲載し、内部定義は xref:pmd-binary.adoc[本文]に概要だけを記します。`sxmml.scm` は各モジュールを継承し、独自の直下定義はありません。`sxmml.backend.pmd-binary` の `initialize` と `sxmml.form` の `report-additional-condition` のメソッドは、手続き件数へ重複計上しません。局所関数と `sxlc` の直下定義は範囲外です。呼び出せない表（ハッシュ表やリスト）は対象外です。
 
 識別子の命名と改名の判断は xref:naming-conventions.adoc[命名規約]を参照してください。
 
@@ -14,7 +14,7 @@
 |モジュール |内容 |項目数
 |xref:classes.adoc[`sxmml.classes`] |環境・MML オブジェクト・音色のクラスとエラーの種類 |64
 |xref:command.adoc[`sxmml.command`] |文脈更新・計算・IR生成の共通処理 |18
-|xref:mml.adoc[`sxmml.mml`] |通常・リズム MML の PEG パーサー |75
+|xref:mml.adoc[`sxmml.mml`] |通常・リズム MML の PEG パーサー |74
 |xref:environment.adoc[`sxmml.environment`] |環境と登録表 |40
 |xref:compiler.adoc[`sxmml.compiler`] |文字列の解析と登録マクロ |8
 |xref:processor.adoc[`sxmml.processor`] |反復・エコー・ディレイ |11
@@ -54,9 +54,8 @@
 |`$integer-parameter` |`sxmml.mml` |手続き・非公開 |xref:mml.adoc#ref-mml-parser-integer-parameter[項目へ]
 |`$length` |`sxmml.mml` |手続き・非公開 |xref:mml.adoc#ref-mml-parser-length[項目へ]
 |`$lfo-command` |`sxmml.mml` |手続き・非公開 |xref:mml.adoc#ref-mml-parser-lfo-command[項目へ]
-|`$lfo-off` |`sxmml.mml` |手続き・非公開 |xref:mml.adoc#ref-mml-parser-lfo-off[項目へ]
-|`$lfo-on` |`sxmml.mml` |手続き・非公開 |xref:mml.adoc#ref-mml-parser-lfo-on[項目へ]
 |`$lfo-set` |`sxmml.mml` |手続き・非公開 |xref:mml.adoc#ref-mml-parser-lfo-set[項目へ]
+|`$lfo-switch` |`sxmml.mml` |手続き・非公開 |xref:mml.adoc#ref-mml-parser-lfo-switch[項目へ]
 |`$loop` |`sxmml.mml` |手続き・非公開 |xref:mml.adoc#ref-mml-parser-loop[項目へ]
 |`$multiple-parameters` |`sxmml.mml` |手続き・非公開 |xref:mml.adoc#ref-mml-parser-multiple-parameters[項目へ]
 |`$noise-frequency` |`sxmml.mml` |手続き・非公開 |xref:mml.adoc#ref-mml-parser-noise-frequency[項目へ]

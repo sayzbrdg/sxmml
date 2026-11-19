@@ -220,18 +220,14 @@
               [($. #\})] [$space])
          ($return (make <sxmml-mml-lfo> :value (rope->symbol id) :channel (rope->symbol ch))))
        (%make-mml-value-parser $number <sxmml-mml-lfo> rope->symbol)))
-(define $lfo-on
-  ($let ([data ($optional $parameter)]
+(define $lfo-switch
+  ($let ([switch ($. #[tf])]
+         [channel ($optional $parameter)]
          [$space])
-        ($return (make <sxmml-mml-lfo-switch> :value #t :channel (and data (rope->symbol data))))))
-(define $lfo-off
-  ($let ([data ($optional $parameter)]
-         [$space])
-        ($return (make <sxmml-mml-lfo-switch> :value #f :channel (and data (rope->symbol data))))))
-(define-inline $lfo-command
-  ($or $lfo-set
-       ($seq ($. #\t) $lfo-on)
-       ($seq ($. #\f) $lfo-off)))
+        ($return (make <sxmml-mml-lfo-switch>
+                   :value (char=? switch #\t)
+                   :channel (and channel (rope->symbol channel))))))
+(define-inline $lfo-command ($or $lfo-set $lfo-switch))
 (hash-table-set! *note-command* #\M $lfo-command)
 
 (define $portamento-pitch
