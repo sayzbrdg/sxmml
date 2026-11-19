@@ -7,7 +7,7 @@
 
 `$` で始まる項目の大半は Gauche `parser.peg` のパーサー値です。`define-inline` は値を常にマクロにする形式ではなく、ここでは手続きまたはパーサー値として働きます。各パーサーは PEG の入力状態を受ける手続きで、通常は直接呼ばず `make-sxmml-mml-parser` または `make-sxmml-rhythm-parser` から使用します。入力に一致しなければ PEG の失敗を返し、構文全体の解析失敗は呼び出し側でエラーになります。表の「結果」は一致時の値です。オブジェクト生成やパーサーの構築だけでは登録済みトラックは変更されません。`$note` などは解析コンテキストを変更します。
 
-未登録の命令文字は、命令表の検索だけを `guard` で捕捉し、読んだ文字を含む理由を `$raise` に渡して回復不能な PEG の失敗とします。理由は `unknown MML command "x"` の形式で、トラック情報の付与は呼び出し側の `sxmml-compile-string!` が担当します。登録済みの命令パーサーの実行は、この捕捉の対象に含めません。
+命令文字に対応するパーサーを命令表から選びます。未登録の文字では `$raise` に `unknown MML command: "x"` の形式で理由を渡し、回復不能な PEG の失敗とします。登録済みの命令の引数は選ばれたパーサーが解析します。トラック情報の付与は呼び出し側の `sxmml-compile-string!` が担当します。
 
 `define-inline`、Parameters、`parser.peg`、`$let`、`$return` は Gauche 0.9.15 の動作に従います。定義は表のソースファイル内で項目名から探せます。
 
@@ -22,6 +22,7 @@
 |[[ref-mml-rope-to-symbol]]`(rope\->symbol rope)` |PEG の rope を識別子に変換 |文字列経由で symbol を返す |link:../../sxmml/mml.scm[mml.scm]
 |[[ref-mml-change-sign]]`(change-sign number)` |数値の符号を反転 |`-number` を返す。状態は変えない |link:../../sxmml/mml.scm[mml.scm]
 |[[ref-mml-internal-parser-return]]`(%$return 式 ...)` |PEG の成功値を作る内部マクロ |展開結果は入力を消費せず、式の値を返すパーサー。式はパーサー実行時に評価される |link:../../sxmml/mml.scm[mml.scm]
+|[[ref-mml-registered-command]]`($registered-command table)` |命令表 `table` を使うパーサーを作る |命令文字と直後の空白を読み、登録済みのパーサーで残りの入力を解析する |link:../../sxmml/mml.scm[mml.scm]
 |[[ref-mml-internal-braced-parameter]]`($braced-parameter parser)` |波括弧内の値を `parser` で読むパーサーを作る |開き波括弧の直後と閉じ波括弧の直前の空白を読み捨て、`parser` の結果を返す |link:../../sxmml/mml.scm[mml.scm]
 |[[ref-mml-internal-make-mml-value-parser]]`(%make-mml-value-parser param class proc)` |数値等の入力を一つの MML オブジェクトへ変換するパーサーを作る |`param` の解析結果に `proc` を適用し、`:value` に渡して `class` のインスタンスを返す |link:../../sxmml/mml.scm[mml.scm]
 |[[ref-mml-internal-make-mml-command-parser]]`(%make-mml-command-parser class)` |引数のない MML コマンド用パーサーを作る |`class` のインスタンスを返す |link:../../sxmml/mml.scm[mml.scm]
