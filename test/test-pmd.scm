@@ -244,15 +244,6 @@
                (test-error <sxmml-reference-error> #/undefined voice/)
                (pmd-ir-text "typed-reference" 'A
                             (range-ir (make <sxmml-mml-voice> :value 'UNKNOWN) 'A)))
-        (test* "音色数の上限違反は基底sxmml-errorになる"
-               #t
-               (parameterize ([sxmml-environment (make <sxmml-environment>)])
-                 (dolist [n (iota 257)]
-                   (apply sxmml-opn-voice-set! (string->symbol #"V~n") '(0 0)
-                          (make-list 4 '(0 0 0 0 0 0 0 0 0))))
-                 (guard (e [else (eq? (class-of e) <sxmml-error>)])
-                   (sxmml-pmd-voice-number-table-compute (sxmml-voice-table-find (sxmml-environment) 'opn)))))
-
         (test* "通常トラックの直接IR入力で2個目のLを拒否する"
                (test-error <sxmml-mml-syntax-error> "loop command can be used only once in a track")
                (multiple-loop-output 'G (work-file "direct-loop-G.mml")))
@@ -291,9 +282,11 @@
                               (mml A "@{a}c8@{e}c8")))
           (test* "the same input yields byte-identical output"
                  (generated-text "reproducible" forms)
-                 (generated-text "reproducible" forms)))
-        ;; 音色番号は、PMD のバックエンドが生成時に、定義した全ての音色へ id の辞書順で
-        ;; 0 から振る。begin の中で定義しても重複せず、257 個以上は失敗する (#27)
+                 (generated-text "reproducible" forms))
+          (test* "未使用の定義を追加しても生成物は一致する"
+                 (generated-text "unused" forms)
+                 (generated-text "unused" (cons (voice-form 0 7) forms))))
+        ;; 採番は出力されるFM音色指定の初出順。定義内容は AL で識別する。
         (let ([voice-lines (^[text] (filter-map (^l (and-let1 m (#/^@(\d{3}) (\d{3}) / l)
                                                      (list (string->number (m 1))
                                                            (string->number (m 2)))))
@@ -301,11 +294,11 @@
               [a-line (^[text] (find #/^A / (string-split text "\r\n")))]
               [many-voices (^[n] (map (^i (voice-form (string->symbol (format "v~3,'0d" i)) 0))
                                       (iota n)))])
-          (let1 text (generated-text "voice-dictionary-order"
+          (let1 text (generated-text "voice-first-use"
                                      `(,(voice-form 2 3) ,(voice-form 10 2) ,(voice-form 0 1)
                                        (mml A "@2c8")))
-            (test* "voice numbers follow the dictionary order of ids"
-                   '("A l%12@2o4c" ((2 3)))
+            (test* "数値の音色名にも初出順で番号を割り当てる"
+                   '("A l%12@0o4c" ((0 3)))
                    (list (a-line text) (voice-lines text))))
           (let1 forms (append '((define-pcm-voice 0 12)
                                 (let1 op (make-list 11 0) (define-opm-voice 0 '(0 0) op op op op)))
@@ -313,11 +306,11 @@
                               '((mml A "@{b}@{c}c8")))
             (let1 text (pmd-text "used-voices-O0" forms 'pmd-source #f)
               (test* "最適化なしでは生成する全音色指定の定義だけを出力する"
-                     '("A l%12@1@2o4c" ((1 1) (2 2)))
+                     '("A l%12@0@1o4c" ((0 1) (1 2)))
                      (list (a-line text) (voice-lines text))))
             (let1 text (pmd-text "used-voices-O1" forms 'pmd-source #t)
-              (test* "最適化で消えた音色指定の定義を省き番号を維持する"
-                     '("A l%12@2o4c" ((2 2)))
+              (test* "最適化後の最初の音色を0番にする"
+                     '("A l%12@0o4c" ((0 2)))
                      (list (a-line text) (voice-lines text)))))
           (let1 text (pmd-text "used-voices-ssg-pcm"
                               `(,(voice-form 0 0) (mml G "@0c8") (mml J "@0c8"))
@@ -327,15 +320,15 @@
                    (list (voice-lines text)
                          (filter #/^[GJ] / (string-split text "\r\n")))))
           (let1 text (pmd-text "used-voices-tracks"
-                              (append (map voice-form '(a b c) '(0 1 2))
-                                      '((mml A "@{c}c8")
-                                        (mml F "@{a}c8@{c}c8")
+                              (append (map voice-form '(lead unused bass pad) '(1 3 0 2))
+                                      '((mml B "@{bass}c8@{lead}c8@{pad}c8")
+                                        (mml A "@{pad}c8@{bass}c8")
                                         (mml G "c8") (mml J "c8")
                                         (rhythm L "@b8")))
                               'pmd-source #t)
             (test* "複数トラックの使用音色を集約し定義と全本文を順に出力する"
-                   '("@000 000 000" "@002 002 000"
-                     "A l%12@2o4c" "F l%12@0o4c@2c"
+                   '("@000 002 000" "@001 000 000" "@002 001 000"
+                     "A l%12@0o4c@1c" "B l%12@1o4c@2c@0c"
                      "G l%12o4c" "J l%12o4c"
                      "R0 \\br%12" "K l%12 R0")
                    (filter #/^(@\d|[A-JK] |R[01] )/
@@ -345,7 +338,7 @@
                                 (mml A "@{b}c8"))
                               'pmd3-source #t)
             (test* "PMD3でも未使用定義を省きヘッダと終端を維持する"
-                   '(((1 1)) #t "A l%12@1o4c" 26)
+                   '(((0 1)) #t "A l%12@0o4c" 26)
                    (list (voice-lines text)
                          (boolean (string-scan text ";; mode: PMDver3.3\r\n"))
                          (a-line text)
@@ -356,19 +349,19 @@
             (test* "voices defined in begin get distinct numbers"
                    '("A l%12@0o4c@1c" ((0 2) (1 1)))
                    (list (a-line text) (voice-lines text))))
-          (dolist [case '((256 0 #t) (257 1 #f))]
-            (let* ([n (car case)]
-                   [output (work-file #"voices-~|n|.mml")]
-                   [source (source-output #"voices-~n"
-                                         (with-output-to-string
-                                           (^[] (for-each write (append (many-voices n)
-                                                                        '((mml A "@{v000}c8")))))))]
-                   [result (sxlc-status "-m" "pmd" "-o" output source)])
-              (test* #"~n voices ~(if (zero? (cadr case)) \"are accepted\" \"fail\")"
-                     (list (cadr case) (not (caddr case)) (caddr case))
-                     (list (car result)
-                           (boolean (any #/too many voices: 257 \(max 256\)/ (cadr result)))
-                           (file-exists? output))))))
+          (let* ([forms (many-voices 257)]
+                 [music (^[n] (string-concatenate
+                               (map (^[i] (format "@{v~3,'0d}c8" i)) (iota n))))])
+            (test* "257定義から256音色を使い、最後に255番を割り当てる"
+                   (iota 256)
+                   (map car (voice-lines (pmd-text "voices-256"
+                                          (append forms `((mml A ,(music 256))))
+                                          'pmd-source #f))))
+            (test* "257種類目の参照で上限と件数を基底sxmml-errorで知らせる"
+                   '(#t "too many voices: 257 (max 256)")
+                   (guard (e [else (list (eq? (class-of e) <sxmml-error>) (condition-message e))])
+                     (pmd-text "voices-257" (append forms `((mml A ,(music 257))))
+                               'pmd-source #f)))))
         ;; LFO・エンベロープは、使うときに種類・値の数・値を検査し、何が悪いかを示して
         ;; 失敗する。種類は LFO が default・triangle、エンベロープが default (#28)
         (let ([lfo (^[def channel] `(,def (mml G ,#"M{L1 ~channel}c8")))]

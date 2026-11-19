@@ -296,38 +296,53 @@
                                         ,(voice-form 'm 2) ,(voice-form 'unused 7)
                                         (define-pcm-voice 0 12)
                                         (let1 op (make-list 11 0) (define-opm-voice 0 '(0 0) op op op op))
-                                        (mml A "@{m}c8@{z}c8@{a}c8")))]
+                                        (mml B "@{z}c8@{a}c8@{m}c8")
+                                        (mml A "@{m}c8@{z}c8")))]
                  [output (work-file #"voices-~|mode|.m")])
-            ;; 番号は定義した全ての音色に id の辞書順で振る (#27)。a 0、m 1、unused 2、z 3
+            ;; Bを先に登録しても、Aから番号を割り当てる。
             (test* #"~mode は使用音色だけを番号順に出力する"
-                   '(0 ((0 1) (1 2) (3 3)))
+                   '(0 ((0 2) (1 3) (2 1)) "ff 00 30 0c ff 01 30 0c 80"
+                       "ff 01 30 0c ff 02 30 0c ff 00 30 0c 80")
                    (list (car (run-sxlc source "-m" mode "-o" output))
                          (and (file-exists? output)
-                              (voice-records output (string=? mode "pmd3-binary")))))
+                              (voice-records output (string=? mode "pmd3-binary")))
+                         (section-hex (file->bytevector output) 'A)
+                         (section-hex (file->bytevector output) 'B)))
             (source-output source `((begin ,(voice-form 'z 3) ,(voice-form 'a 0)
                                           ,(voice-form 'y 2) ,(voice-form 'b 1))
                                    (mml A "@{z}c8@{y}c8@{b}c8@{a}c8")))
             (test* #"~mode は begin 内の音色にも別の番号を振る"
-                   '(0 ((0 0) (1 1) (2 2) (3 3)))
+                   '(0 ((0 3) (1 2) (2 1) (3 0)))
                    (list (car (run-sxlc source "-m" mode "-o" output))
                          (voice-records output (string=? mode "pmd3-binary"))))
             (let1 before (file->bytevector output)
               (test* #"~mode の同じ入力は別プロセスでもバイト単位で一致する"
                      '(0 #t)
                      (list (car (run-sxlc source "-m" mode "-o" output))
-                           (equal? before (file->bytevector output)))))
-            ;; 定義した音色が 256 を超えたら、使った音色が 1 つでも失敗する (#27)
-            (let ([source (source-output (work-file #"voices-257-~|mode|.sxl")
-                                        `(,@(map (^i (voice-form (string->symbol (format "v~3,'0d" i)) 0))
-                                                 (iota 257))
-                                          (mml A "@{v000}c8")))]
-                  [output (work-file #"voices-257-~|mode|.m")])
-              (let1 result (run-sxlc source "-m" mode "-o" output)
-                (test* #"~mode は音色が 257 個なら失敗する"
-                       '(1 #t #f)
-                       (list (car result)
-                             (boolean (any #/too many voices: 257 \(max 256\)/ (cadr result)))
-                             (file-exists? output)))))))
+                           (equal? before (file->bytevector output)))))))
+        (let1 forms (map (^i (voice-form (string->symbol (format "v~3,'0d" i)) 0)) (iota 257))
+          (dolist [n '(256 257)]
+            (let* ([name (format "voices-~d" n)]
+                   [music (string-join (map (^i (format "@{v~3,'0d}c8" i)) (iota n)) "")]
+                   [src (source-output (work-file #"~|name|.sxl") (append forms `((mml A ,music))))]
+                   [out (work-file #"~|name|.m")]
+                   [result (run-sxlc src "-m" "pmd-binary" "-o" out)])
+              (if (= n 256)
+                (test* "257定義から256音色を使い、最後に255番を割り当てる"
+                       (iota 256) (and (zero? (car result)) (map car (voice-records out #f))))
+                (test* "257種類目の参照で生成に失敗する"
+                       '(1 #t #f) (list (car result)
+                                        (boolean (any #/too many voices: 257 \(max 256\)/ (cadr result)))
+                                        (file-exists? out)))))))
+        (let1 forms (list (voice-form 'tone 2) '(mml A "@{tone}c8"))
+          (test* "未使用の定義を追加しても生成物は一致する"
+                 (make-binary-data "unused" 'pmd-binary forms)
+                 (make-binary-data "unused" 'pmd-binary (cons (voice-form 0 7) forms))))
+        (let1 forms (list (voice-form 'b 0) (voice-form 'c 1) '(mml A "@{b}@{c}c8"))
+          (test* "最適化の結果出力する音色から採番する"
+                 '("ff 00 ff 01 30 0c 80" "ff 00 30 0c 80")
+                 (map (^[level] (section-hex (make-binary-data "used-voices" 'pmd-binary forms level) 'A))
+                      '(0 1))))
         ;; 命令列のバイト内容を固定する。期待値は MC.EXE との一致を主張せず、現在の出力を固定する。
         ;; 音高は (オクターブ - 1) * 16 + 音名、tick は解像度 24 の値。A トラックは位置 26 から始まる。
         (dolist [case
@@ -347,9 +362,9 @@
                    ("FM の音色・音量・音量変化" "fm" (,zero-voice (mml A "@0v100o4c8)c8(c8v*-2c8v*3c8")) A
                     ;; @0、v100、) は 4、( は -4、v*-2、v*3
                     "ff 00 fd 64 30 0c f4 30 0c f3 30 0c e2 02 30 0c e3 03 30 0c 80")
-                   ;; a は 0、b は 1。@ は音色番号の表の番号を書く (#27)
+                   ;; 最初に参照する b に 0 番を割り当てる。
                    ("FM の音色番号" "fm-voice-number" (,(voice-form 'b 0) ,(voice-form 'a 0) (mml A "@{b}o4c8")) A
-                    "ff 01 30 0c 80")
+                    "ff 00 30 0c 80")
                    ("SSG の音色・音量・音量変化・ミックス・ノイズ・ポルタメント" "ssg"
                     ((mml G "@1v10o4c8)c8P1w8c8/{c g}8")) G
                     ;; @1 は f0 の 4 値、) は 1、P1 は 07、w8、/{c g}8

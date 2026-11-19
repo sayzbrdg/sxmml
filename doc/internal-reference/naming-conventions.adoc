@@ -96,7 +96,7 @@ export する構築手続きは、原則として `make-sxmml-対象` とする�
 
 例：
 
-* `sxmml-pmd-voice-number-table-compute`：音色番号の割り当てを求める。
+* `sxmml-pmd-ir-optimize`：指定された水準で PMD 向けの IR 列を最適化する。
 
 `compile`、`optimize` など、処理内容を表す動詞も使用する。一般の生成処理は、Scheme の Generator と区別し、構築・変換・算出などの役割に応じて命名する。
 
