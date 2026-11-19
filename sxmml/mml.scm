@@ -234,37 +234,21 @@
        ($seq ($. #\f) $lfo-off)))
 (hash-table-set! *note-command* #\M $lfo-command)
 
-;; (define $portamento
-;;   ($let ([n1 ($seq ($. #\{) $space ($many ($or ($seq ($. #\o) $octave)
-;;                                              ($seq ($. #\>) $octave-up)
-;;                                              ($seq ($. #\<) $octave-down))) ($. #[a-g]))]
-;;          [a1 ($many ($. #[-+]))]
-;;          [$space]
-;;          [n2 ($seq ($many ($or ($seq ($. #\o) $octave)
-;;                                              ($seq ($. #\>) $octave-up)
-;;                                              ($seq ($. #\<) $octave-down))) ($. #[a-g]))]
-;;          [a2 ($many ($. #[-+]))]
-;;          [($seq $space ($. #\}) $space)]
-;;          [t $duration])
-;;         (let ([nn1 (%proc-note-number #?=n1 a1)]
-;;               [nn2 (%proc-note-number #?=n2 a2)])
-;;           ($return (make <sxmml-mml-portamento> :value (cons nn1 nn2) :ticks t)))))
-(define $portamento
-  ($let ([n1 ($seq ($. #\{) $space ($many ($or ($seq ($. #\o) $octave)
-                                             ($seq ($. #\>) $octave-up)
-                                             ($seq ($. #\<) $octave-down))) ($. #[a-g]))]
-         [a1 ($many ($. #[-+]))]
+(define $portamento-pitch
+  ($let ([($many_ ($or ($seq ($. #\o) $octave)
+                       ($seq ($. #\>) $octave-up)
+                       ($seq ($. #\<) $octave-down)))]
+         [name ($. #[a-g])]
+         [accidentals ($many ($. #[-+]))]
          [$space])
-        (let ([nn1 (%proc-note-number n1 a1)])
-          ($let
-           ([n2 ($seq ($many ($or ($seq ($. #\o) $octave)
-                                             ($seq ($. #\>) $octave-up)
-                                             ($seq ($. #\<) $octave-down))) ($. #[a-g]))]
-            [a2 ($many ($. #[-+]))]
-            [($seq $space ($. #\}) $space)]
-            [t $duration])
-           ($return (sxmml-command-portamento!
-                     (sxmml-mml-context) nn1 (%proc-note-number n2 a2) t))))))
+        ($return (%proc-note-number name accidentals))))
+(define $portamento
+  ($let ([($. #\{)] [$space]
+         [start $portamento-pitch]
+         [end $portamento-pitch]
+         [($. #\})] [$space]
+         [ticks $duration])
+        ($return (sxmml-command-portamento! (sxmml-mml-context) start end ticks))))
 (hash-table-set! *note-command* #\/ $portamento)
 
 (define-inline $noise-frequency (%make-mml-value-parser $number-parameter <sxmml-mml-noise-frequency> rope->number))
