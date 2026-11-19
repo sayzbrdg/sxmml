@@ -32,6 +32,7 @@
 |[[ref-mml-make-sxmml-mml-parser]]`(make-sxmml-mml-parser ctx)` |通常 MML 用のトップレベルパーサー |`ctx`を束縛し、値エラーの変換を備えた`$note-commands`を返す。未登録コマンドは解析時に失敗する |link:../../sxmml/mml.scm[mml.scm]
 |[[ref-mml-make-sxmml-rhythm-parser]]`(make-sxmml-rhythm-parser ctx)` |リズム MML 用のトップレベルパーサー |`ctx`を束縛し、値エラーの変換を備えた`$rhythm-commands`を返す |link:../../sxmml/mml.scm[mml.scm]
 |[[ref-mml-internal-proc-note-number]]`(%proc-note-number name accidentals)` |音名文字と `+` / `-` の列を半音番号へ変換 |現在のオクターブと移調値を加算して数値を返す。`name` は `a`～`g` を前提とする |link:../../sxmml/mml.scm[mml.scm]
+|[[ref-mml-dot-count]]`($dot-count required?)` |連続する付点を数えるパーサーを作る |付点の個数を返し、後続の文字を残す。付点がない場合、`required?` が真なら解析に失敗し、偽なら 0 を返す |link:../../sxmml/mml.scm[mml.scm]
 |[[ref-mml-internal-make-note-length-parser]]`(%make-note-length-parser $number $dots)` |分母と付点のパーサーを組み合わせる |解釈済みの分母・付点数と明示的な分解能を`sxmml-command-note-length->ticks`へ渡すパーサー |link:../../sxmml/mml.scm[mml.scm]
 |[[ref-mml-internal-make-rhythm-command-parser]]`(%make-rhythm-command-parser param class proc)` |楽器指定付きコマンドのパーサーを作る |楽器 slot に変換値を入れた `class` のインスタンスを返す |link:../../sxmml/mml.scm[mml.scm]
 |[[ref-mml-internal-rhythm-type-to-symbol]]`(%rhythm-type\->symbol type)` |楽器文字を共通層の楽器symbolへ変換 |`b/s/t/c/h/i`を`bass/snare/tom/cymbal/hihat/rimshot`へ変換する |link:../../sxmml/mml.scm[mml.scm]
