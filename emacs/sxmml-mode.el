@@ -77,6 +77,8 @@
   "全モード共通の sxlc 引数。" :type '(repeat string))
 (defcustom sxmml-play-after-compile nil
   "コンパイルが成功したとき続けて再生する。" :type 'boolean)
+(defcustom sxmml-mode-hook nil
+  "sxmml-mode の開始時に実行するフック。" :type 'hook)
 (defcustom sxmml-after-compile-hook nil
   "コンパイル成功時に曲のバッファで実行するフック。" :type 'hook)
 (defcustom sxmml-normalize-filename-function #'convert-standard-filename
