@@ -14,7 +14,7 @@
   (push (cons program arguments) sxmml-test-calls)
   (when (bufferp destination)
     (with-current-buffer destination
-      (insert (format "Translate: %s => %s\nProcessing Mode: %s\n"
+      (insert (format "Translate: %s => %s\nProcessing Mode: %s\nOptimize level: 1\n\nProcessing Mode: 外部処理\n"
                       (car (last arguments)) sxmml-test-output sxmml-test-mode))))
   sxmml-test-status)
 
@@ -52,13 +52,14 @@
 
 (ert-deftest sxmml-mode-unspecified-and-zero ()
   (sxmml-test-with-song
-    (setq sxmml-compile-program-options '("-D" "variant" "-O" "-O" "1" "--mode=pmd"))
+    (setq sxmml-compile-program-options '("-D" "variant" "-O" "-O" "1" "--mode=pmd" "--"))
     (sxmml-save-and-compile-buffer)
     (should (equal (sxmml-test-args) sxmml-compile-program-options))
-    (sxmml-select-backend "fmp7")
+    (setq sxmml-mode-settings '(("pmd-source" :compile-options ("-c" "pmd-compile"))))
+    (sxmml-select-backend "pmd")
     (sxmml-select-optimization 0)
     (sxmml-save-and-compile-buffer)
-    (should (equal (sxmml-test-args) '("-D" "variant" "-O" "-m" "fmp7" "-O" "0")))))
+    (should (equal (sxmml-test-args) '("-D" "variant" "-O" "-c" "pmd-compile" "-m" "pmd" "-O" "0" "--")))))
 
 (ert-deftest sxmml-mode-once ()
   (sxmml-test-with-song

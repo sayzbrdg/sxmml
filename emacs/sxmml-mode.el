@@ -117,12 +117,17 @@
   (interactive (list (sxmml--read-optimization)))
   (setq-local sxmml-default-optimization level))
 
+(defconst sxmml--mode-aliases
+  '(("pmd" . "pmd-source") ("pmd4-source" . "pmd-source")
+    ("pmd3" . "pmd3-source") ("pmd4-binary" . "pmd-binary"))
+  "sxlc に同梱されるモードの別名と正式名。")
+
 (defun sxmml--compile-options (mode level)
-  (let* ((settings (cdr (assoc mode sxmml-mode-settings)))
+  (let* ((settings (cdr (assoc (or (cdr (assoc mode sxmml--mode-aliases)) mode) sxmml-mode-settings)))
          (options (append sxmml-compile-program-options (plist-get settings :compile-options)))
-         kept)
+         kept end-of-options)
     ;; -D の値や -c のコマンド文字列も単独のオプションに似た綴りを取り得る。
-    (while (and options (not (equal (car options) "--")))
+    (while options
       (let* ((option (pop options))
              (key (cond ((string-match "\\`\\(--[^=]+\\)" option) (match-string 1 option))
                         ((string-match "\\`\\(-[a-zA-Z]\\)" option) (match-string 1 option))))
@@ -132,22 +137,23 @@
                           (t 0)))
              (replace (or (and mode (member key '("-m" "--mode")))
                           (and level (member key '("-O" "--optimize"))))))
-        (unless replace (push option kept))
+        (cond ((equal option "--") (setq end-of-options t))
+              ((not replace) (push option kept)))
         (dotimes (_ (if (equal option key) arity (max 0 (1- arity))))
           (when options
             (let ((arg (pop options))) (unless replace (push arg kept)))))))
     (append (nreverse kept) (and mode (list "-m" mode))
-            (and level (list "-O" (number-to-string level))) options)))
+            (and level (list "-O" (number-to-string level))) (and end-of-options (list "--")))))
 
 (defun sxmml--read-result (buffer source)
   (with-current-buffer buffer
     (save-excursion
-      (goto-char (point-max))
-      (when (re-search-backward "^Processing Mode: \\(.+\\)$" nil t)
-        (let ((mode (match-string-no-properties 1)))
-          (forward-line -1)
-          (when (looking-at (concat "Translate: " (regexp-quote source) " => \\(.+\\)$"))
-            (cons mode (match-string-no-properties 1))))))))
+      (goto-char (point-min))
+      (when (re-search-forward
+             (concat "^Translate: " (regexp-quote source) " => \\(.+\\)
+Processing Mode: \\(.+\\)$")
+             nil t)
+        (cons (match-string-no-properties 2) (match-string-no-properties 1))))))
 
 (defun sxmml-play-file ()
   "このバッファで最後に成功したコンパイルの結果を再生する。"
