@@ -285,8 +285,9 @@
           (cons* (make-keyword (%rhythm-type->symbol type)) val result))
         () types))
 
-(define-inline $rhythm-type ($or ($between ($seq ($. #\{) $space) ($many1 ($. #[bstchi])) ($seq $space ($. #\})))
-                                 ($many1 ($. #[bstchi]))))
+(define-inline $rhythm-type
+  (let ([instruments ($many1 ($. #[bstchi]))])
+    ($or ($braced-parameter instruments) instruments)))
 (define $rhythm-on
   ($let ([types $rhythm-type]
          [$space]
