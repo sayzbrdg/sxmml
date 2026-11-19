@@ -128,17 +128,26 @@
          [$space])
         ($return (and (not (char=? name #\r)) (%proc-note-number name accidentals)))))
 
+(define ($dot-count required?)
+  (let ([dot ($. #\.)])
+    (lambda (input)
+      (let loop ([rest input] [n 0])
+        (cond [(and (pair? rest) (eqv? (car rest) #\.))
+               (loop (cdr rest) (+ n 1))]
+              [(and required? (zero? n)) (dot rest)]
+              [else (values #f n rest)])))))
+
 (define (%make-note-length-parser $number $dots)
   ($let ([number $number]
          [$space]
          [dots $dots])
         ($return (sxmml-command-note-length->ticks
                   (sxmml-mml-context) (sxmml-resolution-get)
-                  (rope->number number) (length dots)))))
+                  (rope->number number) dots))))
 
-(define-inline $note-length ($or (%make-note-length-parser $number ($many ($. #\.)))
-                                (%make-note-length-parser ($return #f) ($many1 ($. #\.)))))
-(define-inline $optional-note-length (%make-note-length-parser ($optional $number) ($many ($. #\.))))
+(define-inline $note-length ($or (%make-note-length-parser $number ($dot-count #f))
+                                (%make-note-length-parser ($return #f) ($dot-count #t))))
+(define-inline $optional-note-length (%make-note-length-parser ($optional $number) ($dot-count #f)))
 (define $tick-length ($let ([($. #\%)] [$space] [num $number] [$space]) ($return (rope->positive-number num))))
 (define $duration ($let ([f ($or $tick-length $optional-note-length)]
                          [l ($many ($try ($seq ($. #\&) $space ($or $tick-length $note-length))))])
