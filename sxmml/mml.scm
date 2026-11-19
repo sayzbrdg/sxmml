@@ -214,11 +214,12 @@
 (define-inline $envelope (%make-mml-value-parser $parameter <sxmml-mml-envelope> rope->symbol))
 (hash-table-set! *note-command* #\E $envelope)
 (define $lfo-set
-  ($let ([data ($or ($list ($seq $space ($. #\{) $space) ($many1 ($. #[^\s{}])) $space ($many1 ($. #[^\s{}])) ($seq $space ($. #\}) $space))
-                    ($list $space $number ($return #t) ($return #f) $space))])
-        (match data
-          [(_ id _ ch _)
-           ($return (make <sxmml-mml-lfo> :value (rope->symbol id) :channel (and ch (rope->symbol ch))))])))
+  ($or ($let ([($. #\{)] [$space]
+              [id ($many1 ($. #[^\s{}]))] [$space]
+              [ch ($many1 ($. #[^\s{}]))] [$space]
+              [($. #\})] [$space])
+         ($return (make <sxmml-mml-lfo> :value (rope->symbol id) :channel (rope->symbol ch))))
+       (%make-mml-value-parser $number <sxmml-mml-lfo> rope->symbol)))
 (define $lfo-on
   ($let ([data ($optional $parameter)]
          [$space])
