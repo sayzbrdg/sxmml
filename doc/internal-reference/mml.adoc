@@ -22,6 +22,7 @@
 |[[ref-mml-rope-to-symbol]]`(rope\->symbol rope)` |PEG の rope を識別子に変換 |文字列経由で symbol を返す |link:../../sxmml/mml.scm[mml.scm]
 |[[ref-mml-change-sign]]`(change-sign number)` |数値の符号を反転 |`-number` を返す。状態は変えない |link:../../sxmml/mml.scm[mml.scm]
 |[[ref-mml-internal-parser-return]]`(%$return 式 ...)` |PEG の成功値を作る内部マクロ |展開結果は入力を消費せず、式の値を返すパーサー。式はパーサー実行時に評価される |link:../../sxmml/mml.scm[mml.scm]
+|[[ref-mml-internal-braced-parameter]]`($braced-parameter parser)` |波括弧内の値を `parser` で読むパーサーを作る |開き波括弧の直後と閉じ波括弧の直前の空白を読み捨て、`parser` の結果を返す |link:../../sxmml/mml.scm[mml.scm]
 |[[ref-mml-internal-make-mml-value-parser]]`(%make-mml-value-parser param class proc)` |数値等の入力を一つの MML オブジェクトへ変換するパーサーを作る |`param` の解析結果に `proc` を適用し、`:value` に渡して `class` のインスタンスを返す |link:../../sxmml/mml.scm[mml.scm]
 |[[ref-mml-internal-make-mml-command-parser]]`(%make-mml-command-parser class)` |引数のない MML コマンド用パーサーを作る |`class` のインスタンスを返す |link:../../sxmml/mml.scm[mml.scm]
 |[[ref-mml-internal-make-mml-slots-parser]]`(%make-mml-slots-parser param class proc slots)` |複数値を slot へ配置するパーサーを作る |各値を `proc` で変換し、`slots` の順に初期化して `class` を作る。呼び出し元では未使用 |link:../../sxmml/mml.scm[mml.scm]
