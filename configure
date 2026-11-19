@@ -19,8 +19,9 @@
 (cf-path-prog 'PANDOC "pandoc" :default "")
 
 ;; ソース外ビルドでは configure を実行した場所を生成先にする。
-(cf-subst 'ARTIFACT_DIR (if (equal? (sys-realpath (cf$ 'srcdir)) (sys-realpath "."))
-                          "build" "."))
+(let1 in-source? (equal? (sys-realpath (cf$ 'srcdir)) (sys-realpath "."))
+  (cf-subst 'ARTIFACT_DIR (if in-source? "build" "."))
+  (cf-subst 'ARTIFACT_PREFIX (if in-source? "build/" "")))
 
 ;; Output
 (cf-output-default)
