@@ -26,7 +26,7 @@
 |[[ref-mml-internal-make-mml-value-parser]]`(%make-mml-value-parser param class proc)` |数値等の入力を一つの MML オブジェクトへ変換するパーサーを作る |`param` の解析結果に `proc` を適用し、`:value` に渡して `class` のインスタンスを返す |link:../../sxmml/mml.scm[mml.scm]
 |[[ref-mml-internal-make-mml-command-parser]]`(%make-mml-command-parser class)` |引数のない MML コマンド用パーサーを作る |`class` のインスタンスを返す |link:../../sxmml/mml.scm[mml.scm]
 |[[ref-mml-internal-make-mml-slots-parser]]`(%make-mml-slots-parser param class proc slots)` |複数値を slot へ配置するパーサーを作る |各値を `proc` で変換し、`slots` の順に初期化して `class` を作る。呼び出し元では未使用 |link:../../sxmml/mml.scm[mml.scm]
-|[[ref-mml-internal-make-mml-context-value-parser]]`(%make-mml-context-value-parser param command proc)` |値付きの環境変更コマンドを作る |解析結果へ`proc`を適用し、現在の文脈とともに`command`へ渡す。結果は`#f` |link:../../sxmml/mml.scm[mml.scm]
+|[[ref-mml-internal-make-mml-context-value-parser]]`(%make-mml-context-value-parser param command proc)` |値付きの環境変更コマンドを作る |解析結果に `proc` を適用し、現在の文脈とともに `command` に渡す。パーサーは `command` の結果を返す |link:../../sxmml/mml.scm[mml.scm]
 |[[ref-mml-internal-make-parser-with-context]]`(%make-parser-with-context parser ctx)` |文脈をparameterで束縛し、既知の値エラーをMML構文エラーへ変換するパーサーを返す |実行時に解析を行い、未知のGauche例外は通す |link:../../sxmml/mml.scm[mml.scm]
 |[[ref-mml-make-sxmml-mml-parser]]`(make-sxmml-mml-parser ctx)` |通常 MML 用のトップレベルパーサー |`ctx`を束縛し、値エラーの変換を備えた`$note-commands`を返す。未登録コマンドは解析時に失敗する |link:../../sxmml/mml.scm[mml.scm]
 |[[ref-mml-make-sxmml-rhythm-parser]]`(make-sxmml-rhythm-parser ctx)` |リズム MML 用のトップレベルパーサー |`ctx`を束縛し、値エラーの変換を備えた`$rhythm-commands`を返す |link:../../sxmml/mml.scm[mml.scm]

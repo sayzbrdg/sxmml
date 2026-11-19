@@ -205,9 +205,7 @@
   (%$return (sxmml-command-repeat-break! (sxmml-mml-context))))
 (hash-table-set! *note-command* #\: $repeat-break)
 (define $repeat-end
-  ($let ([data $number-parameter]
-         [$space])
-        ($return (sxmml-command-repeat-end! (sxmml-mml-context) (rope->number data)))))
+  (%make-mml-context-value-parser $number-parameter sxmml-command-repeat-end! rope->number))
 (hash-table-set! *note-command* #\] $repeat-end)
 
 ;; with parameter(ex. voice etc...)
@@ -306,9 +304,7 @@
         ($return (sxmml-command-rest! (sxmml-mml-context) ticks))))
 (hash-table-set! *rhythm-command* #\r $rhythm-rest)
 (define $rhythm-volume
-  ($let ([param $number]
-         [$space])
-        ($return (make <sxmml-rhythm-volume> :value (rope->number param)))))
+  (%make-mml-value-parser $number <sxmml-rhythm-volume> rope->number))
 (hash-table-set! *rhythm-command* #\V $rhythm-volume)
 (define-inline $rhythm-instrument-volume (%make-rhythm-command-parser $number <sxmml-rhythm-volume> rope->number))
 (hash-table-set! *rhythm-command* #\v $rhythm-instrument-volume)
