@@ -8,6 +8,8 @@ datadir     = @datadir@
 datarootdir = @datarootdir@
 mandir      = @mandir@
 srcdir      = @srcdir@
+artifact_prefix = @ARTIFACT_PREFIX@
+artifactdir = @ARTIFACT_DIR@
 VPATH       = $(srcdir)
 
 # These may be overridden by make invocators
@@ -16,21 +18,31 @@ GOSH           = "@GOSH@"
 GAUCHE_CONFIG  = "@GAUCHE_CONFIG@"
 GAUCHE_PACKAGE = "@GAUCHE_PACKAGE@"
 PANDOC         = @PANDOC@
-INSTALL        = "@GAUCHE_INSTALL@" -S '$(srcdir)' -C
+INSTALL        = "@GAUCHE_INSTALL@" -C
 CFLAGS         = @CFLAGS@
 CPPFLAGS       = @CPPFLAGS@ @WINDOWS_UNICODE_FLAG@
 LDFLAGS        = @LDFLAGS@
 LIBS           = @LIBS@
 SOEXT          = @SOEXT@
 LOCAL_PATHS    = "@LOCAL_PATHS@"
-TEST_ENV       = GAUCHE_DYNLOAD_PATH="$$(pwd)$${GAUCHE_DYNLOAD_PATH:+:$$GAUCHE_DYNLOAD_PATH}" SXMML_SXLC=./sxlc
+TEST_ENV       = GAUCHE_DYNLOAD_PATH="$$(pwd)/$(artifactdir)$${GAUCHE_DYNLOAD_PATH:+:$$GAUCHE_DYNLOAD_PATH}" SXMML_SXLC=./$(TARGET)
 
 # Module-specific stuff
 PACKAGE   = sxmml
 
-TARGET    = sxlc
-ARCHFILES = sxmml_native.$(SOEXT)
-NATIVE_SRCS = sxmml_native.c sxmml_nativelib.scm sxmml_optimizerlib.scm sxmml_repeat_tree.c
+TARGET    = $(artifact_prefix)sxlc
+ARCHFILES = $(artifact_prefix)sxmml_native.$(SOEXT)
+NATIVE_DIR = $(srcdir)/src/lib
+NATIVE_HEADERS = $(NATIVE_DIR)/sxmml_native.h $(NATIVE_DIR)/sxmml_repeat_tree.h
+OBJEXT = @OBJEXT@
+NATIVE_OBJECTS = $(artifact_prefix)sxmml_native.$(OBJEXT) $(artifact_prefix)sxmml_repeat_tree.$(OBJEXT) \
+                 $(artifact_prefix)sxmml_nativelib.$(OBJEXT) $(artifact_prefix)sxmml_optimizerlib.$(OBJEXT)
+NATIVE_GENERATED_C = $(artifact_prefix)sxmml_nativelib.c $(artifact_prefix)sxmml_optimizerlib.c
+
+PRECOMPILE = native_srcdir=$$(cd "$(NATIVE_DIR)" && pwd) && cd "$(artifactdir)" && \
+             $(GOSH) tools/precomp --dso-name=sxmml_native
+COMPILE_C = $(GAUCHE_PACKAGE) compile -c --local=$(LOCAL_PATHS) \
+            --cppflags="$(CPPFLAGS) -I'$(NATIVE_DIR)'" --cflags="$(CFLAGS)" --verbose -o "$@"
 MANPAGE   = sxlc.1
 SCMFILES  = sxmml.scm sxmml/classes.scm sxmml/environment.scm sxmml/voice.scm sxmml/command.scm sxmml/mml.scm \
             sxmml/output.scm sxmml/compiler.scm sxmml/processor.scm sxmml/optimizer.scm sxmml/repeat-tree.scm \
@@ -48,13 +60,38 @@ GAUCHE_PKGARCHDIR = @GAUCHE_PKGARCHDIR@
 
 all : $(TARGET) $(ARCHFILES)
 
-sxmml_native.$(SOEXT): $(srcdir)/src/lib/sxmml_native.c $(srcdir)/src/lib/sxmml_nativelib.scm $(srcdir)/src/lib/sxmml_optimizerlib.scm $(srcdir)/src/lib/sxmml_repeat_tree.c $(srcdir)/src/lib/sxmml_native.h $(srcdir)/src/lib/sxmml_repeat_tree.h
-	$(GAUCHE_PACKAGE) compile --clean sxmml_native $(NATIVE_SRCS)
-	$(GAUCHE_PACKAGE) compile --srcdir="$(srcdir)/src/lib" \
-	  --cppflags="$(CPPFLAGS)" --cflags="$(CFLAGS)" --ldflags="$(LDFLAGS)" \
-	  --libs="$(LIBS)" --local=$(LOCAL_PATHS) --verbose sxmml_native $(NATIVE_SRCS)
+$(ARCHFILES): $(NATIVE_OBJECTS)
+	$(GAUCHE_PACKAGE) compile -o "$@" --ldflags="$(LDFLAGS)" --libs="$(LIBS)" \
+	  --local=$(LOCAL_PATHS) --verbose sxmml_native $(NATIVE_OBJECTS)
 
-# SXMML_SXLC でビルドした ./sxlc を検査対象に指定する。
+$(artifact_prefix)sxmml_nativelib.c: $(NATIVE_DIR)/sxmml_nativelib.scm
+	@mkdir -p "$(artifactdir)"
+	$(PRECOMPILE) "$$native_srcdir/sxmml_nativelib.scm"
+
+$(artifact_prefix)sxmml_optimizerlib.c: $(NATIVE_DIR)/sxmml_optimizerlib.scm
+	@mkdir -p "$(artifactdir)"
+	$(PRECOMPILE) "$$native_srcdir/sxmml_optimizerlib.scm"
+
+# ヘッダ更新による再生成も make で決める。compile -c 自体は C ファイルの日時だけを見る。
+$(artifact_prefix)sxmml_native.$(OBJEXT): $(NATIVE_DIR)/sxmml_native.c $(NATIVE_HEADERS)
+	@mkdir -p "$(artifactdir)"
+	@rm -f "$@"
+	$(COMPILE_C) --srcdir="$(NATIVE_DIR)" sxmml_native.c
+
+$(artifact_prefix)sxmml_repeat_tree.$(OBJEXT): $(NATIVE_DIR)/sxmml_repeat_tree.c $(NATIVE_DIR)/sxmml_repeat_tree.h
+	@mkdir -p "$(artifactdir)"
+	@rm -f "$@"
+	$(COMPILE_C) --srcdir="$(NATIVE_DIR)" sxmml_repeat_tree.c
+
+$(artifact_prefix)sxmml_nativelib.$(OBJEXT): $(artifact_prefix)sxmml_nativelib.c $(NATIVE_HEADERS)
+	@rm -f "$@"
+	$(COMPILE_C) "$(artifact_prefix)sxmml_nativelib.c"
+
+$(artifact_prefix)sxmml_optimizerlib.$(OBJEXT): $(artifact_prefix)sxmml_optimizerlib.c $(NATIVE_HEADERS)
+	@rm -f "$@"
+	$(COMPILE_C) "$(artifact_prefix)sxmml_optimizerlib.c"
+
+# SXMML_SXLC でビルドした sxlc を検査対象に指定する。
 # tools は配布物に含めないので、その検査は tools があるときだけ行う。
 check : all
 	@rm -f test.log
@@ -87,9 +124,9 @@ check : all
 # man ページは生成と配置を別の行にする。GNU make は MAKE 変数を含む行を
 # make -n でも実行するため、配置を同じ行に書くと dry-run にならない
 install : all
-	$(INSTALL) -m 555 -T "$(DESTDIR)$(bindir)" $(TARGET)
-	$(INSTALL) -m 444 -T "$(DESTDIR)$(GAUCHE_PKGLIBDIR)" $(SCMFILES)
-	$(INSTALL) -m 555 -T "$(DESTDIR)$(GAUCHE_PKGARCHDIR)" $(ARCHFILES)
+	$(INSTALL) -p "$(artifact_prefix)" -m 555 -T "$(DESTDIR)$(bindir)" $(TARGET)
+	$(INSTALL) -S "$(srcdir)" -m 444 -T "$(DESTDIR)$(GAUCHE_PKGLIBDIR)" $(SCMFILES)
+	$(INSTALL) -p "$(artifact_prefix)" -m 555 -T "$(DESTDIR)$(GAUCHE_PKGARCHDIR)" $(ARCHFILES)
 	$(INSTALL) -m 444 -T "$(DESTDIR)$(GAUCHE_PKGLIBDIR)/.packages" $(PACKAGE).gpd
 	@if test -n "$(PANDOC)"; then $(MAKE) $(MANPAGE); fi
 	@if test -n "$(PANDOC)"; then \
@@ -99,14 +136,14 @@ install : all
 	fi
 
 uninstall :
-	$(INSTALL) -U "$(DESTDIR)$(bindir)" $(TARGET)
+	$(INSTALL) -U "$(DESTDIR)$(bindir)" sxlc
 	$(INSTALL) -U "$(DESTDIR)$(GAUCHE_PKGLIBDIR)" $(SCMFILES)
-	$(INSTALL) -U "$(DESTDIR)$(GAUCHE_PKGARCHDIR)" $(ARCHFILES)
+	$(INSTALL) -U "$(DESTDIR)$(GAUCHE_PKGARCHDIR)" sxmml_native.$(SOEXT)
 	$(INSTALL) -U "$(DESTDIR)$(GAUCHE_PKGLIBDIR)/.packages" $(PACKAGE).gpd
 	$(INSTALL) -U "$(DESTDIR)$(mandir)/man1" $(MANPAGE)
 
 clean :
-	$(GAUCHE_PACKAGE) compile --clean sxmml_native $(NATIVE_SRCS)
+	rm -f $(ARCHFILES) $(NATIVE_OBJECTS) $(NATIVE_GENERATED_C)
 	rm -rf core $(TARGET) $(GENERATED) *~ test.log so_locations
 
 distclean : clean
@@ -115,11 +152,12 @@ distclean : clean
 maintainer-clean : clean
 	rm -rf $(CONFIG_GENERATED)  VERSION
 
-sxlc : $(srcdir)/src/sxlc.in
-	@rm -f sxlc
-	echo "#!$(GOSH)" > sxlc && \
-	cat "$(srcdir)/src/sxlc.in" >> sxlc
-	@chmod -w+x sxlc
+$(TARGET) : $(srcdir)/src/sxlc.in
+	@mkdir -p "$(artifactdir)"
+	@rm -f "$@"
+	echo "#!$(GOSH)" > "$@" && \
+	cat "$(srcdir)/src/sxlc.in" >> "$@"
+	@chmod -w+x "$@"
 
 man : $(MANPAGE)
 

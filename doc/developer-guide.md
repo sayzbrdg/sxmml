@@ -55,7 +55,7 @@ cat melody-and-rest.mml
 `test/` 配下のテストを単独で実行する際は、環境変数 `SXMML_SXLC` にテストで使用する `sxlc` を設定してください。以下は、`./configure` と `make` でビルドした後に、リポジトリのルートで実行する例です。
 
 ```sh
-GAUCHE_DYNLOAD_PATH="$PWD${GAUCHE_DYNLOAD_PATH:+:$GAUCHE_DYNLOAD_PATH}" SXMML_SXLC=./sxlc gosh -I. test/test-sxlc.scm
+GAUCHE_DYNLOAD_PATH="$PWD/build${GAUCHE_DYNLOAD_PATH:+:$GAUCHE_DYNLOAD_PATH}" SXMML_SXLC=./build/sxlc gosh -I. test/test-sxlc.scm
 ```
 
 ## 文書生成の現状
@@ -101,14 +101,14 @@ contextや登録表を直接編集する利用者は、対応関係を維持す�
 `tools/measure-optimize.scm` は、一つのソースを最適化の水準ごとに変換し、生成物のバイト数、全トラックのオブジェクト数の合計、時間を表にする。`-O 3`・`-O 4` の圧縮の設定（展開の上限 E と窓幅 W）を変えたときの効果と時間を比べるのに使う。リポジトリのルートで次のように実行する。
 
 ```console
-GAUCHE_DYNLOAD_PATH="$PWD${GAUCHE_DYNLOAD_PATH:+:$GAUCHE_DYNLOAD_PATH}" gosh -I. tools/measure-optimize.scm [-m モード] ソース.sxl [設定 ...]
+GAUCHE_DYNLOAD_PATH="$PWD/build${GAUCHE_DYNLOAD_PATH:+:$GAUCHE_DYNLOAD_PATH}" gosh -I. tools/measure-optimize.scm [-m モード] ソース.sxl [設定 ...]
 ```
 
 モードの既定は `pmd` で、`pmd-binary` なども指定できる。設定は `O2`・`O3`・`O4` のいずれかで、`:E=数`・`:W=数` を付けると圧縮の設定を変えられる（例：`O4:E=128:W=256`）。既定は `sxlc` の `-O 3`・`-O 4` と同じで、E が 256、W が `O3` で 256、`O4` で 1024 である。設定を省略すると `O2`・`O3`・`O4` を測る。
 
 ```console
 $ printf '%s\n' '(mml A "[aaaaaaaa]2 cdecdecd")' > repeat.sxl
-$ GAUCHE_DYNLOAD_PATH="$PWD${GAUCHE_DYNLOAD_PATH:+:$GAUCHE_DYNLOAD_PATH}" gosh -I. tools/measure-optimize.scm repeat.sxl
+$ GAUCHE_DYNLOAD_PATH="$PWD/build${GAUCHE_DYNLOAD_PATH:+:$GAUCHE_DYNLOAD_PATH}" gosh -I. tools/measure-optimize.scm repeat.sxl
 config           bytes      vs O2    objects  generate   total
 O2                      105 100.0%         18       0.02       0.62
 O3                      100 95.2%          11       0.03       0.61

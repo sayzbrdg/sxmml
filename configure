@@ -18,6 +18,11 @@
 ;; man ページの生成に使う Pandoc。見つからない場合は空とし、man の生成・配置を省く
 (cf-path-prog 'PANDOC "pandoc" :default "")
 
+;; ソース外ビルドでは configure を実行した場所を生成先にする。
+(let1 in-source? (equal? (sys-realpath (cf$ 'srcdir)) (sys-realpath "."))
+  (cf-subst 'ARTIFACT_DIR (if in-source? "build" "."))
+  (cf-subst 'ARTIFACT_PREFIX (if in-source? "build/" "")))
+
 ;; Output
 (cf-output-default)
 
