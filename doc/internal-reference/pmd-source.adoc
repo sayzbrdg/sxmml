@@ -68,6 +68,6 @@ PMD向けMML出力の54定義（手続き53件・クラス1件）を持ちます
 |[[ref-pmd-source-internal-most-frequent-ticks-find]]`(%most-frequent-ticks-find track)` |解析時に最も多かった音長を求める |出力トラックのticks-statisticsからfind-maxで探す。空なら#f |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
 |===
 
-数値・定義形式の違反は値エラー、未定義の音色・LFO・エンベロープは参照エラー、重複LはMML構文エラーです。音色数の上限は基底sxmml-errorとし、既存の本文・範囲・優先順位を維持します。範囲は link:../behavior-spec.md#pmd-source-の出力値の検査[外部動作仕様]を参照してください。
+数値・定義形式の違反は値エラー、未定義の音色・LFO・エンベロープは参照エラー、重複LはMML構文エラーです。定義済みのFM音色のうち257種類目を初めて参照したときは、基底の `<sxmml-error>` で報告します。範囲は link:../behavior-spec.md#pmd-source-の出力値の検査[外部動作仕様]を参照してください。
 
 FMパートA～Fで参照されたOPN音色を初出順に出力します。PCM出力は環境とIRを受け、共通手続きでJの番号を解決します。
