@@ -67,14 +67,17 @@
   :type '(choice (const nil) natnum))
 
 (defcustom sxmml-mode-settings nil
-  "モード名と :compile-options、:player、:play-extension の設定表。
-:player はプログラム名と引数のリスト。拡張子には先頭の点を含める。"
+  "モード名と :compile-options、:player、:play-extension、:play-after-compile の設定表。
+:player はプログラム名と引数のリスト。拡張子には先頭の点を含める。
+:play-after-compile を省略すると sxmml-play-after-compile を継承する。"
   :type '(alist :key-type string :value-type plist))
 
 (defcustom sxmml-compile-program-name "sxlc"
   "コンパイラのプログラム名。" :type 'string)
 (defcustom sxmml-compile-program-options nil
   "全モード共通の sxlc 引数。" :type '(repeat string))
+(defcustom sxmml-compile-filename-function #'identity
+  "入力の絶対パスからコンパイラ側での絶対パスを返す関数。" :type 'function)
 (defcustom sxmml-play-after-compile nil
   "コンパイルが成功したとき続けて再生する。" :type 'boolean)
 (defcustom sxmml-mode-hook nil
@@ -124,8 +127,11 @@
     ("pmd3" . "pmd3-source") ("pmd4-binary" . "pmd-binary"))
   "sxlc に同梱されるモードの別名と正式名。")
 
+(defun sxmml--settings (mode)
+  (cdr (assoc (or (cdr (assoc mode sxmml--mode-aliases)) mode) sxmml-mode-settings)))
+
 (defun sxmml--compile-options (mode level)
-  (let* ((settings (cdr (assoc (or (cdr (assoc mode sxmml--mode-aliases)) mode) sxmml-mode-settings)))
+  (let* ((settings (sxmml--settings mode))
          (options (append sxmml-compile-program-options (plist-get settings :compile-options)))
          kept end-of-options)
     ;; -D の値や -c のコマンド文字列も単独のオプションに似た綴りを取り得る。
@@ -157,11 +163,28 @@ Processing Mode: \\(.+\\)$")
              nil t)
         (cons (match-string-no-properties 2) (match-string-no-properties 1))))))
 
+(defun sxmml--autoplay-p (settings)
+  (if (and (not (local-variable-p 'sxmml-play-after-compile))
+           (plist-member settings :play-after-compile))
+      (plist-get settings :play-after-compile)
+    sxmml-play-after-compile))
+
+(defun sxmml-toggle-play-after-compile (&optional inherit)
+  "このバッファの自動再生を切り替える。前置引数 INHERIT で継承に戻す。"
+  (interactive "P")
+  (if inherit
+      (progn
+        (kill-local-variable 'sxmml-play-after-compile)
+        (message "自動再生: 設定を継承"))
+    (let ((settings (sxmml--settings (or sxmml-default-mode (car sxmml--last-output)))))
+      (setq-local sxmml-play-after-compile (not (sxmml--autoplay-p settings)))
+      (message "自動再生: %s（このバッファ）" (if sxmml-play-after-compile "オン" "オフ")))))
+
 (defun sxmml-play-file ()
   "このバッファで最後に成功したコンパイルの結果を再生する。"
   (interactive)
   (unless sxmml--last-output (user-error "再生できるコンパイル結果がありません"))
-  (let* ((settings (cdr (assoc (car sxmml--last-output) sxmml-mode-settings)))
+  (let* ((settings (sxmml--settings (car sxmml--last-output)))
          (player (plist-get settings :player))
          (output (cdr sxmml--last-output))
          (extension (plist-get settings :play-extension))
@@ -180,7 +203,7 @@ Processing Mode: \\(.+\\)$")
          (level (if (member what '("最適化レベル" "両方")) (sxmml--read-optimization)
                   sxmml-default-optimization))
          (log (get-buffer-create "*sxmml-compilation*"))
-         (source (expand-file-name buffer-file-name)))
+         (source (funcall sxmml-compile-filename-function (expand-file-name buffer-file-name))))
     (save-buffer)
     (with-current-buffer log
       (let ((inhibit-read-only t)) (erase-buffer))
@@ -193,7 +216,10 @@ Processing Mode: \\(.+\\)$")
           (progn
             (setq sxmml--last-output (sxmml--read-result log source))
             (run-hooks 'sxmml-after-compile-hook)
-            (when (and sxmml-play-after-compile sxmml--last-output) (sxmml-play-file))
+            (when sxmml--last-output
+              (let ((settings (sxmml--settings (car sxmml--last-output))))
+                (when (and (plist-get settings :player) (sxmml--autoplay-p settings))
+                  (sxmml-play-file))))
             t)
         (message "sxlc のコンパイルに失敗しました (%s)" status)
         nil))))
@@ -202,4 +228,5 @@ Processing Mode: \\(.+\\)$")
 (define-key sxmml-mode-map (kbd "C-c C-m") #'sxmml-select-backend)
 (define-key sxmml-mode-map (kbd "C-c C-o") #'sxmml-select-optimization)
 (define-key sxmml-mode-map (kbd "C-c C-p") #'sxmml-play-file)
+(define-key sxmml-mode-map (kbd "C-c C-a") #'sxmml-toggle-play-after-compile)
 (provide 'sxmml-mode)

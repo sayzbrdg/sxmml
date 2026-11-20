@@ -96,3 +96,57 @@
     (should (equal (mapcar #'car sxmml-test-calls) '("sxlc")))
     (sxmml-play-file)
     (should (equal (car sxmml-test-calls) '("play-f" "-q" "/tmp/out/曲 alt.bin")))))
+
+(ert-deftest sxmml-mode-autoplay-without-player ()
+  (sxmml-test-with-song
+    (let* ((completed nil)
+           (sxmml-after-compile-hook (list (lambda () (setq completed t)))))
+      (setq sxmml-play-after-compile t sxmml-mode-settings nil)
+      (should (sxmml-save-and-compile-buffer))
+      (should completed)
+      (should (equal (mapcar #'car sxmml-test-calls) '("sxlc")))
+      (should-error (sxmml-play-file) :type 'user-error))))
+
+(ert-deftest sxmml-mode-autoplay-actual-mode-policy ()
+  (sxmml-test-with-song
+    (setq sxmml-mode-settings '(("fmp7" :player ("play-f") :play-after-compile nil)
+                                ("pmd-binary" :player ("play-p") :play-after-compile t)))
+    (setq sxmml-play-after-compile t)
+    (sxmml-save-and-compile-buffer)
+    (should (equal (mapcar #'car sxmml-test-calls) '("sxlc")))
+    (sxmml-play-file)
+    (should (equal (caar sxmml-test-calls) "play-f"))
+    (sxmml-select-backend "fmp7")
+    (setq sxmml-play-after-compile nil sxmml-test-mode "pmd-binary")
+    (let ((sxmml-test-answers '("バックエンド" "pmd-binary")))
+      (sxmml-save-and-compile-buffer t))
+    (should (equal (caar sxmml-test-calls) "play-p"))))
+
+(ert-deftest sxmml-mode-autoplay-toggle-and-inherit ()
+  (sxmml-test-with-song
+    (setq sxmml-test-mode "pmd-source"
+          sxmml-mode-settings '(("pmd-source" :player ("play-p") :play-after-compile t)))
+    (sxmml-select-backend "pmd")
+    (let ((cmd (key-binding (kbd "C-c C-a"))))
+      (call-interactively cmd)
+      (should (local-variable-p 'sxmml-play-after-compile))
+      (sxmml-save-and-compile-buffer)
+      (should (equal (caar sxmml-test-calls) "sxlc"))
+      (with-temp-buffer (should-not (local-variable-p 'sxmml-play-after-compile)))
+      (let ((current-prefix-arg '(4))) (call-interactively cmd))
+      (should-not (local-variable-p 'sxmml-play-after-compile))
+      (sxmml-save-and-compile-buffer)
+      (should (equal (caar sxmml-test-calls) "play-p")))))
+
+(ert-deftest sxmml-mode-paths-for-compiler-and-player ()
+  (sxmml-test-with-song
+    (sxmml-save-and-compile-buffer)
+    (should (equal (car (last (car sxmml-test-calls))) buffer-file-name))
+    (let ((sxmml-compile-filename-function
+           (lambda (path) (should (equal path buffer-file-name)) "/mnt/c/music/曲.sxl"))
+          (sxmml-normalize-filename-function
+           (lambda (path) (should (equal path "/mnt/c/out/別名.bin")) "c:/out/別名.bin")))
+      (setq sxmml-test-output "/mnt/c/out/別名.mwi" sxmml-play-after-compile t)
+      (sxmml-save-and-compile-buffer)
+      (should (equal (car (last (cadr sxmml-test-calls))) "/mnt/c/music/曲.sxl"))
+      (should (equal (car sxmml-test-calls) '("play-f" "-q" "c:/out/別名.bin"))))))

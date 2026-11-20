@@ -87,10 +87,10 @@ FMP7 用のソースは `sxlc -m fmp7 song.sxl` で生成します。初期ト�
       sxmml-default-optimization 1
       sxmml-mode-settings
       '(("fmp7" :compile-options ("-c" "fmp7-compile")
-                :player ("fmp7-play") :play-extension ".bin")
+                :player ("fmp7-play") :play-extension ".bin" :play-after-compile nil)
         ("pmd-source" :compile-options ("-c" "pmd-compile")
-                      :player ("pmd-play") :play-extension ".M")
-        ("pmd-binary" :player ("pmd-play"))))
+                      :player ("pmd-play") :play-extension ".M" :play-after-compile t)
+        ("pmd-binary" :player ("pmd-play") :play-after-compile t)))
 ```
 
 `fmp7-compile` 等は例示用の名前です。`-c` で起動するコマンドには、変換したファイルのパスを `sxlc` が渡します。`:player` はプログラム名と引数のリストです。再生ファイルはその末尾に渡します。`:play-extension` は外部コンパイラが生成する拡張子（先頭の点を含む）に合わせます。省略すると `sxlc` の出力を直接再生します。設定表のキーには `sxlc -l` に表示されるモードの正式名を使います。
@@ -100,11 +100,35 @@ FMP7 用のソースは `sxlc -m fmp7 song.sxl` で生成します。初期ト�
 | `C-c C-m` | この曲の通常のバックエンドを選ぶ。候補以外のモード名も入力できる。 |
 | `C-c C-o` | この曲の通常の最適化レベルを選ぶ。 |
 | `C-c C-c` | 保存して通常の設定でコンパイルする。`C-u C-c C-c` は今回だけバックエンド・最適化レベル・両方のいずれかを変更する。 |
+| `C-c C-a` | このバッファの自動再生を切り替える。`C-u C-c C-a` で上書きを解除する。 |
 | `C-c C-p` | この曲で最後に成功したコンパイル結果を再生する。 |
 
 バッファを開き直すと通常の選択は全体の既定値に戻ります。「指定なし」（既定値の `nil`）では既存の引数に従います。`0` は明示的な `-O 0` です。全モード共通の引数は `sxmml-compile-program-options` に設定します。Emacs でモードを選んだ場合、そのモードの `:compile-options` も使用します。
 
-`sxmml-play-after-compile` を `t` にすると成功直後に自動再生します。再生先は変換結果の出力パスに基づくため、`-D` に応じてソース側で出力名を変えた場合も反映されます。コンパイルが失敗した場合、手動再生の対象は前回の成功結果です。
+自動再生はバッファの上書き、変換結果のモードに設定した `:play-after-compile`、全体の `sxmml-play-after-compile` の順に決まります。上の例では PMD の変換後は自動再生し、FMP7 は手動で再生します。`:player` を省略したモードでは変換だけを行います。
+
+`C-c C-a` はバッファで選択中のモードの設定を反転します。モードを選んでいなければ直近の変換結果のモードを、結果もなければ全体の設定を基準にします。
+
+再生先は変換結果の出力パスに基づくため、`-D` に応じてソース側で出力名を変えた場合も反映されます。コンパイルが失敗した場合、手動再生の対象は前回の成功結果です。
+
+Windows の Emacs から WSL の `sxlc` を使う場合は、入力ファイルの絶対パスを WSL 側の絶対パスに変換する関数を設定します。次は `archlinux` でコンパイルし、Windows のプレイヤーで再生するための Emacs 設定例です。
+
+```elisp
+(defun my-sxmml-wslpath (option path)
+  (with-temp-buffer
+    (unless (zerop (call-process "wsl" nil t nil "-d" "archlinux" "--exec"
+                                 "wslpath" option path))
+      (error "WSL のパス変換に失敗しました: %s" path))
+    (string-trim-right (buffer-string) "[\r\n]+")))
+
+(setq sxmml-compile-program-name "wsl"
+      sxmml-compile-program-options
+      '("-d" "archlinux" "--exec" "gosh" "-I"
+        "/home/sayz/.local/share/gauche-0.98/site/lib/"
+        "/home/sayz/.local/bin/sxlc")
+      sxmml-compile-filename-function (apply-partially #'my-sxmml-wslpath "-u")
+      sxmml-normalize-filename-function (apply-partially #'my-sxmml-wslpath "-w"))
+```
 
 メジャーモードの試験は、リポジトリのルートで次のように実行します。
 
