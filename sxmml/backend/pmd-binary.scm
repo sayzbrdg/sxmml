@@ -88,18 +88,34 @@
 (define (sxmml-pmd-binary-output env)
   (%sxmml-pmdx-binary-output env #f))
 
+(define (%pmd-initial-commands settings source)
+  (define (extended? key) (eq? (assq-ref settings key) 'extend))
+  (list->u8vector
+   (append (if (and (eq? source 'ssg) (extended? 'detune)) '(#xcc 1) ())
+           (if (and (memq source '(ssg pcm)) (extended? 'envelopespeed)) '(#xc9 1) ())
+           (if (extended? 'lfospeed) '(#xca 1 #xbb 1) ()))))
+
 (define (%sxmml-pmdx-binary-output env mode)
   (unless (slot-ref env 'output)
     (error <sxmml-value-error> "output file is not specified"))
   (let* ([tracks (sxmml-pmd-output-tracks-select env 'pmd-binary)]
          [ppz-count (length (sxmml-pmd-ppz-parts tracks))]
          [sections (+ 13 ppz-count)]
+         [settings (sxmml-pmd-extended-settings (slot-ref env 'metadata))]
+         [fm-prefix (%pmd-initial-commands settings 'opn)]
+         [ssg-prefix (%pmd-initial-commands settings 'ssg)]
+         [pcm-prefix (%pmd-initial-commands settings 'pcm)]
          [work (make <sxmml-pmd-binary-environment>
                  :offset 26 :head-length 26 :mode mode :environment env
                  :track (make-vector sections) :track-length (make-vector sections 0)
                  :fm-voices (make <sxmml-pmd-fm-voices> :definitions (sxmml-voice-table-find env 'opn)))]
          [rhythm ()]
          [rhythm-loop? #f])
+    (define (write-prefix! i start commands)
+      (u8vector-copy! (vector-ref (slot-ref work 'track) i) start commands)
+      (+ start (u8vector-length commands)))
+    (when (and (eq? mode 'fc88) (pair? settings))
+      (errorf <sxmml-value-error> "unsupported setting in PMD3: ~a" (caar settings)))
     (when (and (positive? ppz-count) (eq? mode 'fc88))
       (error <sxmml-value-error> "PPZ8 tracks are unsupported in PMD3"))
     (u8vector-set! (slot-ref work 'head) 0 (slot-ref work 'head-length))
@@ -109,12 +125,13 @@
        (parameterize ([%pmd-section (format #f "track ~a" part)])
          (let1 header-offset (* 2 (+ i 1))
            (case source
-             [(opn) (%fm-track-u8vector-set! work i header-offset ir)]
-             [(ssg) (%ssg-track-u8vector-set! work i header-offset ir)]
+             [(opn) (%fm-track-u8vector-set! work i header-offset ir (write-prefix! i 0 fm-prefix))]
+             [(ssg) (%ssg-track-u8vector-set! work i header-offset ir (write-prefix! i 0 ssg-prefix))]
              [(pcm)
               (when (positive? ppz-count)
                 (u8vector-set! (vector-ref (slot-ref work 'track) i) 0 #xb4))
-              (%pcm-track-u8vector-set! work i header-offset ir source (if (zero? ppz-count) 0 17))]
+              (%pcm-track-u8vector-set! work i header-offset ir source
+                                        (write-prefix! i (if (zero? ppz-count) 0 17) pcm-prefix))]
              [(rhythm)
               (set! rhythm ir)
               (set! rhythm-loop? (boolean (find (cut is-a? <> <sxmml-mml-loop>) ir)))
@@ -125,7 +142,7 @@
                 (let ([j (vector-ref (slot-ref work 'track) 9)] [entry (+ 1 (* 2 (- i 11)))])
                   (u8vector-set! j entry lo)
                   (u8vector-set! j (+ entry 1) hi)))
-              (%pcm-track-u8vector-set! work i #f ir source 0)]))))
+              (%pcm-track-u8vector-set! work i #f ir source (write-prefix! i 0 pcm-prefix))]))))
      tracks env)
     (parameterize ([%pmd-section "track L"])
       (receive (lo hi) (%short->le-bytes (slot-ref work 'offset))
@@ -138,17 +155,17 @@
           :track-names (filter-map (^[t] (and t (slot-ref t 'name))) tracks))))
 
 
-(define (%fm-track-u8vector-set! work index hoffset lis)
+(define (%fm-track-u8vector-set! work index hoffset lis start)
   (%pmd-track-u8vector-set! work index hoffset lis
                             (cut %pmd-fm-voice-set! work <> <> <>)
                             %pmd-fm-volume-set!
-                            %pmd-fm-volume-change-set!))
+                            %pmd-fm-volume-change-set! start))
 
-(define (%ssg-track-u8vector-set! work index hoffset lis)
+(define (%ssg-track-u8vector-set! work index hoffset lis start)
   (%pmd-track-u8vector-set! work index hoffset lis
                             %pmd-ssg-voice-set!
                             %pmd-ssg-volume-set!
-                            %pmd-ssg-volume-change-set!))
+                            %pmd-ssg-volume-change-set! start))
 
 (define (%pcm-track-u8vector-set! work index hoffset lis source start)
   (%pmd-track-u8vector-set! work index hoffset lis
@@ -156,7 +173,7 @@
                             %pmd-pcm-volume-set!
                             %pmd-pcm-volume-change-set! start))
 
-(define (%pmd-track-u8vector-set! work index hoffset lis voiceproc volproc volcproc :optional (start 0))
+(define (%pmd-track-u8vector-set! work index hoffset lis voiceproc volproc volcproc start)
   (define u8vec (vector-ref (slot-ref work 'track) index))
   (define overall-offset (slot-ref work 'offset))
   (define context

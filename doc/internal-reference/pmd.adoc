@@ -1,7 +1,7 @@
 = `sxmml.backend.pmd` の共通処理
 :toc: left
 
-PMD両バックエンドで使う12個の公開手続き、FM採番用の公開クラス1件、非公開の定義値検査1件を持ちます。モード登録とファイル出力は xref:pmd-source.adoc[source]・xref:pmd-binary.adoc[binary]へ分離しています。
+PMD両バックエンドで使う13個の公開手続き、FM採番用の公開クラス1件、非公開の定義値検査1件を持ちます。モード登録とファイル出力は xref:pmd-source.adoc[source]・xref:pmd-binary.adoc[binary]へ分離しています。
 
 現在の登録環境を更新するのはsetup!だけです。FM音色の番号割り当ては出力ごとの採番状態を更新します。最適化要求の整数からどの処理を選ぶかは、このPMD共通層が決めます。CLIはその対応を解釈しません。
 
@@ -10,6 +10,7 @@ PMD両バックエンドで使う12個の公開手続き、FM採番用の公開�
 |名前・書式 |役割・引数 |結果・状態・失敗条件 |ソース
 |[[ref-pmd-sxmml-pmd-setup-bang]]`(sxmml-pmd-setup!)` |PMD共通の初期トラック登録 |現在の登録環境へA～J・Lを登録。FMのvolume-deltaは4、PCMは16 |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-sxmml-pmd-metadata-value]]`(sxmml-pmd-metadata-value metadata key)` |明示したメタデータ表から値を検査して返す |memoは文字列のリスト、他の対応キーは文字列または#f。不正な値は既存の値エラー |link:../../sxmml/backend/pmd.scm[pmd.scm]
+|[[ref-pmd-sxmml-pmd-extended-settings]]`(sxmml-pmd-extended-settings metadata)` |曲単位の設定を検査する |明示されたキーと normal・extend の連想リストを detune・envelopespeed・lfospeed 順に返す。不正な値は値エラー |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-class-sxmml-pmd-fm-voices]]`<sxmml-pmd-fm-voices>` |出力1回分のFM音色の採番状態 |`:definitions` にOPN定義表または `#f` を渡す。IDから番号を引く表と、番号から定義を引く256要素のベクタを持つ |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-sxmml-pmd-fm-voice-number-bang]]`(sxmml-pmd-fm-voice-number! voices id)` |参照済みなら番号を返し、初出なら次の番号を割り当てて返す |未定義なら参照エラー、257種類目なら基底の `<sxmml-error>` |link:../../sxmml/backend/pmd.scm[pmd.scm]
 |[[ref-pmd-sxmml-pmd-for-each-fm-voice]]`(sxmml-pmd-for-each-fm-voice proc voices)` |使用定義を番号順に列挙する |各定義について `(proc 番号 定義)` を呼び、使用定義の件数を返す |link:../../sxmml/backend/pmd.scm[pmd.scm]

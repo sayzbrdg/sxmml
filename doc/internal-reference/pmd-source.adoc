@@ -27,7 +27,7 @@ PMD向けMML出力の54定義（手続き53件・クラス1件）を持ちます
 |[[ref-pmd-source-internal-pmd-rhythm-deploy-track-output]]`(%pmd-rhythm-deploy-track-output! state track has-loop? lis)` |Kトラックのパターン呼出しを出力 |明示した出力トラックの解析時統計を使う |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
 |[[ref-pmd-source-internal-pmd-source-output]]`(%pmd-source-output env pmd3?)` |source出力の共通処理 |出力先#fは出力開始前に値エラー。PPZ8 使用時に拡張宣言を出力し、文字列ポートへ全本文を生成して使用FM音色を集め、一時ファイルから生成先へ改名。出力結果を返す |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
 |[[ref-pmd-source-internal-pmd-source-head-output]]`(%pmd-source-head-output env pmd3?)` |入力元とPMDバージョンのヘッダー |source=#fではfrom部分だけを省く。明示された入力元のbasenameを使う |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
-|[[ref-pmd-source-internal-pmd-source-meta-output]]`(%pmd-source-meta-output env pmd3?)` |明示されたメタデータを出力 |共通検査を使用する。PMD3ではメタデータ行をコメントにする |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
+|[[ref-pmd-source-internal-pmd-source-meta-output]]`(%pmd-source-meta-output env pmd3?)` |明示されたメタデータを出力 |曲単位の設定は明示された項目だけを Normal・Extend で出力する。共通検査を使用する。PMD3ではメタデータ行をコメントにする |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
 |[[ref-pmd-source-internal-pmd-source-voice-output]]`(%pmd-source-voice-output voices)` |使用FM音色だけを番号順に出力 |採番状態を受け取り、各オペレータをfor-eachで出力する |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
 |[[ref-pmd-source-internal-pmd-value-check]]`(%pmd-value-check kind value min max)` |出力値を検査する内部手続き |正確な整数で `min` 以上 `max` 以下なら元の値を返す。それ以外は項目名・値・許容範囲を示すエラー |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
 |[[ref-pmd-source-internal-pmd-note-check]]`(%pmd-note-check note :optional (kind "note"))` |音高を検査して返す |12～107の正確な整数に限る。範囲外は音名と `o1c - o8b`、非整数は数値と整数の条件を示す。`kind` は通常音符・ポルタメント始点・終点の区別 |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]

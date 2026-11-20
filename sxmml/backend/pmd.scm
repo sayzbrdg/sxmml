@@ -36,7 +36,7 @@
   (use sxmml.optimizer)
   (export sxmml-pmd-ppz-parts sxmml-pmd-for-each-track-ir sxmml-pmd-output-tracks-select sxmml-pmd-pcm-voice-number sxmml-pmd-setup! sxmml-pmd-ir-optimize
           <sxmml-pmd-fm-voices> sxmml-pmd-fm-voice-number! sxmml-pmd-for-each-fm-voice
-          sxmml-pmd-metadata-value sxmml-pmd-lfo-values sxmml-pmd-envelope-values
+          sxmml-pmd-extended-settings sxmml-pmd-metadata-value sxmml-pmd-lfo-values sxmml-pmd-envelope-values
           sxmml-pmd-check-obsolete-metadata))
 (select-module sxmml.backend.pmd)
 
@@ -112,6 +112,17 @@
     (if-let1 n (string->number (symbol->string name))
       (sample n 255)
       (errorf <sxmml-reference-error> "undefined PCM voice: ~a" name))))
+
+(define (sxmml-pmd-extended-settings metadata)
+  (filter-map
+   (^[key]
+     (and (hash-table-exists? metadata key)
+          (let1 value (hash-table-get metadata key)
+            (unless (memq value '(normal extend))
+              (errorf <sxmml-value-error> "invalid metadata value: ~a is ~s (expected normal or extend)"
+                      key value))
+            (cons key value))))
+   '(detune envelopespeed lfospeed)))
 
 (define (sxmml-pmd-metadata-value metadata key)
   (let1 value (hash-table-get metadata key #f)
