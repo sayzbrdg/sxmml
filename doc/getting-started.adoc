@@ -43,7 +43,7 @@ iconv -f CP932 -t UTF-8 beat.mml
 
 G と L のトラックがそれぞれ 48 tick と 24 tick と表示されます。
 
-L は PMD モードのリズム用トラックです。`@b8` でバスドラムを八分音符の長さだけ鳴らし、`r8` で同じ長さだけ休みます。楽器別音量や反復などは xref:sxmml-mml-manual.adoc#rhythm-mml[リズム MML]を参照してください。
+L は PMD モードのリズム用トラックです。`@b8` でバスドラムを鳴らして八分音符分進み、`r8` でさらに同じ長さだけ休みます。楽器別音量や反復などは xref:sxmml-mml-manual.adoc#rhythm-mml[リズム MML]を参照してください。
 
 [[登録する-mml-を加工する]]
 == 登録する MML を加工する
