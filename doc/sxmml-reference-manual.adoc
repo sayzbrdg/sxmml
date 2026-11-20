@@ -279,7 +279,9 @@ sxlcはソースの読み込み後、`-o`、ソースの既定値、入力名と
 
 書式: `(define-metadata キー 値)`
 
-メタデータを定義します。キーは単語をそのまま書き、大文字は小文字にそろえます。値は式として評価されます。文字列のほか、文字列を入れた変数や、複数の値を持たせる `(list "練習用" "2小節")` や `'("練習用" "2小節")` を書けます。値に何を使えるかは生成先が決めます。PMD 向け生成物では `title`、`composer`、`arranger`、`pcmfile`、`ppzfile`、`ppsfile`、`memo` が出力対象です。`memo` は文字列 1 つか文字列のリスト（リストの要素ごとに 1 件）です。`pcmfile`・`ppzfile` は文字列または文字列リスト（それぞれ最大1件・2件）、ほかのキーは文字列です。それ以外の値は、`invalid metadata value: title is 1 (expected a string)` のように、キーと値を示して変換の失敗になります。PMD3 のバイナリ（`pmd3-binary`）はメタデータを書かないので、値を検査しません。
+メタデータを定義します。キーは単語をそのまま書き、大文字は小文字にそろえます。値は式として評価されます。文字列のほか、文字列を入れた変数や、複数の値を持たせる `(list "練習用" "2小節")` や `'("練習用" "2小節")` を書けます。値に何を使えるかは生成先が決めます。PMD 向け生成物では `title`、`composer`、`arranger`、`pcmfile`、`ppzfile`、`ppsfile`、`memo` が出力対象です。`memo` は文字列 1 つか文字列のリスト（リストの要素ごとに 1 件）です。`pcmfile`・`ppzfile` は文字列または文字列リスト（それぞれ最大1件・2件）、ほかのキーは文字列です。それ以外の値は、`invalid metadata value: title is 1 (expected a string)` のように、キーと値を示して変換の失敗になります。PMD3 のバイナリ（`pmd3-binary`）はこれらのメタデータを書かず、値の検査を省きます。
+
+PMD4 の曲単位の設定には、デチューンの方式を選ぶ `detune`、エンベロープ速度の `envelopespeed`、LFO 速度の `lfospeed` があります。例えば `(define-metadata lfospeed 'extend)` と書きます。各キーの値はシンボル `normal`（通常）または `extend`（拡張）です。省略した設定には命令を出力しません。PMD3 では、pmd-source は明示した設定をコメントとして出力し、pmd-binary は明示した設定があればエラーにします。
 
 [source,scheme]
 ----

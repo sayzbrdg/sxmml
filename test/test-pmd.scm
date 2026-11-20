@@ -194,6 +194,17 @@
                               "from named-input.sxl")))))
   (unwind-protect
       (begin
+        (let ([settings '((define-metadata detune 'extend) (define-metadata lfospeed 'normal))])
+          (define (directives mode)
+            (filter #/^(; )?#(Detune|LFOSpeed|EnvelopeSpeed) /
+                    (string-split (pmd-text "extended-settings" settings mode #f) "\r\n")))
+          (test* "明示した設定だけをPMD4の宣言にする"
+                 '("#Detune Extend" "#LFOSpeed Normal") (directives 'pmd))
+          (test* "PMD3では曲単位設定をコメントにする"
+                 '("; #Detune Extend" "; #LFOSpeed Normal") (directives 'pmd3))
+          (test* "拡張設定に明示した偽値は未指定と区別する"
+                 (test-error <sxmml-value-error> "invalid metadata value: detune is #f (expected normal or extend)")
+                 (pmd-text "bad-setting" '((define-metadata detune #f)) 'pmd #f)))
         (let ()
           (define (lines forms :optional (mode 'pmd))
             (filter #/^(; )?#PPZExtend|^[a-h] /

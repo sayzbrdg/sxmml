@@ -290,6 +290,13 @@
                         (display "; "))
                       (format #t "#~10a  ~a\r\n" k value))))
             '(title composer arranger pcmfile ppzfile ppsfile))
+  (for-each
+   (^[setting]
+     (let1 directive (case (car setting)
+                       [(detune) "Detune"] [(envelopespeed) "EnvelopeSpeed"] [(lfospeed) "LFOSpeed"])
+       (format #t "~a#~a ~a\r\n" (if pmd3? "; " "") directive
+               (if (eq? (cdr setting) 'extend) "Extend" "Normal"))))
+   (sxmml-pmd-extended-settings (slot-ref env 'metadata)))
   (for-each (^[m] (when pmd3?
                     (display "; "))
               (format #t "#~10a  ~a\r\n" "memo" m))
