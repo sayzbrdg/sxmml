@@ -40,7 +40,7 @@
 
 `define-inline` でも値がパーサー手続きなら手続きとして扱います。`make-parameter` の結果と手続きの別名も手続きに含みます。呼び出せない表（ハッシュ表やリスト）は掲載対象から除外します。公開状態は Gauche 0.9.15 の `module-exports` に基づきます。
 
-モジュール間の流れは link:../architecture.md[構成と設計]、改修手順は link:../developer-guide.md[開発・改修手順]を参照してください。既知の不具合と利用上の制約は該当項目に記しています。
+モジュール間の流れは xref:../architecture.adoc[構成と設計]、改修手順は xref:../developer-guide.adoc[開発・改修手順]を参照してください。既知の不具合と利用上の制約は該当項目に記しています。
 
 == 名前順索引
 

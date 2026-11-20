@@ -123,4 +123,4 @@
 (print (length ir))                         ; 2
 ----
 
-最適化前の整列化は xref:output.adoc[出力準備]、PMDの数値要求との対応は xref:pmd.adoc[PMD共通処理]へ分離しました。旧sxmml-optimize-treeは廃止しました。意味保持の確認範囲は link:../verification.md#q-01-音楽的な意味の保持[検証方針]を参照してください。
+最適化前の整列化は xref:output.adoc[出力準備]、PMDの数値要求との対応は xref:pmd.adoc[PMD共通処理]へ分離しました。旧sxmml-optimize-treeは廃止しました。意味保持の確認範囲は xref:../verification.adoc#q-01-音楽的な意味の保持[検証方針]を参照してください。

@@ -50,7 +50,7 @@ export GAUCHE_LOAD_PATH="$sxmml_prefix/share/sxmml${GAUCHE_LOAD_PATH:+:$GAUCHE_L
 export GAUCHE_DYNLOAD_PATH="$sxmml_prefix/lib/sxmml${GAUCHE_DYNLOAD_PATH:+:$GAUCHE_DYNLOAD_PATH}"
 ```
 
-この場合は新しいシェルでも `PATH`・`GAUCHE_LOAD_PATH`・`GAUCHE_DYNLOAD_PATH` を設定してから `sxlc` を使ってください。`GAUCHE_LOAD_PATH` は Gauche が Scheme モジュールを探す追加のディレクトリです。`GAUCHE_DYNLOAD_PATH` は共有ライブラリを探す追加のディレクトリです。配置の詳細は[配布・互換性](doc/release-guide.md#現行の生成配置)、Gauche の設定は [Gauche 0.9.15 Users’ Reference, 3.1 と 9.8](https://practical-scheme.net/vault/Gauche-0.9.15-refe.pdf)を参照してください。
+この場合は新しいシェルでも `PATH`・`GAUCHE_LOAD_PATH`・`GAUCHE_DYNLOAD_PATH` を設定してから `sxlc` を使ってください。`GAUCHE_LOAD_PATH` は Gauche が Scheme モジュールを探す追加のディレクトリです。`GAUCHE_DYNLOAD_PATH` は共有ライブラリを探す追加のディレクトリです。配置の詳細は[配布・互換性](doc/release-guide.adoc#現行の生成配置)、Gauche の設定は [Gauche 0.9.15 Users’ Reference, 3.1 と 9.8](https://practical-scheme.net/vault/Gauche-0.9.15-refe.pdf)を参照してください。
 
 `first.mml` が作られ、標準出力には `Track G: total: 24` と表示されます。出力は CP932、改行は CRLF です。UTF-8 の端末では `iconv -f CP932 -t UTF-8 first.mml` で内容を読めます。ソース中の Scheme 式は Gauche によって実行されるため、信頼できる入力ファイルを指定してください。
 
@@ -152,12 +152,12 @@ sxlc -m pmd --define variant hard variant.sxl
 
 ## 導入と詳しい資料
 
-現行リポジトリでは `./configure`、`make check`、`make install` が用意されています。インストール先とステージングの注意点は[配布・互換性](doc/release-guide.md)に記します。導入後は `sxlc` コマンドで変換します。
+現行リポジトリでは `./configure`、`make check`、`make install` が用意されています。インストール先とステージングの注意点は[配布・互換性](doc/release-guide.adoc)に記します。導入後は `sxlc` コマンドで変換します。
 
-- [入門・目的別手順](doc/getting-started.md)
-- [製品の目的と範囲](doc/product-overview.md)
-- [現行の外部動作仕様](doc/behavior-spec.md)
-- [開発者向け手順](doc/developer-guide.md)
+- [入門・目的別手順](doc/getting-started.adoc)
+- [製品の目的と範囲](doc/product-overview.adoc)
+- [現行の外部動作仕様](doc/behavior-spec.adoc)
+- [開発者向け手順](doc/developer-guide.adoc)
 - [変更履歴](NEWS.md)
 
 ## 謝辞

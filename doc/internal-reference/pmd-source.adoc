@@ -67,6 +67,6 @@ PMD向けMML出力の53定義（手続き52件・クラス1件）を持ちます
 |[[ref-pmd-source-internal-note-number-to-pmd-note]]`(%note-number\->pmd-note note)` |半音番号をオクターブと音名の対に変換 |`floor/` で 12 分割し（負の音高も 0～11 の音名にする）、`c`、`c+` 等を返す。状態は変更しない |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
 |===
 
-数値・定義形式の違反は値エラー、未定義の音色・LFO・エンベロープは参照エラー、重複LはMML構文エラーです。定義済みのFM音色のうち257種類目を初めて参照したときは、基底の `<sxmml-error>` で報告します。範囲は link:../behavior-spec.md#pmd-source-の出力値の検査[外部動作仕様]を参照してください。
+数値・定義形式の違反は値エラー、未定義の音色・LFO・エンベロープは参照エラー、重複LはMML構文エラーです。定義済みのFM音色のうち257種類目を初めて参照したときは、基底の `<sxmml-error>` で報告します。範囲は xref:../behavior-spec.adoc#pmd-source-の出力値の検査[外部動作仕様]を参照してください。
 
 FMパートA～Fで参照されたOPN音色を初出順に出力します。PCM出力は環境とIRを受け、共通手続きでJの番号を解決します。
