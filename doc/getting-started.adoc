@@ -5,7 +5,7 @@
 [[scheme-で音符列を作る]]
 == Scheme で音符列を作る
 
-次を phrase.sxl に保存します。
+次を `phrase.sxl` に保存します。
 
 [source,scheme]
 ----
@@ -20,12 +20,14 @@ sxlc -m pmd phrase.sxl
 iconv -f CP932 -t UTF-8 phrase.mml
 ----
 
-phrase.mml が生成され、G トラックは合計 60 tick と表示されます。notes は Scheme の文字列リストで、mml は各要素を順に MML として扱います。使用できる音符と音長は xref:sxmml-mml-manual.adoc[MML コマンドマニュアル]を参照してください。
+`notes` の値は文字列のリスト `("c8" "d8" "e8" "f8")` です。`mml` はその順に音符を並べ、最後に `r8` を加えます。
+
+`phrase.mml` が生成され、G トラックの合計は 60 tick と表示されます。使用できる音符と音長は xref:sxmml-mml-manual.adoc[MML コマンドマニュアル]を参照してください。
 
 [[リズムを加える]]
 == リズムを加える
 
-次を beat.sxl に保存します。
+次を `beat.sxl` に保存します。
 
 [source,scheme]
 ----
@@ -39,12 +41,14 @@ sxlc -m pmd beat.sxl
 iconv -f CP932 -t UTF-8 beat.mml
 ----
 
-G と L のトラックがそれぞれ 48 tick と 24 tick と表示されます。L は PMD モードで登録されるリズム用トラックです。@b8 はバスドラムを指定し、r8 は休符です。楽器別音量や反復などは xref:sxmml-mml-manual.adoc#rhythm-mml[リズム MML]を参照してください。
+G と L のトラックがそれぞれ 48 tick と 24 tick と表示されます。
+
+L は PMD モードのリズム用トラックです。`@b8` でバスドラムを八分音符の長さだけ鳴らし、`r8` で同じ長さだけ休みます。楽器別音量や反復などは xref:sxmml-mml-manual.adoc#rhythm-mml[リズム MML]を参照してください。
 
 [[登録する-mml-を加工する]]
 == 登録する MML を加工する
 
-次を repeat.sxl に保存します。
+次を `repeat.sxl` に保存します。
 
 [source,scheme]
 ----
@@ -58,7 +62,7 @@ sxlc -m pmd -O 0 repeat.sxl
 iconv -f CP932 -t UTF-8 repeat.mml
 ----
 
-生成物には G の反復記法が含まれ、合計 48 tick と表示されます。一部のトラックだけに脱出位置を置く例や、反復後に音を加えて遅れを調整する例は、xref:sxmml-reference-manual.adoc#mml-repeat[公開機能の説明]を参照してください。
+`mml-repeat` は G トラックで `c8d8` を2回繰り返します。`-O 0` で変換すると反復記法が残り、合計は 48 tick と表示されます。一部のトラックだけに脱出位置を置く例や、反復後に音を加えて遅れを調整する例は、xref:sxmml-reference-manual.adoc#mml-repeat[公開機能の説明]を参照してください。
 
 [[最適化水準を比較する]]
 == 最適化水準を比較する
