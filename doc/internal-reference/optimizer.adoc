@@ -3,7 +3,8 @@
 
 63手続きとrecord型3件を定義し、10手続きを公開します。入力は整列済みの有効な共通IR列、出力も平坦なIR列です。登録環境の検索、整列化、集計確定、最適化要求の数値解釈は行いません。
 
-各処理は単独で使え、前の最適化処理の実行を前提にしません。他の処理の削減能力を包含する必要もありません。入力のリスト構造・IRを変更せず、変更するIRを新しく作り、未変更部分は共有できます。局所処理で自分が生成した設定IRの組立てに更新を使うこととは区別します。
+局所整理・状態追跡・休符結合は、それぞれ整列済みの IR 列を受け取り、単独で実行できます。
+入力のリストと IR は変更しません。書き換える命令には新しい IR を使い、変更のない命令は入力と共有できます。局所整理では、結果を組み立てる際に新しく生成した設定 IR を更新することがあります。
 
 反復圧縮には xref:repeat-tree.adoc[repeat-tree]の C コアを使い、回数2～255、制御費用は[ ]が2、[ : ]が3、窓幅は通常256・展開付き1024、展開上限256、入れ子上限32を維持します。探索の上限と出力形式の上限を同一の規則にはまとめません。削減効果はIRの要素数で評価し、意味保持とは区別します。
 
@@ -16,6 +17,32 @@
 
 反復圧縮は、論理要素・出力テンプレート・出力IR数の三つのベクタを保持します。逆順原子列を一度走査して埋め、タイの先頭側を繰り返しコピーしません。圧縮結果の深さは一度求め、深さ上限の比較が必要な場合にだけrawを構築します。
 
+== 基本の最適化手続き
+
+[[ref-optimizer-sxmml-ir-optimize-local]]
+=== `(sxmml-ir-optimize-local ir)` — 局所整理
+
+連続する設定命令を、適用順の効果を保ったまままとめます。後の命令で上書きされる設定を取り除き、合成できる変更を一つにします。NOP は取り除きます。音符や反復の区切りに達すると、その前後の設定は別々にまとめます。
+
+[[ref-optimizer-sxmml-ir-remove-redundant-settings]]
+=== `(sxmml-ir-remove-redundant-settings ir)` — 状態追跡
+
+反復を考慮して設定の状態を追跡し、既に有効な値を再指定する命令を取り除きます。開始時の値が不明な設定には、初期値を仮定しません。
+
+[[ref-optimizer-sxmml-ir-merge-rests]]
+=== `(sxmml-ir-merge-rests ir)` — 休符結合
+
+隣り合う休符を、音長の合計が等しい一つの休符にまとめます。新しい休符は後の休符を原型とし、ticks 以外のスロットの値と未束縛状態を引き継ぎます。
+
+[[ref-optimizer-sxmml-ir-optimize]]
+=== `(sxmml-ir-optimize ir)` — 基本の組み合わせ
+
+局所整理、状態追跡、休符結合の順に適用し、結果の IR 列を返します。例えば、状態追跡で二つの休符の間にある冗長な設定が取り除かれると、続く休符結合でその二つをまとめられます。
+
+実装は link:../../sxmml/optimizer.scm[optimizer.scm] にあります。
+
+== その他の定義
+
 [cols="2,4,4,1",options="header"]
 |===
 |名前・書式 |引数と役割 |戻り値・副作用・失敗条件 |ソース
@@ -23,12 +50,8 @@
 |[[ref-optimizer-sxmml-run-compression-jobs]]`(sxmml-run-compression-jobs tasks jobs)` |各トラックの圧縮手続きと空トラックを表す#fを受付順に処理し、対応するIR列を返す |入力のIRは変更しない |link:../../sxmml/optimizer.scm[optimizer.scm]
 |[[ref-optimizer-internal-large-search-notifier]]`(%large-search-notifier notify)` |区間長を受け取り、3,072を超える最初の探索を通知する手続きを返す |入力のIRは変更しない |link:../../sxmml/optimizer.scm[optimizer.scm]
 |[[ref-optimizer-internal-repeat-settings]]`(%repeat-settings window)` |指定した探索幅と共通の反復費用で設定を作る |入力のIRは変更しない |link:../../sxmml/optimizer.scm[optimizer.scm]
-|[[ref-optimizer-sxmml-ir-optimize-local]]`(sxmml-ir-optimize-local ir)` |区間内の上書き削除と設定更新の合成 |反復や未知IR等の境界を保ち、実行順の効果を保持する。新しい列を返す |link:../../sxmml/optimizer.scm[optimizer.scm]
-|[[ref-optimizer-sxmml-ir-remove-redundant-settings]]`(sxmml-ir-remove-redundant-settings ir)` |既に成立している設定の再指定を削除 |平坦な有効IRを構造化して状態を追跡。不明な初期値を仮定しない。休符結合はしない |link:../../sxmml/optimizer.scm[optimizer.scm]
-|[[ref-optimizer-sxmml-ir-merge-rests]]`(sxmml-ir-merge-rests ir)` |隣接する休符の結合 |変更が必要な休符を新しく作る。入力のticksや未束縛のvalueを変更・不用意に参照しない |link:../../sxmml/optimizer.scm[optimizer.scm]
 |[[ref-optimizer-sxmml-ir-compress-repeats-batch]]`(sxmml-ir-compress-repeats-batch ir-lists :key (jobs 1) (expand-small #f))` |前処理済みのIR列を上限付きで圧縮 |空列の位置と入力順を保存。失敗時は元の例外を伝える |link:../../sxmml/optimizer.scm[optimizer.scm]
 |[[ref-optimizer-sxmml-ir-compress-repeats]]`(sxmml-ir-compress-repeats ir :key (expand-small #f))` |命令列の反復表現への圧縮 |expand-small=#fは既存反復を原子として扱い、#tは小さい反復を展開。構造化の既存エラーを維持 |link:../../sxmml/optimizer.scm[optimizer.scm]
-|[[ref-optimizer-sxmml-ir-optimize]]`(sxmml-ir-optimize ir)` |基本組合せ |局所整理→状態追跡→休符結合の順で適用 |link:../../sxmml/optimizer.scm[optimizer.scm]
 |[[ref-optimizer-sxmml-ir-optimize-with-repeats]]`(sxmml-ir-optimize-with-repeats ir)` |通常反復圧縮付きの組合せ |基本組合せの結果へexpand-small=#fの圧縮を適用 |link:../../sxmml/optimizer.scm[optimizer.scm]
 |[[ref-optimizer-sxmml-ir-optimize-with-repeat-expansion]]`(sxmml-ir-optimize-with-repeat-expansion ir)` |展開付き反復圧縮の組合せ |基本組合せの結果へexpand-small=#tの圧縮を適用。通常圧縮済み列からは開始しない |link:../../sxmml/optimizer.scm[optimizer.scm]
 |[[ref-optimizer-class-setting-effect]]`<setting-effect>` +
