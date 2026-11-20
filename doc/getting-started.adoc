@@ -63,23 +63,31 @@ iconv -f CP932 -t UTF-8 repeat.mml
 [[最適化水準を比較する]]
 == 最適化水準を比較する
 
-同じ phrase.sxl を水準別に変換できます。生成先は同じ phrase.mml なので、比較する場合は各回で別名へコピーします。
+最初の例で作った `phrase.sxl` を PMD 向けに変換します。`-o` でそれぞれ別の出力先を指定すると、生成した MML を並べて比較できます。
 
 [source,console]
 ----
-sxlc -m pmd -O 0 phrase.sxl
-cp phrase.mml phrase-O0.mml
-sxlc -m pmd -O 1 phrase.sxl
-cp phrase.mml phrase-O1.mml
-sxlc -m pmd -O 2 phrase.sxl
-cp phrase.mml phrase-O2.mml
+sxlc -m pmd -O 0 -o phrase-O0.mml phrase.sxl
+sxlc -m pmd -O 1 -o phrase-O1.mml phrase.sxl
+sxlc -m pmd -O 2 -o phrase-O2.mml phrase.sxl
 ----
 
--O 0 は通常の最適化なし、-O 1 は第 1 段階、-O 2 は第 2 段階まで、-O 3 はさらに命令列を反復で圧縮し、-O 4 は小さい既存のリピートを展開してから圧縮します（時間がかかります）。PMDで時間をかけてさらに圧縮したいときは `-O 9` で全幅探索できます。FMP7では `-O 9` も `-O 4` と同じです。最適化はコンパイル後のオブジェクト数を減らす処理で、生成テキストの長さを評価基準にはしません。この例では生成内容を比較できます。削減効果を比較するには xref:verification.adoc#r-03-オブジェクト数の削減[オブジェクト数の比較]を使います。通常の最適化を避けるには -O 0 を指定してください。各水準の動作は link:sxlc.1.md[sxlc マニュアル]を参照してください。
+PMD では、`-O 0` は通常の最適化を省きます。`-O 1` は連続する設定命令を整理し、`-O 2` はさらに設定の状態を追跡して冗長な再指定を取り除き、隣り合う休符をまとめます。
+このフレーズには整理できる設定命令や連続する休符がないため、3ファイルとも G トラックの出力は `G l%12o4cdefr` です。命令数が減る入力例は xref:verification.adoc#r-03-オブジェクト数の削減[オブジェクト数の比較]を参照してください。
 
 [[出力とエラーを確認する]]
 == 出力とエラーを確認する
 
-PMD 向け生成物は CP932 なので、UTF-8 の端末では iconv で読めます。``sxlc -l``はモードの正規名と別名を表示します。``pmd``は``pmd-source``、``pmd3``は``pmd3-source``の別名で、処理結果の表示には正規名を使います。-m を省く場合はソース内で sxmml-mode を指定します。指定が双方にない場合はエラーです。FM トラック A～F で @0 を使う場合は、先に対応する音色を定義してください。使用可能な定義と引数は xref:sxmml-reference-manual.adoc[MML 記述者向けリファレンス]を参照してください。
+`sxlc -l` でモードの正式名と別名を確認できます。`pmd` は `pmd-source`、`pmd3` は `pmd3-source` の別名です。変換結果には正式名が表示されます。
+`-m` を省く場合は、ソース内で `(sxmml-mode pmd)` のように指定してください。両方で指定すると `-m` が優先され、どちらにも指定がなければエラーになります。
 
-生成先を変えるには `sxlc` の `-o` を使います。ソース内の `filename` 指定は無視されます。CLI とソースの両方でモードを指定すると、CLI 側の指定が有効になります。詳しくはxref:behavior-spec.adoc#要求との対応と既知の差[既知の制約]を参照してください。
+出力先は次の順で決まります。
+
+. `-o` で指定したパス。
+. ソースで `sxmml-default-output-path-set!` に指定したパス。
+. 入力ファイルの拡張子を選択したモードの拡張子に替えたパス。例えば `-m pmd phrase.sxl` では `phrase.mml` になります。
+
+PMD の `filename` メタデータは出力先の指定には使えません。ソースで設定する方法は xref:sxmml-reference-manual.adoc#ソースの既定出力先[ソースの既定出力先]を参照してください。
+
+PMD 向けの MML は CP932 です。UTF-8 の端末では `iconv -f CP932 -t UTF-8 phrase.mml` で内容を読めます。
+FM トラック A～F で `@0` を使う場合は、先に対応する音色を定義してください。音色の定義方法は xref:sxmml-reference-manual.adoc[MML 記述者向けリファレンス]を参照してください。
