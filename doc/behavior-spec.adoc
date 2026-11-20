@@ -148,7 +148,7 @@ PMD 向けの生成では、`-o`、ソースの既定値、入力ファイル名
 `/tmp/sxmml-examples/pmd-output/source-mode.sxl` に `(sxmml-mode pmd3)` と `(mml G "c8")` を保存し、`sxlc -m pmd /tmp/sxmml-examples/pmd-output/source-mode.sxl` を実行すると、ソース中の指定は無視されて `Processing Mode: pmd-source` と表示され、生成物のモード行は
 `;; mode: PMDver4.8` となる。`-m` を省くと、ソース中の指定により `Processing Mode: pmd3-source`、`;; mode: PMDver3.3` となる。
 
-`-O` の水準によって生成行は変わる。例えば、`-O 0` の `G l%12v8v8o4crr`、`-O 1` の `G l%12v8o4crr`、`-O 2` の `G l%12v8o4cr%24` となる入力がある。通常の最適化を避けるには `-O 0` を指定する。品質上の制約は https://github.com/sayzbrdg/sxmml/issues/8[issue #8]を参照する。
+`-O` の水準によって生成行は変わる。例えば、`-O 0` の `G l%12v8v8o4crr`、`-O 1` の `G l%12v8o4crr`、`-O 2` の `G l%12v8o4cr%24` となる入力がある。通常の最適化を避けるには `-O 0` を指定する。品質上の制約は link:https://github.com/sayzbrdg/sxmml/issues/8[issue #8]を参照する。
 
 空白を含む `space name.sxl` を変換して `-c "printf '%s\\n'"` を指定すると、生成先 `space name.mml` は一引数として渡る。`semi;name.sxl` の生成先 `semi;name.mml` も同様に一引数として渡る。`-w` の有無にかかわらず、`shell-tokenize-string` で分割するのは `COMMAND` だけであり、生成名は分割しない。
 
@@ -163,7 +163,7 @@ PMD 向けの生成では、`-o`、ソースの既定値、入力ファイル名
 [[pmd-source-の出力値の検査]]
 === pmd-source の出力値の検査
 
-pmd-source は、現在対応している命令・定義について、https://github.com/d2lmirrors/pmd/blob/master/mc/PMDMML.MAN[PMDMML.MAN] から読み取れる制約を検査する。MC.EXE の受理や演奏を包括的に保証するものではなく、MC.EXE を実行して挙動を確かめることは、この検査方針の前提にしない。
+pmd-source は、現在対応している命令・定義について、link:https://github.com/d2lmirrors/pmd/blob/master/mc/PMDMML.MAN[PMDMML.MAN] から読み取れる制約を検査する。MC.EXE の受理や演奏を包括的に保証するものではなく、MC.EXE を実行して挙動を確かめることは、この検査方針の前提にしない。
 
 FM・SSG・PCM の3区分で範囲が異なるものは分け、区分内の細かな音源・ドライバ差は最も広い範囲に合わせる。対象音源に記載がないことだけでは拒否せず、例えば SSG のパンもコマンド共通の0～3で検査する。値は正確な整数とする。
 
@@ -174,7 +174,7 @@ FM・SSG・PCM の3区分で範囲が異なるものは分け、区分内の細�
 |通常音符・ポルタメント両端の音程 |o1c～o8b。PCM内の狭い範囲は検査しない
 |ゲートタイム `q` |0～255
 |デチューン `D` |−32768～32767
-|転調 `_`・`__` |−128～127
+|転調 `++_++`・`++__++` |−128～127
 |通常の相対音量 |増減量 −255～255
 |パン `p` |0～3
 |出力選択 `P` |1～3
@@ -194,7 +194,7 @@ FM・SSG・PCM の3区分で範囲が異なるものは分け、区分内の細�
 [[pmd-バイナリ生成物]]
 == PMD バイナリ生成物
 
-`pmd-binary`・`pmd4-binary`・`pmd3-binary` は外部コンパイラを使わずに PMD のバイナリを直接生成する。生成物が MC.EXE の出力と同じであることは保証しない（PMD 向け MML を MC.EXE でコンパイルした結果と一致するとは限らない）。既知の欠陥は、ラベル `pmd-binary` の付いたhttps://github.com/sayzbrdg/sxmml/issues?q=is%3Aissue%20is%3Aopen%20label%3Apmd-binary%20label%3Abug[開いている不具合の issue]を参照する。
+`pmd-binary`・`pmd4-binary`・`pmd3-binary` は外部コンパイラを使わずに PMD のバイナリを直接生成する。生成物が MC.EXE の出力と同じであることは保証しない（PMD 向け MML を MC.EXE でコンパイルした結果と一致するとは限らない）。既知の欠陥は、ラベル `pmd-binary` の付いたlink:https://github.com/sayzbrdg/sxmml/issues?q=is%3Aissue%20is%3Aopen%20label%3Apmd-binary%20label%3Abug[開いている不具合の issue]を参照する。
 
 生成先は、`-o`、ソースの既定値、入力ファイル名の拡張子を `.m` に替えた名前の順に選ぶ。拡張子 `.m` の入力を ``-o``もソースの既定値もなしで変換すると、出力先が入力ファイルと同じになるため使用法の誤り（終了値 2）となる。`filename` メタデータは PMD 向け生成物と同じく生成先の指定に使わず、警告を表示して無視する。トラックの登録（A～F が FM、G～I が SSG、J が PCM、L がリズム）も PMD 向けのモードと同じである。生成物はバイナリであり、生成先と同じディレクトリの一時ファイルに書いてから生成先へ移す。
 
@@ -217,7 +217,7 @@ FM・SSG・PCM の3区分で範囲が異なるものは分け、区分内の細�
 [[失敗条件と境界値]]
 == 失敗条件と境界値
 
-`sxlc` の終了値は次のとおりである（https://github.com/sayzbrdg/sxmml/issues/37[issue #37]）。ソース中の Scheme 式が `exit` を呼んだ場合は、その値で終了する。
+`sxlc` の終了値は次のとおりである（link:https://github.com/sayzbrdg/sxmml/issues/37[issue #37]）。ソース中の Scheme 式が `exit` を呼んだ場合は、その値で終了する。
 
 [cols="1,1",options="header"]
 |===
@@ -298,12 +298,12 @@ sxlc /tmp/sxmml-examples/melody-and-rhythm.sxl
 |===
 |要求 |この仕様の該当箇所 |現行動作と要求との差
 |R-01 柔軟な MML 記述 |入力と実行順、MML ソース、失敗条件、使用例 |Scheme 式から MML を組み立てられるが、全ての定義マクロが式を値に受けるわけではない。tick 指定はゼロ埋めした正の整数も受け付け、0 は拒否する
-|R-02 MML オブジェクト操作 |MML ソース、xref:sxmml-reference-manual.adoc[公開マクロの範囲] |複数トラックのエコーはトラックごとに `mml-echo` を呼ぶ。https://github.com/sayzbrdg/sxmml/issues/6[issue #6]
+|R-02 MML オブジェクト操作 |MML ソース、xref:sxmml-reference-manual.adoc[公開マクロの範囲] |複数トラックのエコーはトラックごとに `mml-echo` を呼ぶ。link:https://github.com/sayzbrdg/sxmml/issues/6[issue #6]
 |R-03 自動最適化 |CLI、PMD 向け生成物、xref:verification.adoc#r-03-オブジェクト数の削減[オブジェクト数の比較] |最適化水準によって削減処理が異なる。音楽的な意味の判定は要求仕様の Q-01 に従う
-|R-04 生成物 |入力と実行順、PMD 向け生成物、PMD バイナリ生成物、使用例 |現在は PMD・FMP7 向け MML と PMD バイナリを生成する。PMD バイナリは MC.EXE の出力と同じであることを保証しない。https://github.com/sayzbrdg/sxmml/issues/54[issue #54]
+|R-04 生成物 |入力と実行順、PMD 向け生成物、PMD バイナリ生成物、使用例 |現在は PMD・FMP7 向け MML と PMD バイナリを生成する。PMD バイナリは MC.EXE の出力と同じであることを保証しない。link:https://github.com/sayzbrdg/sxmml/issues/54[issue #54]
 |===
 
-各差の現行内容・影響・対応状況は https://github.com/sayzbrdg/sxmml/issues[既知の課題（GitHub の issue）]にまとめる。
+各差の現行内容・影響・対応状況は link:https://github.com/sayzbrdg/sxmml/issues[既知の課題（GitHub の issue）]にまとめる。
 
 変更時の確認手順はxref:verification.adoc[検証方針]を参照する。
 

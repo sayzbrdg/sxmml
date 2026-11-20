@@ -69,7 +69,7 @@ pmd-source の出力値検査53件は、通常音量6件、共通数値18件、S
 
 Lの重複拒否は、フロントエンドと、実装が分かれた両バックエンドの通常・リズムの各経路を区別して検査する。バックエンドの4件はパーサーを通さずIRを登録し、解析コンテキストの `loop-exists` を初期値のままにする。pmd-sourceのリズムの1件では、R0からR1へ進んだ後の2個目で失敗し、既存出力を含むディレクトリの名前と内容が変わらず、一時ファイルが残らないことも確認する。
 
-PMDバイナリの固定期待値は、現行出力の固定と、試験のコメントにMC.EXEとの照合が記載されたものを区別する。全てを照合済みとは扱わない。モジュールへの配置だけで単体試験が充足したとは扱わず、必要な保証の不足は https://github.com/sayzbrdg/sxmml/issues/9[issue #9] 等に引き継ぐ。他モジュールを通ることだけでは不足と判定しない。
+PMDバイナリの固定期待値は、現行出力の固定と、試験のコメントにMC.EXEとの照合が記載されたものを区別する。全てを照合済みとは扱わない。モジュールへの配置だけで単体試験が充足したとは扱わず、必要な保証の不足は link:https://github.com/sayzbrdg/sxmml/issues/9[issue #9] 等に引き継ぐ。他モジュールを通ることだけでは不足と判定しない。
 
 
 [[要求と検証の対応]]
@@ -141,7 +141,7 @@ gosh -e '(use sxmml)' -e '(use sxmml.backend.pmd)' -e '(define-track G)' -e '(mm
 
 この例では順に `5`、`4`、`3` となる。要求値1の局所整理で重複音量指定を整理し、要求値2の基本組合せでは隣接する休符も結合する。八つの休符だけの入力 `r8r8r8r8r8r8r8r8` に置き換えると `8`、`8`、`1` となる。数値要求3・4も同じ形で数える。入力 `c8d8c8d8c8d8` は 数値要求2まで `6`、数値要求3と4 で `4`（`++[cd]3++`）、入力 `++[c8c8c8c8]2++` は 数値要求2まで `6`、数値要求3で `5`（`++[[c]4]2++`）、数値要求4で `3`（`++[c]8++`）となる。各入力・要求値で削減前後の数と対象の操作を記録する。
 
-最適化処理は link:../sxmml/optimizer.scm[`sxmml/optimizer.scm`]、`length` は https://practical-scheme.net/vault/Gauche-0.9.15-refe.pdf[Gauche 0.9.15 Users’ Reference, 6.6.5 List accessors and modifiers]を参照する。
+最適化処理は link:../sxmml/optimizer.scm[`sxmml/optimizer.scm`]、`length` は link:https://practical-scheme.net/vault/Gauche-0.9.15-refe.pdf[Gauche 0.9.15 Users’ Reference, 6.6.5 List accessors and modifiers]を参照する。
 
 [[q-01-音楽的な意味の保持]]
 == Q-01 音楽的な意味の保持
@@ -188,7 +188,7 @@ gosh -I. test/test-ir-meaning.scm
 |``-O 4``相当 |`++[c8c8c8c8]2++` |既存反復の展開・再圧縮前後の意味
 |===
 
-反復圧縮の試験では、``test/repeat-tree-check.scm``で木の費用・回数・展開を、``test/optimizer-repeat-check.scm``で復元したIR列の一致を明示的に検査する。通常実行では結果を再走査する検査を行わない。これは参照解釈器による検査とは別に維持する。有限の代表条件の成功を、全IR・全入力の意味保持を実証したものとは扱わない。残る対応範囲・制約はhttps://github.com/sayzbrdg/sxmml/issues/8#issuecomment-6619002641[issue #8]で管理し、削減効果はR-03として区別する。
+反復圧縮の試験では、``test/repeat-tree-check.scm``で木の費用・回数・展開を、``test/optimizer-repeat-check.scm``で復元したIR列の一致を明示的に検査する。通常実行では結果を再走査する検査を行わない。これは参照解釈器による検査とは別に維持する。有限の代表条件の成功を、全IR・全入力の意味保持を実証したものとは扱わない。残る対応範囲・制約はlink:https://github.com/sayzbrdg/sxmml/issues/8#issuecomment-6619002641[issue #8]で管理し、削減効果はR-03として区別する。
 
 [[利用者定義設定の検査147]]
 == 利用者定義設定の検査（#147）
@@ -221,14 +221,14 @@ link:../README.md#最初の変換[README の導入手順]で配置した `sxlc` 
 [[未実装残る検証]]
 == 未実装・残る検証
 
-* 公開機能の境界入力は、binding 検査に加えて上記の動作検証を行う。動作テストの対応状況は https://github.com/sayzbrdg/sxmml/issues/9[issue #9]を参照する。
-* `mml-echo` の複数トラック形の現在の動作と再現手順は https://github.com/sayzbrdg/sxmml/issues/6[issue #6]を参照する。
+* 公開機能の境界入力は、binding 検査に加えて上記の動作検証を行う。動作テストの対応状況は link:https://github.com/sayzbrdg/sxmml/issues/9[issue #9]を参照する。
+* `mml-echo` の複数トラック形の現在の動作と再現手順は link:https://github.com/sayzbrdg/sxmml/issues/6[issue #6]を参照する。
 * 配布アーカイブからの導入は `tools/distcheck.sh` で確認する。標準配置と man の参照、外部ツールとの接続は各環境で確認し、xref:release-guide.adoc#リリース確認のチェックリスト[リリース確認のチェックリスト]に記録する。
 
 [[関連資料]]
 == 関連資料
 
-link:../test/[`test/`]、link:../Makefile.in[`Makefile.in`]、link:../src/sxlc.in[`sxlc`]、link:../sxmml/optimizer.scm[`sxmml/optimizer.scm`]、https://practical-scheme.net/vault/Gauche-0.9.15-refe.pdf[Gauche 0.9.15 Users’ Reference]。
+link:../test/[`test/`]、link:../Makefile.in[`Makefile.in`]、link:../src/sxlc.in[`sxlc`]、link:../sxmml/optimizer.scm[`sxmml/optimizer.scm`]、link:https://practical-scheme.net/vault/Gauche-0.9.15-refe.pdf[Gauche 0.9.15 Users’ Reference]。
 
 #80の追加25件は、classes 3件、form 3件、compiler 3件、mml 6件、environment 2件、processor 1件、util 1件、pmd-source 3件、pmd-binary 2件、sxlc 1件。型・本文・位置・PEGとの境界・未知の例外の通過を観測する。既存102ケースの型・文脈・旧ラッパーの期待も移行し、入力と生成結果は保つ。compound conditionそのものやGaucheの実装全般を保証するものではない。
 
@@ -316,7 +316,7 @@ P02は音高48・50・52・53・55・53・52・50の12ticks音符を125回並べ
 候補／追加整理前の中央値比は2.557。命令の振り分けを揃え、単一効果の処理とリズム一群の処理を分離した。中間効果リスト・コピー・走査を増やさず、補助手続きとアクセサの呼出しが増える構成である。時間短縮だけを採用条件にしない。
 この各3回の合成条件から、全入力の性能や小さな時間差の再現性を保証しない。既存の計測コードを変更せず使い、結果は``/tmp/sxmml-issue163-performance/``のsettings-origin・settings-current・settings-candidateの識別名で保存した。
 
-[[100回反復による追加確認と採用]]
+[id="100回反復による追加確認と採用"]
 === 100回反復による追加確認と採用
 
 単発の計測で大きな時間増加が出たため、同じP01を一つのプロセス内で100回実行した。入力は一度だけ構築し、同じ入力を再利用する。前の結果を蓄積せず最終結果だけを保持し、実行中のGCは計測区間に含む。現行と採用版を各1プロセス、直列に実行した。
