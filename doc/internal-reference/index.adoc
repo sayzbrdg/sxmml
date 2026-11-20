@@ -18,7 +18,7 @@
 |xref:environment.adoc[`sxmml.environment`] |環境と登録表 |40
 |xref:compiler.adoc[`sxmml.compiler`] |文字列の解析と登録マクロ |8
 |xref:processor.adoc[`sxmml.processor`] |反復・エコー・ディレイ |11
-|xref:output.adoc[`sxmml.output`] |出力準備・整列化・part検索 |3
+|xref:output.adoc[`sxmml.output`] |出力準備・整列化・part検索・音長統計 |4
 |xref:optimizer.adoc[`sxmml.optimizer`] |オブジェクト列の最適化 |66
 |xref:native.adoc[`sxmml.native`] |必須C拡張との接続 |3
 |xref:repeat-tree.adoc[`sxmml.repeat-tree`] |局所反復木による列の圧縮 |31
@@ -30,7 +30,7 @@
 |xref:nsdlib-source.adoc[`sxmml.backend.nsdlib`] |トラックとIRの準備 |5
 |xref:nsdlib-source.adoc[`sxmml.backend.nsdlib-source`] |NSD.LibのMML生成 |8
 |xref:pmd.adoc[`sxmml.backend.pmd`] |PMD共通規則・初期設定・最適化選択 |15
-|xref:pmd-source.adoc[`sxmml.backend.pmd-source`] |PMD向けMML生成 |54
+|xref:pmd-source.adoc[`sxmml.backend.pmd-source`] |PMD向けMML生成 |53
 |xref:pmd-binary.adoc[`sxmml.backend.pmd-binary`] |PMD バイナリ生成（公開名のみ） |4
 |===
 
@@ -147,7 +147,6 @@
 |`%metadata-output` |`sxmml.backend.nsdlib-source` |手続き・非公開 |xref:nsdlib-source.adoc#ref-nsd-meta[項目へ]
 |`%mml-form-expand` |`sxmml.compiler` |手続き・非公開 |xref:compiler.adoc#ref-compiler-internal-mml-form-expand[項目へ]
 |`%mode-name-check` |`sxmml.environment` |手続き・非公開 |xref:environment.adoc#ref-environment-internal-mode-name-check[項目へ]
-|`%most-frequent-ticks-find` |`sxmml.backend.pmd-source` |手続き・非公開 |xref:pmd-source.adoc#ref-pmd-source-internal-most-frequent-ticks-find[項目へ]
 |`%note-number->pmd-note` |`sxmml.backend.pmd-source` |手続き・非公開 |xref:pmd-source.adoc#ref-pmd-source-internal-note-number-to-pmd-note[項目へ]
 |`%numbering` |`sxmml.backend.nsdlib-source` |手続き・非公開 |xref:nsdlib-source.adoc#ref-nsd-number[項目へ]
 |`%optimizer-repeat-tree-compress` |`sxmml.optimizer` |手続き・非公開 |xref:optimizer.adoc#ref-optimizer-internal-optimizer-repeat-tree-compress[項目へ]
@@ -462,6 +461,7 @@
 |`sxmml-option-get` |`sxmml.environment` |手続き・公開 |xref:environment.adoc#ref-environment-sxmml-option-get[項目へ]
 |`sxmml-option-set!` |`sxmml.environment` |手続き・公開 |xref:environment.adoc#ref-environment-sxmml-option-set-bang[項目へ]
 |`sxmml-output-track-find` |`sxmml.output` |手続き・公開 |xref:output.adoc#ref-output-sxmml-output-track-find[項目へ]
+|`sxmml-output-track-most-frequent-ticks` |`sxmml.output` |手続き・公開 |xref:output.adoc#ref-output-sxmml-output-track-most-frequent-ticks[項目へ]
 |`sxmml-pcm-voice-set!` |`sxmml.voice` |手続き・公開 |xref:voice.adoc#ref-voice-sxmml-pcm-voice-set-bang[項目へ]
 |`sxmml-pmd-binary-output` |`sxmml.backend.pmd-binary` |手続き・公開 |xref:pmd-binary.adoc#ref-pmd-binary-sxmml-pmd-binary-output[項目へ]
 |`sxmml-pmd-check-obsolete-metadata` |`sxmml.backend.pmd` |手続き・公開 |xref:pmd.adoc#ref-pmd-sxmml-pmd-check-obsolete-metadata[項目へ]

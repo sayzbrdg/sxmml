@@ -28,7 +28,7 @@
           (define-track alto :sound-source 'pulse)
           (mml alto "c8") (mml echo "d8") (mml bass "e8")
           (test* "音源ごとの辞書順と空き番号" #t
-                 (has (output) "#code \"nsd_vrc6.bin\"" "TR1 o4c%12\nTR2 o4d%12\nTR8 o4e%12")))
+                 (has (output) "#code \"nsd_vrc6.bin\"" "TR1 l%12 o4c\nTR2 l%12 o4d\nTR8 l%12 o4e")))
         (parameterize ([sxmml-environment (make <sxmml-environment>)])
           (define-track sub :sound-source 'vrc6-pulse)
           (define-track unused :sound-source 'opm)
@@ -49,25 +49,27 @@
                      (has (render 'noise "e") "o4e")))
         (test* "補正後の範囲外" (test-error <sxmml-value-error>) (render 'fds "o7c"))
         (test* "長音の末尾ゲートと明示タイ" #t
-               (has (render 'pulse "q200c%384 & d8") "q200 o4c%129&c%255 & o4d%12"))
+               (has (render 'pulse "q200c%384 & d8d%384") "TR1 q200 o4c%129&c%255 & o4d%12 o4d%129&d%255"))
+        (test* "既定音長の音符・休符と分割音" #t
+               (has (render 'pulse "c%6r%6c%261") "TR1 l%6 o4c r o4c&c%255"))
         (test* "DPCM長休符" #t (has (render 'dpcm "r%384") "r-%129 r-%255"))
         (test* "反復の入れ子・脱出・一回" #t
-               (has (render 'pulse "[[c:d]1:e]2") "[ o4c%24 : o4e%24 ]2"))
+               (has (render 'pulse "[[c:d]1:e]2") "[ o4c : o4e ]2"))
         (test* "手作り反復内のL" (test-error <sxmml-value-error>)
                (render 'pulse "" (^[] (sxmml-ir-register!
                                        (list (make <sxmml-mml-repeat-start>) (make <sxmml-mml-loop>)
                                              (make <sxmml-mml-repeat-end> :value 1)) 'lead))))
-        (test* "テンポ上限" #t (has (render 'pulse "t127T127" (^[] (sxmml-resolution 48))) "t127 t127"))
+        (test* "テンポ上限" #t (has (render 'pulse "t127T127" (^[] (sxmml-resolution 48))) "TR1 t127 t127"))
         (test* "テンポ範囲外" (test-error <sxmml-value-error>)
                (render 'pulse "t128" (^[] (sxmml-resolution 48))))
         (test* "設定命令" #t (has (render 'pulse "K2K*-1D8v8v*2v*-1L@2") "_2 __-1 D8 v8 )2 (1 L @2"))
         (test* "未対応音量" (test-error <sxmml-value-error>) (render 'triangle "v1"))
-        (test* "ポルタメント" #t (has (render 'pulse "/{c g}8") "o4{cg}%12"))
+        (test* "ポルタメント" #t (has (render 'pulse "/{c g}8") "TR1 l%12 o4{cg}%12"))
         (test* "ポルタメントの長さ上限" (test-error <sxmml-value-error>) (render 'pulse "/{c g}%256"))
         (test* "波形の初出と再参照" #t
                (has (render 'fds "c@{sq}c@7c@{sq}d"
                             (^[] (define-waveform sq (make-list 64 0)) (define-waveform 7 (make-list 64 63))))
-                    "FDSC(0){0," "FDSC(1){63," "o6c%24 @FC0 o6c%24 @FC1 o6c%24 @FC0"))
+                    "FDSC(0){0," "FDSC(1){63," "o6c @FC0 o6c @FC1 o6c @FC0"))
         (test* "波形名未登録" (test-error <sxmml-reference-error>) (render 'fds "@7"))
         (test* "未使用PCMを含む番号順と移調" #t
                (has (render 'dpcm "K2o4c" (^[] (define-pcm-voice s '("o4e" "s.dmc" 3 0))
@@ -89,7 +91,7 @@
         (test* "同名パターンの種類別採番" #t
                (has (render 'pulse "E{x}M{x A}cE{x}" (^[] (define-envelope x '(15 (d 3) l 8 r (8 0 4)))
                                                           (define-lfo x '(l 0 2 -2))))
-                    "Envelop(0){15 D3 L 8 R (8,0,4)}" "Envelop(1){L 0 2 -2}" "Ev0 Em1 o4c%24 Ev0"))
+                    "Envelop(0){15 D3 L 8 R (8,0,4)}" "Envelop(1){L 0 2 -2}" "Ev0 Em1 o4c Ev0"))
         (test* "変換失敗時の既存生成物" #t
                (let1 before (file->string path)
                  (guard (e [(sxmml-value-error? e) (equal? before (file->string path))])

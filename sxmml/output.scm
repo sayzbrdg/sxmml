@@ -28,8 +28,10 @@
 
 ;;; 登録環境から出力に必要な情報を準備する。
 (define-module sxmml.output
+  (use gauche.collection)
   (use sxmml.classes)
-  (export make-sxmml-output-environment sxmml-ir-flatten sxmml-output-track-find))
+  (export make-sxmml-output-environment sxmml-ir-flatten sxmml-output-track-find
+          sxmml-output-track-most-frequent-ticks))
 (select-module sxmml.output)
 
 (define (sxmml-ir-flatten ir-tree)
@@ -70,6 +72,10 @@
             :total-ticks (car ticks) :loop-ticks (- (car ticks) (cdr ticks))
             :loop-exists (slot-ref context 'loop-exists)
             :ticks-statistics (slot-ref context 'ticks-statistics))))))))
+
+(define (sxmml-output-track-most-frequent-ticks track)
+  (and-let1 mode-pair (find-max (slot-ref track 'ticks-statistics) :key (^p (cdr p)))
+    (car mode-pair)))
 
 (define (sxmml-output-track-find output-environment part)
   (hash-table-find (slot-ref output-environment 'track)

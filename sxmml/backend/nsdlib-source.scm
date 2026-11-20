@@ -6,6 +6,7 @@
   (use util.match)
   (use sxmml.classes)
   (use sxmml.environment)
+  (use sxmml.output)
   (use sxmml.voice)
   (use sxmml.backend.nsdlib)
   (export sxmml-nsdlib-source-output))
@@ -113,6 +114,9 @@
 (define %names '#("c" "c+" "d" "d+" "e" "f" "f+" "g" "g+" "a" "a+" "b"))
 
 (define (%track-output env tr sound track number)
+  (define default-ticks
+    (let1 ticks (sxmml-output-track-most-frequent-ticks track)
+      (and (exact-integer? ticks) (<= 1 ticks 255) ticks)))
   (define (pitch n)
     (%integer "pitch" (+ n (case sound [(triangle) 12] [(fds) 24] [else 0])) 12 107))
   (define (name n) (vector-ref %names (modulo n 12)))
@@ -124,7 +128,8 @@
   (define (segments first more sep ticks)
     (let loop ([label first] [n ticks])
       (let1 part (+ (modulo (- n 1) 255) 1)
-        (format #t "~a%~d" label part)
+        (display label)
+        (unless (eqv? part default-ticks) (format #t "%~d" part))
         (when (> n part) (display sep) (loop more (- n part))))))
   (define (emit obj)
     (cond
@@ -195,6 +200,7 @@
   (guard (e [(sxmml-error? e)
              (raise (make-compound-condition e (make-condition <sxmml-track-context> 'track-name (slot-ref track 'name))))])
     (format #t "TR~d" tr)
+    (when default-ticks (format #t " l%~d" default-ticks))
     (sequence (sxmml-nsdlib-sequence-prepare (slot-ref track 'ir)))
     (newline)))
 
