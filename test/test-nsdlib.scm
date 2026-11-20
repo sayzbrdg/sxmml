@@ -14,9 +14,9 @@
      (^[port name]
        (sxmml-nsdlib-source-output (make-sxmml-output-environment (sxmml-environment) :output name :optimize 0))
        (find #/^TR1 / (string-split (file->string name) #\newline))))))
-(test* "無効中の選択と再開" "TR1 Em0 o4c%12 Em* o4d%12 Em1 o4e%12"
+(test* "無効中の選択と再開" "TR1 l%12 Em0 o4c Em* o4d Em1 o4e"
        (track-body "M0 c8 Mf M1 d8 Mt e8"))
-(test* "反復入口ごとに異なる有効状態を保つ" "TR1 Em* [ o4c%12 Em0 o4d%12 ]2"
+(test* "反復入口ごとに異なる有効状態を保つ" "TR1 l%12 Em* [ o4c Em0 o4d ]2"
        (track-body "Mf [M0 c8 Mt d8]2"))
 (test* "反復によって再開先が異なる" (test-error <sxmml-value-error>)
        (track-body "M0 Mf [Mt c8 Mf M1]2"))

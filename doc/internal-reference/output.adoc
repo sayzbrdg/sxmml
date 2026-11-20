@@ -1,7 +1,7 @@
 = `sxmml.output` の出力準備
 :toc: left
 
-3つの公開手続きを持ち、`sxmml`から継承します。登録環境を明示的に受け、バックエンドの採用範囲にかかわらず全トラックを準備します。最適化・モード選択・ファイル出力は行いません。
+4つの公開手続きを持ち、`sxmml`から継承します。登録環境を明示的に受け、バックエンドの採用範囲にかかわらず全トラックを準備します。最適化・モード選択・ファイル出力は行いません。
 
 [cols="2,4,4,1",options="header"]
 |===
@@ -9,6 +9,7 @@
 |[[ref-output-sxmml-ir-flatten]]`(sxmml-ir-flatten ir-tree)` |登録用cons木を平坦なIR列へ整列 |順序を保ち、NOPと空の枝を除く。反復命令は残し、最適化しない。入力を変更しない |link:../../sxmml/output.scm[output.scm]
 |[[ref-output-make-sxmml-output-environment]]`(make-sxmml-output-environment registered-environment
                                       :key (output (undefined)) (optimize (undefined)) (source #f) (jobs 1))` |登録環境から出力環境を作る |output・optimizeは必須、sourceは省略時#f、jobsは正の整数で省略時1。全トラックのIRを整列し、集計を確定。登録側は変更せず、定義表・統計・未変更IRは共有可能 |link:../../sxmml/output.scm[output.scm]
+|[[ref-output-sxmml-output-track-most-frequent-ticks]]`(sxmml-output-track-most-frequent-ticks track)` |出力トラックの登録時の音長統計を参照 |出現回数が最大の tick 数を返す。統計が空なら #f |link:../../sxmml/output.scm[output.scm]
 |[[ref-output-sxmml-output-track-find]]`(sxmml-output-track-find output-environment part)` |partに対応する出力トラックを検索 |出力トラック情報を返し、不在は#f。手動編集された重複partを新たに拒否しない |link:../../sxmml/output.scm[output.scm]
 |===
 

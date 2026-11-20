@@ -1,7 +1,7 @@
 = `sxmml.backend.pmd-source` の生成処理
 :toc: left
 
-PMD向けMML出力の54定義（手続き53件・クラス1件）を持ちます。モード情報は読込み時に登録し、初期トラック設定は選択時に共通setup!で実行します。定義の規則と最適化選択は xref:pmd.adoc[PMD共通処理]を使います。
+PMD向けMML出力の53定義（手続き52件・クラス1件）を持ちます。モード情報は読込み時に登録し、初期トラック設定は選択時に共通setup!で実行します。定義の規則と最適化選択は xref:pmd.adoc[PMD共通処理]を使います。
 
 公開出力は出力環境一つを受け、出力結果を返します。A～J・Lに対応する出力トラックが必要です。出力中に現在の登録環境・モード・sxmml-source-fileを参照せず、入力を変更しません。作業用のトラック状態は明示引数、FM音色の採番状態は出力ごとに作り、音色指定の出力手続きに渡します。
 
@@ -65,7 +65,6 @@ PMD向けMML出力の54定義（手続き53件・クラス1件）を持ちます
 |[[ref-pmd-source-internal-pmd-rhythm-volume-change-output]]`(%pmd-rhythm-volume-change-output obj)` |楽器別の符号付き音量差を出力 |設定済み slot だけを出す |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
 |[[ref-pmd-source-internal-pmd-rhythm-pan-output]]`(%pmd-rhythm-pan-output obj)` |楽器別パンを出力 |1/2/3 または `#f`。それ以外の値は `invalid rhythm pan` で失敗する |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
 |[[ref-pmd-source-internal-note-number-to-pmd-note]]`(%note-number\->pmd-note note)` |半音番号をオクターブと音名の対に変換 |`floor/` で 12 分割し（負の音高も 0～11 の音名にする）、`c`、`c+` 等を返す。状態は変更しない |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
-|[[ref-pmd-source-internal-most-frequent-ticks-find]]`(%most-frequent-ticks-find track)` |解析時に最も多かった音長を求める |出力トラックのticks-statisticsからfind-maxで探す。空なら#f |link:../../sxmml/backend/pmd-source.scm[pmd-source.scm]
 |===
 
 数値・定義形式の違反は値エラー、未定義の音色・LFO・エンベロープは参照エラー、重複LはMML構文エラーです。定義済みのFM音色のうち257種類目を初めて参照したときは、基底の `<sxmml-error>` で報告します。範囲は link:../behavior-spec.md#pmd-source-の出力値の検査[外部動作仕様]を参照してください。

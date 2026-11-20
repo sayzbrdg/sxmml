@@ -30,4 +30,4 @@
 [[ref-nsd-number]]
 `(%numbering env definitions)`:: 波形とパターンの番号を初出順に割り当て、定義ポートに初出の定義を書く手続きを返します。
 [[ref-nsd-track]]
-`(%track-output env tr sound track number)`:: 通常の命令と構造化した反復を TR 行に出し、既知の診断にトラック名を添えます。
+`(%track-output env tr sound track number)`:: 通常の命令と構造化した反復を TR 行に出し、既知の診断にトラック名を添えます。最頻音長が1～255 tick のときは TR 番号の後に `l%N` を出力します。長い音符・休符は分割した各部分で音長を省略できるか判定し、ポルタメントは常に音長を明記します。

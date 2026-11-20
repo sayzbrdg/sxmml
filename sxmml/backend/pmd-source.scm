@@ -67,7 +67,7 @@
   (%pmd-source-output env #f))
 
 (define (%track-output env track lis part voice-proc! vol-set-proc! vol-change-proc!)
-  (let1 mode (%most-frequent-ticks-find track)
+  (let1 mode (sxmml-output-track-most-frequent-ticks track)
     (unless (null? lis)
       (let1 state (make <sxmml-pmd-track-environment> :mode (or mode 0)
                        :voice-output voice-proc! :volume-output vol-set-proc!
@@ -228,7 +228,7 @@
 (define (%pmd-rhythm-deploy-track-output! state track has-loop? lis)
   (unless (null? lis)
     (display "K ")
-    (and-let1 mode (%most-frequent-ticks-find track)
+    (and-let1 mode (sxmml-output-track-most-frequent-ticks track)
               (slot-set! state 'mode mode)
               (format #t "l%~d " mode))
     (display "R0")
@@ -621,10 +621,6 @@
 
 ;; 出力先の指定に使われていた filename メタデータは無視し、警告を表示する
 
-
-(define (%most-frequent-ticks-find track)
-  (and-let1 mode-pair (find-max (slot-ref track 'ticks-statistics) :key (^p (cdr p)))
-    (car mode-pair)))
 
 (sxmml-mode-register!
  (make <sxmml-mode> :name 'pmd-source :aliases '(pmd pmd4-source)
