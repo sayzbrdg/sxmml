@@ -1,6 +1,6 @@
 # sxmml
 
-sxmml は、Scheme で MML を組み立て、MML オブジェクトを加工して生成物を作るトランスレータです。古い MML の記述上の制約に困っている人を主な対象とします。PMD・FMP7 向け MML と PMD バイナリを生成できます。
+sxmml は、Scheme で MML を組み立て、MML オブジェクトを加工して生成物を作るトランスレータです。古い MML の記述上の制約に困っている人を主な対象とします。PMD・FMP7・NSD.Lib 向け MML と PMD バイナリを生成できます。
 
 ## 必要なもの
 
@@ -55,6 +55,17 @@ export GAUCHE_DYNLOAD_PATH="$sxmml_prefix/lib/sxmml${GAUCHE_DYNLOAD_PATH:+:$GAUC
 `first.mml` が作られ、標準出力には `Track G: total: 24` と表示されます。出力は CP932、改行は CRLF です。UTF-8 の端末では `iconv -f CP932 -t UTF-8 first.mml` で内容を読めます。ソース中の Scheme 式は Gauche によって実行されるため、信頼できる入力ファイルを指定してください。
 
 `first.mml` の G 行は `G l%12o4cr` になります。
+
+## NSD.Lib 用の曲を生成する
+
+`song.sxl` にトラックの音源とフレーズを書きます。
+
+```scheme
+(define-track lead :sound-source 'pulse)
+(mml lead "@2 v12 o4 c8d8e4")
+```
+
+`sxlc -m nsdlib song.sxl` で UTF-8 の `song.nsd` ができます。nsc がある環境では `sxlc -m nsdlib -c 'nsc -n' song.sxl` で続けて NSF に変換できます。APU、APU＋FDS、APU＋VRC6 に対応します。
 
 ## Emacs で編集・変換・再生する
 

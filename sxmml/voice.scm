@@ -34,6 +34,7 @@
   (export define-opn-voice sxmml-opn-voice-set!
           sxmml-voice-set! sxmml-voice-table-find
           define-opm-voice sxmml-opm-voice-set! define-pcm-voice sxmml-pcm-voice-set!
+          define-waveform sxmml-waveform-set!
           sxmml-opmn-operator-zip))
 (select-module sxmml.voice)
 
@@ -191,3 +192,18 @@
           (sxmml-form-wrap form rename
             (quasirename rename `(sxmml-pcm-voice-set! ',name ,value))))]
        [_ (sxmml-form-error form "invalid define-pcm-voice form: expected id and value")]))))
+
+(define (sxmml-waveform-set! id samples)
+  (unless (list? samples)
+    (errorf <sxmml-value-error> "invalid waveform ~s: expected a proper list" id))
+  (sxmml-voice-set! 'waveform (make <sxmml-voice> :id id :value samples)))
+
+(define-syntax define-waveform
+  (er-macro-transformer
+   (^[form rename id=?]
+     (match form
+       [(_ id value)
+        (let1 name (sxmml-form-name->symbol form "define-waveform" id)
+          (sxmml-form-wrap form rename
+            (quasirename rename `(sxmml-waveform-set! ',name ,value))))]
+       [_ (sxmml-form-error form "invalid define-waveform form: expected id and value")]))))

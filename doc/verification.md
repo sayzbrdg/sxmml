@@ -362,3 +362,5 @@ sourceの全文字列、binaryのR使用領域・ヘッダ・track-length全体�
 変更後の`make check`は、ツール11条件を含む既存の動作933件・binding17モジュール成功。新規テスト条件は追加していない。
 
 FMP7のパート割当・反復・LFO到達状態は test-fmp7.scm、CP932の生成物・値エラー・参照番号は test-fmp7-source.scm で確認する。CLIの出力先は test-sxlc.scm、失敗時の既存ファイル保持は test-integration.scm が対象とする。FMC7によるコンパイルや演奏はこの検査の範囲に含まない。
+
+NSD.Lib の生成 MML、採番、トラック割当、失敗時の出力保持は test-nsdlib-source.scm、反復と曲末ループを経る LFO の有効状態・再開先は test-nsdlib.scm で検査する。CLI の既定名とモード一覧は test-sxlc.scm が対象となる。nsc とプレイヤーは自動試験の依存に含めない。

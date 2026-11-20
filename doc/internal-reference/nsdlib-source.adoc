@@ -1,0 +1,33 @@
+= NSD.Lib ソースの生成
+
+`sxmml.backend.nsdlib` は出力環境に含まれるトラックと IR から、各チャンネルに書く命令を求めます。link:../../sxmml/backend/nsdlib.scm[nsdlib.scm]
+
+[[ref-nsd-tracks]]
+`(sxmml-nsdlib-tracks-prepare env)`:: ドライバのファイル名（標準なら #f）と TR 番号順の (番号 音源 トラック) の列を多値で返します。
+[[ref-nsd-key]]
+`(sxmml-nsdlib-dpcm-key key)`:: 明示オクターブ付き音名を o1c 起点の0始まりのノート番号に変換します。
+[[ref-nsd-tree]]
+`(%sequence-tree ir)`:: 区切りと L の位置を検査して反復を前半・脱出後半・回数に分解します。
+[[ref-nsd-region]]
+`(%lfo-region nodes)`:: 区間が入口の定義・有効状態に与える効果と、到達状態群から命令を注釈する手続きを返します。各効果は状態を維持するか定数で上書きします。同一区間の二回目以降の入口は一周分の効果から求まります。
+[[ref-nsd-seq]]
+`(sxmml-nsdlib-sequence-prepare ir)`:: 有限反復と曲末ループを通る選択状態から、各 LFO 操作で出す Em 番号、停止、出力省略を決定します。周回の違いにより一つの命令で表せない場合は値エラーです。
+
+`sxmml.backend.nsdlib-source` はモードを登録し、本文・定義を UTF-8 MML として出力します。link:../../sxmml/backend/nsdlib-source.scm[nsdlib-source.scm]
+
+[[ref-nsd-output]]
+`(sxmml-nsdlib-source-output env)`:: 出力環境から一時ファイルに一曲の MML を書き、成功時に出力先を置換します。出力先と採用トラック名を持つ出力結果を返します。
+[[ref-nsd-int]]
+`(%integer label n lo hi)`:: 閉区間にある正確な整数を返し、失敗時に対象と値を示します。
+[[ref-nsd-lookup]]
+`(%lookup table id kind)`:: 定義を名前で引き、未登録なら種類と名前を示します。
+[[ref-nsd-meta]]
+`(%metadata-output table)`:: 文字列フィールドと複数のメモを nsc の文字列記法で出力します。
+[[ref-nsd-dpcm]]
+`(%dpcm-output env)`:: PCM の定義をノート番号順に出力します。配置アドレス、パラメータ、キーの競合を検査します。
+[[ref-nsd-pattern]]
+`(%pattern env kind id sound)`:: 定義を使用音源の値域で検査し、Envelop のパターン文字列を返します。
+[[ref-nsd-number]]
+`(%numbering env definitions)`:: 波形とパターンの番号を初出順に割り当て、定義ポートに初出の定義を書く手続きを返します。
+[[ref-nsd-track]]
+`(%track-output env tr sound track number)`:: 通常の命令と構造化した反復を TR 行に出し、既知の診断にトラック名を添えます。

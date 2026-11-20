@@ -4,7 +4,7 @@
 
 ## システム境界
 
-入力は `sxlc` の引数と、Gauche が評価する Scheme ソースファイルである。ソースには MML 文字列を作る式、トラック・音色・メタデータの定義、モード指定などを記せる。現在の出力は CP932 符号化の PMD・FMP7 向け MML と PMD バイナリである。
+入力は `sxlc` の引数と、Gauche が評価する Scheme ソースファイルである。ソースには MML 文字列を作る式、トラック・音色・メタデータの定義、モード指定などを記せる。現在の出力は CP932 符号化の PMD・FMP7 向け MML、UTF-8 の NSD.Lib 向け MML と PMD バイナリである。
 
 ```mermaid
 flowchart LR
@@ -99,3 +99,5 @@ Scheme ソースは `load` で Gauche のコードとして実行される（`sx
 公開名は[内部リファレンス](internal-reference/index.adoc)、要求との対応と未検証部分は[検証方針](verification.md)を参照する。Gauche のモジュール継承、マクロ、オブジェクト、パラメータ、PEG、文字列生成、ファイル読み込み・文字コード変換・CLI・プロセスの仕様は [Gauche 0.9.15 Users’ Reference](https://practical-scheme.net/vault/Gauche-0.9.15-refe.pdf)に従う。
 
 コアの音色表は種類から名前別の表を引く。sxmml.backend.fmp7 は登録済みトラックをパート順に並べ、反復構造からLFOの到達状態を求める。sxmml.backend.fmp7-source はその列を文字列ポートへ書きながら定義番号を割り当て、使用定義と本文をファイルへ書く。
+
+nsdlib は出力環境の非空トラックを音源別に割り当てる。有限反復を構造化し、LFO の選択とスイッチは反復・曲末ループの入口から得た到達状態に従って出力する。FDS とエンベロープは命令順で参照番号を決め、DPCM はノート番号順の割当表を生成する。本文と定義を構築してから出力先を置き換える。
