@@ -22,7 +22,7 @@
 [[ref-optimizer-sxmml-ir-optimize-local]]
 === `(sxmml-ir-optimize-local ir)` — 局所整理
 
-連続する設定命令を、適用順の効果を保ったまままとめます。後の命令で上書きされる設定を取り除き、合成できる変更を一つにします。反復の区切りや対象外の命令をまたいで設定をまとめることはありません。
+連続する設定命令を、適用順の効果を保ったまままとめます。後の命令で上書きされる設定を取り除き、合成できる変更を一つにします。NOP は取り除きます。音符や反復の区切りに達すると、その前後の設定は別々にまとめます。
 
 [[ref-optimizer-sxmml-ir-remove-redundant-settings]]
 === `(sxmml-ir-remove-redundant-settings ir)` — 状態追跡
