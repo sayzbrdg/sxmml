@@ -257,8 +257,12 @@
                  (list (find #/^warning:/ lines)
                        (find #/^Processing Mode:/ lines)
                        (generated-mode-line "cli-mode"))))
+        (test* "nsdlib の既定名と UTF-8 の生成物" '(0 #t)
+               (let1 source (source-output "nsd" "(define-metadata title \"日本語\")")
+                 (list (car (sxlc-report "-m" "nsdlib" source))
+                       (string-prefix? "#Title \"日本語\"" (file->string (work-file "nsd.nsd"))))))
         (test* "C03 登録済みモードの一覧を正規名順に表示する"
-               '(0 ("sxmml available modes:" "" "  fmp7" "  pmd-binary (aliases: pmd4-binary)"
+               '(0 ("sxmml available modes:" "" "  fmp7" "  nsdlib" "  pmd-binary (aliases: pmd4-binary)"
                      "  pmd-source (aliases: pmd, pmd4-source)" "  pmd3-binary"
                      "  pmd3-source (aliases: pmd3)" "") ())
                (sxlc-report "-l"))

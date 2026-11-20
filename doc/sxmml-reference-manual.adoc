@@ -437,3 +437,30 @@ PMDのソース・バイナリ生成では、FMパートをAからFの順にた�
 ----
 
 ファイル位置は0始まりです。この例はdrums2のサンプル25を選びます。数値25だけなら先頭ファイル、'("drums2" 25)なら直接指定です。FMP7のサンプルは0～65535です。PMDのJでは数値または位置0が使え、ファイル名はpcmfileと完全一致させます。未定義の数値名はPMDでは従来の番号として扱います。PMDのpcmfileとppzfileは文字列のほか、各1個・2個までの文字列リストを受け付けます。
+
+== NSD.Lib 用の曲を書く
+
+`sxlc -m nsdlib song.sxl` は UTF-8 の `song.nsd` に BGM(0) を一曲出力します。トラックは役割名と音源で宣言します。pulse は TR1・2、triangle は TR3、noise は TR4、dpcm は TR5 です。fds は TR6、vrc6-pulse は TR6・7、vrc6-saw は TR8 です。同一音源内で名前の辞書順に割り当て、全体を TR 番号順に書きます。空トラックは除外し、休符だけのトラックは使います。使用音源に従い標準、FDS、VRC6 のドライバを選びます。FDS と VRC6 の併用、本数超過、非空トラックの音源未指定はエラーです。未対応音源のトラックは警告して除外します。
+
+[source,scheme]
+----
+(define-track lead :sound-source 'fds)
+(define-waveform square (append (make-list 32 0) (make-list 32 63)))
+(mml lead "@{square} c8d8")
+----
+
+`define-waveform` は値式を評価し、一周期の波形列を名前に登録します。FDS の値は0～63の正確な整数64個です。数値名も使えます。参照された波形は初出順に0から採番します。最初の音符まで波形を指定しなければ初期波形は不定です。
+
+[source,scheme]
+----
+(define-track drums :sound-source 'dpcm)
+(define-pcm-voice kick '("o4c" "samples/kick.dmc" 15 0))
+(define-metadata offsetpcm #xd000)
+(mml drums "o4c8r8")
+----
+
+DPCM の音符はサンプルの発音キーです。値は音名、ファイル名、レート（0～15）、モード（0が単発、1がループ）、任意の初期出力値（0～127、−1は現在値を保持、省略時0）です。音名はオクターブを明示し、臨時記号を付けられます。異名同音に別の定義を割り当てるとエラーです。DPCM トラックがあれば PCM 定義をすべてノート番号順に出します。実際に鳴るキーの割り当て有無は検査しません。曲を他モードと共有する場合は、登録値を `sxmml-mode-selected?` で選べます。ファイル名は引用符を含められません。探索は nsc が行います。offsetpcm は全波形の配置先で、省略時は $C000、指定範囲は $C000～$FFC0 の64バイト境界です。
+
+title、composer、creator、copyright は文字列を受け取り、それぞれ #Title、#Composer、#Maker、#Copyright に出力します。memo は文字列または文字列リストで、一件ずつ #Text に出します。引用符・改行・バックスラッシュを値に含められます。arranger は出力しません。
+
+`(define-envelope pluck '(15 (d 3) l 8 r (8 0 4)))` は音量パターンです。整数はフレーム値、(d n) は直前の値の保持（n+1フレーム）、l は戻り先、r はリリース開始、(始値 終値 長さ) は補間です。LFO は `(define-lfo vib '(l 0 2 4 2 0 -2 -4 -2))` のように同じ記法でピッチパターンを書きます。種類はいずれも default です。パターン番号を音量とピッチで共用し、種類と名前の組の初出順に振ります。
