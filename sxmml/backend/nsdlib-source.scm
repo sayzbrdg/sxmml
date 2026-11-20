@@ -82,8 +82,8 @@
     (string-join
      (map (match-lambda
             ['l "L"] ['r "R"] [('d n) (format #f "D~d" (%integer "pattern hold" n 0 255))]
-            [(a b (? (^[n] (and (exact-integer? n) (positive? n))) n))
-             (format #f "(~d,~d,~d)" (value a) (value b) n)]
+            [(a b n)
+             (format #f "(~d,~d,~d)" (value a) (value b) (%integer "interpolation length" n 1 255))]
             [n (number->string (value n))])
           data) " ")))
 
@@ -116,7 +116,11 @@
   (define (pitch n)
     (%integer "pitch" (+ n (case sound [(triangle) 12] [(fds) 24] [else 0])) 12 107))
   (define (name n) (vector-ref %names (modulo n 12)))
-  (define (duration obj) (%integer "duration" (slot-ref obj 'ticks) 1 65535))
+  (define (duration obj)
+    (let1 n (slot-ref obj 'ticks)
+      (unless (and (exact-integer? n) (positive? n))
+        (errorf <sxmml-value-error> "invalid duration: ~s (expected positive ticks)" n))
+      n))
   (define (segments first more sep ticks)
     (let loop ([label first] [n ticks])
       (let1 part (+ (modulo (- n 1) 255) 1)
@@ -135,8 +139,8 @@
          (when setting (number 'lfo setting sound))
          (cond [(eq? action #t) #f] [(not action) (display "Em*")]
                [else (format #t "Em~d" (number 'lfo action sound))])])]
-         [(is-a? obj <sxmml-mml-loop>) (display "L")]
-         [(is-a? obj <sxmml-mml-tie>) (display "&")]
+     [(is-a? obj <sxmml-mml-loop>) (display "L")]
+     [(is-a? obj <sxmml-mml-tie>) (display "&")]
      [else
       (let1 v (slot-ref obj 'value)
         (cond

@@ -501,7 +501,7 @@
 |`sxmml-value-error?` |`sxmml.classes` |手続き・公開 |xref:classes.adoc#ref-classes-sxmml-value-error-p[項目へ]
 |`sxmml-voice-set!` |`sxmml.voice` |手続き・公開 |xref:voice.adoc#ref-voice-sxmml-voice-set-bang[項目へ]
 |`sxmml-voice-table-find` |`sxmml.voice` |手続き・公開 |xref:voice.adoc#ref-voice-sxmml-voice-table-find[項目へ]
+|`sxmml-waveform-set!` |`sxmml.voice` |手続き・公開 |xref:voice.adoc#ref-voice-sxmml-waveform-set-bang[項目へ]
 |===
 
-|`sxmml-waveform-set!` |`sxmml.voice` |手続き・公開 |xref:voice.adoc#ref-voice-sxmml-waveform-set-bang[項目へ]
 課題の現行内容・影響・対応状況は https://github.com/sayzbrdg/sxmml/issues[既知の課題（GitHub の issue）]を参照してください。
