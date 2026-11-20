@@ -34,7 +34,7 @@
   (use sxmml.classes)
   (use sxmml.environment)
   (use sxmml.optimizer)
-  (export sxmml-pmd-for-each-track-ir sxmml-pmd-output-tracks-select sxmml-pmd-pcm-voice-number sxmml-pmd-setup! sxmml-pmd-ir-optimize
+  (export sxmml-pmd-ppz-parts sxmml-pmd-for-each-track-ir sxmml-pmd-output-tracks-select sxmml-pmd-pcm-voice-number sxmml-pmd-setup! sxmml-pmd-ir-optimize
           <sxmml-pmd-fm-voices> sxmml-pmd-fm-voice-number! sxmml-pmd-for-each-fm-voice
           sxmml-pmd-metadata-value sxmml-pmd-lfo-values sxmml-pmd-envelope-values
           sxmml-pmd-check-obsolete-metadata))
@@ -52,6 +52,7 @@
 
 (define (sxmml-pmd-output-tracks-select env :optional (backend 'pmd-source))
   (define tracks (make-hash-table eq-comparator))
+  (define ppz-tracks ())
   (define (select part source)
     (let* ([explicit (hash-table-find tracks (^[name track] (and (eq? part (slot-ref track 'part)) track)))]
            [named (hash-table-get tracks part #f)]
@@ -69,27 +70,47 @@
   (hash-table-for-each (slot-ref env 'track)
     (^[name track]
       (let1 kind (slot-ref track 'sound-source)
-        (if (or (not kind) (memq kind '(opn ssg pcm rhythm)))
-          (hash-table-put! tracks name track)
-          (format (current-error-port) "warning: ~a: ignoring track ~a (unsupported sound-source: ~s)~%" backend name kind)))))
-  (map (match-lambda [(part source _) (select part source)]) %pmd-parts))
+        (cond [(eq? kind 'ppz8)
+               (when (pair? (slot-ref track 'ir)) (push! ppz-tracks track))]
+              [(or (not kind) (memq kind '(opn ssg pcm rhythm)))
+               (hash-table-put! tracks name track)]
+              [else
+               (format (current-error-port) "warning: ~a: ignoring track ~a (unsupported sound-source: ~s)~%" backend name kind)]))))
+  (when (> (length ppz-tracks) 8)
+    (errorf <sxmml-value-error> "too many PPZ8 tracks: ~d (max 8)" (length ppz-tracks)))
+  (append (map (match-lambda [(part source _) (select part source)]) %pmd-parts)
+          (sort-by ppz-tracks (^[t] (symbol->string (slot-ref t 'name))))))
 
-(define (sxmml-pmd-pcm-voice-number env name)
-  (define (sample n)
-    (unless (and (exact-integer? n) (<= 0 n 255))
-      (errorf <sxmml-value-error> "invalid PCM voice number: ~s (expected an integer from 0 to 255)" n))
+(define (sxmml-pmd-ppz-parts tracks)
+  (take '(a b c d e f g h) (length (drop tracks (length %pmd-parts)))))
+
+(define (sxmml-pmd-pcm-voice-number env name :optional (source 'pcm))
+  (define ppz? (eq? source 'ppz8))
+  (define (sample n max)
+    (unless (and (exact-integer? n) (<= 0 n max))
+      (errorf <sxmml-value-error> "invalid PCM voice number: ~s (expected an integer from 0 to ~d)" n max))
     n)
+  (define (resolve bank n)
+    (if ppz? (+ (* bank 128) (sample n 127)) (sample n 255)))
+  (define (file-bank file)
+    (let* ([metadata (slot-ref env 'metadata)]
+           [setting (sxmml-pmd-metadata-value metadata (if ppz? 'ppzfile 'pcmfile))]
+           [files (cond [(not setting) ()]
+                        [ppz? (string-split setting ",")]
+                        [else (list setting)])]
+           [bank (list-index (cut equal? file <>) files)])
+      (if (and bank (< bank 2)) bank
+        (errorf <sxmml-value-error> "unknown PCM file: ~s" file))))
   (if-let1 voice (and-let* ([table (sxmml-voice-table-find env 'pcm)]) (hash-table-get table name #f))
     (match (slot-ref voice 'value)
-      [(0 n) (sample n)]
-      [((? string? file) n)
-       (unless (equal? file (sxmml-pmd-metadata-value (slot-ref env 'metadata) 'pcmfile))
-         (errorf <sxmml-value-error> "unknown PCM file: ~s" file))
-       (sample n)]
-      [(? number? n) (sample n)]
+      [(0 n) (resolve 0 n)]
+      [(1 n) (if ppz? (resolve 1 n)
+               (errorf <sxmml-value-error> "invalid PCM definition ~a: ~s" name (slot-ref voice 'value)))]
+      [((? string? file) n) (resolve (file-bank file) n)]
+      [(? number? n) (resolve 0 n)]
       [other (errorf <sxmml-value-error> "invalid PCM definition ~a: ~s" name other)])
     (if-let1 n (string->number (symbol->string name))
-      (sample n)
+      (sample n 255)
       (errorf <sxmml-reference-error> "undefined PCM voice: ~a" name))))
 
 (define (sxmml-pmd-metadata-value metadata key)
@@ -178,6 +199,7 @@
 (define (sxmml-pmd-for-each-track-ir emit tracks env)
   (define level (slot-ref env 'optimize))
   (define jobs (slot-ref env 'jobs))
+  (define specs (append %pmd-parts (map (cut list <> 'ppz8) (sxmml-pmd-ppz-parts tracks))))
   (define (ir track) (if track (slot-ref track 'ir) '()))
   (define (output i spec track commands)
     (emit i (car spec) (cadr spec) track commands))
@@ -185,16 +207,16 @@
     (and (pair? (ir track))
          (cut sxmml-pmd-ir-optimize (ir track) level (slot-ref track 'name))))
   (cond [(= level 9)
-         (for-each output (iota (length tracks)) %pmd-parts tracks
+         (for-each output (iota (length tracks)) specs tracks
                    (sxmml-run-compression-jobs (map task tracks) jobs))]
         [(and (>= level 3) (> jobs 1) (> (count (^[t] (pair? (ir t))) tracks) 1))
          (let1 compressed (sxmml-ir-compress-repeats-batch
                            (map (^[t] (sxmml-ir-optimize (ir t))) tracks)
                            :jobs jobs :expand-small (> level 3))
-           (for-each output (iota (length tracks)) %pmd-parts tracks compressed))]
+           (for-each output (iota (length tracks)) specs tracks compressed))]
         [else
          (for-each (^[i spec t] (output i spec t (if t (sxmml-pmd-ir-optimize (ir t) level) '())))
-                   (iota (length tracks)) %pmd-parts tracks)]))
+                   (iota (length tracks)) specs tracks)]))
 
 (define (sxmml-pmd-ir-optimize ir level :optional (track-name #f))
   (define (warn count)

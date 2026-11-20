@@ -194,6 +194,27 @@
                               "from named-input.sxl")))))
   (unwind-protect
       (begin
+        (let ()
+          (define (lines forms :optional (mode 'pmd))
+            (filter #/^(; )?#PPZExtend|^[a-h] /
+                    (string-split (pmd-text "ppz-parts" forms mode #f) "\r\n")))
+          (define tracks '((define-track z :sound-source 'ppz8)
+                           (define-track a :sound-source 'ppz8)
+                           (define-track empty :sound-source 'ppz8)))
+          (define (many n)
+            (append-map (^[i] (let1 id (string->symbol (format "track~d" i))
+                                `((define-track ,id :sound-source 'ppz8) (mml ,id "r8"))))
+                        (iota n)))
+          (test* "空のPPZ8は宣言も本文も出さない" '() (lines tracks))
+          (test* "PPZ8は休符も含め名前順に割り当てる"
+                 '("#PPZExtend ab" "a l%12r" "b l%12@128o4c")
+                 (lines (append tracks '((mml z "@128o4c8") (mml a "r8")))))
+          (test* "PPZ8の8パートを使用できる" "#PPZExtend abcdefgh" (car (lines (many 8))))
+          (test* "PPZ8の9パート目を拒否する" (test-error <sxmml-value-error>) (lines (many 9)))
+          (test* "PMD3ソースではPPZ8宣言のみコメントにする"
+                 '("; #PPZExtend a" "a l%12r")
+                 (lines (append tracks '((mml a "r8"))) 'pmd3)))
+
         (parameterize ([sxmml-environment (make <sxmml-environment>)])
           (define (render jobs)
             (let1 path (work-file "jobs-output")
@@ -668,5 +689,16 @@
          (let1 name (slot-ref (first-track) 'name)
            (rename-track A lead)
            (list name (first-track)))))
+
+(parameterize ([sxmml-environment (make <sxmml-environment>)])
+  (define (number id) (sxmml-pmd-pcm-voice-number (sxmml-environment) id 'ppz8))
+  (define-pcm-voice kick '(1 0))
+  (define-pcm-voice named '("drums" 0))
+  (define-pcm-voice invalid 128)
+  (test* "PPZ8の直接指定と第2バンクの先頭" '(128 128) (list (number '|128|) (number 'kick)))
+  (dolist [files '("base,drums" ("base" "drums"))]
+    (define-metadata ppzfile files)
+    (test* "PPZ8のファイル名を指定順に解決する" 128 (number 'named)))
+  (test* "ファイル内の128番は範囲外" (test-error <sxmml-value-error>) (number 'invalid)))
 
 (test-end :exit-on-failure #t)

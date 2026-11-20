@@ -3,7 +3,7 @@
 
 この索引は、sxmml を保守・改修する際に内部定義を名前から探すためのものです。動作環境は Gauche 0.9.15 です。内部の名前は MML 記述者向け API を示しません。公開機能の使い方は xref:../sxmml-reference-manual.adoc[MML 記述者向けリファレンス]、MML 文字列の記法は xref:../sxmml-mml-manual.adoc[MML コマンドマニュアル]を参照してください。
 
-モジュール直下の手続き 374 件、クラス 65 件、マクロ 16 件、合計 455 件を掲載します。 `sxmml.backend.pmd-binary` は公開名 4 件だけを掲載し、内部定義は xref:pmd-binary.adoc[本文]に概要だけを記します。`sxmml.scm` は各モジュールを継承し、独自の直下定義はありません。`sxmml.backend.pmd-binary` の `initialize` と `sxmml.form` の `report-additional-condition` のメソッドは、手続き件数へ重複計上しません。局所関数と `sxlc` の直下定義は範囲外です。呼び出せない表（ハッシュ表やリスト）は対象外です。
+モジュール直下の手続き 375 件、クラス 65 件、マクロ 16 件、合計 456 件を掲載します。 `sxmml.backend.pmd-binary` は公開名 4 件だけを掲載し、内部定義は xref:pmd-binary.adoc[本文]に概要だけを記します。`sxmml.scm` は各モジュールを継承し、独自の直下定義はありません。`sxmml.backend.pmd-binary` の `initialize` と `sxmml.form` の `report-additional-condition` のメソッドは、手続き件数へ重複計上しません。局所関数と `sxlc` の直下定義は範囲外です。呼び出せない表（ハッシュ表やリスト）は対象外です。
 
 識別子の命名と改名の判断は xref:naming-conventions.adoc[命名規約]を参照してください。
 
@@ -29,7 +29,7 @@
 |xref:fmp7-source.adoc[`sxmml.backend.fmp7-source`] |FMP7のMML生成 |10
 |xref:nsdlib-source.adoc[`sxmml.backend.nsdlib`] |トラックとIRの準備 |5
 |xref:nsdlib-source.adoc[`sxmml.backend.nsdlib-source`] |NSD.LibのMML生成 |8
-|xref:pmd.adoc[`sxmml.backend.pmd`] |PMD共通規則・初期設定・最適化選択 |13
+|xref:pmd.adoc[`sxmml.backend.pmd`] |PMD共通規則・初期設定・最適化選択 |14
 |xref:pmd-source.adoc[`sxmml.backend.pmd-source`] |PMD向けMML生成 |54
 |xref:pmd-binary.adoc[`sxmml.backend.pmd-binary`] |PMD バイナリ生成（公開名のみ） |4
 |===
@@ -474,6 +474,7 @@
 |`sxmml-pmd-metadata-value` |`sxmml.backend.pmd` |手続き・公開 |xref:pmd.adoc#ref-pmd-sxmml-pmd-metadata-value[項目へ]
 |`sxmml-pmd-output-tracks-select` |`sxmml.backend.pmd` |手続き・公開 |xref:pmd.adoc#ref-pmd-sxmml-pmd-output-tracks-select[項目へ]
 |`sxmml-pmd-pcm-voice-number` |`sxmml.backend.pmd` |手続き・公開 |xref:pmd.adoc#ref-pmd-sxmml-pmd-pcm-voice-number[項目へ]
+|`sxmml-pmd-ppz-parts` |`sxmml.backend.pmd` |手続き・公開 |xref:pmd.adoc#ref-pmd-sxmml-pmd-ppz-parts[項目へ]
 |`sxmml-pmd-setup!` |`sxmml.backend.pmd` |手続き・公開 |xref:pmd.adoc#ref-pmd-sxmml-pmd-setup-bang[項目へ]
 |`sxmml-pmd-source-output` |`sxmml.backend.pmd-source` |手続き・公開 |xref:pmd-source.adoc#ref-pmd-source-sxmml-pmd-source-output[項目へ]
 |`sxmml-pmd3-binary-output` |`sxmml.backend.pmd-binary` |手続き・公開 |xref:pmd-binary.adoc#ref-pmd-binary-sxmml-pmd3-binary-output[項目へ]
