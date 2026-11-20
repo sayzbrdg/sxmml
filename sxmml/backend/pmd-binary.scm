@@ -49,7 +49,8 @@
 (define-class <sxmml-pmd-binary-environment> ()
   ([offset :init-keyword :offset] [mode :init-keyword :mode :init-value #f]
    [head :init-form (make-u8vector 26 0)] [head-length :init-keyword :head-length :init-value 26]
-   [track :init-form (make-vector 13)] [track-length :init-form (make-vector 13 0)]
+   [track :init-keyword :track :init-form (make-vector 13)]
+   [track-length :init-keyword :track-length :init-form (make-vector 13 0)]
    [max-total-ticks :init-value 0] [max-loop-ticks :init-value 0]
    [fm-voices :init-keyword :fm-voices]
    [environment :init-keyword :environment]))
@@ -90,23 +91,47 @@
 (define (%sxmml-pmdx-binary-output env mode)
   (unless (slot-ref env 'output)
     (error <sxmml-value-error> "output file is not specified"))
-  (let ([work (make <sxmml-pmd-binary-environment>
-                :offset 26 :head-length 26 :mode mode :environment env
-                :fm-voices (make <sxmml-pmd-fm-voices> :definitions (sxmml-voice-table-find env 'opn)))]
-        [tracks (sxmml-pmd-output-tracks-select env 'pmd-binary)])
+  (let* ([tracks (sxmml-pmd-output-tracks-select env 'pmd-binary)]
+         [ppz-count (length (sxmml-pmd-ppz-parts tracks))]
+         [sections (+ 13 ppz-count)]
+         [work (make <sxmml-pmd-binary-environment>
+                 :offset 26 :head-length 26 :mode mode :environment env
+                 :track (make-vector sections) :track-length (make-vector sections 0)
+                 :fm-voices (make <sxmml-pmd-fm-voices> :definitions (sxmml-voice-table-find env 'opn)))]
+         [rhythm ()]
+         [rhythm-loop? #f])
+    (when (and (positive? ppz-count) (eq? mode 'fc88))
+      (error <sxmml-value-error> "PPZ8 tracks are unsupported in PMD3"))
     (u8vector-set! (slot-ref work 'head) 0 (slot-ref work 'head-length))
     (sxmml-pmd-for-each-track-ir
      (^[i part source track ir]
-       ;; リズム末尾の出力までに全パートの集計を確定する。
        (when track (%ticks-update! work track))
        (parameterize ([%pmd-section (format #f "track ~a" part)])
          (let1 header-offset (* 2 (+ i 1))
            (case source
              [(opn) (%fm-track-u8vector-set! work i header-offset ir)]
              [(ssg) (%ssg-track-u8vector-set! work i header-offset ir)]
-             [(pcm) (%pcm-track-u8vector-set! work i header-offset ir)]
-             [(rhythm) (%pmd-rhythm-track-u8vector-set! work ir)]))))
+             [(pcm)
+              (when (positive? ppz-count)
+                (u8vector-set! (vector-ref (slot-ref work 'track) i) 0 #xb4))
+              (%pcm-track-u8vector-set! work i header-offset ir source (if (zero? ppz-count) 0 17))]
+             [(rhythm)
+              (set! rhythm ir)
+              (set! rhythm-loop? (boolean (find (cut is-a? <> <sxmml-mml-loop>) ir)))
+              (%pmd-rhythm-deploy-track-u8vector-set! work rhythm-loop? ir)]
+             [(ppz8)
+              ;; K の直後に各 PPZ8 本文を書き、その先頭を J の参照表に登録する。
+              (receive (lo hi) (%short->le-bytes (slot-ref work 'offset))
+                (let ([j (vector-ref (slot-ref work 'track) 9)] [entry (+ 1 (* 2 (- i 11)))])
+                  (u8vector-set! j entry lo)
+                  (u8vector-set! j (+ entry 1) hi)))
+              (%pcm-track-u8vector-set! work i #f ir source 0)]))))
      tracks env)
+    (parameterize ([%pmd-section "track L"])
+      (receive (lo hi) (%short->le-bytes (slot-ref work 'offset))
+        (u8vector-set! (slot-ref work 'head) 22 lo)
+        (u8vector-set! (slot-ref work 'head) 23 hi))
+      (%pmd-rhythm-definition-track-u8vector-set! work rhythm-loop? rhythm))
     (%pmd-meta-track-u8vector-set! work)
     (%size-check (slot-ref work 'offset))
     (make <sxmml-output-result> :output (%pmd-binary-output work)
@@ -125,29 +150,30 @@
                             %pmd-ssg-volume-set!
                             %pmd-ssg-volume-change-set!))
 
-(define (%pcm-track-u8vector-set! work index hoffset lis)
+(define (%pcm-track-u8vector-set! work index hoffset lis source start)
   (%pmd-track-u8vector-set! work index hoffset lis
-                            (cut %pmd-pcm-voice-set! (slot-ref work 'environment) <> <> <>)
+                            (cut %pmd-pcm-voice-set! (slot-ref work 'environment) <> <> <> source)
                             %pmd-pcm-volume-set!
-                            %pmd-pcm-volume-change-set!))
+                            %pmd-pcm-volume-change-set! start))
 
-(define (%pmd-track-u8vector-set! work index hoffset lis voiceproc volproc volcproc)
+(define (%pmd-track-u8vector-set! work index hoffset lis voiceproc volproc volcproc :optional (start 0))
   (define u8vec (vector-ref (slot-ref work 'track) index))
   (define overall-offset (slot-ref work 'offset))
   (define context
     (make <sxmml-pmd-binary-track-environment>
       :work work :buffer u8vec :base-offset overall-offset
       :voice-set! voiceproc :volume-set! volproc :volume-change-set! volcproc))
-  (let loop ([rest lis] [track-offset 0] [loop-seen? #f] [repeat-stack ()])
+  (let loop ([rest lis] [track-offset start] [loop-seen? #f] [repeat-stack ()])
     (%size-check (+ overall-offset track-offset))
     (if (null? rest)
       (begin
         (u8vector-set! u8vec track-offset #x80)
         (vector-set! (slot-ref work 'track-length) index (+ track-offset 1))
         (slot-set! work 'offset (+ overall-offset track-offset 1))
-        (receive (lb hb) (%short->le-bytes (slot-ref work 'offset))
-          (u8vector-set! (slot-ref work 'head) hoffset lb)
-          (u8vector-set! (slot-ref work 'head) (+ hoffset 1) hb))
+        (when hoffset
+          (receive (lb hb) (%short->le-bytes (slot-ref work 'offset))
+            (u8vector-set! (slot-ref work 'head) hoffset lb)
+            (u8vector-set! (slot-ref work 'head) (+ hoffset 1) hb)))
         work)
       (receive (next-offset next-loop-seen? next-repeat-stack)
           (%pmd-ir-u8vector-set! context (car rest) track-offset loop-seen? repeat-stack)
@@ -208,16 +234,6 @@
           [else
            (values track-offset loop-seen? repeat-stack)])))
 
-(define (%pmd-rhythm-track-u8vector-set! work lis)
-  (define has-loop? (boolean (find (^o (is-a? o <sxmml-mml-loop>)) lis)))
-  ;; Track11(K-channel)
-  (%pmd-rhythm-deploy-track-u8vector-set! work has-loop? lis)
-  (receive (lb hb) (%short->le-bytes (slot-ref work 'offset))
-    (u8vector-set! (slot-ref work 'head) 22 lb)
-    (u8vector-set! (slot-ref work 'head) 23 hb))
-  ;; Track12(R-channel)
-  (%pmd-rhythm-definition-track-u8vector-set! work has-loop? lis))
-
 (define (%pmd-rhythm-deploy-track-u8vector-set! work has-loop? lis)
   (define (overall-offset) (slot-ref work 'offset))
   (define u8vec (vector-ref (slot-ref work 'track) 10))
@@ -240,7 +256,8 @@
 
 (define (%pmd-rhythm-definition-track-u8vector-set! work has-loop? lis)
   (define (overall-offset) (slot-ref work 'offset))
-  (define u8vec (vector-ref (slot-ref work 'track) 11))
+  (define rhythm-index (- (vector-length (slot-ref work 'track)) 2))
+  (define u8vec (vector-ref (slot-ref work 'track) rhythm-index))
   (define (set-ir! obj offset repeat-stack)
     (cond [(is-a? obj <sxmml-mml-rest>)
            (values (%pmd-rest-set! work u8vec offset obj) repeat-stack)]
@@ -269,7 +286,7 @@
                  0
                  (begin (u8vector-set! u8vec offset #xff)
                         (+ offset 1)))])
-      (vector-set! (slot-ref work 'track-length) 11 (+ end metasize))
+      (vector-set! (slot-ref work 'track-length) rhythm-index (+ end metasize))
       (slot-set! work 'offset (+ (overall-offset) end metasize))
       (receive (lb hb) (%short->le-bytes (slot-ref work 'offset))
         (u8vector-set! (slot-ref work 'head) 24 lb)
@@ -314,8 +331,10 @@
              (loop (cdr rest) next-offset loop-seen? next-stack))])))
 
 (define (%pmd-meta-track-u8vector-set! work)
-  (define t12u8vec (vector-ref (slot-ref work 'track) 11))
-  (define t13u8vec (vector-ref (slot-ref work 'track) 12))
+  (define voice-index (- (vector-length (slot-ref work 'track)) 1))
+  (define rhythm-index (- voice-index 1))
+  (define t12u8vec (vector-ref (slot-ref work 'track) rhythm-index))
+  (define t13u8vec (vector-ref (slot-ref work 'track) voice-index))
   (define track-start-pos (slot-ref work 'offset))
   (define (write-voices!)
     (define (write-voice! number voice)
@@ -330,12 +349,12 @@
         (parameterize ([%pmd-section "voice table"])
           (* 26 (sxmml-pmd-for-each-fm-voice write-voice! (slot-ref work 'fm-voices))))
       (if (eq? (slot-ref work 'mode) 'fc88)
-        (begin (vector-set! (slot-ref work 'track-length) 12 track-offset)
+        (begin (vector-set! (slot-ref work 'track-length) voice-index track-offset)
                (slot-set! work 'offset (+ track-start-pos track-offset))
                track-offset)
         (begin (u8vector-set! t13u8vec track-offset #x00)
                (u8vector-set! t13u8vec (+ track-offset 1) #xff)
-               (vector-set! (slot-ref work 'track-length) 12 (+ track-offset 2))
+               (vector-set! (slot-ref work 'track-length) voice-index (+ track-offset 2))
                (slot-set! work 'offset (+ track-start-pos track-offset 2))
                (+ track-offset 2)))))
   (define (write-strings! offset)
@@ -360,13 +379,13 @@
                       (loop (cdr rest) (+ meta-offset 1) (cons meta-offset offset-stack))))])))
   (define (finish! offset positions)
     (receive (lb hb) (%short->le-bytes (+ track-start-pos offset))
-      (u8vector-set! t12u8vec (- (vector-ref (slot-ref work 'track-length) 11) 4) lb)
-      (u8vector-set! t12u8vec (- (vector-ref (slot-ref work 'track-length) 11) 3) hb))
+      (u8vector-set! t12u8vec (- (vector-ref (slot-ref work 'track-length) rhythm-index) 4) lb)
+      (u8vector-set! t12u8vec (- (vector-ref (slot-ref work 'track-length) rhythm-index) 3) hb))
     (let loop ([rest positions] [toffset offset])
       (if (null? rest)
         (begin (u8vector-set! t13u8vec toffset #x00)
                (u8vector-set! t13u8vec (+ toffset 1) #x00)
-               (vector-set! (slot-ref work 'track-length) 12 (+ toffset 2))
+               (vector-set! (slot-ref work 'track-length) voice-index (+ toffset 2))
                (slot-set! work 'offset (+ track-start-pos toffset 2))
                (+ toffset 2))
         (receive (lb hb) (%short->le-bytes (+ track-start-pos (car rest)))
@@ -633,8 +652,8 @@
       [else
        (errorf <sxmml-value-error> "invalid SSG voice number: ~s (expected an integer from 0 to 9)" value)])))
 
-(define (%pmd-pcm-voice-set! env u8vec offset obj)
-  (%pmd-1byte-set! u8vec offset #xff (sxmml-pmd-pcm-voice-number env (slot-ref obj 'value))
+(define (%pmd-pcm-voice-set! env u8vec offset obj source)
+  (%pmd-1byte-set! u8vec offset #xff (sxmml-pmd-pcm-voice-number env (slot-ref obj 'value) source)
                    255 0 "PCM voice number"))
 
 (define (%pmd-noise-freq-set! u8vec offset obj)

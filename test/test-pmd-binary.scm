@@ -12,6 +12,7 @@
 (use sxmml.backend.pmd)
 (use sxmml.backend.pmd-source)
 (use gauche.uvector)
+(use util.match)
 (use gauche.process)
 (use file.util)
 (use test.helpers)
@@ -128,6 +129,26 @@
                                        (sxmml-ir-flatten original)) 'ticks)))))))
   (unwind-protect
       (begin
+        ;; MC.EXE に同じパート配置と音長を与えた生成物と比較する。
+        (dolist [example '(("base"
+                         ((mml A "o4c%24") (define-track first :sound-source 'ppz8))
+                         "00 1a 00 1d 00 1e 00 1f 00 20 00 21 00 22 00 23 00 24 00 25 00 26 00 27 00 33 00 30 18 80 80 80 80 80 80 80 80 80 80 80 18 00 00 00 00 00 00 00 3b 00 48 fe 00 ff 00 00 00 00 00 00 35 00 36 00 37 00 38 00 39 00 3a 00 00 00")
+                        ("two"
+                         ((mml A "o4c%24") (define-track first :sound-source 'ppz8) (define-track second :sound-source 'ppz8) (mml first "@0o4c%12") (mml second "@128o4d%24"))
+                         "00 1a 00 1d 00 1e 00 1f 00 20 00 21 00 22 00 23 00 24 00 25 00 37 00 42 00 4e 00 30 18 80 80 80 80 80 80 80 80 80 b4 38 00 3d 00 00 00 00 00 00 00 00 00 00 00 00 00 80 80 ff 00 30 0c 80 ff 80 32 18 80 18 00 00 00 00 00 00 00 56 00 48 fe 00 ff 00 00 00 00 00 00 50 00 51 00 52 00 53 00 54 00 55 00 00 00")
+                        ("two-j"
+                         ((mml A "o4c%24") (mml J "@1o4e%12") (define-track first :sound-source 'ppz8) (define-track second :sound-source 'ppz8) (mml first "@0o4c%12") (mml second "@128o4d%24"))
+                         "00 1a 00 1d 00 1e 00 1f 00 20 00 21 00 22 00 23 00 24 00 25 00 3b 00 46 00 52 00 30 18 80 80 80 80 80 80 80 80 80 b4 3c 00 41 00 00 00 00 00 00 00 00 00 00 00 00 00 ff 01 34 0c 80 80 ff 00 30 0c 80 ff 80 32 18 80 18 00 00 00 00 00 00 00 5a 00 48 fe 00 ff 00 00 00 00 00 00 54 00 55 00 56 00 57 00 58 00 59 00 00 00")
+                        ("controls"
+                         ((mml A "o4c%24") (define-track first :sound-source 'ppz8) (define-track second :sound-source 'ppz8) (mml first "@0v16o4c%12v1d%12v16e%12v255f%12v128g%12") (mml second "@128o4d%24"))
+                         "00 1a 00 1d 00 1e 00 1f 00 20 00 21 00 22 00 23 00 24 00 25 00 37 00 54 00 60 00 30 18 80 80 80 80 80 80 80 80 80 b4 38 00 4f 00 00 00 00 00 00 00 00 00 00 00 00 00 80 80 ff 00 fd 10 30 0c fd 01 32 0c fd 10 34 0c fd ff 35 0c fd 80 37 0c 80 ff 80 32 18 80 3c 00 00 00 00 00 00 00 68 00 48 fe 00 ff 00 00 00 00 00 00 62 00 63 00 64 00 65 00 66 00 67 00 00 00"))]
+          (match-let1 (name forms expected) example
+            (test* #"PPZ8 の MC.EXE 生成物との照合 ~name" expected
+                   (hex-bytes (make-binary-data name 'pmd-binary forms #f)))))
+        (test* "PMD3バイナリでは使用中のPPZ8を拒否する" (test-error <sxmml-value-error>)
+               (make-binary-data "ppz3" 'pmd3-binary
+                                 '((define-track ext :sound-source 'ppz8) (mml ext "r8"))))
+
         (parameterize ([sxmml-environment (make <sxmml-environment>)])
           (define (render jobs)
             (let1 path (work-file "jobs-output")

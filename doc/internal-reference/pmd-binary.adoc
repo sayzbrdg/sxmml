@@ -20,13 +20,13 @@ FM音色表へ書く直前に `%opn-voice-form->register-data form id` が使用
 [cols="2,4,4,1",options="header"]
 |===
 |名前・書式 |役割・引数 |結果・状態・失敗条件 |ソース
-|[[ref-pmd-binary-class-sxmml-pmd-binary-environment]]`<sxmml-pmd-binary-environment>` |生成中のバイナリの状態クラス |`(make <sxmml-pmd-binary-environment> :offset 値 :environment 出力環境 :fm-voices 採番状態 [:mode 値] [:head-length 値])`。slot は、現在の書き込み位置 `offset`、PMD3 向けを示す `mode`（`fc88` または `#f`）、26 バイトのヘッダ `head` とその長さ `head-length`、A～J・K・R の 12 トラックと、音色表・メタ情報に使う 13 個のバッファ `track` とその長さ `track-length`、最大の合計 tick `max-total-ticks`・loop tick `max-loop-ticks`、出力中のFM音色の採番状態 `fm-voices` と読み取り用の出力環境 `environment`。`initialize` メソッドが各バッファに 65600 バイトの `u8vector` を確保する |link:../../sxmml/backend/pmd-binary.scm[pmd-binary.scm]
+|[[ref-pmd-binary-class-sxmml-pmd-binary-environment]]`<sxmml-pmd-binary-environment>` |生成中のバイナリの状態クラス |`(make <sxmml-pmd-binary-environment> :offset 値 :environment 出力環境 :fm-voices 採番状態 [:mode 値] [:head-length 値])`。slot は、現在の書き込み位置 `offset`、PMD3 向けを示す `mode`（`fc88` または `#f`）、26 バイトのヘッダ `head` とその長さ `head-length`、A～J・K・R の 12 トラックと、音色表・メタ情報に使う 基本13個に使用中の PPZ8 パート数を加えたバッファ `track` とその長さ `track-length`、最大の合計 tick `max-total-ticks`・loop tick `max-loop-ticks`、出力中のFM音色の採番状態 `fm-voices` と読み取り用の出力環境 `environment`。`initialize` メソッドが各バッファに 65600 バイトの `u8vector` を確保する |link:../../sxmml/backend/pmd-binary.scm[pmd-binary.scm]
 |[[ref-pmd-binary-sxmml-pmd-binary-output]]`(sxmml-pmd-binary-output env)` |出力環境からPMD4向け生成 |出力結果を返す。環境のoutput=#fは値エラー`output file is not specified`。入力を変更しない |link:../../sxmml/backend/pmd-binary.scm[pmd-binary.scm]
 |[[ref-pmd-binary-sxmml-pmd3-binary-output]]`(sxmml-pmd3-binary-output env)` |PMD3 向け生成 |出力環境を受け、`fc88`の形式で生成して出力結果を返す |link:../../sxmml/backend/pmd-binary.scm[pmd-binary.scm]
 |[[ref-pmd-binary-sxmml-pmd4-binary-output]]`(sxmml-pmd4-binary-output env)` |PMD4 向け生成 |出力環境を受け、PMD4の形式で生成して出力結果を返す |link:../../sxmml/backend/pmd-binary.scm[pmd-binary.scm]
 |===
 
-共通の生成処理は、出力環境からA～J・Lの出力トラックを `sxmml-pmd-output-tracks-select` で選びます。反復圧縮には `jobs` の上限を適用し、採用した列を固定パート順に符号化します。モード選択は不要ですが、必要なトラック情報は呼出し側で用意します。最適化は整数要求から共通PMD手続きで選びます。現在の登録環境・モード・入力ファイルパラメータを出力中に参照しません。
+共通の生成処理は、出力環境からA～J・LとPPZ8の出力トラックを `sxmml-pmd-output-tracks-select` で選びます。反復圧縮には `jobs` の上限を適用し、採用した列を割当順に符号化します。モード選択は不要ですが、必要なトラック情報は呼出し側で用意します。最適化は整数要求から共通PMD手続きで選びます。現在の登録環境・モード・入力ファイルパラメータを出力中に参照しません。
 
 出力先は出力環境のoutputへ明示指定し、#fを補完しません。結果のoutputは実際の出力先、track-namesは採用したsxmmlトラック名です。filenameメタデータの警告は維持し、生成先には使用しません。一時ファイルからの改名によって、途中で失敗しても既存出力を保持します。
 
@@ -47,7 +47,7 @@ FM音色表へ書く直前に `%opn-voice-form->register-data form id` が使用
 |群 |概要
 |トラック変換 |`%fm-track-u8vector-set!`・`%ssg-track-u8vector-set!`・`%pcm-track-u8vector-set!` は、音色・音量・音量変化の書き込み手続きを音源の種類ごとに選び、`%pmd-track-u8vector-set!` に渡します。`%pmd-track-u8vector-set!` は各IRを `%pmd-ir-u8vector-set!` に渡し、終端の `0x80` を書いてヘッダの次のトラックの位置を更新します。反復の開始・脱出の位置は、手続き内のスタックで解決します。反復回数はコンパイラが保証する正の正確な整数を前提とします。反復の終了の命令（`0xf8`）の 2 バイト目には回数を、3 バイト目には、脱出のある反復では回数 - 1、脱出のない反復では回数を書きます
 |命令の書き込み |`%pmd-...-set!` は `u8vec` の `offset` から 1 命令を書き、次の書き込み位置を返します。値の範囲は、`%pmd-1byte-set!`・`%pmd-2bytes-set!` で検査します。255 tick を超える音符はタイ（`0xfb`）で、休符は休符の連続で分割します。ポルタメント（`0xda`）は音長を 1 バイトで持ち、分割できないので、`%pmd-portamento-set!` が 1〜255 tick に限り、超えると `portamento ticks out of range: 300 (1 - 255)` で失敗します
-|リズム |`%pmd-rhythm-track-u8vector-set!` は、K トラック（`%pmd-rhythm-deploy-track-u8vector-set!`）と R トラック（`%pmd-rhythm-definition-track-u8vector-set!`）に L の内容を分けて書きます。`%pmd-rhythm-emit-set!` などがリズム音源の命令を書きます。楽器別の音量とパンは、楽器 * 32 + 値の 1 バイトに符号化するので、`%pmd-rhythm-volume-set!`・`%pmd-rhythm-pan-set!` が符号化の前に値（音量は 0～31、パンは 1～3）を検査し、範囲外は書いた値と範囲を示して失敗します
+|リズム |L の IR を K トラック（`%pmd-rhythm-deploy-track-u8vector-set!`）と R トラック（`%pmd-rhythm-definition-track-u8vector-set!`）に分けて書きます。`%pmd-rhythm-emit-set!` などがリズム音源の命令を書きます。楽器別の音量とパンは、楽器 * 32 + 値の 1 バイトに符号化するので、`%pmd-rhythm-volume-set!`・`%pmd-rhythm-pan-set!` が符号化の前に値（音量は 0～31、パンは 1～3）を検査し、範囲外は書いた値と範囲を示して失敗します
 |メタ情報・音色表 |`%pmd-meta-track-u8vector-set!`の局所`(write-voices!)`は使用音色を番号順に書き、モード別の終端と途中の長さ・位置を確定して次の相対位置を返します。PMD4だけが続けて`(write-strings! offset)`で文字列を書き、次の位置と出力順の開始位置リストの2値を受け取ります。位置列は自作セルを`reverse!`して確定し、入力metadata・memoは変更しません。`(finish! offset positions)`は位置列を読むだけで、Rトラックの位置表ポインタ・位置表・終端・長さ・最終位置を既存順で確定し、最終相対位置を返します。`%opn-voice-form\->register-data`は従来どおり音色定義をOPNのレジスタ値へ変換します
 |出力 |`%pmd-binary-output` は、先頭の `0x00`、ヘッダ、各トラックを一時ファイルに書き、出力先へ改名します。出力先は明示した出力環境を使い、共通の`sxmml-pmd-check-obsolete-metadata`が`filename`の警告を表示します
 |補助 |`%short\->le-bytes` は 16 ビットのリトルエンディアンに分け、`%note-number\->pmd-note` は音高を PMD のオクターブ・音名の 1 バイトに変換し、o1c～o8b の外の音高を `%note-number\->name` の表記（`o9c` など）で示して失敗とします。`%size-check` は生成物の大きさの上限（65535 バイト）を検査し、超えたらパラメータ `%pmd-section` の場所を示して失敗とします。作業用のバッファがあふれる前に止めるため、トラックの命令ごと、長い音符・休符の分割、音色・メタ情報の書き込みで呼び、最後に全体の大きさを検査します。`%shift-jis-u8vector-copy!` は文字列を CP932 で書き、`%ticks-update!` は最大の合計 tick・loop tick を更新します
@@ -61,6 +61,7 @@ FM音色表へ書く直前に `%opn-voice-form->register-data form id` が使用
 . 続く 26 バイトがヘッダです。2 バイトずつ 13 個の位置を持ち、A～F、G～I、J、K、R の各トラックの先頭と、音色表の先頭を指します。
 . 各トラックの命令列が続きます。A～J の各トラックは `0x80` で終わります。
 . K トラックは、L が空なら `0x80` だけです。L にループがあれば `0x00 0xf6 0x01 0x80`、なければ `0x00 0x80` になります。
+. PPZ8 使用時は J の先頭に 0xb4 と8件のリトルエンディアンの16ビット参照欄を置きます。使用パートの本文は K の後に順に並び、各末尾は 0x80 です。未使用の参照欄はゼロです。
 . R トラックは、パターンの位置（ループがあればループ位置も）に続いてリズムの命令列を置き、`0xff` で終わります。L トラックが空のときは、パターンを作らず、位置も命令列も置きません。PMD4 向けでは、続く 12 バイトに、2 バイトずつ、L トラックを含む全トラックについての最大の合計 tick、`0`、`L` のあるトラックについての最大の loop tick（`L` のあるトラックがなければ 0）、`0`、メタ情報の位置の表へのポインタ、固定値 `0x48 0xfe` を置きます。
 . 音色表は、FMパートA～Fで参照された音色の初出順に、音色番号 1 バイトと音色データ 25 バイトを並べます。PMD4 向けでは `0x00 0xff` で終わり、PMD3 向けでは終端を置きません。
 . PMD4 向けでは、最後にメタ情報を置きます。`ppzfile`・`ppsfile`・`pcmfile`・`title`・`composer`・`arranger`・`memo`（0 件以上）の順に、CP932 の NUL 終端文字列を並べ、それぞれへの位置の表を `0x00 0x00` で終えます。値は `sxmml.backend.pmd` の `sxmml-pmd-metadata-value` で、`-m pmd` と同じ規則で検査します。`memo` 以外の定義のない項目は、空文字列になります。`memo` は要素の数だけ書き、定義がないときと空のリストのときは書きません（位置の表にも項目を置きません）。

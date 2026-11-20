@@ -1,7 +1,7 @@
 = `sxmml.backend.pmd` の共通処理
 :toc: left
 
-PMD両バックエンドで使う11個の公開手続き、FM採番用の公開クラス1件、非公開の定義値検査1件を持ちます。モード登録とファイル出力は xref:pmd-source.adoc[source]・xref:pmd-binary.adoc[binary]へ分離しています。
+PMD両バックエンドで使う12個の公開手続き、FM採番用の公開クラス1件、非公開の定義値検査1件を持ちます。モード登録とファイル出力は xref:pmd-source.adoc[source]・xref:pmd-binary.adoc[binary]へ分離しています。
 
 現在の登録環境を更新するのはsetup!だけです。FM音色の番号割り当ては出力ごとの採番状態を更新します。最適化要求の整数からどの処理を選ぶかは、このPMD共通層が決めます。CLIはその対応を解釈しません。
 
@@ -25,12 +25,15 @@ PMD両バックエンドで使う11個の公開手続き、FM採番用の公開�
 == 手続きと構文
 
 [[ref-pmd-sxmml-pmd-for-each-track-ir]]
-`(sxmml-pmd-for-each-track-ir emit tracks env)`:: 固定パートの順に `(emit index part source track ir)` を呼ぶ。O9は逐次・並列とも元のIR列を渡し、各トラックの中で2候補を順に処理する。その他の反復圧縮を並列化するときは対象トラックの基本整理を先に行う。
+`(sxmml-pmd-for-each-track-ir emit tracks env)`:: 固定パート、PPZ8 パートの順に `(emit index part source track ir)` を呼ぶ。O9は逐次・並列とも元のIR列を渡し、各トラックの中で2候補を順に処理する。その他の反復圧縮を並列化するときは対象トラックの基本整理を先に行う。
 
 [[ref-pmd-sxmml-pmd-output-tracks-select]]
-`(sxmml-pmd-output-tracks-select env [backend])`:: 未対応音源を警告して除き、固定パートに対応するトラックを選び、音源種別を照合する。
+`(sxmml-pmd-output-tracks-select env [backend])`:: 未対応音源を警告して除き、固定パートに対応するトラックを選び、音源種別を照合する。固定パート列の後に、非空の PPZ8 トラックを名前順に加える。
+
+[[ref-pmd-sxmml-pmd-ppz-parts]]
+`(sxmml-pmd-ppz-parts tracks)`:: 選択済みのトラック列から PPZ8 に割り当てたパート記号を a から順に返す。
 
 [[ref-pmd-sxmml-pmd-pcm-voice-number]]
-`(sxmml-pmd-pcm-voice-number env name)`:: PCMの定義名または従来の数値名をネイティブ番号へ解決する。
+`(sxmml-pmd-pcm-voice-number env name [source])`:: 音源は既定で pcm。ppz8 ではバンク位置×128＋サンプル番号を使う。PCMの定義名または従来の数値名をネイティブ番号へ解決する。
 
 PMDの固定パート選択時、名前で補完するトラックと明示partのトラックが競合した場合は、パートと両名を示すvalue-errorとします。

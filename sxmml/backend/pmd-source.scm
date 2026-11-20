@@ -86,8 +86,8 @@
 (define (%ssg-track-output env track lis part)
   (%track-output env track lis part %pmd-ssg-voice-output %pmd-ssg-volume-output %pmd-ssg-volume-change-output))
 
-(define (%pcm-track-output env track lis part)
-  (%track-output env track lis part (cut %pmd-pcm-voice-output env <>) %pmd-pcm-volume-output %pmd-pcm-volume-change-output))
+(define (%pcm-track-output env track lis part source)
+  (%track-output env track lis part (cut %pmd-pcm-voice-output env <> source) %pmd-pcm-volume-output %pmd-pcm-volume-change-output))
 
 (define (%pmd-track-output! state lis)
   (let loop ([rest lis] [loop-seen? #f] [depth 0])
@@ -251,6 +251,10 @@
             (^[]
               (%pmd-source-head-output env pmd3?)
               (%pmd-source-meta-output env pmd3?)
+              (let1 parts (sxmml-pmd-ppz-parts tracks)
+                (unless (null? parts)
+                  (format #t "~a#PPZExtend ~a\r\n" (if pmd3? "; " "")
+                          (string-join (map symbol->string parts) ""))))
               (let1 text
                   (with-output-to-string
                     (^[]
@@ -260,7 +264,7 @@
                            (case source
                              [(opn) (%fm-track-output env track ir part fm-voice-output)]
                              [(ssg) (%ssg-track-output env track ir part)]
-                             [(pcm) (%pcm-track-output env track ir part)]
+                             [(pcm ppz8) (%pcm-track-output env track ir part source)]
                              [(rhythm) (%pmd-rhythm-track-output track ir)])))
                        tracks env)))
                 (%pmd-source-voice-output voices)
@@ -519,8 +523,8 @@
 (define (%pmd-ssg-voice-output obj)
   (format #t "@~d" (%pmd-voice-number obj 9 "SSG voice number")))
 
-(define (%pmd-pcm-voice-output env obj)
-  (format #t "@~d" (sxmml-pmd-pcm-voice-number env (slot-ref obj 'value))))
+(define (%pmd-pcm-voice-output env obj source)
+  (format #t "@~d" (sxmml-pmd-pcm-voice-number env (slot-ref obj 'value) source)))
 
 ;; SSG・PCM の音色の値は PMD の @ の数値としてそのまま出力するので、0 から max までの
 ;; 整数に限る。数でない値は、エラーに書かれた値を示す
