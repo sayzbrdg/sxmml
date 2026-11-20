@@ -56,6 +56,15 @@ export GAUCHE_DYNLOAD_PATH="$sxmml_prefix/lib/sxmml${GAUCHE_DYNLOAD_PATH:+:$GAUC
 
 `first.mml` の G 行は `G l%12o4cr` になります。
 
+## FMP7 用の曲を生成する
+
+FMP7 用のソースは `sxlc -m fmp7 song.sxl` で生成します。初期トラックはありません。例えば次の曲は、SSG の三角波を使って演奏する `song.mwi` になります。
+
+```scheme
+(define-track lead :sound-source 'ssg)
+(mml lead "@{triangle1} o4c8d8e4")
+```
+
 ## NSD.Lib 用の曲を生成する
 
 `song.sxl` にトラックの音源とフレーズを書きます。
@@ -153,15 +162,8 @@ sxlc -m pmd --define variant hard variant.sxl
 
 ## 謝辞
 
-PMD バイナリ形式への対応にあたり、公開されている PMD 4.8s のソースから MML コマンドと命令コードの対応を確認し、MC.EXE に入力する MML を変更しながら生成バイナリの差分を調べ、データ形式を解析しました。`sxmml.backend.pmd-binary` の処理は独自に実装したものです。PMD ソースの処理の移植・翻訳は行っておらず、同一の動作・出力を目指すものでもありません。
+PMD バイナリ形式の調査では、PMD 4.8s のソースを参照し、MML コマンドと命令コードの対応を確認しました。PMD の作者である梶原正裕氏に感謝します。
 
-PMD の作者である梶原正裕氏に感謝します。
+## ライセンス
 
 ライセンスは [BSD 3-Clause License](LICENSE) です。
-
-FMP7 用のソースは `sxlc -m fmp7 song.sxl` で生成します。初期トラックはありません。例えば次の曲は、SSG の三角波を使って演奏する `song.mwi` になります。
-
-```scheme
-(define-track lead :sound-source 'ssg)
-(mml lead "@{triangle1} o4c8d8e4")
-```
