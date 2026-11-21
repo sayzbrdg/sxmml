@@ -194,6 +194,26 @@
                               "from named-input.sxl")))))
   (unwind-protect
       (begin
+        (let ()
+          (define (render mode form)
+            (pmd-text "default-length" (list form) mode #f))
+          (define diagnostic
+            "invalid PMD3 default note length: 5 ticks (expected a divisor of 96 ticks at resolution 24)")
+          (test* "PMD3 通常トラックの既定音長は分母で出力する" #t
+                 (boolean (string-contains (render 'pmd3 '(mml G "c8")) "G l8o4c")))
+          (test* "PMD3 リズムの K 行の既定音長は分母で出力する" #t
+                 (boolean (string-contains (render 'pmd3 '(rhythm L "@b8")) "K l8 R0")))
+          (test* "PMD3 通常トラックで分母に換算できない音長はエラー"
+                 (test-error <sxmml-value-error> diagnostic)
+                 (render 'pmd3 '(mml G "c%5")))
+          (test* "PMD3 リズムで分母に換算できない音長はエラー"
+                 (test-error <sxmml-value-error> diagnostic)
+                 (render 'pmd3 '(rhythm L "@b%5")))
+          (test* "PMD4 は通常トラックと K 行を tick 表記で出力する" '(#t #t)
+                 (let1 text (pmd-text "default-length-pmd4"
+                                      '((mml G "c%5") (rhythm L "@b%5")) 'pmd #f)
+                   (list (boolean (string-contains text "G l%5o4c"))
+                         (boolean (string-contains text "K l%5 R0"))))))
         (let ([settings '((define-metadata detune 'extend) (define-metadata lfospeed 'normal))])
           (define (directives mode)
             (filter #/^(; )?#(Detune|LFOSpeed|EnvelopeSpeed) /
@@ -223,7 +243,7 @@
           (test* "PPZ8の8パートを使用できる" "#PPZExtend abcdefgh" (car (lines (many 8))))
           (test* "PPZ8の9パート目を拒否する" (test-error <sxmml-value-error>) (lines (many 9)))
           (test* "PMD3ソースではPPZ8宣言のみコメントにする"
-                 '("; #PPZExtend a" "a l%12r")
+                 '("; #PPZExtend a" "a l8r")
                  (lines (append tracks '((mml a "r8"))) 'pmd3)))
 
         (parameterize ([sxmml-environment (make <sxmml-environment>)])
@@ -370,7 +390,7 @@
                                 (mml A "@{b}c8"))
                               'pmd3-source #t)
             (test* "PMD3でも未使用定義を省きヘッダと終端を維持する"
-                   '(((0 1)) #t "A l%12@0o4c" 26)
+                   '(((0 1)) #t "A l8@0o4c" 26)
                    (list (voice-lines text)
                          (boolean (string-scan text ";; mode: PMDver3.3\r\n"))
                          (a-line text)

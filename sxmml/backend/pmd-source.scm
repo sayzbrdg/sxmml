@@ -66,7 +66,7 @@
 (define (sxmml-pmd-source-output env)
   (%pmd-source-output env #f))
 
-(define (%track-output env track lis part voice-proc! vol-set-proc! vol-change-proc!)
+(define (%track-output env track lis part length-output voice-proc! vol-set-proc! vol-change-proc!)
   (let1 mode (sxmml-output-track-most-frequent-ticks track)
     (unless (null? lis)
       (let1 state (make <sxmml-pmd-track-environment> :mode (or mode 0)
@@ -76,18 +76,18 @@
                        :lfo-output (cut %pmd-lfo-output env <>)
                        :envelope-output (cut %pmd-envelope-output env <>))
         (format #t "~a " part)
-        (when mode (format #t "l%~d" mode))
+        (when mode (length-output mode))
         (%pmd-track-output! state lis)
         (display "\r\n\r\n")))))
 
-(define (%fm-track-output env track lis part voice-proc)
-  (%track-output env track lis part voice-proc %pmd-fm-volume-output %pmd-fm-volume-change-output))
+(define (%fm-track-output env track lis part length-output voice-proc)
+  (%track-output env track lis part length-output voice-proc %pmd-fm-volume-output %pmd-fm-volume-change-output))
 
-(define (%ssg-track-output env track lis part)
-  (%track-output env track lis part %pmd-ssg-voice-output %pmd-ssg-volume-output %pmd-ssg-volume-change-output))
+(define (%ssg-track-output env track lis part length-output)
+  (%track-output env track lis part length-output %pmd-ssg-voice-output %pmd-ssg-volume-output %pmd-ssg-volume-change-output))
 
-(define (%pcm-track-output env track lis part source)
-  (%track-output env track lis part (cut %pmd-pcm-voice-output env <> source) %pmd-pcm-volume-output %pmd-pcm-volume-change-output))
+(define (%pcm-track-output env track lis part length-output source)
+  (%track-output env track lis part length-output (cut %pmd-pcm-voice-output env <> source) %pmd-pcm-volume-output %pmd-pcm-volume-change-output))
 
 (define (%pmd-track-output! state lis)
   (let loop ([rest lis] [loop-seen? #f] [depth 0])
@@ -172,11 +172,11 @@
         [else
          (values loop-seen? depth)]))
 
-(define (%pmd-rhythm-track-output track lis)
+(define (%pmd-rhythm-track-output track lis length-output)
   (let ([has-loop? (boolean (find (^o (is-a? o <sxmml-mml-loop>)) lis))]
         [state (make <sxmml-pmd-track-environment>)])
     (%pmd-rhythm-definition-track-output state has-loop? lis)
-    (%pmd-rhythm-deploy-track-output! state track has-loop? lis)))
+    (%pmd-rhythm-deploy-track-output! state track has-loop? lis length-output)))
 
 (define (%pmd-rhythm-definition-track-output state has-loop? lis)
   (define (output-ir obj depth)
@@ -225,12 +225,13 @@
         (loop rest #t 0)))
     (display "\r\n")))
 
-(define (%pmd-rhythm-deploy-track-output! state track has-loop? lis)
+(define (%pmd-rhythm-deploy-track-output! state track has-loop? lis length-output)
   (unless (null? lis)
     (display "K ")
     (and-let1 mode (sxmml-output-track-most-frequent-ticks track)
               (slot-set! state 'mode mode)
-              (format #t "l%~d " mode))
+              (length-output mode)
+              (display " "))
     (display "R0")
     (when has-loop?
       (display " L R1"))
@@ -240,6 +241,17 @@
   (let ([output-file (slot-ref env 'output)]
         [voices (make <sxmml-pmd-fm-voices> :definitions (sxmml-voice-table-find env 'opn))]
         [tracks (sxmml-pmd-output-tracks-select env)])
+    (define (length-output ticks)
+      (if pmd3?
+        (let* ([resolution (slot-ref env 'resolution)]
+               [whole (* resolution 4)]
+               [denominator (/ whole ticks)])
+          (unless (integer? denominator)
+            (errorf <sxmml-value-error>
+                    "invalid PMD3 default note length: ~d ticks (expected a divisor of ~d ticks at resolution ~d)"
+                    ticks whole resolution))
+          (format #t "l~d" (exact denominator)))
+        (format #t "l%~d" ticks)))
     (define (fm-voice-output obj)
       (format #t "@~d" (sxmml-pmd-fm-voice-number! voices (slot-ref obj 'value))))
     (unless output-file
@@ -262,10 +274,10 @@
                        (^[_ part source track ir]
                          (when track
                            (case source
-                             [(opn) (%fm-track-output env track ir part fm-voice-output)]
-                             [(ssg) (%ssg-track-output env track ir part)]
-                             [(pcm ppz8) (%pcm-track-output env track ir part source)]
-                             [(rhythm) (%pmd-rhythm-track-output track ir)])))
+                             [(opn) (%fm-track-output env track ir part length-output fm-voice-output)]
+                             [(ssg) (%ssg-track-output env track ir part length-output)]
+                             [(pcm ppz8) (%pcm-track-output env track ir part length-output source)]
+                             [(rhythm) (%pmd-rhythm-track-output track ir length-output)])))
                        tracks env)))
                 (%pmd-source-voice-output voices)
                 (display text))
