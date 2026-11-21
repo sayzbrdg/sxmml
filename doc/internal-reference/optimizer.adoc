@@ -9,6 +9,8 @@
 
 入力リストとその IR は変更しません。書き換える命令は再生成し、変更のない命令は元のオブジェクトを共有できます。再生成時は原型のクラスを使い、変更対象以外のインスタンススロットは値と未束縛状態を引き継ぎます。スロットの値は浅く共有します。
 
+出力の末尾を引数 `tail` で指定する内部手続きは、その前に結果を構築し、`tail` 自体は変更しません。
+
 既知の IR の派生クラスには親の命令の最適化規則が適用されます。親の規則を適用できない独自の意味を持つ IR は、共通基底から定義してください。LFO の選択と切替など既知の特殊化は親より先に判定します。
 
 実装は link:../../sxmml/optimizer.scm[optimizer.scm] にあります。このモジュールは63手続きと3 record 型を定義し、10手続きを公開します。
@@ -49,7 +51,7 @@
 新しい反復の回数は2～255です。制御命令の費用は `[ ]` が2、`[ : ]` が3です。これらの設定で xref:repeat-tree.adoc[反復木の探索]を呼びます。
 結果が外側の反復を含めて32段を超え、その区間の圧縮前より深い場合は、区間を圧縮前の深さのまま出力します。
 
-反復の開始または終了が欠けていれば、ブロックの構築時にエラーになります。出力形式で許される命令や値の範囲は、変換するバックエンドが判断します。
+開始のない終了や脱出、終了のない開始は、ブロックの構築時にエラーになります。出力形式で許される命令や値の範囲は、変換するバックエンドが判断します。
 
 [[ref-optimizer-sxmml-ir-optimize-with-repeats]]
 === `(sxmml-ir-optimize-with-repeats ir)`
@@ -142,11 +144,10 @@
 先頭から同じクラスのリズム効果を復元し、新しい IR と残りの効果列を二値で返します。最初の寄与元を原型にし、各標準スロットを残存効果から設定します。設定しなかった標準スロットは `#f` にします。
 
 [[ref-optimizer-internal-compose-setting-effects]]`(%compose-setting-effects key relative? value origin position later)`::
-先行効果の各値と後続効果laterを合成します。
+先に適用する効果の各値を、後続効果 `later` と合成します。
 後続が絶対指定なら、その record を返します。後続が相対指定なら値を加算し、先行効果の種類・原型・位置を引き継ぎます。`later` が `#f` なら先行効果の record を作ります。
 
 [[ref-optimizer-internal-setting-effects-to-ir]]`(%setting-effects\->ir table tail)`::
-効果表を寄与位置順の IR 列にする。
 寄与位置順に設定効果を IR に戻し、`tail` の前に連結します。隣接する同じクラスのリズム設定はまとめて復元します。
 
 == 状態追跡の内部処理
@@ -169,11 +170,11 @@
 
 [[ref-optimizer-internal-state-set]]`(%state-set state key value)`::
 連想リストの鍵を置き換えます。
-新しい連想リストを返し、元の表は変更しません。既知値 `#f` も保持。
+新しい連想リストを返し、元の表は変更しません。既知の値には `#f` も含まれます。
 
 [[ref-optimizer-internal-state-effect-compose]]`(%state-effect-compose effects key effect)`::
 先行する効果表へ後続の一効果を合成します。
-更新後の表を返します。後続が絶対指定なら上書きし、相対指定で先行効果があれば値を加算して先行の相対指定フラグを引き継ぐ。元の表は変更しません。
+更新後の表を返します。後続が絶対指定なら上書きし、相対指定で先行効果があれば値を加算して先行効果が相対指定かどうかを引き継ぎます。元の表は変更しません。
 
 [[ref-optimizer-internal-state-effects-compose]]`(%state-effects-compose earlier later)`::
 先行する効果表 `earlier` に、後続の各効果を適用します。効果ごとの合成には `%state-effect-compose` を使います。
@@ -184,22 +185,21 @@
 
 [[ref-optimizer-internal-state-effects-apply]]`(%state-effects-apply state effects)`::
 入口状態に効果を適用します。
-出口状態の連想リストを返します。相対変化で入口値が不明なら不明を維持。元の表は変更しません。
+出口状態の連想リストを返します。相対変化の入口値が不明なら、出口でも不明とします。元の表は変更しません。
 
 [[ref-optimizer-internal-state-join]]`(%state-join left right)`::
-経路ごとの状態を合わせる。
-両側に同じ既知値がある鍵だけを残す。入力表は変更しません。
+経路ごとの状態を合流し、両側で同じ値が分かっている鍵だけを残します。入力表は変更しません。
 
 [[ref-optimizer-internal-state-region-effects]]`(%state-region-effects items cache)`::
-領域の各命令・反復の効果を実行順に合成する。
-通常命令には一効果を合成し、反復には本文全体を要約した効果を合成します。入れ子の反復は要約を再利用し、作業用 `cache` を更新する場合がある。
+領域の各命令・反復の効果を実行順に合成します。
+通常命令には一効果を合成し、反復には本文全体を要約した効果を合成します。入れ子の反復は要約を再利用し、作業用の `cache` を更新する場合があります。
 
 [[ref-optimizer-internal-state-repeat-effects]]`(%state-repeat-effects block cache)`::
 反復全体の効果を求めます。
 脱出のある反復では、最終回に脱出位置までを実行した効果を返します。結果の効果表は元のブロックを鍵に `cache` へ保存します。反復回数は正の正確な整数を前提とします。
 
 [[ref-optimizer-internal-state-optimize-repeat]]`(%state-optimize-repeat block state cache)`::
-全周回に共通する入口で本文を最適化する。
+全周回で共通する入口状態を使って本文を最適化します。
 最適化したブロックと、出口状態を二値で返します。出口状態は、反復に入るときの状態に、反復全体の効果を適用して求めます。回数1の反復では脱出後の列を保持しますが、その効果は出口状態に加えません。
 
 [[ref-optimizer-internal-state-optimize-region]]`(%state-optimize-region items state cache)`::
@@ -216,7 +216,7 @@
 [[ref-optimizer-class-repeat-block]]
 === `<repeat-block>`
 
-既存の反復のブロック（record 型）。`start`・`break`・`end` は `[`・`:`・`]` のオブジェクト、`front`・`back` は `:` の前後の要素のリスト。`:` がなければ `break`・`back` は `#f`。
+既存の反復を保持する record 型です。`start`・`break`・`end` は `[`・`:`・`]` のオブジェクト、`front`・`back` は `:` の前後の要素のリストです。`:` がなければ `break`・`back` は `#f` です。
 フィールドは変更できません。
 
 * [[ref-optimizer-internal-make-repeat-block]]`(%make-repeat-block start front break back end)`
@@ -228,8 +228,7 @@
 * [[ref-optimizer-internal-repeat-block-end]]`(%repeat-block-end b)`
 
 [[ref-optimizer-internal-repeat-structure]]`(%repeat-structure lis)`::
-平坦なオブジェクトのリストを、オブジェクトとブロックの要素のリストにする。
-新しいリストを返します。`]` が足りなければ `MML terminated before repeat end`、`[` のない `]` は `repeat end appeared before repeat start` エラー。
+平坦な IR 列を受け取り、個別の IR と反復ブロックからなるリストを返します。反復の終端 `]` がなければ `MML terminated before repeat end`、反復の外に `]` または `:` があれば `repeat end appeared before repeat start` を報告します。
 
 [[ref-optimizer-internal-repeat-flatten]]`(%repeat-flatten items tail)`::
 組み立てたブロックを平坦な IR 列に戻し、`tail` の前に接続します。
@@ -237,14 +236,13 @@
 
 [[ref-optimizer-internal-repeat-expansion]]`(%repeat-expansion items tail :optional expand?)`::
 反復回数を `r` とすると、前半と後半の組を `r - 1` 回、前半を最後に一回並べます。`expand?` が偽を返したブロックは、入れ子のブロックを処理した上で外側の構造を残します。
-展開したオブジェクトのリストを返します。元のインスタンスを並べ、複製しません。変換結果は `tail` の前に構築します。
+元の IR を共有し、反復の出現ごとに別のリストセルを作ります。結果は `tail` の前に構築します。
 
 [[ref-optimizer-internal-repeat-expanded-length]]`(%repeat-expanded-length items)`::
-`%repeat-expansion` の長さを、展開せずに求める。
-整数を返します。
+反復を展開したときの要素数を、展開列を作らずに求めます。
 
 [[ref-optimizer-internal-repeat-expand-small]]`(%repeat-expand-small items limit)`::
-回数が 1 以上で、展開後の長さが `limit` 以下のブロックを、内側から順に展開する。`L` を含むブロックと、同じ段に二つ以上の `:` を持つブロックは展開しません。
+回数が 1 以上で、展開後の長さが `limit` 以下のブロックを、内側から順に展開します。`L` を含むブロックと、同じ段に二つ以上の `:` を持つブロックは展開しません。
 新しい要素のリストを返します。
 
 [[ref-optimizer-internal-repeat-class-accessors]]`(%repeat-class-accessors class)`::
@@ -265,12 +263,10 @@
 真偽値を返します。
 
 [[ref-optimizer-internal-repeat-tree-to-ir]]`(%repeat-tree\->ir tree outputs tail)`::
-圧縮した木をオブジェクトのリストにする。
 葉は `outputs` の出力に置き換え、反復には新しい `[`・`:`・`]` のオブジェクトを作ります。変換結果は `tail` の前に構築します。
 
 [[ref-optimizer-internal-repeat-depth]]`(%repeat-depth lis)`::
-平坦なオブジェクトのリストの、反復の入れ子の最大の深さ。
-整数を返します。
+平坦な IR 列に含まれる反復の最大の入れ子の深さを返します。
 
 == 利用例
 
