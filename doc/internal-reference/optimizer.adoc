@@ -1,21 +1,19 @@
-= `sxmml.optimizer` のIR列最適化
+= `sxmml.optimizer` の IR 列最適化
 :toc: left
 
-63手続きとrecord型3件を定義し、10手続きを公開します。入力は整列済みの有効な共通IR列、出力も平坦なIR列です。登録環境の検索、整列化、集計確定、最適化要求の数値解釈は行いません。
+整列済みの有効な IR 列を受け取り、平坦な IR 列を返します。
+登録された IR を整列するのは xref:output.adoc[出力準備]の役割です。
+最適化レベルから処理を選ぶのはバックエンドです。PMD の選択規則は xref:pmd.adoc[PMD 共通処理]、FMP7 の選択規則は xref:fmp7.adoc[FMP7 共通処理]を参照してください。NSD.Lib は整列後の列を順に変換します。
 
-局所整理・状態追跡・休符結合は、それぞれ整列済みの IR 列を受け取り、単独で実行できます。
-入力のリストと IR は変更しません。書き換える命令には新しい IR を使い、変更のない命令は入力と共有できます。局所整理では、結果を組み立てる際に新しく生成した設定 IR を更新することがあります。
+局所整理・状態追跡・休符結合は単独で呼び出せます。各処理の削減対象と組み合わせたときの効果は、下記の手続きごとに説明します。
 
-反復圧縮には xref:repeat-tree.adoc[repeat-tree]の C コアを使い、回数2～255、制御費用は[ ]が2、[ : ]が3、窓幅は通常256・展開付き1024、展開上限256、入れ子上限32を維持します。探索の上限と出力形式の上限を同一の規則にはまとめません。削減効果はIRの要素数で評価し、意味保持とは区別します。
+入力リストとその IR は変更しません。書き換える命令は再生成し、変更のない命令は元のオブジェクトを共有できます。再生成時は原型のクラスを使い、変更対象以外のインスタンススロットは値と未束縛状態を引き継ぎます。スロットの値は浅く共有します。
 
+出力の末尾を引数 `tail` で指定する内部手続きは、その前に結果を構築し、`tail` 自体は変更しません。
 
-具体的なIRクラスの派生には、対応する既知の命令の最適化規則を適用します。既知の特殊化は親より先に判定し、LFOの選択と切替を別状態とします。親の規則を適用できない独自の意味を持つIRは、共通基底から定義します。型への所属は`is-a?`、複合した型制約は`of-type?`、実際のクラス同士の比較は`equal?`で表します。
+既知の IR の派生クラスには親の命令の最適化規則が適用されます。親の規則を適用できない独自の意味を持つ IR は、共通基底から定義してください。LFO の選択と切替など既知の特殊化は親より先に判定します。
 
-結果のインスタンス同一性や、入力から独立した完全な複製は保証しません。再生成では原型のクラス、変更対象以外のインスタンススロットの値・未束縛状態を保持します。値自体は浅く共有します。絶対指定の上書きは後続IR、相対合成は先行の寄与元、リズム設定のまとめ直しは最初の残存効果の寄与元、休符結合は後の休符を原型とします。削除されたIRや、合成の原型に選ばれなかったIRの付加情報は保存しません。一律の未変更判定による再利用は行いません。
-
-`%setting-effects->ir`・`%repeat-flatten`・`%repeat-expansion`・`%repeat-tree->ir`はtailの前へ構築します。tailは必須で、空リストなら単独の結果列になります。入力列・IR・tailを変更せず、自分が構築したセルだけを更新できます。反復の各出現のセルは別に作ります。
-
-反復圧縮は、論理要素・出力テンプレート・出力IR数の三つのベクタを保持します。逆順原子列を一度走査して埋め、タイの先頭側を繰り返しコピーしません。圧縮結果の深さは一度求め、深さ上限の比較が必要な場合にだけrawを構築します。
+実装は link:../../sxmml/optimizer.scm[optimizer.scm] にあります。このモジュールは63手続きと3 record 型を定義し、10手続きを公開します。
 
 == 基本の最適化手続き
 
@@ -32,83 +30,243 @@
 [[ref-optimizer-sxmml-ir-merge-rests]]
 === `(sxmml-ir-merge-rests ir)` — 休符結合
 
-隣り合う休符を、音長の合計が等しい一つの休符にまとめます。新しい休符は後の休符を原型とし、ticks 以外のスロットの値と未束縛状態を引き継ぎます。
+隣り合う休符を、音長の合計が等しい一つの休符にまとめます。新しい休符は後の休符を原型とし、`ticks` 以外のスロットの値と未束縛状態を引き継ぎます。
 
 [[ref-optimizer-sxmml-ir-optimize]]
 === `(sxmml-ir-optimize ir)` — 基本の組み合わせ
 
 局所整理、状態追跡、休符結合の順に適用し、結果の IR 列を返します。例えば、状態追跡で二つの休符の間にある冗長な設定が取り除かれると、続く休符結合でその二つをまとめられます。
 
-実装は link:../../sxmml/optimizer.scm[optimizer.scm] にあります。
+== 反復圧縮
 
-== その他の定義
+[[ref-optimizer-sxmml-ir-compress-repeats]]
+=== `(sxmml-ir-compress-repeats ir :key (expand-small #f))`
 
-[cols="2,4,4,1",options="header"]
-|===
-|名前・書式 |引数と役割 |戻り値・副作用・失敗条件 |ソース
-|[[ref-optimizer-sxmml-ir-optimize-full-repeat]]`(sxmml-ir-optimize-full-repeat ir :optional notify)` |基本整理と展開の順を変えた全幅探索。短い列を選び、同数なら基本整理を先に行った列を選ぶ |入力のIRは変更しない |link:../../sxmml/optimizer.scm[optimizer.scm]
-|[[ref-optimizer-sxmml-run-compression-jobs]]`(sxmml-run-compression-jobs tasks jobs)` |各トラックの圧縮手続きと空トラックを表す#fを受付順に処理し、対応するIR列を返す |入力のIRは変更しない |link:../../sxmml/optimizer.scm[optimizer.scm]
-|[[ref-optimizer-internal-large-search-notifier]]`(%large-search-notifier notify)` |区間長を受け取り、3,072を超える最初の探索を通知する手続きを返す |入力のIRは変更しない |link:../../sxmml/optimizer.scm[optimizer.scm]
-|[[ref-optimizer-internal-repeat-settings]]`(%repeat-settings window)` |指定した探索幅と共通の反復費用で設定を作る |入力のIRは変更しない |link:../../sxmml/optimizer.scm[optimizer.scm]
-|[[ref-optimizer-sxmml-ir-compress-repeats-batch]]`(sxmml-ir-compress-repeats-batch ir-lists :key (jobs 1) (expand-small #f))` |前処理済みのIR列を上限付きで圧縮 |空列の位置と入力順を保存。失敗時は元の例外を伝える |link:../../sxmml/optimizer.scm[optimizer.scm]
-|[[ref-optimizer-sxmml-ir-compress-repeats]]`(sxmml-ir-compress-repeats ir :key (expand-small #f))` |命令列の反復表現への圧縮 |expand-small=#fは既存反復を原子として扱い、#tは小さい反復を展開。構造化の既存エラーを維持 |link:../../sxmml/optimizer.scm[optimizer.scm]
-|[[ref-optimizer-sxmml-ir-optimize-with-repeats]]`(sxmml-ir-optimize-with-repeats ir)` |通常反復圧縮付きの組合せ |基本組合せの結果へexpand-small=#fの圧縮を適用 |link:../../sxmml/optimizer.scm[optimizer.scm]
-|[[ref-optimizer-sxmml-ir-optimize-with-repeat-expansion]]`(sxmml-ir-optimize-with-repeat-expansion ir)` |展開付き反復圧縮の組合せ |基本組合せの結果へexpand-small=#tの圧縮を適用。通常圧縮済み列からは開始しない |link:../../sxmml/optimizer.scm[optimizer.scm]
-|[[ref-optimizer-class-setting-effect]]`<setting-effect>` +
-[[ref-optimizer-internal-make-setting-effect]]`(%make-setting-effect key relative value origin position)` +
-[[ref-optimizer-internal-setting-effect-p]]`(%setting-effect? obj)` +
-[[ref-optimizer-internal-setting-effect-key]]`(%setting-effect-key effect)` +
-[[ref-optimizer-internal-setting-effect-relative-p]]`(%setting-effect-relative? effect)` +
-[[ref-optimizer-internal-setting-effect-value]]`(%setting-effect-value effect)` +
-[[ref-optimizer-internal-setting-effect-origin]]`(%setting-effect-origin effect)` +
-[[ref-optimizer-internal-setting-effect-position]]`(%setting-effect-position effect)` |区間内の設定効果（record 型）。設定の鍵、相対指定か、値、元の IR、合成に残る最初の寄与位置を保持 |フィールドは変更できない。絶対指定の偽値と、効果の不在を区別する |link:../../sxmml/optimizer.scm[optimizer.scm]
-|[[ref-optimizer-internal-ir-same-class-p]]`(%ir-same-class? a b)` |直接属するクラスを比較する |`class-of`の結果を`equal?`で比較。親と派生の所属判定とは区別 |link:../../sxmml/optimizer.scm[optimizer.scm]
-|[[ref-optimizer-internal-ir-copy-except]]`(%ir-copy-except origin omitted-slots)` |除外対象以外の束縛済みinstance slotを同じクラスの未初期化インスタンスへ浅くコピーする |除外対象と原型の未束縛slotは未束縛。initializeを再実行しない。呼出し側が変更値を一度設定する |link:../../sxmml/optimizer.scm[optimizer.scm]
-|[[ref-optimizer-internal-ir-setting-effects-fold]]`(%ir-setting-effects-fold proc state obj position)` |各設定効果を`(proc key relative? value origin position state)`へ渡して折り畳む |認識可否とstateの2値。既知の空設定は認識済みで呼出しゼロ回。未知命令・未対応の全体相対リズム値は対象外。LFOの選択・切替は生のchannelを含む別の鍵 |link:../../sxmml/optimizer.scm[optimizer.scm]
-|[[ref-optimizer-internal-single-setting-effect-fold]]`(%single-setting-effect-fold proc state obj position key relative?)` |valueの単一効果をprocへ渡す |認識済みと更新後stateの2値。偽値のvalueも指定値として渡す |link:../../sxmml/optimizer.scm[optimizer.scm]
-|[[ref-optimizer-internal-rhythm-setting-effects-fold]]`(%rhythm-setting-effects-fold proc state obj position key relative?)` |既存順の全体・六楽器の効果を折り畳む |認識済みと更新後stateの2値。#fは飛ばし0は渡す。未対応の全体相対値は呼出し前に振り分ける |link:../../sxmml/optimizer.scm[optimizer.scm]
-|[[ref-optimizer-internal-rhythm-setting-p]]`(%rhythm-setting? obj)` |既知のリズム設定への所属を判定する |音量・相対音量・パンとその派生なら真 |link:../../sxmml/optimizer.scm[optimizer.scm]
-|[[ref-optimizer-internal-single-setting-effect-to-ir]]`(%single-setting-effect\->ir effect)` |単一効果からIRを作る |原型をvalue以外でコピーし、最終値を一度設定。原型の情報保持は%ir-copy-exceptに従う |link:../../sxmml/optimizer.scm[optimizer.scm]
-|[[ref-optimizer-internal-rhythm-setting-effects-to-ir]]`(%rhythm-setting-effects\->ir effects)` |同じ実クラスの連続するリズム効果一群を復元する |新しいIRと残りの効果列の2値。先頭は既知のリズム設定を前提とし、最初の寄与元を原型にする。標準slotは残存効果で設定後、未束縛だけ#fへ確定する |link:../../sxmml/optimizer.scm[optimizer.scm]
-|[[ref-optimizer-internal-compose-setting-effects]]`(%compose-setting-effects key relative? value origin position later)` |先行効果の各値と後続効果laterを合成する |後続が絶対指定ならそのrecordを返す。後続が相対指定なら加算し、先行の種類・原型・位置を保持したrecordを作る。laterが`#f`なら先行効果のrecordを作る |link:../../sxmml/optimizer.scm[optimizer.scm]
-|[[ref-optimizer-internal-setting-effects-to-ir]]`(%setting-effects\->ir table tail)` |効果表を寄与位置順の IR 列にする |新しい IR のリストを返す。同一クラスの隣接するリズム設定はまとめ、最初の寄与元を原型とする。更新する標準スロットは残存効果から組み立て、付加スロットは原型から引き継ぐ。元 IR は変更しない |link:../../sxmml/optimizer.scm[optimizer.scm]
-|[[ref-optimizer-class-state-effect]]`<state-effect>` +
-[[ref-optimizer-internal-make-state-effect]]`(%make-state-effect relative value)` +
-[[ref-optimizer-internal-state-effect-p]]`(%state-effect? obj)` +
-[[ref-optimizer-internal-state-effect-relative-p]]`(%state-effect-relative? effect)` +
-[[ref-optimizer-internal-state-effect-value]]`(%state-effect-value effect)` |設定への効果（record 型）。相対変化かどうかと値を保持し、表に項目がなければ変化なし |フィールドは変更できない。相対変化は通常音量だけに使用 |link:../../sxmml/optimizer.scm[optimizer.scm]
-|[[ref-optimizer-internal-state-object-key]]`(%state-object-key obj)` |追跡する設定の鍵を求める |通常音量・音色・ゲートタイム・パン・デチューン・エンベロープは対応するシンボル。相対音量は絶対音量と同じ鍵。LFO の選択・切替は種類と生のチャンネルの対。それ以外は `#f` |link:../../sxmml/optimizer.scm[optimizer.scm]
-|[[ref-optimizer-internal-state-set]]`(%state-set state key value)` |連想リストの鍵を置き換える |新しい連想リストを返し、元の表は変更しない。既知値 `#f` も保持 |link:../../sxmml/optimizer.scm[optimizer.scm]
-|[[ref-optimizer-internal-state-effect-compose]]`(%state-effect-compose effects key effect)` |先行する効果表へ後続の一効果を合成する |更新後の表を返す。後続が絶対指定なら上書きし、相対指定で先行効果があれば値を加算して先行の相対指定フラグを引き継ぐ。元の表は変更しない |link:../../sxmml/optimizer.scm[optimizer.scm]
-|[[ref-optimizer-internal-state-effects-compose]]`(%state-effects-compose earlier later)` |先行 G と後続 F の効果表を F(G(x)) に合成する |後続の各効果を`%state-effect-compose`へ渡して折り畳む。絶対指定は上書き、後続が相対変化なら先行の絶対値または差分へ加算 |link:../../sxmml/optimizer.scm[optimizer.scm]
-|[[ref-optimizer-internal-state-effects-power]]`(%state-effects-power effects count)` |非負整数 `count` 回の効果を求める |0 回なら変化なし、正の回数の絶対指定は同じ値、相対変化は差分と回数の積。周回を展開しない |link:../../sxmml/optimizer.scm[optimizer.scm]
-|[[ref-optimizer-internal-state-effects-apply]]`(%state-effects-apply state effects)` |入口状態に効果を適用する |出口状態の連想リストを返す。相対変化で入口値が不明なら不明を維持。元の表は変更しない |link:../../sxmml/optimizer.scm[optimizer.scm]
-|[[ref-optimizer-internal-state-join]]`(%state-join left right)` |経路ごとの状態を合わせる |両側に同じ既知値がある鍵だけを残す。入力表は変更しない |link:../../sxmml/optimizer.scm[optimizer.scm]
-|[[ref-optimizer-internal-state-region-effects]]`(%state-region-effects items cache)` |領域の各命令・反復の効果を実行順に合成する |通常命令は一効果を直接合成し、反復は要約の効果列を合成する。入れ子の反復は要約を再利用し、作業用 `cache` を更新する場合がある |link:../../sxmml/optimizer.scm[optimizer.scm]
-|[[ref-optimizer-internal-state-repeat-effects]]`(%state-repeat-effects block cache)` |反復全体の効果を求める |最後は脱出前だけを実行する効果表を返し、元のブロックを鍵に `cache` へ保存。回数はコンパイラが保証する正の正確な整数を前提とする |link:../../sxmml/optimizer.scm[optimizer.scm]
-|[[ref-optimizer-internal-state-optimize-repeat]]`(%state-optimize-repeat block state cache)` |全周回に共通する入口で本文を最適化する |新しいブロックと出口状態の 2 値。出口は外側の入口と反復全体の要約から求める。1 回の反復の脱出後は保持し、出口状態へ反映しない |link:../../sxmml/optimizer.scm[optimizer.scm]
-|[[ref-optimizer-internal-state-optimize-region]]`(%state-optimize-region items state cache)` |領域の再指定を削除し、状態を追跡する |新しい要素列と出口状態の 2 値。反復・L では入口を合流し、同値と分かる絶対指定だけを削除。入力の状態表は変更しない |link:../../sxmml/optimizer.scm[optimizer.scm]
-|[[ref-optimizer-internal-sxmml-optimize-repeat]]`(%sxmml-optimize-repeat lis expand?)` |反復圧縮の内部処理。整列済みの `lis` をブロックに組み立て、`expand?` なら小さいブロックを展開し、`%repeat-compress` で圧縮する |平坦な新しいリストを返す。結果の再検査はテスト側で行う。リピートの組み立ての誤りは `%repeat-structure` のエラー |link:../../sxmml/optimizer.scm[optimizer.scm]
-|[[ref-optimizer-class-repeat-block]]`<repeat-block>` +
-[[ref-optimizer-internal-make-repeat-block]]`(%make-repeat-block start front break back end)` +
-[[ref-optimizer-internal-repeat-block-p]]`(%repeat-block? obj)` +
-[[ref-optimizer-internal-repeat-block-start]]`(%repeat-block-start b)` +
-[[ref-optimizer-internal-repeat-block-front]]`(%repeat-block-front b)` +
-[[ref-optimizer-internal-repeat-block-break]]`(%repeat-block-break b)` +
-[[ref-optimizer-internal-repeat-block-back]]`(%repeat-block-back b)` +
-[[ref-optimizer-internal-repeat-block-end]]`(%repeat-block-end b)` |既存のリピートのブロック（record 型）。`start`・`break`・`end` は `[`・`:`・`]` のオブジェクト、`front`・`back` は `:` の前後の要素のリスト。`:` がなければ `break`・`back` は `#f` |フィールドは変更できない |link:../../sxmml/optimizer.scm[optimizer.scm]
-|[[ref-optimizer-internal-repeat-structure]]`(%repeat-structure lis)` |平坦なオブジェクトのリストを、オブジェクトとブロックの要素のリストにする |新しいリストを返す。`]` が足りなければ `MML terminated before repeat end`、`[` のない `]` は `repeat end appeared before repeat start` エラー |link:../../sxmml/optimizer.scm[optimizer.scm]
-|[[ref-optimizer-internal-repeat-flatten]]`(%repeat-flatten items tail)` |`%repeat-structure` の逆 |平坦なオブジェクトのリストを返す |link:../../sxmml/optimizer.scm[optimizer.scm]
-|[[ref-optimizer-internal-repeat-expansion]]`(%repeat-expansion items tail :optional expand?)` |要素のリストを展開する。expand?が偽を返すブロックは構造を残す。反復回数 r はコンパイラが保証する正の正確な整数を前提とし、ブロックは (front back)^r−1^ front |展開したオブジェクトのリストを返す。元のインスタンスを並べ、複製しない |link:../../sxmml/optimizer.scm[optimizer.scm]
-|[[ref-optimizer-internal-repeat-expanded-length]]`(%repeat-expanded-length items)` |`%repeat-expansion` の長さを、展開せずに求める |整数を返す |link:../../sxmml/optimizer.scm[optimizer.scm]
-|[[ref-optimizer-internal-repeat-expand-small]]`(%repeat-expand-small items limit)` |回数が 1 以上で、展開後の長さが `limit` 以下のブロックを、内側から順に展開する。`L` を含むブロックと、2 個目以降の `:` を持つブロックは展開しない |新しい要素のリストを返す |link:../../sxmml/optimizer.scm[optimizer.scm]
-|[[ref-optimizer-internal-repeat-class-accessors]]`(%repeat-class-accessors class)` |実際のクラスの全スロットアクセサをベクタへまとめる |固定C比較が一回の比較文脈内でクラスごとに取得する。圧縮を越えるキャッシュは持たない |link:../../sxmml/optimizer.scm[optimizer.scm]
-|[[ref-optimizer-internal-optimizer-repeat-tree-compress]]`(%optimizer-repeat-tree-compress elements weights settings)` |前提を検査して固定C比較による圧縮へ渡す |`(values cost tree)`。任意の比較手続きや反復型は受け取らない。比較の契約は xref:native.adoc[C接続]を参照 |link:../../sxmml/optimizer.scm[optimizer.scm]
-|[[ref-optimizer-internal-repeat-compress]]`(%repeat-compress items depth settings :optional before-search)` |要素のリストを圧縮する。ブロックは本文を圧縮した原子とし、重みを出力の長さとする。`&` は直前の音符と一つの要素にまとめ、間にループの境界を入れない（`&` は音符の直後に置く）。探索直前にbefore-searchへ区間の論理要素数を渡す。`L`、`L` を含むブロック、ブロックの 2 個目以降の `:` の前後は別の区間として `%optimizer-repeat-tree-compress` に渡し、これらを生成するループに入れない |平坦なオブジェクトのリストを返す。入れ子の深さ（外側の `depth` を含む）が 32 を超え、圧縮前より深くなる区間は圧縮しない |link:../../sxmml/optimizer.scm[optimizer.scm]
-|[[ref-optimizer-internal-repeat-loop-p]]`(%repeat-loop? block)` |ブロックの本文（入れ子を含む）に `L` があるか |真偽値を返す |link:../../sxmml/optimizer.scm[optimizer.scm]
-|[[ref-optimizer-internal-repeat-tree-to-ir]]`(%repeat-tree\->ir tree outputs tail)` |圧縮した木をオブジェクトのリストにする |葉は `outputs` の出力に置き換え、反復には新しい `[`・`:`・`]` のオブジェクトを作る |link:../../sxmml/optimizer.scm[optimizer.scm]
-|[[ref-optimizer-internal-repeat-depth]]`(%repeat-depth lis)` |平坦なオブジェクトのリストの、リピートの入れ子の最大の深さ |整数を返す |link:../../sxmml/optimizer.scm[optimizer.scm]
-|===
+整列済みの列に現れる反復を `[`・`:`・`]` で表し、出力する IR の個数を減らします。
+既存の反復は本文を再帰的に圧縮してから一つの要素として扱います。各要素の重みは、その要素を出力したときの IR 数です。
+
+`expand-small` が `#t` なら、展開後の長さが256 IR 以下の既存反復を内側から展開して圧縮します。`L` を含む反復や同じ段に二つ以上の `:` がある反復は展開しません。
+探索に使う窓幅は既定で256、展開付きでは1024です。探索幅は、タイのまとまりや残した反復を一要素として数えます。
+
+新しい反復の回数は2～255です。制御命令の費用は `[ ]` が2、`[ : ]` が3です。これらの設定で xref:repeat-tree.adoc[反復木の探索]を呼びます。
+結果が外側の反復を含めて32段を超え、その区間の圧縮前より深い場合は、区間を圧縮前の深さのまま出力します。
+
+開始のない終了や脱出、終了のない開始は、ブロックの構築時にエラーになります。出力形式で許される命令や値の範囲は、変換するバックエンドが判断します。
+
+[[ref-optimizer-sxmml-ir-optimize-with-repeats]]
+=== `(sxmml-ir-optimize-with-repeats ir)`
+
+基本の組み合わせを適用した列を、`expand-small #f` で反復圧縮します。
+
+[[ref-optimizer-sxmml-ir-optimize-with-repeat-expansion]]
+=== `(sxmml-ir-optimize-with-repeat-expansion ir)`
+
+基本の組み合わせを適用した列を、`expand-small #t` で反復圧縮します。通常の反復圧縮を別途実行しておく必要はありません。
+
+[[ref-optimizer-sxmml-ir-optimize-full-repeat]]
+=== `(sxmml-ir-optimize-full-repeat ir :optional (notify #f))`
+
+基本の組み合わせを適用し、展開できる有限反復を展開してから、各区間の全幅で反復圧縮します。
+入力に展開できる有限反復がある場合は、先に展開してから基本の組み合わせを適用した列も同様に圧縮します。
+展開から始めた結果の IR 数が少ない場合はそちらを返します。同数の場合は、基本の組み合わせから始めた結果を返します。
+
+`L` を含む反復と、同じ段に複数の `:` がある反復は展開対象から外します。
+`notify` には一引数の手続きを指定できます。一回の呼び出しで、探索要素数が3,072を超える最初の区間について、その要素数を渡します。PMD はレベル9でこの手続きを使い、トラック名を含む警告を出します。
+
+== トラック単位の並列処理
+
+[[ref-optimizer-sxmml-ir-compress-repeats-batch]]
+=== `(sxmml-ir-compress-repeats-batch ir-lists :key (jobs 1) (expand-small #f))`
+
+`ir-lists` の各 IR 列を `sxmml-ir-compress-repeats` に渡し、同じ順のリストを返します。空の列は結果の同じ位置に残ります。
+
+[[ref-optimizer-sxmml-run-compression-jobs]]
+=== `(sxmml-run-compression-jobs tasks jobs)`
+
+`tasks` は引数のない手続きまたは空トラックを表す `#f` のリストです。`jobs` はワーカー数の上限で、正の正確な整数を指定します。
+実際のワーカー数は有効な手続きの数までに抑え、1以下なら逐次で実行します。返すリストの順は `tasks` と同じで、`#f` に対応する位置は空リストです。ワーカーが例外を返した場合は、結果を読む際にその例外を送出します。
+
+== 全幅探索の補助手続き
+
+[[ref-optimizer-internal-large-search-notifier]]`(%large-search-notifier notify)`::
+要素数が3,072を超える最初の呼び出しでだけ `notify` を呼ぶ手続きを返します。
+`notify` が `#f` なら通知は行いません。
+
+[[ref-optimizer-internal-repeat-settings]]`(%repeat-settings window)`::
+窓幅 `window` と、IR の個数で数えた共通の反復費用から探索用の設定を作ります。
+回数2～255を候補とし、反復は費用2、最終回の脱出を含む反復は費用3を設定します。
+
+== 局所整理の内部処理
+
+設定の種類ごとに区間内の効果を合成し、合成に残った寄与位置の順に IR を組み立てます。絶対指定の上書きは後の命令、相対指定の合成は先の寄与元を原型にします。リズム設定をまとめ直すときは、最初に残った効果の寄与元を使います。
+
+[[ref-optimizer-class-setting-effect]]
+=== `<setting-effect>`
+
+区間内の設定効果（record 型）。設定の鍵、相対指定か、値、元の IR、合成に残る最初の寄与位置を保持します。
+フィールドは変更できません。絶対指定の値には `#f` も含まれます。
+
+* [[ref-optimizer-internal-make-setting-effect]]`(%make-setting-effect key relative value origin position)`
+* [[ref-optimizer-internal-setting-effect-p]]`(%setting-effect? obj)`
+* [[ref-optimizer-internal-setting-effect-key]]`(%setting-effect-key effect)`
+* [[ref-optimizer-internal-setting-effect-relative-p]]`(%setting-effect-relative? effect)`
+* [[ref-optimizer-internal-setting-effect-value]]`(%setting-effect-value effect)`
+* [[ref-optimizer-internal-setting-effect-origin]]`(%setting-effect-origin effect)`
+* [[ref-optimizer-internal-setting-effect-position]]`(%setting-effect-position effect)`
+
+[[ref-optimizer-internal-ir-same-class-p]]`(%ir-same-class? a b)`::
+直接属するクラスを比較します。
+`class-of` の戻り値を `equal?` で比較します。
+
+[[ref-optimizer-internal-ir-copy-except]]`(%ir-copy-except origin omitted-slots)`::
+除外対象以外の束縛済みインスタンススロットを同じクラスの未初期化インスタンスへ浅くコピーします。
+除外対象と原型の未束縛スロットは、コピー先でも未束縛です。呼び出し側が変更するスロットの値を設定します。
+
+[[ref-optimizer-internal-ir-setting-effects-fold]]`(%ir-setting-effects-fold proc state obj position)`::
+各設定効果を `(proc key relative? value origin position state)` へ渡して折り畳みます。
+設定命令と認識したかどうか、および更新した `state` を二値で返します。既知の空設定は認識し、`proc` を呼ばずに元の状態を返します。未知の命令とリズム全体の相対音量は認識対象から外します。LFO の選択と切替には、元の `channel` と設定の種類を組にした鍵を使います。
+
+[[ref-optimizer-internal-single-setting-effect-fold]]`(%single-setting-effect-fold proc state obj position key relative?)`::
+単一の設定値を `proc` に渡し、真と更新後の `state` を二値で返します。設定値には `#f` も含まれます。
+
+[[ref-optimizer-internal-rhythm-setting-effects-fold]]`(%rhythm-setting-effects-fold proc state obj position key relative?)`::
+全体、バス、スネア、タム、シンバル、ハイハット、リムショットの順に効果を折り畳みます。値が `#f` のスロットは飛ばし、0 は設定値として渡します。真と更新後の `state` を二値で返します。
+
+[[ref-optimizer-internal-rhythm-setting-p]]`(%rhythm-setting? obj)`::
+既知のリズム設定への所属を判定します。
+音量・相対音量・パンとその派生クラスであれば真を返します。
+
+[[ref-optimizer-internal-single-setting-effect-to-ir]]`(%single-setting-effect\->ir effect)`::
+単一効果からIRを作ります。
+原型を `value` 以外はコピーし、最終値を設定します。原型の情報は `%ir-copy-except` の規則に従って引き継ぎます。
+
+[[ref-optimizer-internal-rhythm-setting-effects-to-ir]]`(%rhythm-setting-effects\->ir effects)`::
+先頭から同じクラスのリズム効果を復元し、新しい IR と残りの効果列を二値で返します。最初の寄与元を原型にし、各標準スロットを残存効果から設定します。設定しなかった標準スロットは `#f` にします。
+
+[[ref-optimizer-internal-compose-setting-effects]]`(%compose-setting-effects key relative? value origin position later)`::
+先に適用する効果の各値を、後続効果 `later` と合成します。
+後続が絶対指定なら、その record を返します。後続が相対指定なら値を加算し、先行効果の種類・原型・位置を引き継ぎます。`later` が `#f` なら先行効果の record を作ります。
+
+[[ref-optimizer-internal-setting-effects-to-ir]]`(%setting-effects\->ir table tail)`::
+寄与位置順に設定効果を IR に戻し、`tail` の前に連結します。隣接する同じクラスのリズム設定はまとめて復元します。
+
+== 状態追跡の内部処理
+
+反復を展開せずに、領域や反復全体の効果と、命令に到達する各経路で共通する値を求めます。
+
+[[ref-optimizer-class-state-effect]]
+=== `<state-effect>`
+
+設定を上書きする値、または相対変化の差分を保持する record 型です。効果表に項目がなければ変化はありません。相対変化を追跡する設定は通常音量です。
+
+* [[ref-optimizer-internal-make-state-effect]]`(%make-state-effect relative value)`
+* [[ref-optimizer-internal-state-effect-p]]`(%state-effect? obj)`
+* [[ref-optimizer-internal-state-effect-relative-p]]`(%state-effect-relative? effect)`
+* [[ref-optimizer-internal-state-effect-value]]`(%state-effect-value effect)`
+
+[[ref-optimizer-internal-state-object-key]]`(%state-object-key obj)`::
+追跡する設定の鍵を求めます。
+通常音量・音色・ゲートタイム・パン・デチューン・エンベロープには対応するシンボルを返します。相対音量は絶対音量と鍵を共有します。LFO の選択・切替の鍵には種類と指定チャンネルの対を使います。追跡対象外の命令には `#f` を返します。
+
+[[ref-optimizer-internal-state-set]]`(%state-set state key value)`::
+連想リストの鍵を置き換えます。
+新しい連想リストを返し、元の表は変更しません。既知の値には `#f` も含まれます。
+
+[[ref-optimizer-internal-state-effect-compose]]`(%state-effect-compose effects key effect)`::
+先行する効果表へ後続の一効果を合成します。
+更新後の表を返します。後続が絶対指定なら上書きし、相対指定で先行効果があれば値を加算して先行効果が相対指定かどうかを引き継ぎます。元の表は変更しません。
+
+[[ref-optimizer-internal-state-effects-compose]]`(%state-effects-compose earlier later)`::
+先行する効果表 `earlier` に、後続の各効果を適用します。効果ごとの合成には `%state-effect-compose` を使います。
+
+[[ref-optimizer-internal-state-effects-power]]`(%state-effects-power effects count)`::
+非負整数 `count` 回の効果を求めます。
+0回なら効果は空です。1回以上なら絶対指定は同じ値を使い、相対変化には回数を掛けます。
+
+[[ref-optimizer-internal-state-effects-apply]]`(%state-effects-apply state effects)`::
+入口状態に効果を適用します。
+出口状態の連想リストを返します。相対変化の入口値が不明なら、出口でも不明とします。元の表は変更しません。
+
+[[ref-optimizer-internal-state-join]]`(%state-join left right)`::
+経路ごとの状態を合流し、両側で同じ値が分かっている鍵だけを残します。入力表は変更しません。
+
+[[ref-optimizer-internal-state-region-effects]]`(%state-region-effects items cache)`::
+領域の各命令・反復の効果を実行順に合成します。
+通常命令には一効果を合成し、反復には本文全体を要約した効果を合成します。入れ子の反復は要約を再利用し、作業用の `cache` を更新する場合があります。
+
+[[ref-optimizer-internal-state-repeat-effects]]`(%state-repeat-effects block cache)`::
+反復全体の効果を求めます。
+脱出のある反復では、最終回に脱出位置までを実行した効果を返します。結果の効果表は元のブロックを鍵に `cache` へ保存します。反復回数は正の正確な整数を前提とします。
+
+[[ref-optimizer-internal-state-optimize-repeat]]`(%state-optimize-repeat block state cache)`::
+全周回で共通する入口状態を使って本文を最適化します。
+最適化したブロックと、出口状態を二値で返します。出口状態は、反復に入るときの状態に、反復全体の効果を適用して求めます。回数1の反復では脱出後の列を保持しますが、その効果は出口状態に加えません。
+
+[[ref-optimizer-internal-state-optimize-region]]`(%state-optimize-region items state cache)`::
+領域の状態を追跡し、再指定を取り除いた要素列と出口状態を二値で返します。反復や `L` で経路ごとの状態を合流し、有効な値と同じ絶対指定を取り除きます。
+
+== 反復圧縮の内部処理
+
+反復を含む列をブロックに組み立て、各区間を探索して平坦な IR 列に戻します。区間の探索には要素・出力テンプレート・費用のベクタを作ります。探索に渡すのは要素と費用のベクタです。出力テンプレートは結果を IR に戻すときに使います。
+
+[[ref-optimizer-internal-sxmml-optimize-repeat]]`(%sxmml-optimize-repeat lis expand?)`::
+整列済みの `lis` をブロックに組み立て、`expand?` が真なら短いブロックを展開します。その結果を `%repeat-compress` で圧縮します。
+平坦な新しいリストを返します。反復の組み立ての誤りは `%repeat-structure` のエラーになります。
+
+[[ref-optimizer-class-repeat-block]]
+=== `<repeat-block>`
+
+既存の反復を保持する record 型です。`start`・`break`・`end` は `[`・`:`・`]` のオブジェクト、`front`・`back` は `:` の前後の要素のリストです。`:` がなければ `break`・`back` は `#f` です。
+フィールドは変更できません。
+
+* [[ref-optimizer-internal-make-repeat-block]]`(%make-repeat-block start front break back end)`
+* [[ref-optimizer-internal-repeat-block-p]]`(%repeat-block? obj)`
+* [[ref-optimizer-internal-repeat-block-start]]`(%repeat-block-start b)`
+* [[ref-optimizer-internal-repeat-block-front]]`(%repeat-block-front b)`
+* [[ref-optimizer-internal-repeat-block-break]]`(%repeat-block-break b)`
+* [[ref-optimizer-internal-repeat-block-back]]`(%repeat-block-back b)`
+* [[ref-optimizer-internal-repeat-block-end]]`(%repeat-block-end b)`
+
+[[ref-optimizer-internal-repeat-structure]]`(%repeat-structure lis)`::
+平坦な IR 列を受け取り、個別の IR と反復ブロックからなるリストを返します。反復の終端 `]` がなければ `MML terminated before repeat end`、反復の外に `]` または `:` があれば `repeat end appeared before repeat start` を報告します。
+
+[[ref-optimizer-internal-repeat-flatten]]`(%repeat-flatten items tail)`::
+組み立てたブロックを平坦な IR 列に戻し、`tail` の前に接続します。
+`tail` が空リストなら、変換した結果だけを返します。
+
+[[ref-optimizer-internal-repeat-expansion]]`(%repeat-expansion items tail :optional expand?)`::
+反復回数を `r` とすると、前半と後半の組を `r - 1` 回、前半を最後に一回並べます。`expand?` が偽を返したブロックは、入れ子のブロックを処理した上で外側の構造を残します。
+元の IR を共有し、反復の出現ごとに別のリストセルを作ります。結果は `tail` の前に構築します。
+
+[[ref-optimizer-internal-repeat-expanded-length]]`(%repeat-expanded-length items)`::
+反復を展開したときの要素数を、展開列を作らずに求めます。
+
+[[ref-optimizer-internal-repeat-expand-small]]`(%repeat-expand-small items limit)`::
+回数が 1 以上で、展開後の長さが `limit` 以下のブロックを、内側から順に展開します。`L` を含むブロックと、同じ段に二つ以上の `:` を持つブロックは展開しません。
+新しい要素のリストを返します。
+
+[[ref-optimizer-internal-repeat-class-accessors]]`(%repeat-class-accessors class)`::
+指定クラスの全スロットのアクセサをベクタにまとめます。固定 IR 比較はクラスごとにこのベクタを取得し、比較用データに保持します。
+
+[[ref-optimizer-internal-optimizer-repeat-tree-compress]]`(%optimizer-repeat-tree-compress elements weights settings)`::
+要素・重み・設定を `sxmml-native-ir-compress` に渡します。
+費用と圧縮木を二値で返します。入力の組み立ては呼び出し側、数値の範囲検査と探索は xref:native.adoc[C 接続とその呼び出し先]が担当します。
+
+[[ref-optimizer-internal-repeat-compress]]`(%repeat-compress items depth settings :optional before-search)`::
+ブロックは本文を再帰的に圧縮して一つの要素にします。タイを先行する音符と同じ要素に入れ、分割を避けます。
++
+`L`、`L` を含むブロック、同じ段の二つ目以降の `:` を区切りとして、前後の区間を別々に圧縮します。`before-search` を指定すると、探索直前に区間内の要素数を渡します。
+平坦な IR 列を返します。`depth` は外側の反復の深さです。この深さを含めて32段を超え、圧縮前より深くなる区間では、探索前に組み立てた出力を採用します。
+
+[[ref-optimizer-internal-repeat-loop-p]]`(%repeat-loop? block)`::
+ブロックの本文（入れ子を含む）に `L` があるかを調べます。
+真偽値を返します。
+
+[[ref-optimizer-internal-repeat-tree-to-ir]]`(%repeat-tree\->ir tree outputs tail)`::
+葉は `outputs` の出力に置き換え、反復には新しい `[`・`:`・`]` のオブジェクトを作ります。変換結果は `tail` の前に構築します。
+
+[[ref-optimizer-internal-repeat-depth]]`(%repeat-depth lis)`::
+平坦な IR 列に含まれる反復の最大の入れ子の深さを返します。
 
 == 利用例
 
@@ -123,4 +281,4 @@
 (print (length ir))                         ; 2
 ----
 
-最適化前の整列化は xref:output.adoc[出力準備]、PMDの数値要求との対応は xref:pmd.adoc[PMD共通処理]へ分離しました。旧sxmml-optimize-treeは廃止しました。意味保持の確認範囲は xref:../verification.adoc#q-01-音楽的な意味の保持[検証方針]を参照してください。
+削減効果の数え方と意味保持の確認範囲は xref:../verification.adoc[検証方針]を参照してください。

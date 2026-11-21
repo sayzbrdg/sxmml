@@ -1,30 +1,48 @@
 = `sxmml.native` の C 接続
 :toc: left
 
-3手続きを定義し、すべてをこの内部モジュールから公開します。楽曲記述用の `sxmml` には継承しません。必須の `sxmml_native` 共有ライブラリを読み込み、型や構築子は呼出し時に解決します。汎用入口だけを使う場合、optimizer の読込みは不要です。
+必須の共有ライブラリ `sxmml_native` を読み込み、反復圧縮の接続手続きを公開します。楽曲記述用の `sxmml` からは公開しません。
+型や構築子は呼び出し時に解決します。汎用の反復圧縮は `sxmml.optimizer` を読み込まずに使えます。固定 IR 比較は、`sxmml.optimizer` が定義する反復ブロックの型とアクセサを使います。
 
 == 接続手続き
 
-[cols="3,4,4,2",options="header"]
-|===
-|定義 |入力・役割 |結果・前提 |実装
-|[[ref-native-sxmml-native-repeat-tree-compress]]`(sxmml-native-repeat-tree-compress items weights same? settings)` |汎用比較を使う圧縮接続 |`(values cost tree)`。xref:repeat-tree.adoc[`repeat-tree-compress`]の検査済み入力を受ける。`same?`は比較ごとにSchemeへ呼び戻す |link:../../src/lib/sxmml_nativelib.scm[CiSE]
-|[[ref-native-sxmml-native-ir-compress]]`(sxmml-native-ir-compress elements weights settings)` |optimizer用の固定比較による圧縮接続 |`(values cost tree)`。optimizerが検査したベクタと設定を受ける。比較手続き・反復型の引数は設けない |link:../../src/lib/sxmml_optimizerlib.scm[CiSE]
-|[[ref-native-make-sxmml-native-ir-comparison]]`(make-sxmml-native-ir-comparison)` |固定C比較本体を使う二引数の比較手続きを作る |テストと復元IR検査から使う。比較文脈はGCの管理下で手続きに保持される |link:../../src/lib/sxmml_optimizerlib.scm[CiSE]
-|===
+[[ref-native-sxmml-native-repeat-tree-compress]]
+=== `(sxmml-native-repeat-tree-compress items weights same? settings)`
 
-== 責任境界と比較
+xref:repeat-tree.adoc[`repeat-tree-compress`] で型や要素数などの検査を済ませた入力を受け、費用と木を二値で返します。
+二要素を比較するたびに、利用者が指定した Scheme 手続き `same?` を呼びます。比較結果は真偽値でなければなりません。
 
-IRの構造化、音符とタイのグループ化、重み、制御境界、IRへの復元はoptimizerのScheme側が担当します。固定IR比較はoptimizer所属のCiSEで定義し、実際のクラスと全スロットを比較します。クラスの親子関係で同じとみなさず、未束縛どうしは同じ、未束縛と束縛値は異なるとします。束縛値は `Scm_EqualP` で比較します。派生クラスの追加スロットも含みます。
+実装は link:../../src/lib/sxmml_nativelib.scm[sxmml_nativelib.scm] にあります。
 
-音符とタイのグループは長さと各要素、既存反復は回数・脱出の有無・前半と後半を比較します。既存反復の型と解釈はoptimizerの責務です。通常スロットは対応する公開アクセサ情報を確認してCから読み、仮想スロット等はGaucheの `slot-bound?`・`slot-ref` に委ねます。クラス再定義で更新が必要な場合もGaucheの経路を使います。クラス情報は圧縮一回の文脈内だけに保持します。
+[[ref-native-sxmml-native-ir-compress]]
+=== `(sxmml-native-ir-compress elements weights settings)`
 
-`Scm_EqualP` や特殊なスロット操作が内部でSchemeを呼ぶことは許容します。IR圧縮で比較のたびに任意のScheme比較手続きを呼び戻す設計にはしません。比較やGauche操作で発生した例外は包み直しません。
+optimizer が組み立てた要素・重みのベクタと反復設定を受け取り、費用と木を二値で返します。
+比較には下記の固定 IR 比較を使います。数値の範囲は C コアを呼び出す際に検査します。
 
-== Cコアと結果変換
+[[ref-native-make-sxmml-native-ir-comparison]]
+=== `(make-sxmml-native-ir-comparison)`
 
-link:../../src/lib/sxmml_repeat_tree.h[Cコアの契約]とlink:../../src/lib/sxmml_repeat_tree.c[実装]はGauche・IRを知らず、添字・重み・設定とC比較関数／文脈を受けます。LCP、区間DP、全体連結、子を先に並べたノード配列への復元を担当します。
+同じ固定 IR 比較を Scheme から呼び出す二引数の手続きを返します。テスト支援が復元した IR を調べる際に使います。
+比較手続きは GC 管理下の比較用データを保持します。固定 IR 圧縮とこの比較手続きの実装は link:../../src/lib/sxmml_optimizerlib.scm[sxmml_optimizerlib.scm] にあります。
 
-link:../../src/lib/sxmml_native.c[共通接続]は数値の変換と範囲検査、コア呼出し、既存の構築子によるGaucheの木への変換を担当します。重み・制御費用・重み総和はuint64_t、添字・回数・窓幅・領域サイズはsize_tの範囲です。選ばれないRepeat・Final候補の加算は行わず、範囲外エラーにしません。
+== 固定 IR 比較
 
-Cの領域は一回の実行に所属し、木への変換後に解放します。Gaucheの例外による巻戻しでも同じ領域を解放して元の例外を伝播します。入力IRのコピーは作りません。通常実行では結果の再検査を行わず、木と復元IRの検査はテスト支援へ配置します。
+通常の命令は、実際のクラスと全スロットを比較します。派生クラスが追加したスロットも含めます。対応するスロットが両方とも未束縛なら等しく、片方だけが未束縛なら異なります。両方に値があれば `Scm_EqualP` で比較します。
+
+音符とタイをまとめた要素は、長さと各要素を比較します。既存の反復ブロックは、回数、脱出位置の有無、前半と後半の要素を比較します。
+こうした要素への組み立て、重みの算出、区間分けと IR への復元は xref:optimizer.adoc[optimizer の Scheme 側]が担当します。
+
+スロットの参照には Gauche のアクセサ情報を使います。該当クラスのインスタンススロットを直接参照できる場合は C 側で読みます。仮想スロットなどは `slot-bound?` と `slot-ref` に、クラス再定義時のクラス取得は `class-of` に委ねます。アクセサのキャッシュは圧縮一回、または生成した比較手続き一つの中で保持します。
+`Scm_EqualP` や Gauche のスロット操作が内部で Scheme を呼ぶことがあります。比較やスロット操作で発生した例外は呼び出し元へ伝わります。
+
+== C コアと結果変換
+
+C コアは要素を添字で扱い、重み・反復設定と C の比較関数を受け取ります。共通接頭辞の長さを求め、区間ごとの費用と全体の連結を計算します。復元したノード配列では、子が親より先に並びます。
+契約と実装は link:../../src/lib/sxmml_repeat_tree.h[sxmml_repeat_tree.h] と link:../../src/lib/sxmml_repeat_tree.c[sxmml_repeat_tree.c] を参照してください。
+
+共通接続では Scheme の数値を C の整数に変換します。個々の重みと制御費用は `uint64_t`、回数と窓幅は `size_t` の範囲に限ります。重みの総和と作業領域の大きさは、C コアでも検査します。
+計算が終わると、ノード配列を4種類の record 構築子で Gauche の木に変換します。入力 IR はコピーしません。
+作業領域は変換後に解放し、例外で中断した場合も解放してから元の例外を伝えます。
+
+接続の実装は link:../../src/lib/sxmml_native.c[sxmml_native.c] にあります。
