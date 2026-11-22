@@ -451,7 +451,8 @@
 
 (define (%repeat-settings window)
   (let1 counts (iota (- %repeat-count-max 1) 2)
-    (make-repeat-tree-settings (map (cut cons <> 2) counts) (map (cut cons <> 3) counts) #t window)))
+    ;; repeat_costs: 4, final_costs: 5
+    (make-repeat-tree-settings (map (cut cons <> 4) counts) (map (cut cons <> 5) counts) #t window)))
 
 ;; 平坦なIR列を、反復で圧縮する。既存のリピートはひとまとめ（原子）にし、
 ;; その本文も同じように圧縮する。expand? なら、展開後の長さが %repeat-expand-limit
