@@ -1,5 +1,5 @@
 ;;; -*- lexical-binding: t; -*-
-;;; Copyright (c) 2024 Seiji Ohashi <sayzbrdg@gmail.com>
+;;; Copyright (c) 2024-2026 Seiji Ohashi <sayzbrdg@gmail.com>
 ;;; All rights reserved.
 ;;;
 ;;; Redistribution and use in source and binary forms, with or without
@@ -95,16 +95,16 @@
   (font-lock-add-keywords nil sxmml-font-lock-keywords))
 (add-to-list 'auto-mode-alist '("\\.sxl\\w*\\'" . sxmml-mode))
 
-(defconst sxmml--unspecified "指定なし")
+(defconst sxmml--unspecified "none")
 
 (defun sxmml--read-backend ()
-  (let ((name (completing-read "バックエンド: "
+  (let ((name (completing-read "Backend: "
                                (cons sxmml--unspecified (mapcar #'car sxmml-mode-settings))
                                nil nil nil nil (or sxmml-default-mode sxmml--unspecified))))
     (unless (equal name sxmml--unspecified) name)))
 
 (defun sxmml--read-optimization ()
-  (let ((value (completing-read "最適化レベル: " (cons sxmml--unspecified '("0" "1" "2" "3" "4" "9"))
+  (let ((value (completing-read "Optimization level: " (cons sxmml--unspecified '("0" "1" "2" "3" "4" "9"))
                                 nil nil nil nil (if sxmml-default-optimization
                                                     (number-to-string sxmml-default-optimization)
                                                   sxmml--unspecified))))
@@ -175,10 +175,10 @@ Processing Mode: \\(.+\\)$")
   (if inherit
       (progn
         (kill-local-variable 'sxmml-play-after-compile)
-        (message "自動再生: 設定を継承"))
+        (message "Auto play: inherit"))
     (let ((settings (sxmml--settings (or sxmml-default-mode (car sxmml--last-output)))))
       (setq-local sxmml-play-after-compile (not (sxmml--autoplay-p settings)))
-      (message "自動再生: %s（このバッファ）" (if sxmml-play-after-compile "オン" "オフ")))))
+      (message "Auto play: %s（this buffer）" (if sxmml-play-after-compile "on" "off")))))
 
 (defun sxmml-play-file ()
   "このバッファで最後に成功したコンパイルの結果を再生する。"
@@ -197,10 +197,10 @@ Processing Mode: \\(.+\\)$")
   "曲を保存してコンパイルする。前置引数 ONCE で今回だけ設定を変える。"
   (interactive "P")
   (unless buffer-file-name (user-error "バッファをファイルに保存してください"))
-  (let* ((what (and once (completing-read "今回変更する項目: "
-                                          '("バックエンド" "最適化レベル" "両方") nil t)))
-         (mode (if (member what '("バックエンド" "両方")) (sxmml--read-backend) sxmml-default-mode))
-         (level (if (member what '("最適化レベル" "両方")) (sxmml--read-optimization)
+  (let* ((what (and once (completing-read "Changes to apply: "
+                                          '("backend" "optimization-level" "both") nil t)))
+         (mode (if (member what '("backend" "both")) (sxmml--read-backend) sxmml-default-mode))
+         (level (if (member what '("optimization-level" "both")) (sxmml--read-optimization)
                   sxmml-default-optimization))
          (log (get-buffer-create "*sxmml-compilation*"))
          (source (funcall sxmml-compile-filename-function (expand-file-name buffer-file-name))))
@@ -221,7 +221,7 @@ Processing Mode: \\(.+\\)$")
                 (when (and (plist-get settings :player) (sxmml--autoplay-p settings))
                   (sxmml-play-file))))
             t)
-        (message "sxlc のコンパイルに失敗しました (%s)" status)
+        (message "sxlc によるコンパイルに失敗しました (%s)" status)
         nil))))
 
 (define-key sxmml-mode-map (kbd "C-c C-c") #'sxmml-save-and-compile-buffer)

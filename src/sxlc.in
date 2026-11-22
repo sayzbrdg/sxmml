@@ -1,4 +1,4 @@
-;;; Copyright (c) 2024-2025 Seiji Ohashi <sayzbrdg@gmail.com>
+;;; Copyright (c) 2024-2026 Seiji Ohashi <sayzbrdg@gmail.com>
 ;;; All rights reserved.
 ;;;
 ;;; Redistribution and use in source and binary forms, with or without
@@ -186,19 +186,19 @@
     (if (exact-integer? cpus) (clamp (quotient cpus 2) 1 4) 1)))
 
 (define (%usage code)
-  (display "Usage: sxlc [-whlv] [-D NAME VALUE] [-O opt_lv] [-j jobs] [-m mode] [-o output] [-c command] file\n\n")
+  (display "Usage: sxlc [-whlv] [-D name value] [-O opt_lv] [-j jobs] [-m mode] [-o output] [-c command] file\n\n")
   (display "Options:\n")
-  (format #t "    ~12a 利用者定義の値をモードの初期設定前に登録する。\n" "-D NAME VALUE")
-  (format #t "    ~12a Set the optimize level to \"opt_lv\".\n" "-O opt_lv")
-  (format #t "    ~12a 0: none, 1-2: basic, 3: repeat, 4: repeat with expansion.\n" "")
-  (format #t "    ~12a 同時に反復圧縮するトラック数の上限。\n" "-j jobs")
-  (format #t "    ~12a Set the processing to \"mode\".\n" "-m mode")
-  (format #t "    ~12a Write the generated file to \"output\".\n" "-o output")
-  (format #t "    ~12a Execute \"command\" as a post process.\n" "-c command")
-  (format #t "    ~12a If used with the -c option, \"wslpath\" is used to convert to a Windows path.\n" "-w")
-  (format #t "    ~12a Print available modes.\n" "-l")
-  (format #t "    ~12a Print version.\n" "-v")
-  (format #t "    ~12a Print this message.\n" "-h")
+  (format #t "    ~13a Register custom values before initializing the mode.\n" "-D name value")
+  (format #t "    ~13a Set the optimize level to \"opt_lv\".\n" "-O opt_lv")
+  (format #t "    ~13a 0: none, 1-2: basic, 3: repeat, 4: repeat with expansion.\n" "")
+  (format #t "    ~13a Maximum number of tracks(threads) for iterative compression at once.\n" "-j jobs")
+  (format #t "    ~13a Set the processing to \"mode\".\n" "-m mode")
+  (format #t "    ~13a Write the generated file to \"output\".\n" "-o output")
+  (format #t "    ~13a Execute \"command\" as a post process.\n" "-c command")
+  (format #t "    ~13a If used with the -c option, \"wslpath\" is used to convert to a Windows path.\n" "-w")
+  (format #t "    ~13a Print available modes.\n" "-l")
+  (format #t "    ~13a Print version.\n" "-v")
+  (format #t "    ~13a Print this message.\n" "-h")
   (newline)
   (exit code))
 
