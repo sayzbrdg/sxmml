@@ -1,89 +1,119 @@
 = `sxmml.backend.pmd-binary` の生成処理
 :toc: left
 
-各モード情報はモジュール読込み時に登録し、初期設定は選択時だけに実行します。選択は`(sxmml-mode-select! 'pmd-binary)`、出力手続きは選択情報のbackendから取得します。旧選択手続きは廃止しました。
+外部コンパイラ（MC.EXE）を介さずに PMD のバイナリ（`.m`）を直接生成するバックエンドです。生成物が MC.EXE の出力と同じであることは保証しません（xref:pmd-source.adoc[`sxmml.backend.pmd-source`] の出力を MC.EXE でコンパイルした結果と一致するとは限りません）。
 
-`%pmd-1byte-set!` と `%pmd-2bytes-set!` の引数は `(u8vec offset cmd value max min kind)` です。全22呼出しで、音源や指定内容を知る呼出し元からkindを渡し、範囲外の値は項目・指定値・範囲で説明します。命令コードや内部オブジェクトは診断に表示しません。相対音量は `%pmd-volume-change-value` で符号付きの指定値と範囲を示してから従来どおり符号化します。BPM由来のTimer-Bは計算結果と元のBPMを示します。音高は音名と許容音域を示し、ポルタメントの始点・終点を区別します。比較・符号化・範囲・戻り値は維持します。
+このモジュールは、PMD 4.8s のソースで命令コードの対応を確認し、MC.EXE の生成物の差分から形式を解析した独自実装です。解析の経緯と謝辞は link:../../README.md#謝辞[README の謝辞]を参照してください。既知の欠陥は、ラベル `pmd-binary` の付いた link:https://github.com/sayzbrdg/sxmml/issues?q=is%3Aissue%20is%3Aopen%20label%3Apmd-binary%20label%3Abug[開いている不具合の issue] を参照してください。
 
-既存の数値・定義形式の検査はvalue-error、未定義の音色・LFO・エンベロープはreference-error、重複Lはmml-syntax-errorです。生成物サイズとトラック長の上限は基底sxmml-errorで通知します。I/Oや内部のGaucheエラーは包み直しません。
+読み込み時にモード `pmd-binary`（別名 `pmd4-binary`）と `pmd3-binary` を登録し、モード選択時に `sxmml-pmd-setup!` で初期トラックを登録します。出力手続きは出力環境一つを受け取り、出力先と採用トラック名を持つ `<sxmml-output-result>` を返します。出力中に現在の登録環境・選択モード・`sxmml-source-file` を参照せず、入力環境と IR は変更しません。
 
-`sxmml.backend.pmd-binary` は、外部コンパイラ（MC.EXE）を介さずに PMD のバイナリ（`.m`）を直接生成するバックエンドです。生成物が MC.EXE の出力と同じであることは保証しません（`sxmml.backend.pmd-source` の出力を MC.EXE でコンパイルした結果と一致するとは限りません）。
+出力先が `#f` の場合は `<sxmml-value-error>`（`output file is not specified`）になります。一時ファイルへ書き出してから出力先へリネームするため、途中で失敗しても既存の出力ファイルは変更しません。
 
-このモジュールは、PMD 4.8s のソースで命令コードの対応を確認し、MC.EXE の生成物の差分から形式を解析した独自実装です。処理の移植・翻訳はしていません。解析の経緯と謝辞は link:../../README.md#謝辞[README の謝辞]を参照してください。
+エラーの分類は次のとおりです。
 
-このページでは公開名 4 件だけを項目として記載します。`%` で始まる内部手続きは、群ごとの概要とバイナリの配置の概要に留めます。既知の欠陥は、ラベル `pmd-binary` の付いた link:https://github.com/sayzbrdg/sxmml/issues?q=is%3Aissue%20is%3Aopen%20label%3Apmd-binary%20label%3Abug[開いている不具合の issue] を参照してください。パラメータ、オブジェクト、文字コード変換、一時ファイル、ファイル名操作は Gauche 0.9.15 の動作に従います。
+* 数値・定義形式・チャンネル・PMD3 非対応機能の違反: `<sxmml-value-error>`
+* 未定義の音色・LFO・エンベロープ: `<sxmml-reference-error>`
+* 同一トラック内の重複 `L`: `<sxmml-mml-syntax-error>`
+* 生成物サイズ（65535 バイト）および最大合計 tick（65535）の上限超過、FM 音色の 257 種類目参照: `<sxmml-error>`
+* I/O や Gauche の内部エラー: そのまま送出
 
-FM音色表へ書く直前に `%opn-voice-form->register-data form id` が使用音色の出力項目を検査します。AL・FB・DT=0～7、AR・DR・SR=0～31、RR・SL・ML=0～15、TL=0～127、KS=0～3、AMS=0～1の正確な整数に限り、不正なら音色名・演算子番号・項目名・指定値・範囲を示すvalue-errorとします。DTの負数正規化は共通登録の責務であり、直接渡された負のDTは拒否します。DT2・SEGと未使用の手作り音色は新しい出力時検査の対象に加えません。検査後のbit結合と生成バイトは維持します。
+実装は link:../../sxmml/backend/pmd-binary.scm[pmd-binary.scm] にあります。このページでは公開名 4 件（3 手続きと 1 クラス）を個別に記載し、`%` で始まる内部手続きは群ごとの概要とバイナリ配置に留めます。
 
 == 公開名
 
-[cols="2,4,4,1",options="header"]
-|===
-|名前・書式 |役割・引数 |結果・状態・失敗条件 |ソース
-|[[ref-pmd-binary-class-sxmml-pmd-binary-environment]]`<sxmml-pmd-binary-environment>` |生成中のバイナリの状態クラス |`(make <sxmml-pmd-binary-environment> :offset 値 :environment 出力環境 :fm-voices 採番状態 [:mode 値] [:head-length 値])`。slot は、現在の書き込み位置 `offset`、PMD3 向けを示す `mode`（`fc88` または `#f`）、26 バイトのヘッダ `head` とその長さ `head-length`、A～J・K・R の 12 トラックと、音色表・メタ情報に使う 基本13個に使用中の PPZ8 パート数を加えたバッファ `track` とその長さ `track-length`、最大の合計 tick `max-total-ticks`・loop tick `max-loop-ticks`、出力中のFM音色の採番状態 `fm-voices` と読み取り用の出力環境 `environment`。`initialize` メソッドが各バッファに 65600 バイトの `u8vector` を確保する |link:../../sxmml/backend/pmd-binary.scm[pmd-binary.scm]
-|[[ref-pmd-binary-sxmml-pmd-binary-output]]`(sxmml-pmd-binary-output env)` |出力環境からPMD4向け生成 |出力結果を返す。環境のoutput=#fは値エラー`output file is not specified`。入力を変更しない |link:../../sxmml/backend/pmd-binary.scm[pmd-binary.scm]
-|[[ref-pmd-binary-sxmml-pmd3-binary-output]]`(sxmml-pmd3-binary-output env)` |PMD3 向け生成 |出力環境を受け、`fc88`の形式で生成して出力結果を返す |link:../../sxmml/backend/pmd-binary.scm[pmd-binary.scm]
-|[[ref-pmd-binary-sxmml-pmd4-binary-output]]`(sxmml-pmd4-binary-output env)` |PMD4 向け生成 |出力環境を受け、PMD4の形式で生成して出力結果を返す |link:../../sxmml/backend/pmd-binary.scm[pmd-binary.scm]
-|===
+[[ref-pmd-binary-class-sxmml-pmd-binary-environment]]
+=== `<sxmml-pmd-binary-environment>`
 
-共通の生成処理は、出力環境からA～J・LとPPZ8の出力トラックを `sxmml-pmd-output-tracks-select` で選びます。反復圧縮には `jobs` の上限を適用し、採用した列を割当順に符号化します。モード選択は不要ですが、必要なトラック情報は呼出し側で用意します。最適化は整数要求から共通PMD手続きで選びます。現在の登録環境・モード・入力ファイルパラメータを出力中に参照しません。
+バイナリ生成中の作業バッファとメタ情報を保持するクラスです。`(make <sxmml-pmd-binary-environment> :offset 値 :environment 出力環境 :fm-voices 採番状態 [:mode 値] [:head-length 値] [:track ベクタ] [:track-length ベクタ])` で生成します。
 
-出力先は出力環境のoutputへ明示指定し、#fを補完しません。結果のoutputは実際の出力先、track-namesは採用したsxmmlトラック名です。filenameメタデータの警告は維持し、生成先には使用しません。一時ファイルからの改名によって、途中で失敗しても既存出力を保持します。
+* `offset`（`:offset`）: 先頭 `0x00` の直後を 0 とした現在の書き込み位置。
+* `mode`（`:mode`、初期値 `#f`）: PMD3 向けは `'fc88`、PMD4 向けは `#f`。
+* `head`（初期値 26 バイトの `u8vector`）・`head-length`（`:head-length`、初期値 `26`）: ヘッダ領域とその長さ。
+* `track`（`:track`、既定は 13 要素のベクタ）・`track-length`（`:track-length`、既定は 13 要素の 0 埋めベクタ）: A～J・K・R・音色表／メタ情報の基本 13 領域に、使用中の PPZ8 パート数を加えたバッファ群とその長さ。`initialize` メソッドが各要素へ 65600 バイトの `u8vector` を確保します。
+* `max-total-ticks`・`max-loop-ticks`（各初期値 `0`）: 採用トラック全体での最大の合計 tick とループ tick。
+* `fm-voices`（`:fm-voices`）: 使用 FM 音色の採番状態（`<sxmml-pmd-fm-voices>`）。
+* `environment`（`:environment`）: 読み取り用の `<sxmml-output-environment>`。
 
-作業環境は呼出しごとに作って内部手続きへ明示的に渡します。バッファと書込み位置の更新は作業状態として維持し、通常・リズムの反復スタックは再帰引数で渡します。脱出位置の変更は先頭の記録を作り直します。BPM換算には出力環境の分解能を明示指定し、最大ticksは採用したトラックだけから集計します。
+[[ref-pmd-binary-sxmml-pmd-binary-output]]
+=== `(sxmml-pmd-binary-output env)`
+
+出力環境 `env` から PMD4 向けのバイナリ（`.m`）を生成し、`<sxmml-output-result>` を返します。`env` の `output` が `#f` の場合は `<sxmml-value-error>`（`output file is not specified`）になります。
+
+[[ref-pmd-binary-sxmml-pmd4-binary-output]]
+=== `(sxmml-pmd4-binary-output env)`
+
+`sxmml-pmd-binary-output` と同じ PMD4 向けの公開出力手続きです。
+
+[[ref-pmd-binary-sxmml-pmd3-binary-output]]
+=== `(sxmml-pmd3-binary-output env)`
+
+出力環境 `env` から PMD3 向け（`mode` を `'fc88`）のバイナリを生成し、`<sxmml-output-result>` を返します。拡張設定（`detune`・`envelopespeed`・`lfospeed`）の明示、PPZ8 トラックの使用、LFO チャンネル `B`、5 値・6 値エンベロープは `<sxmml-value-error>` になります。
 
 == 内部手続きの群
 
-通常トラックでは、`%pmd-track-u8vector-set!` が走査・サイズ検査・終端とヘッダーの確定を担当し、`%pmd-ir-u8vector-set!` がIR一個の型をcondで判定してバッファへ書き込みます。後者は次の書込み位置・ループ検出状態・反復スタックを多値で返し、走査側が再帰引数で引き継ぎます。入力IRは変更しません。
+共通の生成本体 `%sxmml-pmdx-binary-output` は、出力環境から `sxmml-pmd-output-tracks-select`（`backend` 引数は `'pmd-binary`）で A～J・L と非空の PPZ8 トラックを選び、`sxmml-pmd-for-each-track-ir` で最適化しながら順に符号化します。作業環境 `<sxmml-pmd-binary-environment>` は呼び出しごとに生成して各内部手続きへ明示的に渡します。
 
-リズム定義出力では、`%pmd-rhythm-definition-track-u8vector-set!`の局所`(set-ir! obj offset repeat-stack)`が一命令を書き、次の位置と反復スタックの2値を返します。work・バッファ・基準位置は外側から参照します。走査側は先頭位置表、命令ごとのサイズ検査、Lによる区切りと位置表の更新を担当し、Lを越えて反復スタックを引き継ぎます。局所`(finish! offset)`は終端・長さ・ヘッダ・末尾tick情報を既存の順序で確定し、workを返します。これらはトラック出力ごとの局所手続きで、新しいクラスや中間リストは作りません。
+トラック走査と命令出力の責務は、次の 6 つの群に分かれています。
 
-非公開の `<sxmml-pmd-binary-track-environment>` は、作業環境・トラックバッファ・トラック先頭の絶対位置・音色と音量と相対音量の出力手続きをまとめます。これらのslotは生成後に変更せず、参照先の作業環境とバッファを更新します。進行状態はこのクラスに保持しません。
+トラック変換::
+`%fm-track-u8vector-set!`・`%ssg-track-u8vector-set!`・`%pcm-track-u8vector-set!` が音源別の音色・音量・相対音量手続きを選んで `%pmd-track-u8vector-set!` へ渡します。
++
+`%pmd-track-u8vector-set!` は非公開の `<sxmml-pmd-binary-track-environment>` を作り、サイズ検査を行いながら各 IR を `%pmd-ir-u8vector-set!` で書き込み、ループ検出状態と反復スタックを再帰引数で引き継ぎます。同一トラック内の 2 個目の `L` は `<sxmml-mml-syntax-error>` です。末尾に終端 `0x80` を書き、固定パート（`hoffset` 指定時）はヘッダの次トラック位置を更新します。
++
+反復終了命令（`0xf8`）の 2 バイト目には回数（255 以下）、3 バイト目には脱出があれば `回数 - 1`、脱出がなければ `回数` を書きます。反復回数はコンパイラが保証する正の正確な整数を前提とします。
 
-通常トラックの `%pmd-track-u8vector-set!` と、リズム定義の `%pmd-rhythm-definition-track-u8vector-set!` は、既存のIR出力走査中にループ開始を処理済みかを保持します。2個目は区切りやポインタをバッファへ書く前に `loop command can be used only once in a track` エラーとします。状態はトラックごとに独立し、解析コンテキストの `loop-exists` に依存せず、直接渡されたIRも検査します。
+命令の書き込み::
+`%pmd-...-set!` が `u8vec` の `offset` から 1 命令を書き込み、次の書き込み位置を返します。1 バイト・2 バイト引数の範囲は `%pmd-1byte-set!`・`%pmd-2bytes-set!`（引数 `(u8vec offset cmd value max min kind)`）で検査し、範囲外は項目名・指定値・許容範囲を示す `<sxmml-value-error>` にします。
++
+相対音量は `%pmd-volume-change-value` で符号付きの値と範囲（FM −127～127、SSG −15～15、PCM −255～255）を検査してから符号化します。BPM 由来の Timer-B は `env` の分解能で換算した結果を 0～250 で検査し、超過時は計算結果と元の BPM を示します。
++
+255 tick を超える音符はタイ（`0xfb`）で、休符は休符の連続で分割します。ポルタメント（`0xda`）は音長を 1 バイトで持つため分割せず、1～255 tick の範囲外は `invalid portamento ticks: 値 (expected an integer from 1 to 255)` の `<sxmml-value-error>` になります。
 
-[cols="2,5",options="header"]
-|===
-|群 |概要
-|トラック変換 |`%fm-track-u8vector-set!`・`%ssg-track-u8vector-set!`・`%pcm-track-u8vector-set!` は、音色・音量・音量変化の書き込み手続きを音源の種類ごとに選び、`%pmd-track-u8vector-set!` に渡します。`%pmd-track-u8vector-set!` は各IRを `%pmd-ir-u8vector-set!` に渡し、終端の `0x80` を書いてヘッダの次のトラックの位置を更新します。反復の開始・脱出の位置は、手続き内のスタックで解決します。反復回数はコンパイラが保証する正の正確な整数を前提とします。反復の終了の命令（`0xf8`）の 2 バイト目には回数を、3 バイト目には、脱出のある反復では回数 - 1、脱出のない反復では回数を書きます
-|命令の書き込み |`%pmd-...-set!` は `u8vec` の `offset` から 1 命令を書き、次の書き込み位置を返します。値の範囲は、`%pmd-1byte-set!`・`%pmd-2bytes-set!` で検査します。255 tick を超える音符はタイ（`0xfb`）で、休符は休符の連続で分割します。ポルタメント（`0xda`）は音長を 1 バイトで持ち、分割できないので、`%pmd-portamento-set!` が 1〜255 tick に限り、超えると `portamento ticks out of range: 300 (1 - 255)` で失敗します
-|リズム |L の IR を K トラック（`%pmd-rhythm-deploy-track-u8vector-set!`）と R トラック（`%pmd-rhythm-definition-track-u8vector-set!`）に分けて書きます。`%pmd-rhythm-emit-set!` などがリズム音源の命令を書きます。楽器別の音量とパンは、楽器 * 32 + 値の 1 バイトに符号化するので、`%pmd-rhythm-volume-set!`・`%pmd-rhythm-pan-set!` が符号化の前に値（音量は 0～31、パンは 1～3）を検査し、範囲外は書いた値と範囲を示して失敗します
-|メタ情報・音色表 |`%pmd-meta-track-u8vector-set!`の局所`(write-voices!)`は使用音色を番号順に書き、モード別の終端と途中の長さ・位置を確定して次の相対位置を返します。PMD4だけが続けて`(write-strings! offset)`で文字列を書き、次の位置と出力順の開始位置リストの2値を受け取ります。位置列は自作セルを`reverse!`して確定し、入力metadata・memoは変更しません。`(finish! offset positions)`は位置列を読むだけで、Rトラックの位置表ポインタ・位置表・終端・長さ・最終位置を既存順で確定し、最終相対位置を返します。`%opn-voice-form\->register-data`は従来どおり音色定義をOPNのレジスタ値へ変換します
-|出力 |`%pmd-binary-output` は、先頭の `0x00`、ヘッダ、各トラックを一時ファイルに書き、出力先へ改名します。出力先は明示した出力環境を使い、共通の`sxmml-pmd-check-obsolete-metadata`が`filename`の警告を表示します
-|補助 |`%short\->le-bytes` は 16 ビットのリトルエンディアンに分け、`%note-number\->pmd-note` は音高を PMD のオクターブ・音名の 1 バイトに変換し、o1c～o8b の外の音高を `%note-number\->name` の表記（`o9c` など）で示して失敗とします。`%size-check` は生成物の大きさの上限（65535 バイト）を検査し、超えたらパラメータ `%pmd-section` の場所を示して失敗とします。作業用のバッファがあふれる前に止めるため、トラックの命令ごと、長い音符・休符の分割、音色・メタ情報の書き込みで呼び、最後に全体の大きさを検査します。`%shift-jis-u8vector-copy!` は文字列を CP932 で書き、`%ticks-update!` は最大の合計 tick・loop tick を更新します
-|===
+リズム::
+L トラックの IR を K トラック（`%pmd-rhythm-deploy-track-u8vector-set!`）と R トラック（`%pmd-rhythm-definition-track-u8vector-set!`）へ出力します。R トラックでは局所手続きが 1 命令ずつ書き込み、`L` によるパターン区切りと重複 `L` 検査、末尾の終端 `0xff` と PMD4 向け 12 バイト領域を確定します。
++
+楽器別の音量（0～31）とパン（1～3）は `楽器番号 × 32 + 値` の 1 バイトに符号化するため、`%pmd-rhythm-volume-set!`・`%pmd-rhythm-pan-set!` が符号化前に範囲を検査します。
+
+メタ情報・音色表::
+`%pmd-meta-track-u8vector-set!` が使用 FM 音色表と PMD4 向けメタ情報を出力します。音色表への書き込み直前に `%opn-voice-form\->register-data` が使用音色の 12 項目（AL・FB・DT=0～7、AR・DR・SR=0～31、RR・SL・ML=0～15、TL=0～127、KS=0～3、AMS=0～1）を検査して OPN レジスタ列へ変換します（DT の負数正規化は共通登録側で行い、出力時の負の DT は拒否します。DT2・SEG と未使用音色は検査しません）。
++
+PMD4 では続けて CP932 の NUL 終端文字列群と位置表を書き込み、R トラック末尾のメタ情報位置表ポインタを確定します。PCM 音色の番号解決は xref:pmd.adoc[`sxmml-pmd-pcm-voice-number`] を使います。
+
+出力::
+`%pmd-binary-output` が `sxmml-pmd-check-obsolete-metadata` で `filename` 警告を確認した後、先頭 `0x00`、ヘッダ、各トラック領域を一時ファイルへ書いて出力先へリネームします。
+
+補助::
+`%short\->le-bytes` は 16 ビット整数をリトルエンディアン 2 バイトに分けます。`%note-number\->pmd-note` は音高を PMD の 1 バイト表現へ変換し、`o1c`～`o8b` の範囲外は `%note-number\->name` の音名表記で `<sxmml-value-error>` を送出します。
++
+`%size-check` は先頭 `0x00` を除くデータ長が 65534 バイト（総サイズ 65535 バイト）を超えないか検査し、超過時はパラメータ `%pmd-section` が示す場所を添えて `<sxmml-error>` を送出します。`%shift-jis-u8vector-copy!` は文字列を CP932 の NUL 終端バイト列として書き込みます。`%ticks-update!` は採用トラックから最大の合計 tick と loop tick を更新します。
 
 == バイナリの配置
 
-以下は、コードから読み取れる範囲での配置の概要です。位置は、先頭の `0x00` の次のバイトを 0 とした値です。
+位置は、先頭の `0x00` の次のバイトを 0 としたオフセットです。
 
 . 先頭の 1 バイトは `0x00` です。
-. 続く 26 バイトがヘッダです。2 バイトずつ 13 個の位置を持ち、A～F、G～I、J、K、R の各トラックの先頭と、音色表の先頭を指します。
+. 続く 26 バイトがヘッダです。リトルエンディアン 2 バイトずつ 13 個の位置を持ち、A～F・G～I・J・K・R の各トラック先頭と音色表の先頭を指します。
 . 各トラックの命令列が続きます。A～J の各トラックは `0x80` で終わります。
 . K トラックは、L が空なら `0x80` だけです。L にループがあれば `0x00 0xf6 0x01 0x80`、なければ `0x00 0x80` になります。
-. PPZ8 使用時は J の先頭に 0xb4 と8件のリトルエンディアンの16ビット参照欄を置きます。使用パートの本文は K の後に順に並び、各末尾は 0x80 です。未使用の参照欄はゼロです。
-. PMD4 の拡張設定は各パートの本文の先頭（J では PPZ8 参照欄の後）に置きます。空の固定パートにも書きます。命令の順序は SSG のデチューン（`cc 01`）、SSG・J・PPZ8 のエンベロープ速度（`c9 01`）、FM・SSG・J・PPZ8 の LFO 速度（`ca 01 bb 01`）です。省略と normal は命令を追加しません。PMD3 ではこれらの設定の明示を値エラーにします。
-. R トラックは、パターンの位置（ループがあればループ位置も）に続いてリズムの命令列を置き、`0xff` で終わります。L トラックが空のときは、パターンを作らず、位置も命令列も置きません。PMD4 向けでは、続く 12 バイトに、2 バイトずつ、L トラックを含む全トラックについての最大の合計 tick、`0`、`L` のあるトラックについての最大の loop tick（`L` のあるトラックがなければ 0）、`0`、メタ情報の位置の表へのポインタ、固定値 `0x48 0xfe` を置きます。
-. 音色表は、FMパートA～Fで参照された音色の初出順に、音色番号 1 バイトと音色データ 25 バイトを並べます。PMD4 向けでは `0x00 0xff` で終わり、PMD3 向けでは終端を置きません。
-. PMD4 向けでは、最後にメタ情報を置きます。`ppzfile`・`ppsfile`・`pcmfile`・`title`・`composer`・`arranger`・`memo`（0 件以上）の順に、CP932 の NUL 終端文字列を並べ、それぞれへの位置の表を `0x00 0x00` で終えます。値は `sxmml.backend.pmd` の `sxmml-pmd-metadata-value` で、`-m pmd` と同じ規則で検査します。`memo` 以外の定義のない項目は、空文字列になります。`memo` は要素の数だけ書き、定義がないときと空のリストのときは書きません（位置の表にも項目を置きません）。
+. PPZ8 使用時（PMD4 のみ）は、J の先頭に `0xb4` と 8 件のリトルエンディアン 16 ビット参照欄（計 17 バイト）を置きます。使用中の PPZ8 パート本文は K の後ろに順に並び、各末尾は `0x80` です。未使用の参照欄は 0 です。PMD3（`fc88`）で PPZ8 トラックがある場合は `PPZ8 tracks are unsupported in PMD3` の `<sxmml-value-error>` になります。
+. PMD4 の拡張設定は各パート本文の先頭（J では PPZ8 参照欄の後ろ）に置きます。空の固定パートにも出力します。命令の順序は SSG のデチューン（`0xcc 0x01`）、SSG・J・PPZ8 のエンベロープ速度（`0xc9 0x01`）、FM・SSG・J・PPZ8 の LFO 速度（`0xca 0x01 0xbb 0x01`）です。省略と `normal` は命令を追加しません。PMD3 ではこれら 3 キーの明示を `<sxmml-value-error>` にします。
+. R トラックは、パターン位置表（ループなしは 2 バイト、ループありは 4 バイト）に続いてリズム命令列を置き、`0xff` で終わります。L が空のときはパターン位置表も命令列も置きません。PMD4 向けでは続けて 12 バイトの領域に、2 バイトずつ最大合計 tick（65535 超は `<sxmml-error>`）、`0`、最大 loop tick（`L` がなければ `0`）、`0`、メタ情報位置表へのポインタ、固定値 `0x48 0xfe` を置きます。
+. 音色表は、FM パート A～F で参照された音色の初出順に、音色番号 1 バイトと音色データ 25 バイトを並べます。PMD4 向けは末尾に `0x00 0xff` を置き、PMD3 向けは終端を置きません。
+. PMD4 向けでは、最後にメタ情報を置きます。`ppzfile`・`ppsfile`・`pcmfile`・`title`・`composer`・`arranger`・`memo`（0 件以上）の順に CP932 の NUL 終端文字列を並べ、各文字列への開始位置表を `0x00 0x00` で終えます。`memo` 以外の未定義項目は空文字列（`0x00` のみ）を書き、`memo` は要素の数だけ書きます（未定義または空リストのときは書き込みも位置表エントリも置きません）。
 
-PMD3 向け（`fc88`）では、メタ情報と R トラックの 12 バイトを置かず、LFO のチャンネル `B`（`invalid LFO channel`）と 5 値・6 値のエンベロープ（`unsupported envelope values in PMD3`）を失敗とします。LFO・エンベロープの種類と値は、`sxmml.backend.pmd` の `sxmml-pmd-lfo-values`・`sxmml-pmd-envelope-values` で、`-m pmd` と同じ規則で検査します。
+PMD3 向け（`fc88`）では、メタ情報と R トラック末尾の 12 バイトを置かず、LFO のチャンネル `B`（`invalid LFO channel`）と 5 値・6 値のエンベロープ（`unsupported envelope values in PMD3`）を `<sxmml-value-error>` にします。
 
 == PMD4 と PMD3 の違い（MC.EXE の生成物から）
 
-MC.EXE 4.8s で、同じ MML を PMD4 向けと PMD3 向けにコンパイルした生成物を比べて分かった違いです。pmd-binary は MC.EXE と同じ生成物を作ることを保証しないので、ここに記す違いは不具合として扱いません。
+MC.EXE 4.8s で、同じ MML を PMD4 向けと PMD3 向けにコンパイルした生成物を比較して確認した差異です。`pmd-binary` は MC.EXE と同じ生成物を作ることを保証しないため、以下の差異は不具合として扱いません。
 
-反復の終了の命令（`0xf8`）の 3 バイト目は、脱出のない 1 回の反復で違います。pmd-binary は、PMD3 向けでも PMD4 向けと同じ値を書きます。
+反復終了命令（`0xf8`）の 3 バイト目は、脱出のない 1 回の反復で異なります。`pmd-binary` は PMD3 向けでも PMD4 向けと同じ値を書きます。
 
 [cols="1,1,1,1",options="header"]
 |===
-|MML |PMD4 向けの MC.EXE |PMD3 向けの MC.EXE |pmd-binary
+|MML |PMD4 向けの MC.EXE |PMD3 向けの MC.EXE |`pmd-binary`
 |`[c:d]1` |0 |0 |0
 |`[cd]1` |1 |0 |1
 |===
 
-PMD3 向けで、2 回以上の反復の値は確かめていません。
-
-PMD3 向けの MC.EXE の生成物は、`#memo` を 0～3 件書いた MML でも同じでした。PMD3 向けの pmd-binary がメタ情報を置かないことと合っています。
-
-音色表はopnの定義を対象とし、PCMの番号解決にはpmd-sourceと同じ手続きを使います。
+PMD3 向けで 2 回以上の反復の値は確認していません。また、PMD3 向けの MC.EXE の生成物は `#memo` を 0～3 件書いた MML でも同一であり、PMD3 向けの `pmd-binary` がメタ情報を置かない仕様と一致しています。
