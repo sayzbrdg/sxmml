@@ -5,7 +5,7 @@
 [[システム境界]]
 == システム境界
 
-入力は `sxlc` の引数と、Gauche が評価する Scheme ソースファイルである。ソースには MML 文字列を作る式、トラック・音色・メタデータの定義、モード指定などを記せる。現在の出力は CP932 符号化の PMD 向け MML（`.mml`）および FMP7 向け MML（`.mwi`）、UTF-8 の NSD.Lib 向け MML（`.mml`）、および PMD バイナリ（`.m`）である。
+入力は `sxlc` の引数と、Gauche が評価する Scheme ソースファイルである。ソースには MML 文字列を作る式、トラック・音色・メタデータの定義、モード指定などを記せる。現在の出力は CP932 符号化の PMD 向け MML（`.mml`）および FMP7 向け MML（`.mwi`）、UTF-8 の NSD.Lib 向け MML（`.nsd`）、および PMD バイナリ（`.m`）である。
 
 [source,mermaid]
 ----
@@ -51,12 +51,12 @@ flowchart LR
 |link:../sxmml/util.scm[`sxmml/util.scm`] |BPM から PMD 向け Timer B 値への計算 |PMD バックエンドが使用
 |link:../sxmml/form.scm[`sxmml/form.scm`] |フォーム位置の取得、定義名正規化、エラーへの文脈付加、位置付き警告出力 |定義・設定・加工マクロとコンパイラが使用
 |link:../sxmml/backend/pmd.scm[`sxmml/backend/pmd.scm`] |PMD 共通規則、既定トラック初期設定、最適化水準の選択、音色番号割当 |明示された出力環境や IR を使用
-|link:../sxmml/backend/pmd-source.scm[`sxmml/backend/pmd-source.scm`] |`pmd`（`pmd-source`）・`pmd3`（`pmd3-source`）モードの登録と PMD MML 出力 |出力環境から CP932 符号化の `.mml` を生成し、出力結果を返す
-|link:../sxmml/backend/pmd-binary.scm[`sxmml/backend/pmd-binary.scm`] |`pmd-binary`・`pmd3-binary` モードの登録と PMD バイナリ出力 |出力環境から `.m` を生成（MC.EXE の出力との同一性は保証しない）
+|link:../sxmml/backend/pmd-source.scm[`sxmml/backend/pmd-source.scm`] |`pmd-source`（別名 `pmd`・`pmd4-source`）・`pmd3-source`（別名 `pmd3`）モードの登録と PMD MML 出力 |出力環境から CP932 符号化の `.mml` を生成し、出力結果を返す
+|link:../sxmml/backend/pmd-binary.scm[`sxmml/backend/pmd-binary.scm`] |`pmd-binary`（別名 `pmd4-binary`）・`pmd3-binary` モードの登録と PMD バイナリ出力 |出力環境から `.m` を生成（MC.EXE の出力との同一性は保証しない）
 |link:../sxmml/backend/fmp7.scm[`sxmml/backend/fmp7.scm`] |FMP7 のパート割当、反復検査・最適化、LFO 到達状態解析、LFO・エンベロープ・PCM 参照検査 |出力環境や IR 列から前処理済みデータを構築（非破壊）
-|link:../sxmml/backend/fmp7-source.scm[`sxmml/backend/fmp7-source.scm`] |`fmp7`（`fmp7-source`）モードの登録と FMP7 MML 出力 |出力環境から CP932・CRLF の `.mwi` を生成し、出力結果を返す
+|link:../sxmml/backend/fmp7-source.scm[`sxmml/backend/fmp7-source.scm`] |`fmp7` モードの登録と FMP7 MML 出力 |出力環境から CP932・CRLF の `.mwi` を生成し、出力結果を返す
 |link:../sxmml/backend/nsdlib.scm[`sxmml/backend/nsdlib.scm`] |NSD.Lib のトラック割当、反復構造化・LFO 到達状態解析、DPCM キー正規化 |出力環境や IR 列から前処理済みデータを構築（非破壊）
-|link:../sxmml/backend/nsdlib-source.scm[`sxmml/backend/nsdlib-source.scm`] |`nsdlib`（`nsdlib-source`）モードの登録と NSD.Lib MML 出力 |出力環境から UTF-8・LF の `.mml` を生成し、出力結果を返す
+|link:../sxmml/backend/nsdlib-source.scm[`sxmml/backend/nsdlib-source.scm`] |`nsdlib` モードの登録と NSD.Lib MML 出力 |出力環境から UTF-8・LF の `.nsd` を生成し、出力結果を返す
 |===
 
 `sxmml.scm` の `extend` は Gauche のモジュール継承であり、各モジュールでの `use` は他モジュールの束縛を利用するための宣言である。継承・公開名の仕様は link:https://practical-scheme.net/vault/Gauche-0.9.15-refe.pdf[Gauche 0.9.15 Users' Reference, 4.13.4–4.13.5] に従う。MML 記述者向けの操作は xref:sxmml-reference-manual.adoc[MML 記述者向けリファレンス]、開発者向けのクラス・手続きは xref:internal-reference/index.adoc[内部リファレンス] に記す。
@@ -70,8 +70,8 @@ flowchart LR
 . `sxlc` は `-o`、登録環境の `default-output-path`、入力名とモード拡張子による既定値の順に出力先を決める（相対パスはカレントディレクトリ基準）。決定済みの出力先・最適化水準・並列数を `make-sxmml-output-environment` へ渡し、`output.scm` が全登録トラックの cons 木を平坦化（NOP 除去）し、`current-ticks` から `total-ticks`・`loop-ticks` を確定する。この段階では最適化しない。
 . 最終的な選択モードの `backend` 手続きが出力環境を受け取り、採用トラックの選択・最適化・生成物の出力を行う。
    - **PMD（`pmd-source`・`pmd-binary`）**: 共通の `sxmml-pmd-ir-optimize` が整数要求を解釈し、局所整理・不要再指定の除去・休符結合・反復圧縮（`-O 9` は 2 候補の全幅圧縮）を組み合わせる。反復圧縮の前処理・費用設定・IR 復元は Scheme、固定 IR 比較は CiSE、圧縮探索は Gauche 非依存の C コアが担当する。`pmd-source` は文字列ポートへ本文を生成して使用音色を集め CP932 で書き出し、`pmd-binary` はバイト列バッファを構築して書き出す。
-   - **FMP7（`fmp7-source`）**: `sxmml.backend.fmp7` が対応音源トラックをパート順に並べ、反復構造の検査・最適化（`-O 3` 以上で反復圧縮）と LFO 到達状態解析を行う。`sxmml.backend.fmp7-source` が文字列ポートへ書きながら定義番号を採番し、使用定義と本文を CP932・CRLF の `.mwi` として出力する。
-   - **NSD.Lib（`nsdlib-source`）**: `sxmml.backend.nsdlib` が非空トラックを音源別に割り当て、反復構造化と LFO 到達状態解析を行う。`sxmml.backend.nsdlib-source` が FDS 波形・エンベロープを命令順で採番し、DPCM をノート番号順の割当表へまとめ、本文と定義を構築して UTF-8・LF の `.mml` として出力する。
+   - **FMP7（`fmp7`）**: `sxmml.backend.fmp7` が対応音源トラックをパート順に並べ、反復構造の検査・最適化（`-O 3` 以上で反復圧縮）と LFO 到達状態解析を行う。`sxmml.backend.fmp7-source` が文字列ポートへ書きながら定義番号を採番し、使用定義と本文を CP932・CRLF の `.mwi` として出力する。
+   - **NSD.Lib（`nsdlib`）**: `sxmml.backend.nsdlib` が非空トラックを音源別に割り当て、反復構造化と LFO 到達状態解析を行う（`-O` による最適化は行わない）。`sxmml.backend.nsdlib-source` が FDS 波形・エンベロープ・LFO を命令順で採番し、DPCM をノート番号順の割当表へまとめ、本文と定義を構築して UTF-8・LF の `.nsd` として出力する。
    - 各バックエンドとも一時ファイルへ書き出してから出力先へ原子的に置換し、実際の出力先と採用トラック名を持つ `<sxmml-output-result>` を返す。
 . `sxlc` は結果の採用トラック名に対応する集計を表示する。出力先が `#f` のバックエンドでは `Translate` 表示と `-c` の後処理を省く。変換失敗時は 0 以外の終了値で終了し、既存の出力ファイルを変更しない。
 
@@ -104,7 +104,7 @@ Scheme ソースは `load` で Gauche のコードとして実行される（`sx
 |最適化条件 |`optimizer.scm` の各水準と状態管理、`repeat-tree.scm`、`src/lib/` |トラックの合計 tick、最適化前後の列、各バックエンドの生成結果。xref:verification.adoc#q-01-音楽的な意味の保持[Q-01 の比較方法] を使う
 |モード指定・生成先 |`sxlc` の選択・読込み順・出力先決定、`environment.scm` のモード表・`default-output-path` |CLI 表示、実際の生成パス、`-c` に渡す引数が一致すること
 |PMD 向け出力 |`backend/pmd.scm`・`backend/pmd-source.scm`・`backend/pmd-binary.scm` |CP932 の `.mml` または `.m` バイナリ、出力パス、代表トラックとリズム
-|FMP7・NSD.Lib 向け出力 |`backend/fmp7.scm`・`backend/fmp7-source.scm`・`backend/nsdlib.scm`・`backend/nsdlib-source.scm` |パート・音源割当、LFO 到達状態、採番表、CP932 `.mwi` または UTF-8 `.mml` の内容
+|FMP7・NSD.Lib 向け出力 |`backend/fmp7.scm`・`backend/fmp7-source.scm`・`backend/nsdlib.scm`・`backend/nsdlib-source.scm` |パート・音源割当、LFO 到達状態、採番表、CP932 `.mwi` または UTF-8 `.nsd` の内容
 |===
 
 [[制約]]

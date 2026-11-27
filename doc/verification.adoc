@@ -45,10 +45,10 @@
 |`test/test-sxmml.scm` |`sxmml` |集約モジュール `sxmml` の binding 検査のみ（動作検査は各構成モジュールで実施）
 |`test/test-pmd.scm` |`sxmml.backend.pmd`、`sxmml.backend.pmd-source` |PMD4/PMD3 ソース出力、音色・LFO・エンベロープ・メタデータ・リズム・PPZ8、出力値検査、直接 IR での `L` 重複拒否、明示環境・出力先 `#f`。MC.EXE の受理や演奏は範囲外
 |`test/test-pmd-binary.scm` |`sxmml.backend.pmd-binary` |PMD4/PMD3 バイナリ出力、音色表・再現性・サイズ・tick 上限、直接 IR 検査、手作り音色の境界、明示環境・出力先 `#f`。固定期待値のうち MC.EXE と照合済みのものはテストコメントで区別する
-|`test/test-fmp7.scm` |`sxmml.backend.fmp7` |FMP7 のパート割当、反復構造検査・最適化、LFO 到達状態解析、LFO・エンベロープ・PCM 参照検査
-|`test/test-fmp7-source.scm` |`sxmml.backend.fmp7-source` |FMP7 の CP932・CRLF 出力、採番、値エラー、メタデータ・定義・本文の生成。FMC7 によるコンパイルや演奏は範囲外
-|`test/test-nsdlib.scm` |なし |NSD.Lib のトラック割当、反復と曲末ループを経る LFO の有効状態・再開先解析
-|`test/test-nsdlib-source.scm` |なし |NSD.Lib の UTF-8 出力、採番、DPCM 割当表、値エラー、失敗時の既存ファイル保持。nsc とプレイヤーは範囲外
+|`test/test-fmp7.scm` |`sxmml.backend.fmp7` |FMP7 のパート割当、反復構造検査・最適化、LFO 到達状態解析
+|`test/test-fmp7-source.scm` |`sxmml.backend.fmp7-source` |FMP7 の CP932・CRLF 出力、採番、LFO・エンベロープ・PCM 参照検査、値エラー、メタデータ・定義・本文の生成。FMC7 によるコンパイルや演奏は範囲外
+|`test/test-nsdlib.scm` |なし |反復と曲末ループを経る NSD.Lib の LFO 有効状態・再開先解析（`sxmml.backend.nsdlib-source` 経由）
+|`test/test-nsdlib-source.scm` |なし |NSD.Lib のトラック割当、UTF-8 出力、採番、DPCM 割当表、値エラー、失敗時の既存ファイル保持。nsc とプレイヤーは範囲外
 |`test/test-sxlc.scm` |なし |CLI の引数・`-m`・`-l`・`-o`・`-O`・`-j`・`-D`・`-c`・`-w`（`wslpath` なし環境での条件付き検査含む）・診断・終了値・出力先決定
 |`test/test-integration.scm` |なし |pmd-source・pmd-binary・fmp7 の読み込み・生成・出力失敗および反復回数 0 における終了値・診断・既存ファイル保持
 |`tools/test-measure-optimize.scm` |なし |計測ツールの既定設定・出力列・オブジェクト数集計・`E`/`W` 指定・失敗表示・後始末・使用法エラー

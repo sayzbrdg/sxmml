@@ -118,7 +118,7 @@ pmd-source の対応済み命令・定義は、公開されている link:https:
 GAUCHE_DYNLOAD_PATH="$PWD/build${GAUCHE_DYNLOAD_PATH:+:$GAUCHE_DYNLOAD_PATH}" gosh -I. tools/measure-optimize.scm [-m モード] ソース.sxl [設定 ...]
 ----
 
-モードの既定は `pmd` で、`pmd-binary` なども指定できる。設定は `O2`・`O3`・`O4` のいずれかで、`:E=数`・`:W=数` を付けると圧縮の設定を変えられる（例: `O4:E=128:W=256`）。既定は `sxlc` の `-O 3`・`-O 4` と同じで、E が 256、W が `O3` で 256、`O4` で 1024 である。設定を省略すると `O2`・`O3`・`O4` を測る。
+モードの既定は `pmd` で、`pmd-binary` など他の PMD 系モードも指定できる。設定は `O2`・`O3`・`O4` のいずれかで、`:E=数`・`:W=数` を付けると圧縮の設定を変えられる（例: `O4:E=128:W=256`）。既定は `sxlc` の `-O 3`・`-O 4` と同じで、E が 256、W が `O3` で 256、`O4` で 1024 である。設定を省略すると `O2`・`O3`・`O4` を測る。
 
 [source,console]
 ----

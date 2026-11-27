@@ -14,7 +14,7 @@
 |R-04 |sxmml が変換結果の生成物を作る |現行実装の入力・出力形式と生成結果 |link:../sxmml/backend/pmd-source.scm[`pmd-source.scm`]・link:../sxmml/backend/pmd-binary.scm[`pmd-binary.scm`]・link:../sxmml/backend/fmp7-source.scm[`fmp7-source.scm`]・link:../sxmml/backend/nsdlib-source.scm[`nsdlib-source.scm`]
 |===
 
-R-04 は生成物を MML に限定しない。現在の出力は PMD 向け MML（CP932 `.mml`）、PMD バイナリ（`.m`）、FMP7 向け MML（CP932 `.mwi`）、および NSD.Lib 向け MML（UTF-8 `.mml`）である。PMD バイナリは MC.EXE の出力との同一性を保証しない。生成先は `sxlc` の `-o`、ソースの `sxmml-default-output-path-set!` による既定値、入力名とモードの既定拡張子による値の順に選び、生成先・CLI 表示・`-c` に渡すファイル名が一致することを要求する。相対パスはカレントディレクトリを基準とし、`filename` メタデータは出力先の決定には使わない。
+R-04 は生成物を MML に限定しない。現在の出力は PMD 向け MML（CP932 `.mml`）、PMD バイナリ（`.m`）、FMP7 向け MML（CP932 `.mwi`）、および NSD.Lib 向け MML（UTF-8 `.nsd`）である。PMD バイナリは MC.EXE の出力との同一性を保証しない。生成先は `sxlc` の `-o`、ソースの `sxmml-default-output-path-set!` による既定値、入力名とモードの既定拡張子による値の順に選び、生成先・CLI 表示・`-c` に渡すファイル名が一致することを要求する。相対パスはカレントディレクトリを基準とし、`filename` メタデータは出力先の決定には使わない。
 
 `-c` のコマンド文字列は指定者が引用・エスケープする。sxmml がその後ろに追加する生成ファイル名は、`-w` の有無にかかわらず 1 つの引数として後処理へ渡すことを要求する。空白や `;` を含む生成名も 1 引数で渡る。
 
@@ -38,8 +38,8 @@ R-03 の最適化は、コンパイル後の平坦な IR リストのオブジ�
 |要求 |実装動作と関連仕様 |要求との差・制約 |実装状態
 |R-01 |Scheme の `map` 等で作った MML 断片を `mml`・`rhythm` に渡して登録できる（xref:behavior-spec.adoc[外部動作仕様]）。tick 指定はゼロ埋めした正の整数も受理し、0 は拒否する |`define-metadata`・`define-lfo`・`define-envelope` の旧書式は非推奨で、警告を出して受け付ける |Scheme 式による MML 記述を提供
 |R-02 |`mml-repeat`・`mml-echo`・`mml-delay` で MML オブジェクトを加工する（xref:sxmml-reference-manual.adoc[MML 記述者向けリファレンス]） |スロットの直接編集では文脈値が同期しない場合がある。`mml-echo` は単一トラック限定とする |加工マクロを提供
-|R-03 |局所整理・不要再指定の除去・休符結合・反復圧縮を自動で行う（xref:verification.adoc#r-03-オブジェクト数の削減[比較例]） |削減効果は入力に応じて評価する。意味保持は Q-01 として別に判定する |個別 IR 変換と標準組合せを提供し、各バックエンドが水準要求から選択
-|R-04 |PMD4/PMD3 向け MML（CP932 `.mml`）、PMD バイナリ（`.m`）、FMP7 向け MML（CP932・CRLF `.mwi`）、NSD.Lib 向け MML（UTF-8・LF `.mml`）を生成する（xref:behavior-spec.adoc[外部動作仕様]） |PMD バイナリは MC.EXE の出力との同一性を保証しない。バックエンドごとに対応音源・命令範囲が異なる |PMD（source・binary）・FMP7・NSD.Lib の 4 系統の生成を提供
+|R-03 |局所整理・不要再指定の除去・休符結合・反復圧縮を自動で行う（xref:verification.adoc#r-03-オブジェクト数の削減[比較例]） |削減効果は入力に応じて評価する。意味保持は Q-01 として別に判定する |個別 IR 変換と標準組合せを提供し、PMD・FMP7 バックエンドが水準要求から選択（NSD.Lib は最適化を行わない）
+|R-04 |PMD4/PMD3 向け MML（CP932 `.mml`）、PMD バイナリ（`.m`）、FMP7 向け MML（CP932・CRLF `.mwi`）、NSD.Lib 向け MML（UTF-8・LF `.nsd`）を生成する（xref:behavior-spec.adoc[外部動作仕様]） |PMD バイナリは MC.EXE の出力との同一性を保証しない。バックエンドごとに対応音源・命令範囲が異なる |PMD（source・binary）・FMP7・NSD.Lib の 4 系統の生成を提供
 |===
 
 現在残る不具合・未実装・検証不足・仕様確認待ちは link:https://github.com/sayzbrdg/sxmml/issues[GitHub の issue] で課題ごとに参照できる。要求の内容と優先順位は本書で扱う。

@@ -68,7 +68,7 @@ export GAUCHE_DYNLOAD_PATH="$stage_dir/lib/sxmml${GAUCHE_DYNLOAD_PATH:+:$GAUCHE_
 [[符号化と生成物の確認]]
 == 符号化と生成物の確認
 
-文字コード変換を伴うバックエンドのうち、PMD（`pmd-source`）と FMP7（`fmp7-source`）は CP932（`:encoding "cp932"`）、NSD.Lib（`nsdlib-source`）は UTF-8 で出力する。単なる ASCII の例は符号化の判定にならないため、日本語メタデータを含む入力で確かめる。
+文字コード変換を伴うバックエンドのうち、PMD（`pmd-source`）と FMP7（`fmp7`）は CP932（`:encoding "cp932"`）、NSD.Lib（`nsdlib`）は UTF-8 で出力する。単なる ASCII の例は符号化の判定にならないため、日本語メタデータを含む入力で確かめる。
 
 次のコマンドは上記のインストール後、コピー内で PMD の CP932 出力を確認する代表例である。
 
@@ -131,13 +131,13 @@ tools/distcheck.sh [-r REV] [-m MAKE] [-w DIR] [-k] [-h]
 |3. 配布アーカイブの作成 |展開したコピーで `gauche-package make-tarball` を実行する
 |4. アーカイブの中身の照合 |下記の規則でアーカイブの中身を照合する
 |5. 展開とビルド・テスト |アーカイブを展開し、`./configure`、make、`make check` を実行して `test.log` の末尾が `passed.` であることを確かめる
-|6. DESTDIR によるステージング配置 |`make -n` で全ての配置先に `DESTDIR` が付くことを確かめてから配置し、`sxlc`、Scheme モジュール、`sxmml.gpd`、（Pandoc がある場合）`sxlc.1` の配置を確かめる
+|6. DESTDIR によるステージング配置 |`make -n` で全ての配置先に `DESTDIR` が付くことを確かめてから配置し、`sxlc`、Scheme モジュール、`++sxmml_native++` 共有ライブラリ、`sxmml.gpd`、（Pandoc がある場合）`sxlc.1` の配置を確かめる
 |7. 配置物での変換 |配置した `sxlc` とモジュールで日本語メタデータを含む入力を変換し、CP932 の復号結果を確かめる
 |8. man ページの表示 |配置した `sxlc.1` を groff で表示する。Pandoc または groff がない場合は省く
 |9. 配置物の削除 |`++make DESTDIR=... uninstall++` の後にファイルが残らないことを確かめる
 |===
 
-アーカイブの中身は、リビジョンで Git 管理されているファイルから、VCS 関連ファイル（`.git` で始まる名前）と `++DIST_EXCLUDE++` の記載を除いたものと過不足なく一致しなければならない。アーカイブにのみ存在してよいのは、`configure` が生成する `VERSION` だけである。`++DIST_EXCLUDE++` には、リポジトリのルートからの相対パス（ファイルまたはディレクトリ）のみを記載する。
+アーカイブの中身は、リビジョンで Git 管理されているファイルから、VCS 関連ファイル（`.git` で始まる名前）、`DIST`・`++DIST_EXCLUDE++` 自体、および `++DIST_EXCLUDE++` の記載を除いたものと過不足なく一致しなければならない。アーカイブにのみ存在してよいのは、`configure` が生成する `VERSION` だけである。`++DIST_EXCLUDE++` には、リポジトリのルートからの相対パス（ファイルまたはディレクトリ）のみを記載する。
 
 配布アーカイブは、Git を使わずにビルド、テスト、導入ができる完全なソースとして扱う。ビルド・テスト・導入に必要なファイル、ライセンス、文書（`doc/internal-reference/` を含む）は含め、リポジトリでの開発作業にのみ意味を持つファイルや、アーカイブ内では動作しないファイルは `++DIST_EXCLUDE++` で除外する。現在除外しているのは次のとおりである。
 
