@@ -1,35 +1,71 @@
-= MML生成とファイル出力
+= `sxmml.backend.fmp7-source` の生成処理
+:toc: left
 
-トラックを文字列ポートへ出力するときに使用定義へ番号を付けます。設定・定義・本文をCP932、CRLFで一時ファイルに書き、成功後に出力先を置き換えます。
+FMP7 向けの MML ソース（`.mwi`）を生成するバックエンドです。読み込み時にモード `fmp7`（`:setup #f`、拡張子 `"mwi"`）を登録します。初期トラック登録は行わず、ソース側で音源種別を指定してトラックを登録します。パート割り当て、反復・最適化、LFO 到達状態解析、定義検査は xref:fmp7.adoc[`sxmml.backend.fmp7`] を使います。
 
-== 手続きと構文
+公開出力手続きは出力環境一つを受け取り、出力先と採用トラック名を持つ `<sxmml-output-result>` を返します。出力中に現在の登録環境・選択モード・`sxmml-source-file` を参照せず、入力環境と IR は変更しません。
 
-[[ref-fmp7-source-internal-integer]]
-`(%integer kind value low high)`:: 出力値の整数範囲を検査する。
+出力先が `#f` の場合は `<sxmml-value-error>`（`output file is not specified`）になります。出力は出力先と同じディレクトリの一時ファイルへ CP932（改行 CRLF）で書き込み、完了後にリネームします。失敗時は既存の出力ファイルを変更せず、一時ファイルを破棄します。
 
-[[ref-fmp7-source-internal-csv]]
-`(%csv values)`:: 数値列をカンマで連結する。
+実装は link:../../sxmml/backend/fmp7-source.scm[fmp7-source.scm] にあります。このモジュールは 10 手続きを定義し、1 手続きを公開します。呼び出せない対応表（`%ssg-presets`）は索引の掲載対象外です。
 
-[[ref-fmp7-source-internal-pitch]]
-`(%pitch n)`:: IR音高から絶対オクターブ付き音名を返す。
-
-[[ref-fmp7-source-internal-channel]]
-`(%channel obj)`:: 正規化済みチャネルからFMP7の記号を返す。
-
-[[ref-fmp7-source-internal-lookup]]
-`(%lookup table id label)`:: 名前から定義を取得する。
-
-[[ref-fmp7-source-internal-fm-definition]]
-`(%fm-definition kind number data)`:: 4オペレータとAL/FBをFAまたはFCへ書く。
-
-[[ref-fmp7-source-internal-definition-output]]
-`(%definition-output env kind id number)`:: 使用定義を番号付きで書く。
-
-[[ref-fmp7-source-internal-with-track-context]]
-`(%with-track-context track thunk)`:: 前処理や出力中の sxmml エラーにトラック名を付ける。
-
-[[ref-fmp7-source-internal-track-output]]
-`(%track-output env ir part kind number)`:: トラックの設定・反復・音符をMMLとして書く。
+== 公開出力手続き
 
 [[ref-fmp7-source-sxmml-fmp7-source-output]]
-`(sxmml-fmp7-source-output env)`:: 入力環境から.mwiを生成して出力結果を返す。
+=== `(sxmml-fmp7-source-output env)`
+
+出力環境 `env` から FMP7 向けの `.mwi` ファイルを生成し、`<sxmml-output-result>` を返します。
+
+`sxmml-fmp7-tracks-prepare` で採用トラックとパート名を決定し、トラック本文を文字列ポートへ生成しながら使用した音色・エンベロープへ初出順に 0～255 の番号を割り当てます。番号枠は FM（`opn`・`opm` 共有）、`pcm`、`envelope` の 3 つで、それぞれ 256 件を超えると `<sxmml-value-error>`（`too many <bank> definitions (max 256)`）になります。
+
+`optimize` が `3` 以上、`jobs` が `1` より大きく、非空トラックが 2 本以上のときは、各トラックへ `sxmml-fmp7-ir-prepare` を適用してから `sxmml-ir-compress-repeats-batch` で並列に反復圧縮します。それ以外は逐次で `sxmml-fmp7-ir-optimize` を呼びます。
+
+一時ファイルには次の順で出力します。
+
+. `'{ ClockCount=N VolumeExtend=1 }`（`N` は `resolution` × 4。`resolution` は 2～96 の正確な整数）
+. 音源ごとのパート宣言 `'{ PartOPNA=... }`・`'{ PartOPM=... }`・`'{ PartSSG=... }`・`'{ PartPCM=... }`（該当トラックがある音源のみ）
+. メタデータ `Title`（`title`）・`Composer`（`composer`）・`DataCreator`（`creator`）・`Comment`（`memo`）。`memo` が文字列リストの場合は `" / "` で連結します。CR・LF を含む文字列や文字列以外の値は `<sxmml-value-error>` です。
+. 使用した定義群（`'@ FA`・`'@ FC`・`'@ P`・`'@ E`・`'@ EX`）
+. パート名順のトラック本文
+
+== トラック出力と定義生成
+
+[[ref-fmp7-source-internal-track-output]]`(%track-output env ir part kind number)`::
+1 トラック分の最適化済み IR 列 `ir` を `sxmml-fmp7-lfo-output-prepare` で注釈し、``'<part> `` に続けて FMP7 の MML 命令列と CRLF を出力します。`number` は `(number kind id)` で定義番号を割り当てるクロージャです。
++
+主な命令の変換と値域（正確な整数）は次のとおりです。範囲外や未対応の命令は `<sxmml-value-error>`、未定義の音色・エンベロープ・LFO・SSG プリセットは `<sxmml-reference-error>` です。
+
+* 音符・休符・ポルタメント: 音長 1～65535 tick（`+#N+`）、音高 `o1c`～`o8b`（`%pitch`）、ポルタメントは `+<始点>#<長さ>_<終点>+`
+* 音量・相対音量: `v`（0～127）、`)N`／`(N`（−127～127、0 は省略）
+* テンポ・絶対テンポ: `T`（6～400）
+* 絶対移調・相対移調: `K`（−96～96）、`K)N`／`K(N`（−96～96、0 は省略）
+* パン・デチューン・ゲートタイム: `P`（1～255）、`D`（−6144～6144）、`q`（0～65535）
+* 反復・ループ・タイ: `[ ... / ... ]N`、`L`、`&`
+* LFO 設定・スイッチ: `M<ch>V<7値>`（対のスイッチがあれば `S<ch>1`/`0`、対がなく到達時無効なら `S<ch>0` を補完）、単独スイッチは `S<ch>1`/`0`
+* 音色・エンベロープ・SSG 専用命令: `ssg` 音色は `%ssg-presets` で対応付けた `@0,0`～`@3,2`（`square`・`triangle1`～`2`・`pulse1`～`9`・`sawtooth1`～`2`）、その他は `@N`（`number` で採番）。エンベロープは `ssg`・`pcm` で `EN`、出力切替（`m1,0`・`m0,1`・`m1,1`、値 1～3）とノイズ周波数 `w`（0～31）は `ssg` のみ対応
+
+[[ref-fmp7-source-internal-definition-output]]`(%definition-output env kind id number)`::
+初出の定義を番号 `number` 付きで現在の出力ポートへ書きます。`kind` が `'envelope` なら `'@ E` または `'@ EX`、`'pcm` なら `'@ P <number>,"<file>",i<sample>` を出力し、`'opn`・`'opm` なら `%fm-definition` を呼びます。
+
+[[ref-fmp7-source-internal-fm-definition]]`(%fm-definition kind number data)`::
+4 オペレータ FM 音色 `data` を、`'opn` は `'@ FA <number>`（各オペレータ 10 項目: AR・DR・SR・RR・SL・TL・KS・ML・DT・AM）、`'opm` は `'@ FC <number>`（DT2 を含む 11 項目）と末尾の `'@ AL,FB` で出力します。各項目を許容範囲の正確な整数か検査し、不正な構造や範囲外は `<sxmml-value-error>` です。
+
+[[ref-fmp7-source-internal-with-track-context]]`(%with-track-context track thunk)`::
+`thunk` を実行し、`<sxmml-error>` 系の例外が発生したときに `track` の名前を持つ `<sxmml-track-context>` を合成して再送出します。
+
+== 補助手続き
+
+[[ref-fmp7-source-internal-integer]]`(%integer kind value low high)`::
+`value` が `low` 以上 `high` 以下の正確な整数であればそのまま返し、違反時は `<sxmml-value-error>`（`invalid <kind>: <value> (expected an integer from <low> to <high>)`）を送出します。
+
+[[ref-fmp7-source-internal-csv]]`(%csv values)`::
+数値のリスト `values` をカンマ `,` で連結した文字列を返します。
+
+[[ref-fmp7-source-internal-pitch]]`(%pitch n)`::
+音高 `n` を 12～107 で検査し、絶対オクターブ付き音名（`o1c`～`o8b`、半音は `c+`・`d+`・`f+`・`g+`・`a+`）を返します。
+
+[[ref-fmp7-source-internal-channel]]`(%channel obj)`::
+`obj` の正規化済み `channel` スロット（`A`・`B`・`C`・`D`）を FMP7 のチャンネル記号 `"P"`・`"Q"`・`"R"`・`"S"` へ変換します。
+
+[[ref-fmp7-source-internal-lookup]]`(%lookup table id label)`::
+ハッシュ表 `table` から `id` を取得して返します。`table` が `#f` または未登録なら `<sxmml-reference-error>`（`undefined <label>: <id>`）を送出します。

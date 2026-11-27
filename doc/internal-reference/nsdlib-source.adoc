@@ -1,33 +1,109 @@
-= NSD.Lib ソースの生成
+= `sxmml.backend.nsdlib` と `sxmml.backend.nsdlib-source` の生成処理
+:toc: left
 
-`sxmml.backend.nsdlib` は出力環境に含まれるトラックと IR から、各チャンネルに書く命令を求めます。link:../../sxmml/backend/nsdlib.scm[nsdlib.scm]
+NSD.Lib 向けの MML ソース（`.nsd`、UTF-8・BOM なし・改行 LF）を生成する 2 つのモジュールを説明します。読み込み時に `sxmml.backend.nsdlib-source` がモード `nsdlib`（`:setup #f`、拡張子 `"nsd"`）を登録します。初期トラック登録は行わず、ソース側で音源種別を指定してトラックを登録します。
+
+NSD.Lib バックエンドは最適化レベルにかかわらず反復圧縮を呼ばず、整列済みの IR 列を順に変換します。出力中に現在の登録環境・選択モード・`sxmml-source-file` を参照せず、入力環境と IR は変更しません。
+
+`sxmml.backend.nsdlib` は link:../../sxmml/backend/nsdlib.scm[nsdlib.scm] にあり、5 手続きを定義して 3 手続きを公開します（呼び出せない表 `%channels` は索引対象外）。`sxmml.backend.nsdlib-source` は link:../../sxmml/backend/nsdlib-source.scm[nsdlib-source.scm] にあり、8 手続きを定義して 1 手続きを公開します（呼び出せないベクタ `%names` は索引対象外）。
+
+== `sxmml.backend.nsdlib`
+
+トラックの TR 番号割り当て、DPCM ノート名の変換、反復の構造化と LFO 到達状態の解析を担当します。
 
 [[ref-nsd-tracks]]
-`(sxmml-nsdlib-tracks-prepare env)`:: ドライバのファイル名（標準なら #f）と TR 番号順の (番号 音源 トラック) の列を多値で返します。
-[[ref-nsd-key]]
-`(sxmml-nsdlib-dpcm-key key)`:: 明示オクターブ付き音名を o1c 起点の0始まりのノート番号に変換します。
-[[ref-nsd-tree]]
-`(%sequence-tree ir)`:: 区切りと L の位置を検査して反復を前半・脱出後半・回数に分解します。
-[[ref-nsd-region]]
-`(%lfo-region nodes)`:: 区間が入口の定義・有効状態に与える効果と、到達状態群から命令を注釈する手続きを返します。各効果は状態を維持するか定数で上書きします。同一区間の二回目以降の入口は一周分の効果から求まります。
-[[ref-nsd-seq]]
-`(sxmml-nsdlib-sequence-prepare ir)`:: 有限反復と曲末ループを通る選択状態から、各 LFO 操作で出す Em 番号、停止、出力省略を決定します。周回の違いにより一つの命令で表せない場合は値エラーです。
+=== `(sxmml-nsdlib-tracks-prepare env)`
 
-`sxmml.backend.nsdlib-source` はモードを登録し、本文・定義を UTF-8 MML として出力します。link:../../sxmml/backend/nsdlib-source.scm[nsdlib-source.scm]
+出力環境 `env` から空でないトラックを集め、使用する拡張ドライバー名と TR 番号順のトラック割り当て列を二値で返します。空トラックは割り当てとエラー検査の対象から除外します（休符だけのトラックは非空として採用します）。
+
+対応音源と割り当てられる TR 番号は次のとおりです。
+
+* `pulse`: TR1・TR2（最大 2 本）
+* `triangle`: TR3（最大 1 本）
+* `noise`: TR4（最大 1 本）
+* `dpcm`: TR5（最大 1 本）
+* `fds`: TR6（最大 1 本）
+* `vrc6-pulse`: TR6・TR7（最大 2 本）
+* `vrc6-saw`: TR8（最大 1 本）
+
+同じ音源を使うトラックはトラック名の辞書順に TR 番号を割り当て、`(TR番号 音源種別 出力トラック)` のリストを返します。第 1 戻り値のドライバー名は、`fds` 使用時は `"nsd_fds.bin"`、`vrc6-pulse` または `vrc6-saw` 使用時は `"nsd_vrc6.bin"`、標準 APU のみのときは `#f` です。
+
+非空トラックで音源種別が未指定の場合は `<sxmml-value-error>`（`missing nsdlib sound-source for track <name>`）になります。未対応の音源種別を明示した非空トラックは標準エラー出力へ `warning: nsdlib: ignoring track <name> (unsupported sound-source: <kind>)` を表示して除外します。`fds` と VRC6（`vrc6-pulse`・`vrc6-saw`）の併用、および音源ごとの本数上限超過は `<sxmml-value-error>` です。
+
+[[ref-nsd-key]]
+=== `(sxmml-nsdlib-dpcm-key key)`
+
+明示オクターブ付き音名文字列 `key`（正規表現 `^o(\d+)([a-g])([-+]*)$`）を、`o1c` を `0` とする 0～95（`o1c`～`o8b`）のノート番号へ変換します。書式違反や範囲外は `<sxmml-value-error>` です。
+
+[[ref-nsd-seq]]
+=== `(sxmml-nsdlib-sequence-prepare ir)`
+
+IR 列 `ir` を `%sequence-tree` で反復構造へ変換します。`<sxmml-mml-lfo>` を含まない列は構造化結果をそのまま返します。
+
+`<sxmml-mml-lfo>` を含む列は、`L` より前と `L` 以降に分けて `%lfo-region` で LFO の到達状態（初期状態は `(定義なし . 有効)` ＝ `(#f . #t)`）を解析し、各 LFO 操作へ出力動作を注釈した列を返します。
+
+[[ref-nsd-tree]]`(%sequence-tree ir)`::
+平坦な IR 列 `ir` の有限反復と `L` の位置を検査し、各反復を `(repeat count front escape? back)` のノードに組んだ木を返します。1 回反復も展開前に区切りと `L` の位置を検査します。
++
+反復内の `L` や 2 個目の `L` は `invalid nsdlib loop position`、終了のない反復は `missing nsdlib repeat end`、対応のない区切りは `unexpected nsdlib repeat delimiter`、1～255 以外の反復回数は `invalid nsdlib repeat count` の `<sxmml-value-error>` になります。
+
+[[ref-nsd-region]]`(%lfo-region nodes)`::
+ノード列 `nodes` に対する `(入口状態から出口状態を求める手続き . 入口状態集合から注釈付きノード列を作る手続き)` の対を返します。LFO のチャンネルは `#f` または `A` に限り、それ以外は `<sxmml-value-error>`（`unsupported nsdlib LFO channel`）になります。
++
+各 LFO 命令（直後に `<sxmml-mml-lfo-switch>` が続く `<sxmml-mml-lfo>` は対として扱います）は `(lfo setting action)` に変換します。`action` は、出力する定義 ID（`EmN`）、停止を表す `#f`（`Em*`）、または状態変化なしによる出力省略を表す `#t` のいずれかです。周回によって単一の命令に定まらない場合は `<sxmml-value-error>`（`ambiguous nsdlib LFO resume definition` または `ambiguous nsdlib LFO switch state`）になります。
+
+== `sxmml.backend.nsdlib-source`
+
+出力環境から NSD.Lib のヘッダ、DPCM 表、波形・エンベロープ定義、`BGM(0){ ... }` 本文を UTF-8 で一時ファイルへ書き込み、リネームして出力します。
 
 [[ref-nsd-output]]
-`(sxmml-nsdlib-source-output env)`:: 出力環境から一時ファイルに一曲の MML を書き、成功時に出力先を置換します。出力先と採用トラック名を持つ出力結果を返します。
-[[ref-nsd-int]]
-`(%integer label n lo hi)`:: 閉区間にある正確な整数を返し、失敗時に対象と値を示します。
-[[ref-nsd-lookup]]
-`(%lookup table id kind)`:: 定義を名前で引き、未登録なら種類と名前を示します。
-[[ref-nsd-meta]]
-`(%metadata-output table)`:: 文字列フィールドと複数のメモを nsc の文字列記法で出力します。
-[[ref-nsd-dpcm]]
-`(%dpcm-output env)`:: PCM の定義をノート番号順に出力します。配置アドレス、パラメータ、キーの競合を検査します。
-[[ref-nsd-pattern]]
-`(%pattern env kind id sound)`:: 定義を使用音源の値域で検査し、Envelop のパターン文字列を返します。
-[[ref-nsd-number]]
-`(%numbering env definitions)`:: 波形とパターンの番号を初出順に割り当て、定義ポートに初出の定義を書く手続きを返します。
-[[ref-nsd-track]]
-`(%track-output env tr sound track number)`:: 通常の命令と構造化した反復を TR 行に出し、既知の診断にトラック名を添えます。最頻音長が1～255 tick のときは TR 番号の後に `l%N` を出力します。長い音符・休符は分割した各部分で音長を省略できるか判定し、ポルタメントは常に音長を明記します。
+=== `(sxmml-nsdlib-source-output env)`
+
+出力環境 `env` から `.nsd` ファイルを生成し、出力先と採用トラック名を持つ `<sxmml-output-result>` を返します。出力先が `#f` の場合は `<sxmml-value-error>`（`output file is not specified`）になります。
+
+`sxmml-nsdlib-tracks-prepare` でドライバー名と TR 割り当てを求め、各トラックを文字列ポートへ出力しながら使用した波形とエンベロープ・LFO パターンに初出順で番号を割り当てます。一時ファイルには次の順で書き出し、完了後に出力先へリネームします。
+
+. メタデータ（`%metadata-output`）
+. 拡張ドライバー宣言 `#code "<driver>"`（`driver` が `#f` でない場合）
+. `#timebase <resolution>`
+. DPCM 定義ブロック（`dpcm` トラックを採用した場合のみ `%dpcm-output`）
+. 使用した波形（`FDSC(N){...}`）およびパターン（`Envelop(N){...}`）定義
+. `BGM(0){` 〜 各 TR 行 〜 `}`
+
+//
+
+[[ref-nsd-meta]]`(%metadata-output table)`::
+メタデータ表 `table` から `title`（`#Title`）・`composer`（`#Composer`）・`creator`（`#Maker`）・`copyright`（`#Copyright`）・`memo`（`#Text`）を順に出力します。値は `"`・`\`・改行・CR・タブをエスケープした二重引用符文字列で書きます。`memo` は文字列リストも受け付けて要素ごとに出力します。文字列以外は `<sxmml-value-error>` です。
+
+[[ref-nsd-dpcm]]`(%dpcm-output env)`::
+`env` の `pcm` 音色表に 1 件以上定義があるとき、`#OffsetPCM $XXXX` と `DPCM{ ... }` ブロックをノート番号順に出力します。`offsetpcm` メタデータ（既定 `0xc000`）は `0xc000`～`0xffc0` の 64 バイト境界に限ります。
++
+各定義の値は `(音名 ファイル名 rate mode [initial-output])` で、`ファイル名` に `"` を含められず、`rate` は 0～15、`mode` は 0～1、省略可能な `initial-output` は −1～127 です。形式違反・範囲外・ノート番号の重複は `<sxmml-value-error>` になります。
+
+[[ref-nsd-pattern]]`(%pattern env kind id sound)`::
+`env` の `lfo` または `envelope` 表から `id` を引き、種類が `default` で非空であることを確認して NSD.Lib の `Envelop` パターン文字列を返します。
++
+要素は `'l`（`L`）、`'r`（`R`）、`(d n)`（`Dn`、`n` は 0～255）、`(a b n)`（線形補間 `(a,b,n)`、`n` は 1～255）、または単一整数値を受け付けます。値の範囲は `lfo` が −64～63、`envelope` が `triangle` で 0～4、`fds`・`vrc6-saw` で 0～63、その他で 0～15 です。
+
+[[ref-nsd-number]]`(%numbering env definitions)`::
+波形（`FDSC`）とパターン（`Envelop`、LFO とエンベロープで番号枠を共有）へ初出順に 0 から番号を割り当て、定義ポート `definitions` へ書き出す手続き `(number kind id sound)` を返します。
++
+同じ `(kind . id)` を異なる音源 `sound` から参照した場合も、`(kind id sound)` の組み合わせごとに初回は値域を再検査し、番号自体は既存のものを再利用します。波形は 64 要素（各 0～63）のリストに限ります。
+
+[[ref-nsd-track]]`(%track-output env tr sound track number)`::
+1 トラック分の命令列を `sxmml-nsdlib-sequence-prepare` で準備し、`TR<tr番号>` に続けて出力します。最頻音長が 1～255 tick のときは `l%N` を出力し、音符・休符で一致する音長を省略します（255 tick 超は分割した各部分ごとに省略可否を判定します）。`<sxmml-error>` 発生時はトラック名の `<sxmml-track-context>` を添えて再送出します。
++
+主な変換規則と制約は次のとおりです。
+
+* 反復: 1 回反復は最適化レベルにかかわらず展開し、2 回以上は `[ ... ]N`（脱出ありは `` :``）で出力します。
+* 音高: 内部音高へ `triangle` は +12、`fds` は +24 を加算して 12～107（`o1c`～`o8b`）で検査します。
+* 音符・休符・ポルタメント: 音長は正の正確な整数に限ります。`dpcm` の休符は `r-`、その他は `r` で出力します。ポルタメントは 1～255 tick で常に `%N` を明記し、`oN{始点[>|<]終点}%N` 形式で書きます。
+* 音色: `fds` は `@FCN`（波形参照）、`pulse`（0～3）・`noise`（0～1）・`vrc6-pulse`（0～7）は `@N` で出力し、その他の音源は `<sxmml-value-error>` になります。
+* 音量・エンベロープ・LFO: 音量 `v`（0～15）と相対音量 `)`/`(`（0 は省略）は `triangle`・`dpcm` で非対応です。エンベロープ `EvN` は `dpcm` で非対応です。LFO は注釈に従い `EmN`・`Em*`・出力省略を選びます（省略時も使用定義を `number` で検査・登録します）。
+* その他: テンポ `tN`（`floor(N × resolution / 24)` が 1～255 の範囲）、絶対移調 `_N`・相対移調 `__N`・デチューン `DN`（各 −128～127）、ゲートタイム `qN`（0～255）、`L`、`&` を出力します。
+
+[[ref-nsd-int]]`(%integer label n lo hi)`::
+`n` が `lo` 以上 `hi` 以下の正確な整数であればそのまま返し、違反時は `<sxmml-value-error>`（`invalid <label>: <n> (expected an integer from <lo> to <hi>)`）を送出します。
+
+[[ref-nsd-lookup]]`(%lookup table id kind)`::
+ハッシュ表 `table` から `id` を取得して返します。`table` が `#f` または未登録なら `<sxmml-reference-error>`（`undefined <kind>: <id>`）を送出します。
