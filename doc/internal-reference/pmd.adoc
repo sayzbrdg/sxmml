@@ -44,11 +44,11 @@ PMD 向けのソース生成（xref:pmd-source.adoc[`sxmml.backend.pmd-source`]�
 
 整列済みの IR 列 `ir` に対し、整数の最適化レベル `level` に応じた最適化を適用して結果を返します。入力 `ir` は変更しません。
 
-* `0` 以下: 最適化せず `ir` をそのまま返す
+* `0` 以下: 最適化せず `ir` をそのまま返します。
 * `1`: `sxmml-ir-optimize-local`（局所整理）
 * `2`: `sxmml-ir-optimize`（局所整理・状態追跡・休符結合）
 * `3`: `sxmml-ir-optimize-with-repeats`（基本組み合わせ＋通常の反復圧縮）
-* `9`: `sxmml-ir-optimize-full-repeat`（全幅探索による 2 候補比較）。要素数が 3,072 を超える最初の区間について標準エラー出力へ警告を出す（`track-name` があればトラック名を添える）
+* `9`: `sxmml-ir-optimize-full-repeat`（全幅探索による 2 候補比較）。要素数が 3,072 を超える最初の区間について標準エラー出力へ警告を出します（`track-name` があればトラック名を添えます）。
 * その他の `4` 以上: `sxmml-ir-optimize-with-repeat-expansion`（基本組み合わせ＋短い既存反復を展開して圧縮）
 
 [[ref-pmd-sxmml-pmd-for-each-track-ir]]
