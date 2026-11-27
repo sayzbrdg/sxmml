@@ -5,8 +5,10 @@ BPM から PMD 用の Timer B 値を算出する補助手続きを提供しま�
 
 実装は link:../../sxmml/util.scm[util.scm] にあります。このモジュールは 1 手続きを定義し、公開します。
 
+== 公開手続き
+
 [[ref-util-sxmml-bpm-to-timer-b]]
-== `(sxmml-bpm\->timer-b bpm :optional (res #f))`
+=== `(sxmml-bpm\->timer-b bpm :optional (res #f))`
 
 正の BPM `bpm` と解像度 `res` から PMD 用の Timer B 値を計算して返します。`res` を省略するか `#f` にした場合は、現在の環境の `sxmml-resolution-get` を使用します。環境は変更しません。
 

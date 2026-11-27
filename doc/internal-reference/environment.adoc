@@ -72,6 +72,8 @@
 
 現在の環境の `options` 表へシンボル `name` と値 `value` を登録・置換します。値の型は制限しません。環境ごとに独立して保持され、モード変更でも維持されます。`name` がシンボルでない場合は `<sxmml-value-error>` です。
 
+=== 非公開手続き
+
 [[ref-environment-internal-option-name-check]]`(%option-name-check name)`::
 設定名 `name` がシンボルであるかを検査する非公開手続きです。シンボル以外は `<sxmml-value-error>`（`invalid option name: <値> (expected a symbol)`）を送出します。`sxmml-option-get` と `sxmml-option-set!` が表へアクセスする前に呼びます。
 
@@ -142,6 +144,8 @@ CLI の `-m` とソース内の `sxmml-mode` マクロの双方で指定した�
 
 正常時は、展開時に取得したフォーム位置を添えて `sxmml-form-wrap` で包んだ `(%sxmml-mode-select 位置 'name)` へ展開します。
 
+=== 非公開手続き
+
 [[ref-environment-internal-mode-name-check]]`(%mode-name-check name)`::
 モード名 `name` がシンボルであるかを検査する非公開手続きです。シンボル以外は `<sxmml-value-error>`（`invalid mode name: <値> (expected a symbol)`）を送出します。
 
@@ -205,8 +209,10 @@ LFO を登録する公開マクロです。`%define-lfo/envelope-expand` にマ�
 
 エンベロープを登録する公開マクロです。`%define-lfo/envelope-expand` にマクロ名 `"define-envelope"` と登録手続き `'sxmml-envelope-set!` を渡して展開します。
 
+=== 非公開手続き
+
 [[ref-environment-internal-define-lfo-envelope-expand]]`(%define-lfo/envelope-expand form rename id=? name set-proc)`::
-`define-lfo` と `define-envelope` の共通展開を行う非公開手続きです。3 引数形では `type` を `default` とし、4 引数形ではリストでない `type` を受け付けます。`id` は `sxmml-form-name\->symbol`、`type` は `identifier?` で検査します（`type` 違反は `invalid <name> type: <値> (expected a symbol)`）。
+`define-lfo` と `define-envelope` の共通展開を行う非公開手続きです。2 引数形（フォーム 3 要素）では `type` を `default` とし、3 引数形（フォーム 4 要素）ではプロパーリストでない `type` を受け付けます。`id` は `sxmml-form-name\->symbol`、`type` は `identifier?` で検査します（`type` 違反は `invalid <name> type: <値> (expected a symbol)`）。
 +
 値式は `id=?` で標準の `list`・`quote`・`quasiquote` を判別し、新書式はそのまま、旧書式は警告を出して `(list ,@value)` として `set-proc` の呼び出しを組み立て、`sxmml-form-wrap` で包みます。形式違反や非プロパーリストの値式は `invalid <name> form: expected (<name> id [type] value)` の `<sxmml-form-syntax-error>` です。
 
