@@ -36,8 +36,8 @@
 
 * `resolution`（`:resolution`, 初期値 `24`）: 四分音符あたりの tick 数。
 * `options`（初期化キーワードなし, `eq-comparator` の新しい空ハッシュ表）: 利用者定義の設定表。
-* `default-output-path`（初期化キーワードなし, 初期値 `#f`）: ソースで指定した既定出力先。最終的な出力先決定は `sxlc` が行います。
-* `metadata`・`lfo`・`envelope`・`voice`・`track`（いずれも初期化キーワードなし, `eq-comparator` の新しい空ハッシュ表）: 各種定義とトラックの登録表。`voice` は種類シンボルをキー、名前別の定義表を値とするハッシュ表です。
+* `default-output-path`（初期化キーワードなし, 初期値 `#f`）: ソースで指定した既定出力先（最終的な出力先決定は `sxlc` が担当）。
+* `metadata`・`lfo`・`envelope`・`voice`・`track`（いずれも初期化キーワードなし, `eq-comparator` の新しい空ハッシュ表）: 各種定義とトラックの登録表（`voice` は種類シンボルをキー、名前別の定義表を値とするハッシュ表）。
 * `mode`（`:mode`, 初期値 `#f`）: 現在選択中の `<sxmml-mode>`。
 
 [[ref-classes-class-sxmml-output-environment]]
@@ -115,192 +115,192 @@
 `<sxmml-mml>` は `value` スロット（`:value`, 初期値未指定）を持ち、`<sxmml-mml-note>` はさらに `ticks` スロット（`:ticks`, 初期値 `#f`）を持ちます。特記しないクラスは親クラスのスロットをそのまま継承します。インスタンスを生成しただけではトラックへ自動登録されません。
 
 [[ref-classes-class-sxmml-mml]]`<sxmml-mml>`::
-親なし。MML オブジェクトの基底クラス。固有スロット: `value`（`:value`, 初期値未指定）。
+親なし。MML オブジェクトの基底クラスです。固有スロットは `value`（`:value`, 初期値未指定）です。
 
 [[ref-classes-class-sxmml-mml-nop]]`<sxmml-mml-nop>`::
-親: `<sxmml-mml>`。解析状態だけを変えた位置の占位オブジェクト。
+親は `<sxmml-mml>` です。解析状態だけを変えた位置の占位オブジェクトを表します。
 
 [[ref-classes-class-sxmml-mml-note]]`<sxmml-mml-note>`::
-親: `<sxmml-mml>`。音符。固有スロット: `ticks`（`:ticks`, 初期値 `#f`）。
+親は `<sxmml-mml>` です。音符を表します。固有スロットは `ticks`（`:ticks`, 初期値 `#f`）です。
 
 [[ref-classes-class-sxmml-mml-rest]]`<sxmml-mml-rest>`::
-親: `<sxmml-mml-note>`。休符。
+親は `<sxmml-mml-note>` です。休符を表します。
 
 [[ref-classes-class-sxmml-mml-length]]`<sxmml-mml-length>`::
-親: `<sxmml-mml>`。音長設定を表すクラス。
+親は `<sxmml-mml>` です。音長設定を表します。
 
 [[ref-classes-class-sxmml-mml-octave]]`<sxmml-mml-octave>`::
-親: `<sxmml-mml>`。オクターブ設定を表すクラス。
+親は `<sxmml-mml>` です。オクターブ設定を表します。
 
 [[ref-classes-class-sxmml-mml-volume]]`<sxmml-mml-volume>`::
-親: `<sxmml-mml>`。音量指定。
+親は `<sxmml-mml>` です。音量指定を表します。
 
 [[ref-classes-class-sxmml-mml-volume-change]]`<sxmml-mml-volume-change>`::
-親: `<sxmml-mml>`。音量の相対変更。
+親は `<sxmml-mml>` です。音量の相対変更を表します。
 
 [[ref-classes-class-sxmml-mml-gate-time]]`<sxmml-mml-gate-time>`::
-親: `<sxmml-mml>`。ゲート時間指定。
+親は `<sxmml-mml>` です。ゲート時間指定を表します。
 
 [[ref-classes-class-sxmml-mml-tie]]`<sxmml-mml-tie>`::
-親: `<sxmml-mml>`。タイ。
+親は `<sxmml-mml>` です。タイを表します。
 
 [[ref-classes-class-sxmml-mml-transpose]]`<sxmml-mml-transpose>`::
-親: `<sxmml-mml>`。移調値指定。
+親は `<sxmml-mml>` です。移調値指定を表します。
 
 [[ref-classes-class-sxmml-mml-transpose-change]]`<sxmml-mml-transpose-change>`::
-親: `<sxmml-mml>`。移調値の相対変更。
+親は `<sxmml-mml>` です。移調値の相対変更を表します。
 
 [[ref-classes-class-sxmml-mml-tempo]]`<sxmml-mml-tempo>`::
-親: `<sxmml-mml>`。テンポ指定。
+親は `<sxmml-mml>` です。テンポ指定を表します。
 
 [[ref-classes-class-sxmml-mml-tempo-absolute]]`<sxmml-mml-tempo-absolute>`::
-親: `<sxmml-mml>`。絶対テンポ指定。
+親は `<sxmml-mml>` です。絶対テンポ指定を表します。
 
 [[ref-classes-class-sxmml-mml-detune]]`<sxmml-mml-detune>`::
-親: `<sxmml-mml>`。デチューン指定。
+親は `<sxmml-mml>` です。デチューン指定を表します。
 
 [[ref-classes-class-sxmml-mml-loop]]`<sxmml-mml-loop>`::
-親: `<sxmml-mml>`。ループ位置。
+親は `<sxmml-mml>` です。ループ位置を表します。
 
 [[ref-classes-class-sxmml-mml-repeat-start]]`<sxmml-mml-repeat-start>`::
-親: `<sxmml-mml>`。反復開始。
+親は `<sxmml-mml>` です。反復開始を表します。
 
 [[ref-classes-class-sxmml-mml-repeat-break]]`<sxmml-mml-repeat-break>`::
-親: `<sxmml-mml>`。反復脱出位置。
+親は `<sxmml-mml>` です。反復脱出位置を表します。
 
 [[ref-classes-class-sxmml-mml-repeat-end]]`<sxmml-mml-repeat-end>`::
-親: `<sxmml-mml>`。反復終了と回数。
+親は `<sxmml-mml>` です。反復終了と回数を表します。
 
 [[ref-classes-class-sxmml-mml-voice]]`<sxmml-mml-voice>`::
-親: `<sxmml-mml>`。音色指定。
+親は `<sxmml-mml>` です。音色指定を表します。
 
 [[ref-classes-class-sxmml-mml-pan]]`<sxmml-mml-pan>`::
-親: `<sxmml-mml>`。パン指定。
+親は `<sxmml-mml>` です。パン指定を表します。
 
 [[ref-classes-class-sxmml-mml-lfo]]`<sxmml-mml-lfo>`::
-親: `<sxmml-mml>`。LFO 指定。固有スロット: `channel`（`:channel`, 初期値 `#f`）。
+親は `<sxmml-mml>` です。LFO 指定を表します。固有スロットは `channel`（`:channel`, 初期値 `#f`）です。
 
 [[ref-classes-class-sxmml-mml-lfo-switch]]`<sxmml-mml-lfo-switch>`::
-親: `<sxmml-mml-lfo>`。LFO の有効化・無効化。
+親は `<sxmml-mml-lfo>` です。LFO の有効化・無効化を表します。
 
 [[ref-classes-class-sxmml-mml-envelope]]`<sxmml-mml-envelope>`::
-親: `<sxmml-mml>`。エンベロープ指定。
+親は `<sxmml-mml>` です。エンベロープ指定を表します。
 
 [[ref-classes-class-sxmml-mml-portamento]]`<sxmml-mml-portamento>`::
-親: `<sxmml-mml-note>`。開始音・終了音と長さを持つポルタメント。
+親は `<sxmml-mml-note>` です。開始音・終了音と長さを持つポルタメントを表します。
 
 [[ref-classes-class-sxmml-mml-noise-frequency]]`<sxmml-mml-noise-frequency>`::
-親: `<sxmml-mml>`。ノイズ周波数指定。
+親は `<sxmml-mml>` です。ノイズ周波数指定を表します。
 
 [[ref-classes-class-sxmml-mml-output-switch]]`<sxmml-mml-output-switch>`::
-親: `<sxmml-mml>`。出力切り替え指定。
+親は `<sxmml-mml>` です。出力切り替え指定を表します。
 
 == リズムオブジェクトのクラス
 
 `<sxmml-rhythm>` 系は、`value` および 6 楽器（`bass`・`snare`・`tom`・`cymbal`・`hihat`・`rimshot`）のスロットを同名の初期化キーワード（既定値 `#f`）で初期化できます。`<sxmml-rhythm-emit>` は `<sxmml-mml-note>` も多重継承するため `ticks` スロットを持ちます。
 
 [[ref-classes-class-sxmml-rhythm]]`<sxmml-rhythm>`::
-親なし。楽器別リズム値の基底クラス。固有スロット: `value`・`bass`・`snare`・`tom`・`cymbal`・`hihat`・`rimshot`（すべて `:同名`, 初期値 `#f`）。
+親なし。楽器別リズム値の基底クラスです。固有スロットは `value`・`bass`・`snare`・`tom`・`cymbal`・`hihat`・`rimshot`（すべて `:同名`, 初期値 `#f`）です。
 
 [[ref-classes-class-sxmml-rhythm-emit]]`<sxmml-rhythm-emit>`::
-親: `<sxmml-rhythm>`・`<sxmml-mml-note>`。発音または停止を表すイベント。
+親は `<sxmml-rhythm>` と `<sxmml-mml-note>` です。発音または停止を表すイベントを表します。
 
 [[ref-classes-class-sxmml-rhythm-volume]]`<sxmml-rhythm-volume>`::
-親: `<sxmml-rhythm>`。リズム音量指定。
+親は `<sxmml-rhythm>` です。リズム音量指定を表します。
 
 [[ref-classes-class-sxmml-rhythm-volume-change]]`<sxmml-rhythm-volume-change>`::
-親: `<sxmml-rhythm>`。楽器ごとの音量相対変更。
+親は `<sxmml-rhythm>` です。楽器ごとの音量相対変更を表します。
 
 [[ref-classes-class-sxmml-rhythm-pan]]`<sxmml-rhythm-pan>`::
-親: `<sxmml-rhythm>`。楽器ごとのパン指定。
+親は `<sxmml-rhythm>` です。楽器ごとのパン指定を表します。
 
 == 登録する設定値と音色のクラス
 
 次の 3 つの基底クラス（`<sxmml-lfo>`・`<sxmml-envelope>`・`<sxmml-voice>`）のスロットには初期化キーワードがありますが、既定値は定義していません。`<sxmml-opmn-voice>` は OPM と OPN に共通する音色型であり、バックエンドによって使用するパラメータが異なります。
 
 [[ref-classes-class-sxmml-lfo]]`<sxmml-lfo>`::
-親なし。LFO 定義。固有スロット: `id`（`:id`）、`type`（`:type`）、`value`（`:value`）。
+親なし。LFO 定義を表します。固有スロットは `id`（`:id`）、`type`（`:type`）、`value`（`:value`）です。
 
 [[ref-classes-class-sxmml-envelope]]`<sxmml-envelope>`::
-親なし。エンベロープ定義。固有スロット: `id`（`:id`）、`type`（`:type`）、`value`（`:value`）。
+親なし。エンベロープ定義を表します。固有スロットは `id`（`:id`）、`type`（`:type`）、`value`（`:value`）です。
 
 [[ref-classes-class-sxmml-voice]]`<sxmml-voice>`::
-親なし。音色定義の基底クラス（音色番号はバックエンドが決定するため保持しません）。固有スロット: `id`（`:id`）、`value`（`:value`）。
+親なし。音色定義の基底クラスです（音色番号はバックエンドが決定するため保持しません）。固有スロットは `id`（`:id`）、`value`（`:value`）です。
 
 [[ref-classes-class-sxmml-opmn-voice]]`<sxmml-opmn-voice>`::
-親: `<sxmml-voice>`。OPM・OPN 共通の 4 演算子音色。
+親は `<sxmml-voice>` です。OPM・OPN 共通の 4 演算子音色を表します。
 
 [[ref-classes-class-sxmml-opm-voice]]`<sxmml-opm-voice>`::
-親: `<sxmml-opmn-voice>`。OPM 音色。
+親は `<sxmml-opmn-voice>` です。OPM 音色を表します。
 
-[[ref-classes-class-sxmml-opn-voice]]`<sxmml-opmn-voice>`::
-親: `<sxmml-opmn-voice>`。OPN 音色。
+[[ref-classes-class-sxmml-opn-voice]]`<sxmml-opn-voice>`::
+親は `<sxmml-opmn-voice>` です。OPN 音色を表します。
 
 == エラーと文脈のコンディション型
 
-既知の入力エラーは `define-condition-type` で定義したコンディション型で通知します。ソース位置とトラック名は独立したミキシンコンディションとして複合コンディションに合成し、エラー本文へは埋め込みません。
+既知の入力エラーは `define-condition-type` で定義したコンディション型で通知します。ソース位置とトラック名は独立したミキシンコンディションとして複合コンディションに合成し、エラー本文へは埋め込みません。インスタンスは `make-condition`（または同名の初期化キーワードを用いた `make`）で生成できます。
 
 型判定には各コンディション型の述語または `condition-has-type?` を使います（`load` が付加する情報を含む複合コンディションにも対応するため、`is-a?` だけでは判定しません）。Gauche 由来の未知の例外や内部 IR・最適化の不整合は `<sxmml-error>` へ変換しません。
 
 [[ref-classes-class-sxmml-error]]
 === `<sxmml-error>`
 
-親: `<error>`。既知の入力エラーの基底コンディション型です。生成物や音色数・トラック長などの制約違反にも直接使います。スロットはありません。
+親は `<error>` です。既知の入力エラーの基底コンディション型で、生成物や音色数・トラック長などの制約違反にも直接使います。スロットはありません。
 
-* [[ref-classes-sxmml-error-p]]`(sxmml-error? obj)`: `<sxmml-error>` の述語。
+* [[ref-classes-sxmml-error-p]]`(sxmml-error? obj)`: `<sxmml-error>` の述語です。
 
 [[ref-classes-class-sxmml-syntax-error]]
 === `<sxmml-syntax-error>`
 
-親: `<sxmml-error>`。構文および使用規則違反の共通基底です。スロットはありません。
+親は `<sxmml-error>` です。構文および使用規則違反の共通基底です。スロットはありません。
 
-* [[ref-classes-sxmml-syntax-error-p]]`(sxmml-syntax-error? obj)`: `<sxmml-syntax-error>` の述語。
+* [[ref-classes-sxmml-syntax-error-p]]`(sxmml-syntax-error? obj)`: `<sxmml-syntax-error>` の述語です。
 
 [[ref-classes-class-sxmml-mml-syntax-error]]
 === `<sxmml-mml-syntax-error>`
 
-親: `<sxmml-syntax-error>`。MML 文字列の構文・使用規則違反を表します。スロットはありません。
+親は `<sxmml-syntax-error>` です。MML 文字列の構文・使用規則違反を表します。スロットはありません。
 
-* [[ref-classes-sxmml-mml-syntax-error-p]]`(sxmml-mml-syntax-error? obj)`: `<sxmml-mml-syntax-error>` の述語。
+* [[ref-classes-sxmml-mml-syntax-error-p]]`(sxmml-mml-syntax-error? obj)`: `<sxmml-mml-syntax-error>` の述語です。
 
 [[ref-classes-class-sxmml-form-syntax-error]]
 === `<sxmml-form-syntax-error>`
 
-親: `<sxmml-syntax-error>`。独自マクロのフォーム形式違反を表します。スロットはありません。
+親は `<sxmml-syntax-error>` です。独自マクロのフォーム形式違反を表します。スロットはありません。
 
-* [[ref-classes-sxmml-form-syntax-error-p]]`(sxmml-form-syntax-error? obj)`: `<sxmml-form-syntax-error>` の述語。
+* [[ref-classes-sxmml-form-syntax-error-p]]`(sxmml-form-syntax-error? obj)`: `<sxmml-form-syntax-error>` の述語です。
 
 [[ref-classes-class-sxmml-value-error]]
 === `<sxmml-value-error>`
 
-親: `<sxmml-error>`。引数・設定値・出力値の不正を表します。スロットはありません。
+親は `<sxmml-error>` です。引数・設定値・出力値の不正を表します。スロットはありません。
 
-* [[ref-classes-sxmml-value-error-p]]`(sxmml-value-error? obj)`: `<sxmml-value-error>` の述語。
+* [[ref-classes-sxmml-value-error-p]]`(sxmml-value-error? obj)`: `<sxmml-value-error>` の述語です。
 
 [[ref-classes-class-sxmml-reference-error]]
 === `<sxmml-reference-error>`
 
-親: `<sxmml-error>`。未定義のモード・トラック・音色・LFO・エンベロープへの参照を表します。スロットはありません。
+親は `<sxmml-error>` です。未定義のモード・トラック・音色・LFO・エンベロープへの参照を表します。スロットはありません。
 
-* [[ref-classes-sxmml-reference-error-p]]`(sxmml-reference-error? obj)`: `<sxmml-reference-error>` の述語。
+* [[ref-classes-sxmml-reference-error-p]]`(sxmml-reference-error? obj)`: `<sxmml-reference-error>` の述語です。
 
 [[ref-classes-class-sxmml-source-context]]
 === `<sxmml-source-context>`
 
-親: `<mixin-condition>`。既知のエラーに添えるフォーム位置の文脈です。
+親は `<mixin-condition>` です。既知のエラーに添えるフォーム位置の文脈です。
 
-* スロット: `source-location`
-* [[ref-classes-sxmml-source-context-p]]`(sxmml-source-context? obj)`: `<sxmml-source-context>` の述語。
-* [[ref-classes-sxmml-source-context-location]]`(sxmml-source-context-location obj)`: `source-location` を取り出すアクセサ。
+* スロット: `source-location`（`:source-location`）
+* [[ref-classes-sxmml-source-context-p]]`(sxmml-source-context? obj)`: `<sxmml-source-context>` の述語です。
+* [[ref-classes-sxmml-source-context-location]]`(sxmml-source-context-location obj)`: `source-location` を取り出すアクセサです。
 
 [[ref-classes-class-sxmml-track-context]]
 === `<sxmml-track-context>`
 
-親: `<mixin-condition>`。既知のエラーに添えるトラック名の文脈です。
+親は `<mixin-condition>` です。既知のエラーに添えるトラック名の文脈です。
 
-* スロット: `track-name`
-* [[ref-classes-sxmml-track-context-p]]`(sxmml-track-context? obj)`: `<sxmml-track-context>` の述語。
-* [[ref-classes-sxmml-track-context-track]]`(sxmml-track-context-track obj)`: `track-name` を取り出すアクセサ。
+* スロット: `track-name`（`:track-name`）
+* [[ref-classes-sxmml-track-context-p]]`(sxmml-track-context? obj)`: `<sxmml-track-context>` の述語です。
+* [[ref-classes-sxmml-track-context-track]]`(sxmml-track-context-track obj)`: `track-name` を取り出すアクセサです。
 
 == クラスの作成例
 

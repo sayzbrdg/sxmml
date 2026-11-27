@@ -3,7 +3,7 @@
 
 通常 MML とリズム MML の文字列を解析し、sxmml IR オブジェクト列へ変換する PEG パーサー群を定義するモジュールです。
 
-実装は link:../../sxmml/mml.scm[mml.scm] にあります。このモジュールは 77 定義（手続き 76 件・マクロ 1 件）を持ち、`make-sxmml-mml-parser` と `make-sxmml-rhythm-parser` の 2 手続きを公開します。命令表のハッシュ表（`*note-command*`・`*rhythm-command*`）は呼び出せないため索引の掲載対象外です。
+実装は link:../../sxmml/mml.scm[mml.scm] にあります。このモジュールは 77 定義（手続き 76 件・マクロ 1 件）を持ち、`make-sxmml-mml-parser` と `make-sxmml-rhythm-parser` の 2 手続きを公開します。命令表のハッシュ表（`+*note-command*+`・`+*rhythm-command*+`）は呼び出せないため索引の掲載対象外です。
 
 `define-inline`、パラメータ、`parser.peg` の動作は Gauche 0.9.15 に従います。MML 文字列の記法は xref:../sxmml-mml-manual.adoc[MML コマンドマニュアル]を参照してください。
 
@@ -13,7 +13,7 @@
 
 `$` で始まる項目の大半は `parser.peg` のパーサー値（入力状態を受ける手続き）です。通常は直接呼ばず、公開手続き `make-sxmml-mml-parser` または `make-sxmml-rhythm-parser` が返すトップレベルパーサー経由で使用します。パーサーの構築やオブジェクト生成だけでは登録済みトラックは変更しません。
 
-命令文字に対応するパーサーは命令表（`*note-command*` または `*rhythm-command*`）から選択します。未登録の文字に出会った場合は `$raise` へ `unknown MML command: "<文字>"` を渡し、回復不能な PEG の失敗として通知します。トラック文脈の付加と PEG 失敗の解釈は呼び出し側の xref:compiler.adoc[`sxmml-compile-string!`] が担当します。
+命令文字に対応するパーサーは命令表（`+*note-command*+` または `+*rhythm-command*+`）から選択します。未登録の文字に出会った場合は `$raise` へ `unknown MML command: "<文字>"` を渡し、回復不能な PEG の失敗として通知します。トラック文脈の付加と PEG 失敗の解釈は呼び出し側の xref:compiler.adoc[`sxmml-compile-string!`] が担当します。
 
 共通コマンド層が送出する既知の `<sxmml-value-error>`（音長 0、分解能を超える付点、`L` や反復の規則違反など）は、公開パーサーの実行境界（`%make-parser-with-context`）で同じ本文の `<sxmml-mml-syntax-error>` へ変換します。
 
@@ -136,7 +136,7 @@ PEG の rope を文字列経由でシンボルへ変換して返します。
 `$length`・`$octave`・`$octave-up`・`$octave-down`・`$transpose-env` は現在のコンテキストを更新して `#f` を返します（`sxmml.compiler` は IR 収集時に `#f` を除きます）。その他のコマンドは対応する IR オブジェクトを返します。
 
 [[ref-mml-parser-length]]`$length`::
-`l` コマンド。`sxmml-command-default-length-set!` で `default-length` を更新します。
+`l` コマンド（通常・リズム共通）。`sxmml-command-default-length-set!` で `default-length` を更新します。
 
 [[ref-mml-parser-octave]]`$octave`::
 `o` コマンド。`sxmml-command-octave-set!` で `current-octave` を更新します。
@@ -232,11 +232,11 @@ PEG の rope を文字列経由でシンボルへ変換して返します。
 `P` コマンド。符号なし値から `<sxmml-mml-output-switch>` を作ります。
 
 [[ref-mml-parser-note-commands]]`$note-commands`::
-通常 MML の 1 コマンド分のパーサーです。先行空白を読み捨てた後、`$note` または `($registered-command *note-command*)` を適用します。
+通常 MML の 1 コマンド分のパーサーです。先行空白を読み捨てた後、`$note` または `+($registered-command *note-command*)+` を適用します。
 
 == リズム MML コマンドのパーサー（非公開）
 
-リズム楽器文字は `b`・`s`・`t`・`c`・`h`・`i` の 6 種です。通常 MML と共通の `$loop`（`L`）・`$repeat-start`（`[`）・`$repeat-break`（`:`）・`$repeat-end`（`]`）・`$length`（`l`）も `*rhythm-command*` に登録されています。
+リズム楽器文字は `b`・`s`・`t`・`c`・`h`・`i` の 6 種です。通常 MML と共通の `$loop`（`L`）・`$repeat-start`（`[`）・`$repeat-break`（`:`）・`$repeat-end`（`]`）・`$length`（`l`）も `+*rhythm-command*+` に登録されています。
 
 [[ref-mml-parser-rhythm-type]]`$rhythm-type`::
 `b`・`s`・`t`・`c`・`h`・`i` の 1 文字以上（波括弧あり・なし両対応）を読みます。
@@ -266,4 +266,4 @@ PEG の rope を文字列経由でシンボルへ変換して返します。
 `p` コマンド。楽器ごとのパン値（`$number`）を各楽器スロットへ設定した `<sxmml-rhythm-pan>` を作ります。
 
 [[ref-mml-parser-rhythm-commands]]`$rhythm-commands`::
-リズム MML の 1 コマンド分のパーサーです。先行空白を読み捨てた後、`($registered-command *rhythm-command*)` を適用します。
+リズム MML の 1 コマンド分のパーサーです。先行空白を読み捨てた後、`+($registered-command *rhythm-command*)+` を適用します。
