@@ -451,16 +451,16 @@
                                   (find #/^A / (file->string-list (work-file #"~|name|.mml")
                                                                   :encoding "shift_jis")))))
           (test* "-O 3 converts with the repeat optimization"
-                 (list "Optimize level: 3" (cadr (converted "cli-o2-hand" "[cd:e]3" "2")))
-                 (converted "cli-o3" "cdecdecd" "3"))
+                 (list "Optimize level: 3" (cadr (converted "cli-o2-hand" "[cd:e]4" "2")))
+                 (converted "cli-o3" "cdecdecdecd" "3"))
           (dolist (level '("4" "8" "10"))
             (test* #"-O ~level expands small repeats"
                    (list #"Optimize level: ~level" "A l%24[o4a]16")
                    (converted #"cli-o~level" "[aaaaaaaa]2" level)))
           (dolist (level '("8" "9" "10"))
             (test* #"PMD の -O ~level で反復休符を処理する"
-                   (if (equal? level "9") "A l%24r%96" "A l%24[r]4")
-                   (cadr (converted #"cli-rest~level" "[r]4" level))))
+                   (if (equal? level "9") "A l%24r%144" "A l%24[r]6")
+                   (cadr (converted #"cli-rest~level" "[r]6" level))))
           (let ([forms '((mml A "[r8]4") (mml B "[r8]4"))])
             (define (tracks jobs)
               (let1 name #"cli-o9-j~jobs"

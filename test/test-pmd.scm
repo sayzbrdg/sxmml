@@ -254,7 +254,7 @@
               (file->bytevector path)))
           (sxmml-pmd-setup!)
           (sxmml-track-delete! 'B)
-          (mml A "cdecdecd")
+          (mml A "cdecdecdecd")
           (mml G "[fg]4")
           (test* "反復圧縮の逐次・並列で生成物が一致" #t (equal? (render 1) (render 2))))
         (test* "未定義LFOを名前付きの参照エラーで通知する"

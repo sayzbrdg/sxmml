@@ -199,7 +199,7 @@
       (list "第2段階の反復と相対音量の意味保持" sxmml-ir-optimize
             (^[] (list (volume 8) (start) (change 1) (note 0) (end 3) (volume 9) (note 2))))
       (list "反復圧縮の意味保持" sxmml-ir-optimize-with-repeats
-            (^[] (list (note 0) (note 2) (note 0) (note 2) (note 0) (note 2))))
+            (^[] (list (note 0) (note 2) (note 0) (note 2) (note 0) (note 2) (note 0) (note 2))))
       (list "既存反復の展開と再圧縮の意味保持" sxmml-ir-optimize-with-repeat-expansion
             (^[] (list (start) (note 0) (note 0) (note 0) (note 0) (end 2)))))))
 
@@ -481,14 +481,14 @@
               [structure (with-module sxmml.optimizer %repeat-structure)]
               [same? (make-sxmml-native-ir-comparison)])
           (dolist (case '(("[aaaaaaaa]2" "[[o4a]8]2")
-                          ("[[aaaa]4[aaaa]4]2" "[[[[o4a]4]4]2]2")
-                          ("[ab]2ab" "[o4ab]2ab")
-                          ("cdcdcdLcdcdcd" "[o4cd]3L[cd]3")
-                          ("c4c4c4c4c8" "[o4c]4c%12")))
+                          ("[[aaaaaa]4[aaaaaa]4]2" "[[[[o4a]6]4]2]2")
+                          ("[ab]3ab" "[o4ab]3ab")
+                          ("cdcdcdcdLcdcdcdcd" "[o4cd]4L[cd]4")
+                          ("c4c4c4c4c4c4c8" "[o4c]6c%12")))
             (test* #"\"~(car case)\" with optimize :repeat"
                    #"A l%24~(cadr case)"
                    (optimized-line "repeat" :repeat `((mml A ,(car case))))))
-          (dolist (case '(("cdecdecd" "[cd:e]3")
+          (dolist (case '(("cdecdecdecd" "[cd:e]4")
                           ;; 本文が空の既存リピートと、短い列は :full と同じ
                           ("[]2c" "[]2c") ("[c:]2" "[c:]2") ("[:c]2" "[:c]2")
                           ("c" "c") ("cL" "cL") ("L" "L")))
@@ -532,7 +532,7 @@
               (test* #"O9で展開対象外の反復を保つ: ~phrase" phrase
                      (text (sxmml-pmd-ir-optimize (objects phrase) 9))))
             (dolist (case '(("cdefgab[dLe]2cdefgab" #f "cdefgab[dLe]2cdefgab")
-                            ("[cdcdcdLcdcdcd]2" #f "[[cd]3L[cd]3]2")
+                            ("[cdcdcdcdLcdcdcdcd]2" #f "[[cd]4L[cd]4]2")
                             ("[cdLcd]2" #t "[cdLcd]2")
                             ("[c:Ld]1" #t "[c:Ld]1")))
               (test* #"\"~(car case)\" keeps L out of generated loops (expand? ~(cadr case))"
@@ -542,9 +542,9 @@
           ;; 2 個目以降の : を失敗にする (#92) ので、オブジェクトの列を直接渡す
           (let* ([d (^[] (make <sxmml-mml-note> :value 2 :ticks 24))]
                  [break (^[] (make <sxmml-mml-repeat-break>))]
-                 ;; [c:d:d:d:d]2
+                 ;; [c:d:d:d:d:d]2
                  [lis (list (make <sxmml-mml-repeat-start>) (make <sxmml-mml-note> :value 0 :ticks 24)
-                            (break) (d) (break) (d) (break) (d) (break) (d)
+                            (break) (d) (break) (d) (break) (d) (break) (d) (break) (d)
                             (make <sxmml-mml-repeat-end> :value 2))]
                  [optimize-repeat (lambda (ir expand?) (sxmml-ir-compress-repeats ir :expand-small expand?))])
             (dolist (expand? '(#f #t))
@@ -559,7 +559,7 @@
                  (boolean (#/\[o4c\]6/ (optimized-line "repeat" :repeat `((mml A ,(nest 31 "cccccc")))))))
           (test* "rhythm L stays outside loops" '(0 2)
                  (let1 lis (optimized-objects 'L :repeat
-                                              '((rhythm L "@b8@s8@b8@s8@b8@s8L@b8@s8@b8@s8@b8@s8")))
+                                              '((rhythm L "@b8@s8@b8@s8@b8@s8@b8@s8L@b8@s8@b8@s8@b8@s8@b8@s8")))
                    (list (let loop ([rest lis] [depth 0])
                            (cond [(is-a? (car rest) <sxmml-mml-loop>) depth]
                                  [(is-a? (car rest) <sxmml-mml-repeat-start>) (loop (cdr rest) (+ depth 1))]
@@ -568,9 +568,9 @@
                          (count (cut is-a? <> <sxmml-mml-repeat-start>) lis))))
           ;; :repeat-expand は、展開後の長さが上限以下の既存のリピートを展開してから圧縮する
           (dolist (case '(("[aaaaaaaa]2" "[o4a]16")
-                          ("[[aaaa]4[aaaa]4]2" "[o4a]64")
-                          ("[ab]2ab" "[o4ab]3")
-                          ("[cdcdcd]1" "[o4cd]3")))
+                          ("[[aaaaaa]4[aaaaaa]4]2" "[o4a]96")
+                          ("[ab]3ab" "[o4ab]4")
+                          ("[cdcdcdcd]1" "[o4cd]4")))
             (test* #"\"~(car case)\" with optimize :repeat-expand"
                    #"A l%24~(cadr case)"
                    (optimized-line "repeat" :repeat-expand `((mml A ,(car case))))))
@@ -580,8 +580,8 @@
                  (optimized-line "repeat" :repeat '((mml A "c4d8e16f4g8a16b4[cd]64c4d8e16f4g8a16b4[cd]64")))
                  (optimized-line "repeat" :repeat-expand '((mml A "c4d8e16f4g8a16b4[cd]64c4d8e16f4g8a16b4[cd]64"))))
           (test* "a block of count 1 is kept with optimize :repeat"
-                 "A l%24[[o4cd]3]1"
-                 (optimized-line "repeat" :repeat '((mml A "[cdcdcd]1"))))
+                 "A l%24[[o4cd]4]1"
+                 (optimized-line "repeat" :repeat '((mml A "[cdcdcdcd]1"))))
           ;; [cd]3 は展開後の長さ 6 が上限 4 を超えるのでブロックのまま、[cd]2 は展開する
           (test* "a block longer than the limit is kept" '(#t 5)
                  (let* ([o (^[] (make <sxmml-mml-note> :value 0 :ticks 24))]
@@ -590,8 +590,8 @@
                         [items ((with-module sxmml.optimizer %repeat-expand-small) (structure lis) 4)])
                    (list ((with-module sxmml.optimizer %repeat-block?) (car items)) (length items))))
           ;; 別の読み込みで作った :full と :repeat の列は、展開すると同値なオブジェクトが同じ順に並ぶ
-          (dolist (text '("[aaaaaaaa]2" "[ab]2ab" "cdecdecd" "cdcdcdLcdcdcd"
-                          "[cdcdcd]1" "c4c4c4c4c8" "[c:]2" "v10cdv12cdv10cdv12cd" "[c&c&]4"))
+          (dolist (text '("[aaaaaaaa]2" "[ab]3ab" "cdecdecdecd" "cdcdcdcdLcdcdcdcd"
+                          "[cdcdcdcd]1" "c4c4c4c4c4c4c8" "[c:]2" "v10cdv12cdv10cdv12cd" "[c&c&]4"))
             (dolist (level '(:repeat :repeat-expand))
               (test* #"\"~|text|\" keeps its expansion with optimize ~level" #t
                      (let ([a (expansion (structure (optimized-objects 'A :full `((mml A ,text)))) '())]
@@ -638,8 +638,8 @@
       (begin
         ;; 圧縮で生成した : を含むループは、同じ形を手で書いた MML と同じバイト内容になる (#69)
         (test* "pmd-binary の生成したループ"
-               (section-hex (make-binary-data "rep-hand" 'pmd-binary '((mml A "[cd:e]3"))) 'A)
-               (section-hex (make-binary-data "rep-gen" 'pmd-binary '((mml A "cdecdecd")) :repeat) 'A))
+               (section-hex (make-binary-data "rep-hand" 'pmd-binary '((mml A "[cd:e]4"))) 'A)
+               (section-hex (make-binary-data "rep-gen" 'pmd-binary '((mml A "cdecdecdecd")) :repeat) 'A))
       )
     (remove-directory* workdir)))
 
@@ -666,7 +666,7 @@
              (and (= (length want) (length result)) (every same? want result)))))
   (check "[rcr]4" "[rcr]4")
   (check "[r8]4" "r2")
-  (check "[v8c]5" "[v8c]5")
+  (check "[v8c]6" "[v8c]6")
   (check "r8r8c" "r4c"))
 
 (test* "全幅探索の警告は3,072を超える最初の区間で1回" '(3073)
