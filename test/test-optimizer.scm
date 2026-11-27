@@ -199,7 +199,7 @@
       (list "第2段階の反復と相対音量の意味保持" sxmml-ir-optimize
             (^[] (list (volume 8) (start) (change 1) (note 0) (end 3) (volume 9) (note 2))))
       (list "反復圧縮の意味保持" sxmml-ir-optimize-with-repeats
-            (^[] (list (note 0) (note 2) (note 0) (note 2) (note 0) (note 2))))
+            (^[] (list (note 0) (note 2) (note 0) (note 2) (note 0) (note 2) (note 0) (note 2))))
       (list "既存反復の展開と再圧縮の意味保持" sxmml-ir-optimize-with-repeat-expansion
             (^[] (list (start) (note 0) (note 0) (note 0) (note 0) (end 2)))))))
 
@@ -542,9 +542,9 @@
           ;; 2 個目以降の : を失敗にする (#92) ので、オブジェクトの列を直接渡す
           (let* ([d (^[] (make <sxmml-mml-note> :value 2 :ticks 24))]
                  [break (^[] (make <sxmml-mml-repeat-break>))]
-                 ;; [c:d:d:d:d]2
+                 ;; [c:d:d:d:d:d]2
                  [lis (list (make <sxmml-mml-repeat-start>) (make <sxmml-mml-note> :value 0 :ticks 24)
-                            (break) (d) (break) (d) (break) (d) (break) (d)
+                            (break) (d) (break) (d) (break) (d) (break) (d) (break) (d)
                             (make <sxmml-mml-repeat-end> :value 2))]
                  [optimize-repeat (lambda (ir expand?) (sxmml-ir-compress-repeats ir :expand-small expand?))])
             (dolist (expand? '(#f #t))
@@ -666,7 +666,7 @@
              (and (= (length want) (length result)) (every same? want result)))))
   (check "[rcr]4" "[rcr]4")
   (check "[r8]4" "r2")
-  (check "[v8c]5" "[v8c]5")
+  (check "[v8c]6" "[v8c]6")
   (check "r8r8c" "r4c"))
 
 (test* "全幅探索の警告は3,072を超える最初の区間で1回" '(3073)

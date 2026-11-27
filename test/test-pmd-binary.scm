@@ -177,7 +177,7 @@
               (file->bytevector path)))
           (sxmml-pmd-setup!)
           (sxmml-track-delete! 'B)
-          (mml A "cdecdecd")
+          (mml A "cdecdecdecd")
           (mml G "[fg]4")
           (test* "反復圧縮の逐次・並列で生成物が一致" #t (equal? (render 1) (render 2))))
         (dolist [case '(("SSG" G 16 "invalid SSG volume: 16 (expected an integer from 0 to 15)")
