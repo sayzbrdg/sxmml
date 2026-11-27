@@ -40,9 +40,9 @@ LFO・エンベロープの種類、メタデータのキー、トラック名�
 
 利用可能なモードは `sxlc -l` で確認できます。各モードの生成形式は xref:product-overview.adoc#機能と責任の境界[出力形式]を参照してください。
 
-``sxlc -m``を指定済みなら、正しい書式のマクロを位置付き警告``warning: /home/user/song.sxl:1: sxmml-mode in source is ignored; mode is already set to pmd-source``で無視します。名前は検索しないため、未登録名でも無視できます。書式と名前の型は展開時に検査します。
+`sxlc -m` を指定済みなら、正しい書式のマクロを位置付き警告 `warning: /home/user/song.sxl:1: sxmml-mode in source is ignored; mode is already set to pmd-source` で無視します。名前は検索しないため、未登録名でも無視できます。書式と名前の型は展開時に検査します。
 
-名前の省略や追加引数は``invalid sxmml-mode form: expected (sxmml-mode mode)``、シンボル以外の名前は``invalid sxmml-mode name: 値 (expected a symbol)``です。選択時の未登録名は``undefined mode: 名前``です。いずれも取得できるフォーム位置を添えます。
+名前の省略や追加引数は `invalid sxmml-mode form: expected (sxmml-mode mode)`、シンボル以外の名前は `invalid sxmml-mode name: 値 (expected a symbol)` です。選択時の未登録名は `undefined mode: 名前` です。いずれも取得できるフォーム位置を添えます。
 
 手続きには `'pmd` のようにシンボルを渡します。
 
@@ -113,7 +113,7 @@ LFO・エンベロープの種類、メタデータのキー、トラック名�
 [[利用者定義の設定]]
 == 利用者定義の設定
 
-``sxlc -D 名前 値``または``--define 名前 値``で、同じソースへ異なる設定を渡せます。例えば、次のソースは``-D variant soft``で音量8、``-D variant hard``で音量12になります。出力ファイル名も設定値で切り替える方法は<<ソースの既定出力先>>を参照してください。
+`sxlc -D 名前 値` または `--define 名前 値` で、同じソースへ異なる設定を渡せます。例えば、次のソースは `-D variant soft` で音量 8、`-D variant hard` で音量 12 になります。出力ファイル名も設定値で切り替える方法は <<ソースの既定出力先>> を参照してください。
 
 [source,scheme]
 ----
@@ -134,7 +134,7 @@ CLI指定はモード初期設定より前に登録され、同じ名前は最�
 [[ソースの既定出力先]]
 == ソースの既定出力先
 
-``(sxmml-default-output-path-set! path)``で、sxlcが採用する既定の出力先を指定できます。``path``は文字列または``#f``で、複数回指定すると最後の値を使い、``#f``で解除します。それ以外の値は``invalid default output path: 17 (expected a string or #f)``のような値エラーになります。
+`(sxmml-default-output-path-set! path)` で、`sxlc` が採用する既定の出力先を指定できます。`path` は文字列または `#f` で、複数回指定すると最後の値を使い、`#f` で解除します。それ以外の値は `invalid default output path: 17 (expected a string or #f)` のような値エラーになります。
 
 例えば、利用者定義の設定に応じて、次のように出力ファイル名を切り替えられます。
 
@@ -147,13 +147,13 @@ CLI指定はモード初期設定より前に登録され、同じ名前は最�
    [else #f]))
 ----
 
-``(sxmml-default-output-path-get)``は、現在の楽曲環境に指定した文字列をそのまま返します。初期状態や解除後は``#f``です。``-o``を反映した最終的な出力先を返すものではありません。
+`(sxmml-default-output-path-get)` は、現在の楽曲環境に指定した文字列をそのまま返します。初期状態や解除後は `#f` です。`-o` を反映した最終的な出力先を返すものではありません。
 
-sxlcはソースの読み込み後、`-o`、ソースの既定値、入力名とモードによる既定値の順に出力先を決めます。相対パスの基準はカレントディレクトリです。選ばれた出力先が入力ファイル自身の場合は終了値2で拒否します。``-o``で別のパスを選んだ場合は、入力自身を指すソースの既定値があっても生成できます。
+`sxlc` はソースの読み込み後、`-o`、ソースの既定値、入力名とモードによる既定値の順に出力先を決めます。相対パスの基準はカレントディレクトリです。選ばれた出力先が入力ファイル自身の場合は終了値 2 で拒否します。`-o` で別のパスを選んだ場合は、入力自身を指すソースの既定値があっても生成できます。
 
 == 手続きによる出力
 
-通常はsxlcが出力準備とバックエンド呼出しを行います。手動で実行する場合は、登録環境から出力環境を作り、バックエンドを明示的に呼びます。
+通常は `sxlc` が出力準備とバックエンド呼び出しを行います。手動で実行する場合は、登録環境から出力環境を作り、バックエンドを明示的に呼びます。
 
 [source,scheme]
 ----
@@ -350,7 +350,7 @@ PMD のバックエンドは、旧 `filename` メタデータに値があれば�
 === `define-lfo`、`define-envelope`
 
 書式 +
-`(define-lfo 名前 [種類] 値の式)`、`(define-envelope 名前 [種類] 値の式)`。名前と種類はリテラルです。種類は``triangle``のように単語をそのまま書き、省略すると``default``になります。
+`(define-lfo 名前 [種類] 値の式)`、`(define-envelope 名前 [種類] 値の式)`。名前と種類はリテラルです。種類は `triangle` のように単語をそのまま書き、省略すると `default` になります。
 
 `M` と `E` のコマンドから参照する定義を作ります。下の例では PMD 向けに定義を登録します。
 FMP7・NSD.Lib で指定する値は、xref:sxmml-mml-manual.adoc[MML コマンドマニュアル]の各モードの項を参照してください。
@@ -385,9 +385,9 @@ PMD3 バイナリでは四値のエンベロープを使います。PMD のバ�
 (define-lfo L3 triangle `(1 2 ,depth ,(* depth 2)))
 ----
 
-値はプロパーリストで指定します。空リストも登録できます。リテラル・変数のいずれでも同じ検査を登録時に行い、未使用の定義も対象です。例えば``(define-lfo L1 17)``は構文としては受理しますが、``invalid LFO values: L1 is 17 (expected a proper list)``の値エラーになります。エンベロープの不適切な末尾を持つリストも、``invalid envelope values: E1 is (1 . 2) (expected a proper list)``のように拒否します。失敗時は既存の登録値を変更しません。要素数や個々の値の検査は、生成先のバックエンドが担当します。
+値はプロパーリストで指定します。空リストも登録できます。リテラル・変数のいずれでも同じ検査を登録時に行い、未使用の定義も対象です。例えば `(define-lfo L1 17)` は構文としては受理しますが、`invalid LFO values: L1 is 17 (expected a proper list)` の値エラーになります。エンベロープの不適切な末尾を持つリストも、`invalid envelope values: E1 is (1 . 2) (expected a proper list)` のように拒否します。失敗時は既存の登録値を変更しません。要素数や個々の値の検査は、生成先のバックエンドが担当します。
 
-値の省略や余分な引数は、``sxlc: error: /home/user/song.sxl:行: invalid define-lfo form: expected (define-lfo id [type] value)``のように、定義の開始位置を示すフォーム構文エラーになります。種類の位置がシンボルでなければ``invalid define-lfo type: 1 (expected a symbol)``のように失敗します。既知の登録時の値エラーにも位置が付きます。値の式で生じた未知のGauche例外は包み直しません。
+値の省略や余分な引数は、`sxlc: error: /home/user/song.sxl:行: invalid define-lfo form: expected (define-lfo id [type] value)` のように、定義の開始位置を示すフォーム構文エラーになります。種類の位置がシンボルでなければ `invalid define-lfo type: 1 (expected a symbol)` のように失敗します。既知の登録時の値エラーにも位置が付きます。値の式で生じた未知の Gauche 例外は包み直しません。
 
 ==== 旧書式からの移行
 
@@ -408,13 +408,13 @@ warning: /home/user/song.sxl:12: (define-lfo L1 (value ...)) is deprecated; use 
 (define-lfo L4 (list 1 2 depth (* depth 2)))
 ----
 
-新旧の識別は綴りではなく標準の束縛を比較します。例えば、利用者が``list``を1に束縛した``(list 2 3 4)``は旧書式として``(1 2 3 4)``を登録して警告します。
+新旧の識別は綴りではなく標準の束縛を比較します。例えば、利用者が `list` を 1 に束縛した `(list 2 3 4)` は旧書式として `(1 2 3 4)` を登録して警告します。
 
-一般の``(make-parameters ...)``のような手続き呼び出し形も、移行期間中は旧書式として扱うため、その手続きを呼び出した結果の登録にはなりません。計算でパラメータ群を作る場合は、次の登録手続きを使ってください。
+一般の `(make-parameters ...)` のような手続き呼び出し形も、移行期間中は旧書式として扱うため、その手続きを呼び出した結果の登録にはなりません。計算でパラメータ群を作る場合は、次の登録手続きを使ってください。
 
 ==== 手続きによる登録
 
-``(sxmml-lfo-set! 名前 種類 値のリスト)``と``(sxmml-envelope-set! 名前 種類 値のリスト)``を使います。名前と種類はシンボルで指定します。両マクロもこれらの手続きへ展開されるため、プロパーリストの検査と失敗時の既存値の保持は共通です。
+`(sxmml-lfo-set! 名前 種類 値のリスト)` と `(sxmml-envelope-set! 名前 種類 値のリスト)` を使います。名前と種類はシンボルで指定します。両マクロもこれらの手続きへ展開されるため、プロパーリストの検査と失敗時の既存値の保持は共通です。
 
 [source,scheme]
 ----
@@ -526,7 +526,7 @@ FMP7、`pmd-source`、`pmd-binary` は、明示した音源がそのバックエ
 書式 +
 `(define-opm-voice 名前 alfb op1 op2 op3 op4)`
 
-OPM 音色を定義します。`define-opn-voice` と異なり、`alfb` と `op1`～`op4` にはリストを返す通常の Scheme 式を渡します。`alfb` には `AL`・`FB` の 2 値を渡します。各オペレーターには `AR`、`D1R`、`D2R`、`RR`、`D1L`、`TL`、`KS`、`ML`、`DT1`、`DT2`、`AM` の 11 値を指定します。
+OPM 音色を定義します。`define-opn-voice` と異なり、`alfb` と `op1`～`op4` にはリストを返す通常の Scheme 式を渡します。`alfb` には `AL`・`FB` の 2 値を渡します。各演算子には `AR`、`D1R`、`D2R`、`RR`、`D1L`、`TL`、`KS`、`ML`、`DT1`、`DT2`、`AM` の 11 値を指定します。
 
 OPN と OPM は音色番号 0～255 を共有し、PCM とエンベロープにはそれぞれ独立の番号枠があります。`FA` では `DT2` と `SEG`、`FC` では `SEG` を出力しません。
 
