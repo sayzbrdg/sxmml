@@ -1,34 +1,40 @@
 = 配布・互換性
 
-この文書は sxmml の配布手順、必要な環境、配布工程の制約を配布・保守担当者に示す。検証基準は Gauche 0.9.15 とする。利用者向けの導入はlink:../README.md[README]を参照する。
+この文書は sxmml の配布手順、必要な環境、配布工程の制約を配布・保守担当者に示す。検証基準は Gauche 0.9.15 とする。利用者向けの導入は link:../README.md[README] を参照する。
 
 [[必要な環境と依存]]
 == 必要な環境と依存
 
-配布工程の検証には Gauche 0.9.15 と開発用ヘッダ、C コンパイラ、GNU Make、`iconv` を使用する。man ページの生成には Pandoc (任意。ない場合は man ページの生成・配置を省く)、表示の確認には groff、コンテナーでの文書生成には Docker を使用する。`package.scm` の依存条件は Gauche 0.9.15 以上である。`configure` は `gauche.configure` により Gauche とパッケージ用のコマンドを検出する。
+配布工程の検証には Gauche 0.9.15 と開発用ヘッダ、C コンパイラ、GNU Make、`iconv` を使用する。man ページの生成には Pandoc（任意。ない場合は man ページの生成・配置を省く）、表示の確認には groff、コンテナーでの文書生成には Docker を使用する。`package.scm` の依存条件は Gauche 0.9.15 以上である。`configure` は `gauche.configure` により Gauche とパッケージ用のコマンドを検出する。
 
 [[現行の生成配置]]
 == 現行の生成・配置
 
-`./configure` は `Makefile`、`sxmml.gpd`、`VERSION` を生成する。`VERSION` と `sxmml.gpd` のバージョンは `package.scm` の `:version` の値である。ソースディレクトリでビルドすると、`sxlc`、ネイティブ拡張とその中間ファイルは `build/` に生成される。ソース外ビルドでは `configure` を実行したディレクトリに生成される。`make check` は `sxlc` と必須の `++sxmml_native++` 共有ライブラリを作り、`test/` 配下のテストを実行する。検査の内容はxref:developer-guide.adoc[開発手順]を参照する。`Makefile.in` の `install` 規則は `sxlc`、`SCMFILES` に列挙された Scheme ファイル、共有ライブラリ、`sxmml.gpd` をそれぞれ実行ファイルディレクトリ、Gauche のパッケージ用ライブラリ、アーキテクチャ別ライブラリ、`.packages` に配置する。Pandoc がある場合は、`sxlc.1` も `mandir` の `man1` に配置する (<<man-ページの生成と配置,man ページの生成と配置>>)。実際のインストール先は `./configure` の結果で変わるため、生成された `Makefile` を確認する。
+`./configure` は `Makefile`、`sxmml.gpd`、`VERSION` を生成する。`VERSION` と `sxmml.gpd` のバージョンは `package.scm` の `:version` の値である。ソースディレクトリでビルドすると、`sxlc` および必須の C 拡張 `++sxmml_native++` 共有ライブラリとその中間ファイルは `build/` に生成される。ソース外ビルドでは `configure` を実行したディレクトリに生成される。
+
+`make check` は `sxlc` と `++sxmml_native++` 共有ライブラリを作り、`test/` 配下のテスト（および `tools/` があれば計測ツールテスト）を実行する。検査の内容は xref:developer-guide.adoc[開発・改修手順] を参照する。
+
+`Makefile.in` の `install` 規則は、`sxlc`、`SCMFILES` に列挙された Scheme ファイル、共有ライブラリ、`sxmml.gpd` をそれぞれ実行ファイルディレクトリ、Gauche のパッケージ用ライブラリ、アーキテクチャ別ライブラリ、`.packages` に配置する。Pandoc がある場合は、`sxlc.1` も `mandir` の `man1` に配置する（<<man-ページの生成と配置,man ページの生成と配置>>）。実際のインストール先は `./configure` の結果で変わるため、生成された `Makefile` を確認する。
 
 配置先の変数は次のとおり決まる。いずれも `make` の引数で上書きできる。
 
-[cols="1,1,1",options="header"]
+[cols="1,2,2",options="header"]
 |===
 |変数 |既定値 |変更する `./configure` のオプション
-|`bindir` |`++${exec_prefix}/bin++` (`++exec_prefix++` の既定は `++${prefix}++`) |`++--prefix++`、`++--exec_prefix++`、`++--bindir++`
+|`bindir` |`++${exec_prefix}/bin++`（`++exec_prefix++` の既定は `++${prefix}++`） |`++--prefix++`、`++--exec_prefix++`、`++--bindir++`
 |`++GAUCHE_PKGLIBDIR++` |`++gauche-config --pkglibdir++` の値。Gauche 0.9.15 では `++${datadir}/gauche-0.98/site/lib++` |`++--prefix++`、`++--datarootdir++`、`++--datadir++`
 |`++GAUCHE_PKGARCHDIR++` |`++gauche-config --pkgarchdir++` の値。Gauche のアーキテクチャ別配置先 |`++--prefix++`、`++--libdir++`
-|`mandir` |`++${datarootdir}/man++` (`datarootdir` の既定は `++${prefix}/share++`) |`++--prefix++`、`++--datarootdir++`、`++--mandir++`
+|`mandir` |`++${datarootdir}/man++`（`datarootdir` の既定は `++${prefix}/share++`） |`++--prefix++`、`++--datarootdir++`、`++--mandir++`
 |===
 
-`++--prefix++` の既定値は `/usr/local` である。Gauche 0.9.15 の `configure` は、ヘルプに `++--exec-prefix++` と表示するが、実際に受け付けるのは `++--exec_prefix++` である。`++GAUCHE_PKGLIBDIR++` を Gauche 自体のインストール先と異なる場所にした場合、その場所は Gauche の標準の検索先に含まれないため、実行時に `++GAUCHE_LOAD_PATH++` などで指定する。`++GAUCHE_PKGARCHDIR++` も標準の検索先と異なる場合は `++GAUCHE_DYNLOAD_PATH++` で指定する。
+`++--prefix++` の既定値は `/usr/local` である。Gauche 0.9.15 の `configure` は、ヘルプに `++--exec-prefix++` と表示するが、実際に受け付けるのは `++--exec_prefix++` である。`++GAUCHE_PKGLIBDIR++` を Gauche 自体のインストール先と異なる場所にした場合、その場所は Gauche の標準検索先に含まれないため、実行時に `++GAUCHE_LOAD_PATH++` などで指定する。`++GAUCHE_PKGARCHDIR++` も標準検索先と異なる場合は `++GAUCHE_DYNLOAD_PATH++` で指定する。
 
 [[destdir-によるステージング]]
 === DESTDIR によるステージング
 
-`make DESTDIR=DIR install` は、上記の各配置先の先頭に `DIR` を付けた場所へ配置する。例えば既定の設定では `DIR/usr/local/bin/sxlc`、`DIR/usr/local/share/gauche-0.98/site/lib/sxmml.scm` のようになる。配布パッケージの作成など、本来の配置先を変えずに別の場所へ配置する場合に使う。`DIR` は絶対パスで指定する。`make DESTDIR=DIR uninstall` は同じ場所から削除する。次の例の `++scratch_dir++` はxref:developer-guide.adoc#隔離したコピーでの確認[開発手順]で作ったコピーを指す。`DESTDIR` は `Makefile` の変数の値には含まれず、`install`・`uninstall` の各コマンドで付けるため、配置先の変数を上書きした場合も `DESTDIR` が付く。
+`make DESTDIR=DIR install` は、上記の各配置先の先頭に `DIR` を付けた場所へ配置する。たとえば既定の設定では `DIR/usr/local/bin/sxlc`、`DIR/usr/local/share/gauche-0.98/site/lib/sxmml.scm` のようになる。配布パッケージの作成など、本来の配置先を変えずに別の場所へ配置する場合に使う。`DIR` は絶対パスで指定する。`make DESTDIR=DIR uninstall` は同じ場所から削除する。`DESTDIR` は `Makefile` の変数値には含まれず、`install`・`uninstall` の各コマンドで付加するため、配置先の変数を上書きした場合も `DESTDIR` が付く。
+
+次の例の `++scratch_dir++` は xref:developer-guide.adoc#隔離したコピーでの確認[開発・改修手順] で作ったコピーを指す。
 
 [source,console]
 ----
@@ -38,12 +44,12 @@ make DESTDIR="$destdir" install
 find "$destdir" -type f
 ----
 
-`sxlc` の先頭行には `configure` が検出した `gosh` のパスが入り、配置先のパスは生成物に埋め込まれない。このため、`DESTDIR` の下に配置した内容を本来の配置先へ移せば、そのまま使える。
+`sxlc` の先頭行には `configure` が検出した `gosh` のパスが入り、配置先のパスは生成物に埋め込まれない。このため、`DESTDIR` の下に配置した内容を本来の配置先へ移せばそのまま使える。
 
 [[一時配置での実行確認]]
 === 一時配置での実行確認
 
-配置した `sxlc` を実行して確かめる場合は、短いパスで扱えるよう配置先の変数を直接指定する。次の一時配置では `bindir`・`++GAUCHE_PKGLIBDIR++`・``++GAUCHE_PKGARCHDIR++``を明示し、配置先と実行時の検索先を合わせる。以下の `++scratch_dir++` はxref:developer-guide.adoc#隔離したコピーでの確認[開発手順]で作ったコピーを指す。`++stage_dir++` は毎回新しいパスにする。
+配置した `sxlc` を実行して確かめる場合は、短いパスで扱えるよう配置先の変数を直接指定する。次の一時配置では `bindir`・`++GAUCHE_PKGLIBDIR++`・`++GAUCHE_PKGARCHDIR++` を明示し、配置先と実行時の検索先を合わせる。以下の `++scratch_dir++` は xref:developer-guide.adoc#隔離したコピーでの確認[開発・改修手順] で作ったコピーを指す。`++stage_dir++` は毎回新しいパスにする。
 
 [source,console]
 ----
@@ -57,12 +63,14 @@ export GAUCHE_LOAD_PATH="$stage_dir/share/sxmml${GAUCHE_LOAD_PATH:+:$GAUCHE_LOAD
 export GAUCHE_DYNLOAD_PATH="$stage_dir/lib/sxmml${GAUCHE_DYNLOAD_PATH:+:$GAUCHE_DYNLOAD_PATH}"
 ----
 
-この手順は `bin/sxlc`、`share/sxmml/sxmml.scm` と各 `sxmml/` モジュール、`share/sxmml/.packages/sxmml.gpd`、`++lib/sxmml/sxmml_native++` 共有ライブラリを配置する。配置した `sxlc` は、その Scheme モジュールの場所を `++GAUCHE_LOAD_PATH++`、共有ライブラリの場所を `++GAUCHE_DYNLOAD_PATH++` に追加して起動する。これは一時配置用のディレクトリ構成であり、標準のインストール先は生成された `Makefile` に従う。配布時には生成された `Makefile` の `bindir`・`++GAUCHE_PKGLIBDIR++`・`++GAUCHE_PKGARCHDIR++` とステージングの内容を照合する。
+この手順は `bin/sxlc`、`share/sxmml/sxmml.scm` と各 `sxmml/` モジュール、`share/sxmml/.packages/sxmml.gpd`、`++lib/sxmml/sxmml_native++` 共有ライブラリを配置する。これは一時配置用のディレクトリ構成であり、標準のインストール先は生成された `Makefile` に従う。配布時には生成された `Makefile` の `bindir`・`++GAUCHE_PKGLIBDIR++`・`++GAUCHE_PKGARCHDIR++` とステージングの内容を照合する。
 
 [[符号化と生成物の確認]]
 == 符号化と生成物の確認
 
-現行 PMD バックエンドは `:encoding "cp932"` で出力する (link:../sxmml/backend/pmd-source.scm[`sxmml/backend/pmd-source.scm`])。単なる ASCII の例は符号化の判定にならないため、日本語メタデータを含む入力で確かめる。次のコマンドは上記のインストール後、コピー内で実行する。
+文字コード変換を伴うバックエンドのうち、PMD（`pmd-source`）と FMP7（`fmp7`）は CP932（`:encoding "cp932"`）、NSD.Lib（`nsdlib`）は UTF-8 で出力する。単なる ASCII の例は符号化の判定にならないため、日本語メタデータを含む入力で確かめる。
+
+次のコマンドは上記のインストール後、コピー内で PMD の CP932 出力を確認する代表例である。
 
 [source,console]
 ----
@@ -84,7 +92,7 @@ gauche-package make-tarball --dry-run
 gauche-package make-tarball
 ----
 
-アーカイブには `src/` の CLI 生成元と `src/lib/` の C・ヘッダ・CiSE 生成元を含める。展開先で C 拡張をビルドする。
+アーカイブには `src/` の CLI 生成元と `src/lib/` の C・ヘッダ・CiSE 生成元を含め、展開先で C 拡張をビルドする。
 
 ソースの親ディレクトリに作成した `sxmml-<版>.tgz`（`<版>` は `package.scm` の `:version` の値）を別のディレクトリへ展開し、展開先で `./configure`、`make check`、一時配置への `make install` と変換例を実行する。標準配置への導入は、配置先の権限と Gauche の検索先を確認してから行う。これらの手順は <<toolsdistchecksh,`tools/distcheck.sh`>> が自動で行う。
 
@@ -103,7 +111,7 @@ gauche-package make-tarball
 tools/distcheck.sh [-r REV] [-m MAKE] [-w DIR] [-k] [-h]
 ----
 
-[cols="1,1,1",options="header"]
+[cols="1,2,1",options="header"]
 |===
 |オプション |意味 |既定値
 |`-r REV` |検証する Git のリビジョン（ブランチ、タグ、コミット） |`HEAD`
@@ -115,7 +123,7 @@ tools/distcheck.sh [-r REV] [-m MAKE] [-w DIR] [-k] [-h]
 
 検証の対象はコミット済みのリビジョンであり、コミットしていない変更は含まない。各段階の結果を `++[n/9] 段階名 ... ok++` の形式で表示し、最後に検証したリビジョン、Gauche・make の版、Pandoc・groff の有無を表示する。失敗した場合は、その段階のログの末尾と作業ディレクトリの場所を表示する。終了値は、成功が 0、検証の失敗が 1、使い方の誤りや前提の不足が 2 である。
 
-[cols="1,1",options="header"]
+[cols="1,3",options="header"]
 |===
 |段階 |確認内容
 |1. 前提の確認 |必須のコマンド（`git`、`gosh`、`gauche-package`、make、`tar`、`gzip`、`iconv`）と、任意のコマンド（`pandoc`、`groff`）の有無
@@ -123,17 +131,17 @@ tools/distcheck.sh [-r REV] [-m MAKE] [-w DIR] [-k] [-h]
 |3. 配布アーカイブの作成 |展開したコピーで `gauche-package make-tarball` を実行する
 |4. アーカイブの中身の照合 |下記の規則でアーカイブの中身を照合する
 |5. 展開とビルド・テスト |アーカイブを展開し、`./configure`、make、`make check` を実行して `test.log` の末尾が `passed.` であることを確かめる
-|6. DESTDIR によるステージング配置 |`make -n` で全ての配置先に `DESTDIR` が付くことを確かめてから配置し、`sxlc`、Scheme モジュール、`sxmml.gpd`、（Pandoc がある場合）`sxlc.1` の配置を確かめる
+|6. DESTDIR によるステージング配置 |`make -n` で全ての配置先に `DESTDIR` が付くことを確かめてから配置し、`sxlc`、Scheme モジュール、`++sxmml_native++` 共有ライブラリ、`sxmml.gpd`、（Pandoc がある場合）`sxlc.1` の配置を確かめる
 |7. 配置物での変換 |配置した `sxlc` とモジュールで日本語メタデータを含む入力を変換し、CP932 の復号結果を確かめる
 |8. man ページの表示 |配置した `sxlc.1` を groff で表示する。Pandoc または groff がない場合は省く
 |9. 配置物の削除 |`++make DESTDIR=... uninstall++` の後にファイルが残らないことを確かめる
 |===
 
-アーカイブの中身は、リビジョンで Git 管理されているファイルから、VCS 関連ファイル（`.git` で始まる名前）と `++DIST_EXCLUDE++` の記載を除いたものと過不足なく一致しなければならない。アーカイブにのみ存在してよいのは、`configure` が生成する `VERSION` だけである。`++DIST_EXCLUDE++` には、リポジトリのルートからの相対パス（ファイルまたはディレクトリ）のみを記載する。
+アーカイブの中身は、リビジョンで Git 管理されているファイルから、VCS 関連ファイル（`.git` で始まる名前）、`DIST`・`++DIST_EXCLUDE++` 自体、および `++DIST_EXCLUDE++` の記載を除いたものと過不足なく一致しなければならない。アーカイブにのみ存在してよいのは、`configure` が生成する `VERSION` だけである。`++DIST_EXCLUDE++` には、リポジトリのルートからの相対パス（ファイルまたはディレクトリ）のみを記載する。
 
-配布アーカイブは、Git を使わずにビルド、テスト、導入ができる完全なソースとして扱う。ビルド・テスト・導入に必要なファイル、ライセンス、文書（`doc/internal-reference/` を含む）は含め、リポジトリでの開発作業にのみ意味を持つファイルや、アーカイブ内では動作しないファイルは `++DIST_EXCLUDE++` で除外する。現在除外しているのは次のとおり（link:https://github.com/sayzbrdg/sxmml/issues/29[issue #29]）。
+配布アーカイブは、Git を使わずにビルド、テスト、導入ができる完全なソースとして扱う。ビルド・テスト・導入に必要なファイル、ライセンス、文書（`doc/internal-reference/` を含む）は含め、リポジトリでの開発作業にのみ意味を持つファイルや、アーカイブ内では動作しないファイルは `++DIST_EXCLUDE++` で除外する。現在除外しているのは次のとおりである。
 
-[cols="1,1",options="header"]
+[cols="1,3",options="header"]
 |===
 |除外するもの |理由
 |`AGENTS.md` |AI エージェント向けのリポジトリでの作業規則であり、配布物の利用者には意味を持たない
@@ -142,7 +150,7 @@ tools/distcheck.sh [-r REV] [-m MAKE] [-w DIR] [-k] [-h]
 
 開発専用のファイルを追加する場合は、同じ基準で `++DIST_EXCLUDE++` に加える。
 
-`gauche-package make-tarball` はカレントディレクトリを掃除して全体をアーカイブにまとめ、親ディレクトリに出力するため、作業ツリーでは直接実行しない。`make-tarball` は GNU tar の `++--exclude-vcs++` を使用するため、段階 3 には GNU tar が必要である。`Makefile.in` が `DESTDIR` に対応していないリビジョン（link:https://github.com/sayzbrdg/sxmml/issues/21[issue #21] の修正前）は、システムの配置先に書き込むおそれがあるため、何も実行せずに拒否する。
+`gauche-package make-tarball` はカレントディレクトリを掃除して全体をアーカイブにまとめ、親ディレクトリに出力するため、作業ツリーでは直接実行しない。`make-tarball` は GNU tar の `++--exclude-vcs++` を使用するため、段階 3 には GNU tar が必要である。`Makefile.in` が `DESTDIR` に対応していない旧リビジョンは、システムの配置先に書き込むおそれがあるため実行せずに拒否する。
 
 GNU make と bmake の両方で確認する場合は、`-m` を変えて 2 回実行する。
 
@@ -177,7 +185,7 @@ tools/distcheck.sh -m bmake
 - [ ] 実際の環境で `man sxlc` により man ページを参照できた
 - [ ] システムの標準配置先（`./configure` の既定値）へ導入し、配置した `sxlc` で変換できた
 - [ ] `-w` と `-c` による Windows ツールとの接続を確認した（WSL 環境がある場合）
-- [ ] 生成物を実際のドライバー（PMD）で再生した
+- [ ] 生成物を実際のドライバー・コンパイラ（PMD・FMP7・NSD.Lib のうち対象のもの）で再生・確認した
 
 ### 実行環境
 - OS:
@@ -194,7 +202,7 @@ tools/distcheck.sh -m bmake
 * `make install` は、`PANDOC` が設定されていれば `sxlc.1` を生成して `$(mandir)/man1` に配置する。`PANDOC` が空の場合は `pandoc is not found; skip installing sxlc.1` と表示し、man ページの配置だけを省く。
 * `make uninstall` は `$(mandir)/man1/sxlc.1` も削除し、`make clean` は生成した `sxlc.1` を削除する。
 
-`mandir` の既定値は `++${prefix}/share/man++` であり、`++./configure --mandir=DIR++` または `make mandir=DIR install` で変更できる。`make DESTDIR=DIR install` では `DIR` の下の `mandir` に配置する。<<一時配置での実行確認,一時配置の手順>>に合わせる場合は、`mandir` も明示する。
+`mandir` の既定値は `++${prefix}/share/man++` であり、`++./configure --mandir=DIR++` または `make mandir=DIR install` で変更できる。`make DESTDIR=DIR install` では `DIR` の下の `mandir` に配置する。<<一時配置での実行確認,一時配置の手順>> に合わせる場合は、`mandir` も明示する。
 
 [source,console]
 ----
@@ -215,11 +223,11 @@ docker run --rm -v "$PWD:/work:ro" -v "$man_stage_dir:/out" pandoc/core:latest \
   -o /out/share/man/man1/sxlc.1
 ----
 
-配布確認の記録には、使用するソースと Gauche バージョン、`./configure`、`make check`、ステージングの配置、非 ASCII を含む PMD 生成物の復号、配布アーカイブと man ファイルの有無を残す。MML 変換と最適化の検証はxref:verification.adoc[検証方針]の手順に従って行う。
+配布確認の記録には、使用するソースと Gauche バージョン、`./configure`、`make check`、ステージングの配置、非 ASCII を含む生成物の復号、配布アーカイブと man ファイルの有無を残す。MML 変換と最適化の検証は xref:verification.adoc[検証方針] の手順に従って行う。
 
-配布工程の検証不足は link:https://github.com/sayzbrdg/sxmml/issues/10[issue #10]にまとめる。
+配布工程の検証不足は link:https://github.com/sayzbrdg/sxmml/issues/10[issue #10] にまとめる。
 
 [[関連資料]]
 == 関連資料
 
-link:../Makefile.in[`Makefile.in`]、link:../configure[`configure`]、link:../package.scm[`package.scm`]、link:../src/sxlc.in[`sxlc`]、link:../sxmml/backend/pmd-source.scm[`sxmml/backend/pmd-source.scm`]、共通規則のlink:../sxmml/backend/pmd.scm[`sxmml/backend/pmd.scm`]を参照する。Gauche の生成と文字コード変換は link:https://practical-scheme.net/vault/Gauche-0.9.15-refe.pdf[Gauche 0.9.15 Users’ Reference, 9.8 gauche.configure、9.5 Character code conversion]を参照する。
+link:../Makefile.in[`Makefile.in`]、link:../configure[`configure`]、link:../package.scm[`package.scm`]、link:../src/sxlc.in[`sxlc`]、各バックエンド出力（link:../sxmml/backend/pmd-source.scm[`pmd-source.scm`]・link:../sxmml/backend/pmd-binary.scm[`pmd-binary.scm`]・link:../sxmml/backend/fmp7-source.scm[`fmp7-source.scm`]・link:../sxmml/backend/nsdlib-source.scm[`nsdlib-source.scm`]）を参照する。Gauche の生成と文字コード変換は link:https://practical-scheme.net/vault/Gauche-0.9.15-refe.pdf[Gauche 0.9.15 Users' Reference, 9.8 gauche.configure、9.5 Character code conversion] を参照する。
