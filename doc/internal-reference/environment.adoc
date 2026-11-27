@@ -1,94 +1,299 @@
 = `sxmml.environment` の状態管理
 :toc: left
 
-解像度の既存の検査はvalue-error、独自マクロの形式違反はform-syntax-errorです。取得できるフォーム位置は既知のエラーだけへ独立したconditionとして添えます。値の式の未定義変数や引数個数など、Gauche由来の失敗は包み直しません。
+楽曲のコンパイルに使う環境パラメータ、モードの登録と選択、メタデータ、LFO、エンベロープ、トラックおよび IR の登録表を管理します。
 
-`sxmml.environment` には環境と登録表を操作する 40 の定義があり、そのうち 36 を公開します。パラメータ、マクロ、ハッシュ表の動作は Gauche 0.9.15 に従います。MML 記述者向けの使用例は xref:../sxmml-reference-manual.adoc[公開機能リファレンス]を参照してください。
+実装は link:../../sxmml/environment.scm[environment.scm] にあります。このモジュールは 40 定義（手続き 34 件・マクロ 6 件）を持ち、そのうち 36 定義（手続き 30 件・マクロ 6 件）を公開します。呼び出せない共有ハッシュ表（`%sxmml-modes`）は索引の掲載対象外です。
 
-状態を保持する本体は xref:classes.adoc#ref-classes-class-sxmml-environment[`<sxmml-environment>`] です。`make-parameter` で作る束縛は手続きであり、引数なしで現在値を返し、値を一つ渡すと動的な現在値を変更して旧値を返します。表の設定手続きは、特記しない限り現在の環境オブジェクト内の slot または表を変更します。登録手続きの戻り値は呼び出し側では使用していません。`get` の未登録時の挙動は項目ごとに異なります。
+パラメータ、マクロ、ハッシュ表の動作は Gauche 0.9.15 に従います。MML 記述者向けの使い方は xref:../sxmml-reference-manual.adoc[MML 記述者向けリファレンス]を参照してください。
 
-== 基本設定とメタデータ
+== 状態モデルとエラー分類
 
-[cols="2,4,4,1",options="header"]
-|===
-|名前・書式 |引数と役割 |結果・副作用・失敗条件 |ソース
-|[[ref-environment-sxmml-environment]]`(sxmml-environment [env])` |現在の環境パラメータ。初期値は新規 `<sxmml-environment>` |引数なしで環境を返し、`env` 指定で現在値を変更 |link:../../sxmml/environment.scm[environment.scm]
-|[[ref-environment-sxmml-source-file]]`(sxmml-source-file [path])` |入力ソース名のパラメータ。初期値 `#f` |取得または設定。生成名の決定時に参照 |link:../../sxmml/environment.scm[environment.scm]
-|[[ref-environment-sxmml-resolution-get]]`(sxmml-resolution-get)` |現在の解像度を得る |環境の `resolution` slot を返す。既定値 24 |link:../../sxmml/environment.scm[environment.scm]
-|[[ref-environment-sxmml-resolution-set-bang]]`(sxmml-resolution-set! resolution)` |四分音符あたりの正整数 tick 数を設定 |`resolution` slot を変更。整数でない値、0、負数は明示的にエラー |link:../../sxmml/environment.scm[environment.scm]
-|[[ref-environment-sxmml-resolution]]`(sxmml-resolution resolution)` |`sxmml-resolution-set!` の別名 |同じ値検査・状態変更を行う |link:../../sxmml/environment.scm[environment.scm]
-|[[ref-environment-sxmml-mode]]`(sxmml-mode name)` |名前を評価せずquoteするマクロ |identifier?で検査し、位置付きの`%sxmml-mode-select`呼出しへ展開。書式・名前の型違反はform-syntax-error。未登録選択はreference-error。既知の実行時エラーへ位置を添え、未知のGauche例外は通す |link:../../sxmml/environment.scm[environment.scm]
-|[[ref-environment-sxmml-mode-fixed]]`(sxmml-mode-fixed [flag])` |モード確定済みを示すパラメータ。初期値 `#f` |真の間は `sxmml-mode` を無視する。`sxlc` は `-m` 指定時に真にしてソースを読み込む |link:../../sxmml/environment.scm[environment.scm]
-|[[ref-environment-sxmml-mode-register-bang]]`(sxmml-mode-register! mode)` |情報を共有表へ登録 |インスタンス・各項目の型・登録済み名との衝突を全件検査してから更新。失敗はvalue-error。初期設定は実行しない。戻り値は未規定 |link:../../sxmml/environment.scm[environment.scm]
-|[[ref-environment-sxmml-mode-find]]`(sxmml-mode-find name)` |正規名・別名から検索 |名前はsymbol。未登録は#f |link:../../sxmml/environment.scm[environment.scm]
-|[[ref-environment-sxmml-mode-list]]`(sxmml-mode-list)` |登録情報を列挙 |別名による重複なし。順序は未規定 |link:../../sxmml/environment.scm[environment.scm]
-|[[ref-environment-sxmml-mode-select-bang]]`(sxmml-mode-select! name)` |登録情報を選択 |未登録はreference-errorで状態を保持。選択情報更新後にsetupを実行し、再選択でも実行。失敗時の成功済み変更は保持。戻り値は未規定 |link:../../sxmml/environment.scm[environment.scm]
-|[[ref-environment-sxmml-mode-get]]`(sxmml-mode-get)` |現在の選択情報 |未選択なら#f |link:../../sxmml/environment.scm[environment.scm]
-|[[ref-environment-sxmml-mode-selected-p]]`(sxmml-mode-selected? name)` |別名も解決して選択中か判定 |未登録・未選択は#f。名前の型違反はvalue-error |link:../../sxmml/environment.scm[environment.scm]
-|[[ref-environment-sxmml-option-get]]`(sxmml-option-get name)` |現在の環境の利用者設定を取得 |名前はsymbolで大小を区別。未登録はundefined、登録された#fは#f。値はコピーしない |link:../../sxmml/environment.scm[environment.scm]
-|[[ref-environment-sxmml-option-set-bang]]`(sxmml-option-set! name value)` |options表へ値を登録・置換 |値の種類は制限しない。別環境と共有せず、モード変更でも保持する。戻り値は未規定 |link:../../sxmml/environment.scm[environment.scm]
-|[[ref-environment-sxmml-default-output-path-get]]`(sxmml-default-output-path-get)` |ソースで指定した既定出力先を取得 |指定した文字列をそのまま返す。初期状態・解除後は#f。-oを含めて解決した出力先ではない |link:../../sxmml/environment.scm[environment.scm]
-|[[ref-environment-sxmml-default-output-path-set-bang]]`(sxmml-default-output-path-set! path)` |現在の環境のdefault-output-pathを設定 |文字列または#f。最後の指定を採用し、#fで解除。型違反は`invalid default output path: ~s (expected a string or #f)`のvalue-error。戻り値は未規定 |link:../../sxmml/environment.scm[environment.scm]
-|[[ref-environment-internal-option-name-check]]`(%option-name-check name)` |非公開の設定名検査 |symbol以外はinvalid option nameのvalue-error。get・set!が表へアクセスする前に呼ぶ |link:../../sxmml/environment.scm[environment.scm]
-|[[ref-environment-internal-mode-name-check]]`(%mode-name-check name)` |非公開の名前検査 |symbol以外はinvalid mode nameのvalue-error |link:../../sxmml/environment.scm[environment.scm]
-|[[ref-environment-internal-sxmml-mode-select]]`(%sxmml-mode-select location name)` |マクロの非公開展開先 |CLI固定中は正規名による位置付き警告で無視。それ以外は`sxmml-mode-select!`を呼ぶ |link:../../sxmml/environment.scm[environment.scm]
-|[[ref-environment-sxmml-metadata-get]]`(sxmml-metadata-get key)` |`metadata` 表から `key` を検索 |未登録なら `#f` |link:../../sxmml/environment.scm[environment.scm]
-|[[ref-environment-sxmml-metadata-set-bang]]`(sxmml-metadata-set! key value)` |`metadata` 表へ値を登録 |既存の同じ key を上書き |link:../../sxmml/environment.scm[environment.scm]
-|[[ref-environment-define-metadata]]`(define-metadata key value)` |`key` を小文字化した symbol にし、`value` を式として評価して登録するマクロ |括弧の中が 1 つ以上で全て文字列の旧書式 `(define-metadata key ("a" ...))` は、展開時に `sxmml-form-warn` で非推奨の警告を出し、文字列のリストとして登録する。値がない、引数が多いなどは `invalid define-metadata form` の `<sxmml-form-syntax-error>`。登録の呼び出しは `sxmml-form-wrap` で包むので、既知の値の誤りにも定義の位置が付く。値の型は検査しない |link:../../sxmml/environment.scm[environment.scm]
-|===
+状態を保持する本体は xref:classes.adoc#ref-classes-class-sxmml-environment[`<sxmml-environment>`] です。`make-parameter` で作る束縛は手続きであり、引数なしで現在値を返し、値を 1 つ渡すと動的な現在値を変更して旧値を返します。
 
-モード情報はbackendの読込み時に共有表`%sxmml-modes`へ登録し、楽曲環境は選択情報だけを保持します。`<sxmml-mode>`のnameはsymbol、aliasesはsymbolのリスト、setupは手続きまたは#f、backendは手続き、output-extensionは文字列または#fです。setupは引数なし、backendは出力環境一つを渡して呼び、出力結果を受け取ります。登録環境のoptimize・output slotsは廃止し、出力の設定は xref:output.adoc[出力準備]へ分離しました。必須項目の省略も登録時に値エラーとなり、手続きの引数個数は事前検査しません。型違反の本文は`invalid mode`・`invalid mode name`・`invalid mode aliases`・`invalid mode setup`・`invalid mode backend`・`invalid mode output extension`で値と期待型を示します。
+表への登録手続きは、特記しない限り現在の環境オブジェクト内のスロットまたはハッシュ表を変更します。登録手続きの戻り値は規定しません。未登録キーを取得したときの挙動は表ごとに異なります。
 
-CLIとソースのマクロ双方で指定した場合はCLI側を優先し、明示的な選択手続きによる変更は認めます。通常の分岐構文でselected?を使えます。動作はxref:../behavior-spec.adoc#入力と実行順[外部動作仕様]を参照してください。
+* `sxmml-metadata-get`・`sxmml-track-get`: `#f` を返します。
+* `sxmml-option-get`: `undefined` を返します。
+* `sxmml-lfo-get`・`sxmml-envelope-get`: Gauche のハッシュ表検索エラーになります。
+
+エラーは用途に応じて分類します。
+
+* 独自マクロの構文違反や引数形の誤り: `<sxmml-form-syntax-error>`
+* 値・型・重複の違反: `<sxmml-value-error>`
+* 未登録のモードやトラックの参照: `<sxmml-reference-error>`
+
+マクロ経由の呼び出しでは、取得できるフォーム位置を既知の `<sxmml-error>` にだけ `<sxmml-source-context>` として添えます。値の式で生じた未定義変数や引数個数違反など Gauche 由来の例外は包み直さずそのまま送出します。
+
+== 基本環境とオプション
+
+[[ref-environment-sxmml-environment]]
+=== `(sxmml-environment [env])`
+
+現在の楽曲環境を保持するパラメータです。初期値は新規の `<sxmml-environment>` インスタンスです。引数なしで現在の環境を返し、`env` を渡すと動的な現在値を切り替えます。
+
+[[ref-environment-sxmml-source-file]]
+=== `(sxmml-source-file [path])`
+
+入力ソースファイル名を保持するパラメータです。初期値は `#f` です。出力ファイル名の決定時などに参照します。
+
+[[ref-environment-sxmml-resolution-get]]
+=== `(sxmml-resolution-get)`
+
+現在の環境の `resolution` スロット（四分音符あたりの tick 数）を返します。既定値は `24` です。
+
+[[ref-environment-sxmml-resolution-set-bang]]
+=== `(sxmml-resolution-set! resolution)`
+
+現在の環境の `resolution` スロットを正の整数 `resolution` に設定します。整数でない値、0、負数を渡すと `<sxmml-value-error>`（`invalid resolution: <値> (expected a positive integer)`）を送出します。
+
+[[ref-environment-sxmml-resolution]]
+=== `(sxmml-resolution resolution)`
+
+`sxmml-resolution-set!` の別名です。同じ値検査と状態変更を行います。
+
+[[ref-environment-sxmml-default-output-path-get]]
+=== `(sxmml-default-output-path-get)`
+
+ソースから設定した既定出力先をそのまま返します。初期状態または `#f` で解除した後は `#f` です。`-o` オプションを含めて解決した最終出力先ではありません。
+
+[[ref-environment-sxmml-default-output-path-set-bang]]
+=== `(sxmml-default-output-path-set! path)`
+
+現在の環境の `default-output-path` スロットを設定します。`path` には文字列または `#f` を指定します。最後に指定した値を採用し、`#f` で解除します。文字列でも `#f` でもない場合は `<sxmml-value-error>`（`invalid default output path: <値> (expected a string or #f)`）を送出します。
+
+[[ref-environment-sxmml-option-get]]
+=== `(sxmml-option-get name)`
+
+現在の環境の `options` 表からシンボル `name` の設定値を取得します。シンボル名は大文字・小文字を区別します。未登録の場合は `undefined`、値が `#f` として登録されている場合は `#f` を返します。値はコピーせずそのまま返します。`name` がシンボルでない場合は `%option-name-check` により `<sxmml-value-error>` です。
+
+[[ref-environment-sxmml-option-set-bang]]
+=== `(sxmml-option-set! name value)`
+
+現在の環境の `options` 表へシンボル `name` と値 `value` を登録・置換します。値の型は制限しません。環境ごとに独立して保持され、モード変更でも維持されます。`name` がシンボルでない場合は `<sxmml-value-error>` です。
+
+=== 非公開手続き
+
+[[ref-environment-internal-option-name-check]]`(%option-name-check name)`::
+設定名 `name` がシンボルであるかを検査する非公開手続きです。シンボル以外は `<sxmml-value-error>`（`invalid option name: <値> (expected a symbol)`）を送出します。`sxmml-option-get` と `sxmml-option-set!` が表へアクセスする前に呼びます。
+
+== モードの登録と選択
+
+モード定義は各バックエンドの読み込み時に共有ハッシュ表 `%sxmml-modes` へ登録し、楽曲環境（`<sxmml-environment>`）は現在選択中の `<sxmml-mode>` インスタンスだけを保持します。出力オプションの組み立ては xref:output.adoc[`sxmml.output`] が担当します。
+
+`<sxmml-mode>` の各スロットの型は次のとおりです。
+
+* `name`: 正式名を表すシンボル
+* `aliases`: 別名シンボルのリスト
+* `setup`: モード選択時に引数なしで呼ぶ手続き、または `#f`
+* `backend`: `<sxmml-output-environment>` を 1 つ受けて `<sxmml-output-result>` を返す手続き
+* `output-extension`: 既定の拡張子文字列、または `#f`
+
+CLI の `-m` とソース内の `sxmml-mode` マクロの双方で指定した場合は CLI 側を優先します。一方、明示的な `sxmml-mode-select!` による切り替えは `sxmml-mode-fixed` の値にかかわらず実行できます。全体の優先順位と実行順は xref:../behavior-spec.adoc#入力と実行順[外部動作仕様]を参照してください。
+
+[[ref-environment-sxmml-mode-fixed]]
+=== `(sxmml-mode-fixed [flag])`
+
+モードが CLI などで確定済みかを示すパラメータです。初期値は `#f` です。真の間はソース内の `sxmml-mode` マクロによるモード選択を警告付きで無視します。`sxlc` は `-m` 指定時に真にしてソースを読み込みます。
+
+[[ref-environment-sxmml-mode-register-bang]]
+=== `(sxmml-mode-register! mode)`
+
+`<sxmml-mode>` インスタンス `mode` を共有表 `%sxmml-modes` へ登録します。インスタンスの型、各スロットの型（必須項目の未設定を含む）、および登録済みモード名・別名との衝突を全件検査してから共有表を更新するため、失敗時は共有表を変更しません。手続きの引数個数は事前検査せず、`setup` も登録時には実行しません。
+
+違反時は次の本文を持つ `<sxmml-value-error>` を送出します。
+
+* `invalid mode: <値> (expected a <sxmml-mode> instance)`
+* `invalid mode name: <値> (expected a symbol)` / `invalid mode name: <名前> (already registered for <既存モード名>)`
+* `invalid mode aliases: <値> (expected a list of symbols)`
+* `invalid mode setup: <値> (expected a procedure or #f)`
+* `invalid mode backend: <値> (expected a procedure)`
+* `invalid mode output extension: <値> (expected a string or #f)`
+
+[[ref-environment-sxmml-mode-find]]
+=== `(sxmml-mode-find name)`
+
+正式名または別名のシンボル `name` で共有表 `%sxmml-modes` を検索し、一致する `<sxmml-mode>` を返します。未登録なら `#f` です。`name` がシンボルでない場合は `%mode-name-check` により `<sxmml-value-error>` です。
+
+[[ref-environment-sxmml-mode-list]]
+=== `(sxmml-mode-list)`
+
+共有表 `%sxmml-modes` に登録されている `<sxmml-mode>` のリストを返します。別名による重複は `eq?` で除きます。返される順序は規定しません。
+
+[[ref-environment-sxmml-mode-get]]
+=== `(sxmml-mode-get)`
+
+現在の環境で選択中の `<sxmml-mode>` を返します。未選択なら `#f` です。
+
+[[ref-environment-sxmml-mode-selected-p]]
+=== `(sxmml-mode-selected? name)`
+
+正式名または別名のシンボル `name` が現在の選択モードと一致するかを返します。未登録または未選択・別モードの場合は `#f` です。`name` がシンボルでない場合は `<sxmml-value-error>` です。
+
+[[ref-environment-sxmml-mode-select-bang]]
+=== `(sxmml-mode-select! name)`
+
+正式名または別名のシンボル `name` でモードを検索し、現在の環境の `mode` スロットを更新したうえで、`setup` が手続きなら引数なしで実行します。同じモードを再選択した場合も `setup` を再実行します。
+
+`name` がシンボルでない場合は `<sxmml-value-error>`、未登録の場合は `<sxmml-reference-error>`（`undefined mode: <name>`）となり、現在の環境は変更しません。`setup` の実行途中で例外が送出された場合、それまでに完了した状態変更と `mode` スロットの更新はそのまま残ります。
+
+[[ref-environment-sxmml-mode]]
+=== `(sxmml-mode name)`
+
+モード名 `name` を評価せずクオートして選択する公開マクロです。引数個数の誤りは `invalid sxmml-mode form: expected (sxmml-mode mode)`、`name` が識別子でない場合は `invalid sxmml-mode name: <値> (expected a symbol)` の `<sxmml-form-syntax-error>` になります。
+
+正常時は、展開時に取得したフォーム位置を添えて `sxmml-form-wrap` で包んだ `(%sxmml-mode-select 位置 'name)` へ展開します。
+
+=== 非公開手続き
+
+[[ref-environment-internal-mode-name-check]]`(%mode-name-check name)`::
+モード名 `name` がシンボルであるかを検査する非公開手続きです。シンボル以外は `<sxmml-value-error>`（`invalid mode name: <値> (expected a symbol)`）を送出します。
+
+[[ref-environment-internal-sxmml-mode-select]]`(%sxmml-mode-select location name)`::
+`sxmml-mode` マクロの非公開展開先です。`(sxmml-mode-fixed)` が真のときは、現在選択中モードの正式名を用いて `sxmml-form-warn-at` で `sxmml-mode in source is ignored; mode is already set to <name>` の警告を表示して無視します。偽のときは `(sxmml-mode-select! name)` を呼びます。
+
+== メタデータ
+
+[[ref-environment-sxmml-metadata-get]]
+=== `(sxmml-metadata-get key)`
+
+現在の環境の `metadata` 表から `key` を検索して返します。未登録なら `#f` です。
+
+[[ref-environment-sxmml-metadata-set-bang]]
+=== `(sxmml-metadata-set! key value)`
+
+現在の環境の `metadata` 表へ `key` と `value` を登録します。同じ `key` が登録済みの場合は上書きします。
+
+[[ref-environment-define-metadata]]
+=== `(define-metadata key value)`
+
+`key` を小文字化したシンボルへ変換し、`value` を式として評価して `sxmml-metadata-set!` へ渡す公開マクロです。`key` は識別子のみを受け付けます（違反は `invalid define-metadata key: <値> (expected a symbol)` の `<sxmml-form-syntax-error>`）。引数個数が一致しない場合は `invalid define-metadata form: expected (define-metadata key value)` の `<sxmml-form-syntax-error>` です。
+
+`value` が 1 要素以上の文字列だけのリストである旧書式 `(define-metadata key ("a" ...))` は、展開時に `sxmml-form-warn` で非推奨の警告を表示し、文字列のリスト `(list "a" ...)` として登録します。登録の呼び出しは `sxmml-form-wrap` で包みます。値の型検査は行わず、各バックエンドが参照時に検査します。
 
 == LFO・エンベロープの登録
 
-定義名は `sxmml-form-name->symbol` でsymbol／identifier・数値からMML用の名前へ正規化します。種類は `identifier?` で検査し、quoteによって登録時にはsymbolになります。メタデータキーはsymbol／identifierだけを受け、元のsymbolの名前を小文字へそろえます。トラック名もsymbol／identifierを検査してquoteし、複数形式では全要素を検査します。登録手続きや、種類・キー・トラック名へMML定義名の文字制限は追加しません。
+`define-lfo` と `define-envelope` は共通の展開手続き `%define-lfo/envelope-expand` を使います。定義名は `sxmml-form-name\->symbol` でシンボル・識別子または数値から正規化し、種類 `type` は識別子として検査してシンボルへ変換します（省略時は `default`）。
 
-`define-lfo`と`define-envelope`は、共通の`%define-lfo/envelope-expand`へform・rename・id=?を渡して展開し、実行時に対応する登録手続きを呼びます。名前と種類はリテラルで、種類の省略時はdefaultです。標準のlist・quote・quasiquoteは束縛で識別し、変数参照やリテラルとともに一つの式として評価します。残る旧枠形式は標準のlistで構築し、展開時にsxmml-form-warnで位置付きの移行警告を出します。一般の手続き呼び出し形も旧書式になります。廃止時期は未定です。
+値引数は、先頭が標準束縛の `list`・`quote`・`quasiquote` であるリスト、またはペア・空リスト以外の式（変数参照やリテラルなど）を新書式として扱い、1 つの式としてそのまま評価します。これら以外のプロパーリスト（空リストや一般の手続き呼び出し形を含む）は旧書式として扱い、展開時に `sxmml-form-warn` で位置付きの非推奨警告を表示して `(list 要素 ...)` へ展開します。
 
-登録手続きは空リストを含むプロパーリストを要求します。未使用の定義でも外形を検査し、違反はvalue-errorとして既存値を保持します。要素の構造や値の制約はここで検査しません。バックエンドによる内容の検査は別の責務です。形の違反はform-syntax-errorとし、既知の値エラーにはsxmml-form-wrapによる既存の境界で位置conditionを添えます。未知のGauche例外は包み直しません。未登録IDの取得は従来どおりハッシュ表の検索エラーです。
+登録手続き `sxmml-lfo-set!`・`sxmml-envelope-set!` は、未使用の定義も含めて登録時に値がプロパーリスト（空リストを含む）であることを検査し、違反時は `<sxmml-value-error>` を送出して既存値を保持します。要素の個数や値の範囲は各バックエンドが参照時に検査します。
 
-[cols="2,4,4,1",options="header"]
-|===
-|名前・書式 |引数と役割 |結果・副作用・失敗条件 |ソース
-|[[ref-environment-sxmml-lfo-get]]`(sxmml-lfo-get id)` |ID で LFO を検索 |登録済み `<sxmml-lfo>` を返す。未登録なら検索エラー |link:../../sxmml/environment.scm[environment.scm]
-|[[ref-environment-sxmml-lfo-set-bang]]`(sxmml-lfo-set! id type data)` |LFOを作り登録 |dataはプロパーリスト。違反は`invalid LFO values: L1 is 17 (expected a proper list)`のvalue-error。正常時はidを上書き、失敗時は既存値を保持 |link:../../sxmml/environment.scm[environment.scm]
-|[[ref-environment-define-lfo]]`(define-lfo id [type] value)` |LFOの名前・種類・値の式 |登録手続きへの呼出しに展開。新書式は一度評価、旧書式は各要素を評価して警告 |link:../../sxmml/environment.scm[environment.scm]
-|[[ref-environment-sxmml-envelope-get]]`(sxmml-envelope-get id)` |ID でエンベロープを検索 |登録済み `<sxmml-envelope>` を返す。未登録なら検索エラー |link:../../sxmml/environment.scm[environment.scm]
-|[[ref-environment-sxmml-envelope-set-bang]]`(sxmml-envelope-set! id type data)` |エンベロープを作り登録 |dataはプロパーリスト。違反は`invalid envelope values: E1 is (1 . 2) (expected a proper list)`のvalue-error。正常時はidを上書き、失敗時は既存値を保持 |link:../../sxmml/environment.scm[environment.scm]
-|[[ref-environment-define-envelope]]`(define-envelope id [type] value)` |エンベロープの名前・種類・値の式 |登録手続きへの呼出しに展開。新書式は一度評価、旧書式は各要素を評価して警告 |link:../../sxmml/environment.scm[environment.scm]
-|[[ref-environment-internal-define-lfo-envelope-expand]]`(%define-lfo/envelope-expand form rename id=? name set-proc)` |両マクロの共通展開 |標準束縛をid=?で比較。新書式は値をそのまま、旧書式はlistによる構築を登録手続きへ渡し、sxmml-form-wrapで包む。枠の違反は`invalid <name> form: expected (<name> id [type] value)`。名前・種類の既存診断を維持 |link:../../sxmml/environment.scm[environment.scm]
-|===
+[[ref-environment-sxmml-lfo-get]]
+=== `(sxmml-lfo-get id)`
 
-== トラック表と登録済みオブジェクト
+現在の環境の `lfo` 表から `id` に対応する `<sxmml-lfo>` を返します。未登録の場合は Gauche のハッシュ表検索エラーになります。
 
-各トラックは xref:classes.adoc#ref-classes-class-sxmml-mml-context[`<sxmml-mml-context>`] に格納されます。名前→contextの表とcontextのpartを対応情報の本体とし、partは`eq?`で比較します。登録時にpartを省略すると#fになります。明示partだけを重複検査します。未登録contextのクラス既定値は`#f`のままです。
+[[ref-environment-sxmml-lfo-set-bang]]
+=== `(sxmml-lfo-set! id type data)`
 
-[cols="2,4,4,1",options="header"]
-|===
-|名前・書式 |引数と役割 |結果・副作用・失敗条件 |ソース
-|[[ref-environment-sxmml-track-get]]`(sxmml-track-get track)` |名前でトラックを検索 |未登録なら `#f` |link:../../sxmml/environment.scm[environment.scm]
-|[[ref-environment-sxmml-track-set-bang]]`(sxmml-track-set! track . params)` |`:part` などの初期化引数から context を作る |part省略時は#f。:sound-sourceはsymbolまたは#f。自身以外が使用中のpartは`invalid track <名前> part: <値> (already assigned to track <所有者>)`のvalue-error。検査後に新contextで同名項目を置換し、設定・MML・旧partは引き継がない。不正な初期化引数は`make`で失敗 |link:../../sxmml/environment.scm[environment.scm]
-|[[ref-environment-sxmml-track-rename-bang]]`(sxmml-track-rename! old-name new-name)` |symbolの登録名を変更 |同じcontextのtrackと表のキーを変更し、part・設定・IR・全コンパイル状態を保持。未登録元はreference-error、登録済み先（同名も含む）・名前の型違反はvalue-error。検査失敗時は既存状態を変更しない。戻り値は規定しない |link:../../sxmml/environment.scm[environment.scm]
-|[[ref-environment-sxmml-track-delete-bang]]`(sxmml-track-delete! track)` |指定したトラックを削除 |`track` 表からその key を削除 |link:../../sxmml/environment.scm[environment.scm]
-|[[ref-environment-sxmml-track-clear-bang]]`(sxmml-track-clear!)` |トラック表を全件削除 |引数なしで `track` 表を空にする。一件だけ削除する場合は `sxmml-track-delete!` を使う |link:../../sxmml/environment.scm[environment.scm]
-|[[ref-environment-sxmml-track-list]]`(sxmml-track-list)` |現在の登録名を列挙 |key のリストを返す。定義順・名前順を含め順序は保証しない。順序が処理結果に影響する場合は利用側で必要な順序に並べ替える |link:../../sxmml/environment.scm[environment.scm]
-|[[ref-environment-sxmml-track-find]]`(sxmml-track-find part)` |`part` slot が一致する最初のトラック名を探す |見つからなければ `#f` |link:../../sxmml/environment.scm[environment.scm]
-|[[ref-environment-sxmml-ir-register-bang]]`(sxmml-ir-register! ir track)` |sxmml IR の列を登録 |登録済みなら context の `compiled-data` を更新。未登録なら更新しない |link:../../sxmml/environment.scm[environment.scm]
-|[[ref-environment-rename-track]]`(rename-track old-name new-name)` |登録名を変更するマクロ |名前をidentifier?で検査してquoteし、位置付きの`sxmml-track-rename!`呼出しへ展開。形式・名前の型違反はform-syntax-error。既知の実行時エラーにも取得できる位置を添える |link:../../sxmml/environment.scm[environment.scm]
-|[[ref-environment-define-track]]`(define-track track param ...)` / `(define-track (track ...) param ...)` |一つまたは複数のトラックを設定するマクロ |位置付きの`sxmml-track-set!`呼出しへ展開。part既定値は登録手続きで設定する。複数形式の`:part`は登録前に`invalid define-track form: :part requires a single track`のform-syntax-error。非空リストの指定順で登録し、パラメータ式はトラックごとに評価する。後続失敗時も先行成功分は残す。空リストの既存診断は維持 |link:../../sxmml/environment.scm[environment.scm]
-|===
+`<sxmml-lfo>` を生成して現在の環境の `lfo` 表へ登録・上書きします。`data` がプロパーリストでない場合は `<sxmml-value-error>`（`invalid LFO values: <id> is <data> (expected a proper list)`）を送出し、既存値を保持します。
 
-直接のcontext・登録表編集は許容し、検索時の重複拒否は追加しません。一対一対応を崩した状態では、候補の選択と、それに依存する生成物の再現性を保証しません。削除・全消去でpartは再利用可能になります。
+[[ref-environment-define-lfo]]
+=== `(define-lfo id [type] value)`
 
-`sxmml-track-clear!` は引数なしでトラック表を全件削除します。次の例では `G` と `H` の両方を削除します。
+LFO を登録する公開マクロです。`%define-lfo/envelope-expand` にマクロ名 `"define-lfo"` と登録手続き `'sxmml-lfo-set!` を渡して展開します。
+
+[[ref-environment-sxmml-envelope-get]]
+=== `(sxmml-envelope-get id)`
+
+現在の環境の `envelope` 表から `id` に対応する `<sxmml-envelope>` を返します。未登録の場合は Gauche のハッシュ表検索エラーになります。
+
+[[ref-environment-sxmml-envelope-set-bang]]
+=== `(sxmml-envelope-set! id type data)`
+
+`<sxmml-envelope>` を生成して現在の環境の `envelope` 表へ登録・上書きします。`data` がプロパーリストでない場合は `<sxmml-value-error>`（`invalid envelope values: <id> is <data> (expected a proper list)`）を送出し、既存値を保持します。
+
+[[ref-environment-define-envelope]]
+=== `(define-envelope id [type] value)`
+
+エンベロープを登録する公開マクロです。`%define-lfo/envelope-expand` にマクロ名 `"define-envelope"` と登録手続き `'sxmml-envelope-set!` を渡して展開します。
+
+=== 非公開手続き
+
+[[ref-environment-internal-define-lfo-envelope-expand]]`(%define-lfo/envelope-expand form rename id=? name set-proc)`::
+`define-lfo` と `define-envelope` の共通展開を行う非公開手続きです。2 引数形（フォーム 3 要素）では `type` を `default` とし、3 引数形（フォーム 4 要素）ではプロパーリストでない `type` を受け付けます。`id` は `sxmml-form-name\->symbol`、`type` は `identifier?` で検査します（`type` 違反は `invalid <name> type: <値> (expected a symbol)`）。
++
+値式は `id=?` で標準の `list`・`quote`・`quasiquote` を判別し、新書式はそのまま、旧書式は警告を出して `(list ,@value)` として `set-proc` の呼び出しを組み立て、`sxmml-form-wrap` で包みます。形式違反や非プロパーリストの値式は `invalid <name> form: expected (<name> id [type] value)` の `<sxmml-form-syntax-error>` です。
+
+== トラック表と IR の登録
+
+各トラックの状態は xref:classes.adoc#ref-classes-class-sxmml-mml-context[`<sxmml-mml-context>`] に格納し、現在の環境の `track` 表でトラック名と対応付けます。トラックとパートの対応はコンテキストの `part` スロットで保持し、`eq?` で比較します。
+
+登録時に `:part` を省略すると `#f` になり、明示的に指定された `#f` 以外のパートだけを対象に重複を検査します。トラックの削除や全消去を行うと、そのトラックが使っていたパートは再利用できます。コンテキストや `track` 表を直接書き換えてパートの一対一対応を崩した場合、検索時の候補選択と生成物の再現性は保証しません。
+
+[[ref-environment-sxmml-track-get]]
+=== `(sxmml-track-get track)`
+
+現在の環境の `track` 表から `track` に対応する `<sxmml-mml-context>` を返します。未登録なら `#f` です。
+
+[[ref-environment-sxmml-track-set-bang]]
+=== `(sxmml-track-set! track . params)`
+
+初期化引数 `params` から新しい `<sxmml-mml-context>` を生成し、`track` 表へ登録・置換します。同じトラック名が登録済みの場合は新しいコンテキストで置き換え、以前の設定・IR・パートは引き継ぎません。不正な初期化引数は `make` で失敗します。
+
+登録前に次の 2 点を検査し、違反時は `<sxmml-value-error>` を送出して `track` 表を変更しません。
+
+* `:sound-source`: シンボルまたは `#f` であること（違反は `invalid track <track> sound-source: <値> (expected a symbol or #f)`）。
+* `:part`: `#f` 以外が指定された場合、自身以外のトラックに同じパートが割り当てられていないこと（違反は `invalid track <track> part: <値> (already assigned to track <所有者>)`）。
+
+[[ref-environment-sxmml-track-rename-bang]]
+=== `(sxmml-track-rename! old-name new-name)`
+
+登録済みトラックの名前を `old-name` から `new-name` へ変更します。同じ `<sxmml-mml-context>` インスタンスの `track` スロットを書き換えて `track` 表のキーを付け替えるため、パート・設定・IR・コンパイル状態はすべて保持されます。
+
+* `old-name`・`new-name` がシンボルでない場合: `<sxmml-value-error>`（`invalid rename-track source/destination: <値> (expected a symbol)`）
+* `old-name` が未登録の場合: `<sxmml-reference-error>`（`undefined track: <old-name>`）
+* `new-name` が登録済み（同名を含む）の場合: `<sxmml-value-error>`（`invalid rename-track destination: <値> (already registered)`）
+
+検査に失敗した場合は既存の状態を変更しません。
+
+[[ref-environment-sxmml-track-delete-bang]]
+=== `(sxmml-track-delete! track)`
+
+現在の環境の `track` 表から `track` を削除します。
+
+[[ref-environment-sxmml-track-clear-bang]]
+=== `(sxmml-track-clear!)`
+
+現在の環境の `track` 表からすべてのトラックを削除します。引数は取らず、引数を渡すと arity エラーになります。1 件だけ削除する場合は `sxmml-track-delete!` を使います。
 
 [source,console]
 ----
-$ gosh -I. -e '(use sxmml)' -e '(define-track (G H))' -e '(print (sort (map symbol->string (sxmml-track-list))))' -e '(sxmml-track-clear!)' -e '(print (sxmml-track-list))'
+$ gosh -I. -e '(use sxmml)' -e '(define-track (G H))' -e '(print (sort (map symbol->string (sxmml-track-list))))' -e '(sxmml-track-clear!)' -e '(print (sxmml-track-list))' -E exit
 (G H)
 ()
 ----
 
-引数を渡すと arity エラーになります。
+[[ref-environment-sxmml-track-list]]
+=== `(sxmml-track-list)`
+
+現在の環境に登録されているトラック名（キー）のリストを返します。定義順や名前順を含め順序は保証しません。順序が処理結果に影響する箇所では、呼び出し側で必要な順序に並べ替えます。
+
+[[ref-environment-sxmml-track-find]]
+=== `(sxmml-track-find part)`
+
+現在の環境の `track` 表から、`part` が真かつ `part` スロットが `eq?` で一致する最初のトラック名を返します。一致するトラックがない場合や `part` が `#f` の場合は `#f` です。
+
+[[ref-environment-sxmml-ir-register-bang]]
+=== `(sxmml-ir-register! ir track)`
+
+登録済みトラック `track` のコンテキストにある `compiled-data` スロットへ IR 列 `ir` を追加します。`compiled-data` が空リストなら `ir` をそのまま格納し、すでにデータがある場合は `(cons 既存データ ir)` として cons 木で連結します。`track` が未登録の場合は何もしません。
+
+[[ref-environment-define-track]]
+=== `(define-track track param ...)` / `(define-track (track ...) param ...)`
+
+1 つまたは複数のトラックを登録する公開マクロです。各トラック名は識別子として検査し（違反は `invalid define-track name: <値> (expected a symbol)` の `<sxmml-form-syntax-error>`）、`sxmml-form-wrap` で包んだ `(sxmml-track-set! 'track param ...)` へ展開します。
+
+複数形式では次の制約と順序で動作します。
+
+* 空リスト `(define-track () param ...)` は `define-track requires at least one track name` の `<sxmml-form-syntax-error>` になります。
+* `param ...` に `:part` が含まれる場合は登録前に `invalid define-track form: :part requires a single track` の `<sxmml-form-syntax-error>` になります。
+* 指定したトラック名の順に `begin` で展開し、パラメータ式はトラックごとに評価します。途中のトラック登録で失敗しても、先行して成功した登録は残ります。
+
+[[ref-environment-rename-track]]
+=== `(rename-track old-name new-name)`
+
+トラックの登録名を変更する公開マクロです。引数個数の誤りは `invalid rename-track form: expected (rename-track old-name new-name)`、`old-name`・`new-name` が識別子でない場合は `invalid rename-track source/destination: <値> (expected a symbol)` の `<sxmml-form-syntax-error>` になります。
+
+正常時は、展開時に取得したフォーム位置を添えて `sxmml-form-wrap` で包んだ `(sxmml-track-rename! 'old-name 'new-name)` へ展開します。

@@ -1,20 +1,25 @@
 = `sxmml.util` の補助手続き
+:toc: left
 
-換算結果の既存の範囲違反は `invalid calculated Timer-B: 値 (from BPM 指定値; expected an integer from 0 to 255)` と表示します。範囲や計算、未知の計算エラーの扱いは変更しません。
+BPM から PMD 用の Timer B 値を算出する補助手続きを提供します。
 
-BPM換算結果の既存の範囲違反はvalue-errorで通知します。計算自体のGaucheエラーを捕捉せず、新しい入力検査や受理範囲の変更は加えません。
+実装は link:../../sxmml/util.scm[util.scm] にあります。このモジュールは 1 手続きを定義し、公開します。
 
-`sxmml.util` は `sxmml-bpm\->timer-b` を公開します。
+== 公開手続き
 
 [[ref-util-sxmml-bpm-to-timer-b]]
-== `(sxmml-bpm\->timer-b bpm :optional (res #f))`
+=== `(sxmml-bpm\->timer-b bpm :optional (res #f))`
 
-正の BPM と解像度から PMD 用 Timer B 値を計算します。`res` を省略するか `#f` にすると、現在の `sxmml-resolution-get` を使います。計算式は `floor(256 - 208000 / (bpm * res))` です。戻り値が 0～255 の範囲外なら明示的なエラーとなり、`bpm * res` が 0 なら除算に失敗します。環境は変更しません。定義は link:../../sxmml/util.scm[util.scm] にあります。
+正の BPM `bpm` と解像度 `res` から PMD 用の Timer B 値を計算して返します。`res` を省略するか `#f` にした場合は、現在の環境の `sxmml-resolution-get` を使用します。環境は変更しません。
 
-次の例では解像度 24 の環境で BPM 120 を PMD 用 Timer B 値へ変換します。数値演算と `floor` は Gauche 0.9.15 の動作に従います。
+計算式は `floor(256 - 208000 / (bpm * res))` です。数値演算と `floor` は Gauche 0.9.15 の動作に従います。
+
+算出結果が 0～255 の範囲外になった場合は `<sxmml-value-error>`（`invalid calculated Timer-B: <値> (from BPM <指定値>; expected an integer from 0 to 255)`）を送出します。`bpm * res` が 0 になる場合のゼロ除算や非数値引数による計算エラーなど、Gauche の演算エラーは捕捉せずそのまま送出します。
+
+次の例では、既定の解像度 24 の環境で BPM 120 を PMD 用 Timer B 値へ変換します。
 
 [source,console]
 ----
-$ gosh -I. -e '(use sxmml.util) (print (sxmml-bpm->timer-b 120))'
+$ gosh -I. -e '(use sxmml.util) (print (sxmml-bpm->timer-b 120))' -E exit
 183
 ----
