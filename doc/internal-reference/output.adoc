@@ -1,22 +1,41 @@
 = `sxmml.output` の出力準備
 :toc: left
 
-4つの公開手続きを持ち、`sxmml`から継承します。登録環境を明示的に受け、バックエンドの採用範囲にかかわらず全トラックを準備します。最適化・モード選択・ファイル出力は行いません。
+登録環境（`<sxmml-environment>`）から各バックエンドへ渡す出力環境（`<sxmml-output-environment>`）を組み立てるモジュールです。バックエンドの対応範囲にかかわらず、登録済みの全トラックを平坦化して準備します。最適化、モード選択、ファイル出力はこのモジュールでは行いません。
 
-[cols="2,4,4,1",options="header"]
-|===
-|名前・書式 |役割・引数 |結果・状態・失敗条件 |ソース
-|[[ref-output-sxmml-ir-flatten]]`(sxmml-ir-flatten ir-tree)` |登録用cons木を平坦なIR列へ整列 |順序を保ち、NOPと空の枝を除く。反復命令は残し、最適化しない。入力を変更しない |link:../../sxmml/output.scm[output.scm]
-|[[ref-output-make-sxmml-output-environment]]`(make-sxmml-output-environment registered-environment
-                                      :key (output (undefined)) (optimize (undefined)) (source #f) (jobs 1))` |登録環境から出力環境を作る |output・optimizeは必須、sourceは省略時#f、jobsは正の整数で省略時1。全トラックのIRを整列し、集計を確定。登録側は変更せず、定義表・統計・未変更IRは共有可能 |link:../../sxmml/output.scm[output.scm]
-|[[ref-output-sxmml-output-track-most-frequent-ticks]]`(sxmml-output-track-most-frequent-ticks track)` |出力トラックの登録時の音長統計を参照 |出現回数が最大の tick 数を返す。統計が空なら #f |link:../../sxmml/output.scm[output.scm]
-|[[ref-output-sxmml-output-track-find]]`(sxmml-output-track-find output-environment part)` |partに対応する出力トラックを検索 |出力トラック情報を返し、不在は#f。手動編集された重複partを新たに拒否しない |link:../../sxmml/output.scm[output.scm]
-|===
+実装は link:../../sxmml/output.scm[output.scm] にあります。このモジュールは 4 手続きを定義し、すべて公開します。`sxmml` モジュールから継承します。関連クラスとスロット既定値は xref:classes.adoc[クラス一覧]を参照してください。
 
-生成ヘルパーで:outputを省略すると`make-sxmml-output-environment requires :output`、:optimizeの省略は`make-sxmml-output-environment requires :optimize`を本文とする値エラーです。明示的なoutput=#fは受理します。optimizeは整数の要求値で、どの最適化を実行するかはバックエンドが決めます。
+== 公開手続き
 
-トラック表と出力トラックは新しく作ります。登録時のcurrent-ticksの先頭が(total . loop-start)なので、total-ticks=total、loop-ticks=total-loop-startとします。Lなし24ticksなら24・24・loop-exists=#fです。統計は解析時の情報を引き継ぎ、再集計しません。
+[[ref-output-sxmml-ir-flatten]]
+=== `(sxmml-ir-flatten ir-tree)`
 
-定義表・統計・未変更IRの共有を認めます。生成後に登録内容を変更した場合は出力環境を作り直し、変更の自動反映や独立したスナップショットは保証しません。手作りIRについても入力の前提を守る必要がありますが、全IRを検査する追加走査は設けません。クラスと既定値は xref:classes.adoc[クラス一覧]を参照してください。
+登録時に cons 木として蓄積された `ir-tree` を、出現順序を保った平坦な IR リストへ変換して返します。変換時に空リストの枝と `<sxmml-mml-nop>` インスタンスを除きます。反復命令は展開せずそのまま残し、最適化は行いません。入力の `ir-tree` は変更しません。
 
-出力トラックにpartとsound-sourceを転送します。partが#fなら検索は#fを返し、割当は各バックエンドが行います。
+[[ref-output-make-sxmml-output-environment]]
+=== `(make-sxmml-output-environment registered-environment :key (output (undefined)) (optimize (undefined)) (source #f) (jobs 1))`
+
+登録環境 `registered-environment` から新しい `<sxmml-output-environment>` を生成して返します。引数の条件は次のとおりです。
+
+* `:output`（必須）: 省略すると `<sxmml-value-error>`（`make-sxmml-output-environment requires :output`）を送出します。明示的な `#f` は受理します。
+* `:optimize`（必須）: 最適化レベルを表す要求値です。省略すると `<sxmml-value-error>`（`make-sxmml-output-environment requires :optimize`）を送出します。どの最適化を実行するかは各バックエンドが決めます。
+* `:source`（省略時 `#f`）: 入力ソースファイル情報です。
+* `:jobs`（省略時 `1`）: 並列処理のワーカー数です。正の正確な整数でない場合は `<sxmml-value-error>`（`jobs must be a positive integer`）を送出します。
+
+`track` 表と各 `<sxmml-output-track>` は新しく作成します。各トラックでは次の処理を行います。
+
+* `compiled-data` を `sxmml-ir-flatten` で平坦化して `ir` スロットへ設定します。
+* `current-ticks` の先頭ペア `(total . loop-start)` から `total-ticks` を `total`、`loop-ticks` を `(- total loop-start)` として確定します。たとえば `L` なしで 24 tick のトラックは `total-ticks` が 24、`loop-ticks` が 24、`loop-exists` が `#f` になります。
+* `name`（コンテキストの `track` スロット）・`part`・`sound-source`・`loop-exists`・`ticks-statistics` を転送します。音長統計は解析時の情報をそのまま引き継ぎ、再集計は行いません。
+
+登録環境自体は変更しません。一方で `metadata`・`voice`・`envelope`・`lfo` の各表、`ticks-statistics`、および平坦化後の未変更 IR 要素は登録環境と共有します。出力環境の生成後に登録環境を変更した場合は出力環境を作り直す必要があり、独立したスナップショットや変更の自動反映は行いません。また、手作り IR に対する追加の全件走査は行いません。
+
+[[ref-output-sxmml-output-track-most-frequent-ticks]]
+=== `(sxmml-output-track-most-frequent-ticks track)`
+
+出力トラック `track` の `ticks-statistics` を参照し、出現回数が最大の tick 数を返します。統計が空の場合は `#f` を返します。
+
+[[ref-output-sxmml-output-track-find]]
+=== `(sxmml-output-track-find output-environment part)`
+
+出力環境 `output-environment` の `track` 表から、`part` が真かつ `part` スロットが `eq?` で一致する最初の `<sxmml-output-track>` を返します。該当するトラックがない場合や `part` が `#f` の場合は `#f` を返します。パート割り当ては各バックエンドが行います。

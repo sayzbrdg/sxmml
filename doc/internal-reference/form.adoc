@@ -1,28 +1,72 @@
 = `sxmml.form` のエラー文脈とフォーム位置
 :toc: left
 
-`sxmml.form` の直下の手続きは9件で、8件を公開します。別に `report-additional-condition` のメソッドを1件定義します。`sxmml` 自体はこのモジュールを `extend` しません。定義・設定・加工マクロとcompilerが使い、エラーの意味は xref:classes.adoc#ref-classes-class-sxmml-error[エラーの分類]に従います。
+定義・設定・加工マクロおよびコンパイラで使う、フォーム位置の取得、エラーへの文脈付加、定義名の正規化、位置付き警告の出力を提供します。
 
-フォーム位置は既存の「ファイル:行」文字列です。既知のエラーにだけ `<sxmml-source-context>` として添え、診断本文へ埋め込みません。トラックは別の `<sxmml-track-context>` なので、先に付いた別の情報を隠しません。同種の文脈が既にあれば内側のものを残します。
+実装は link:../../sxmml/form.scm[form.scm] にあります。このモジュールは 9 手続きを定義し、8 手続きを公開します。ほかに `report-additional-condition` のメソッドを 1 件定義しますが、索引の手続き件数には重複計上しません。`sxmml` モジュール自体はこのモジュールを `extend` しません。エラーの分類と意味は xref:classes.adoc#ref-classes-class-sxmml-error[エラーの分類]を参照してください。
 
-[cols="2,3,5,1",options="header"]
-|===
-|名前・書式 |役割 |戻り値・副作用・失敗条件 |ソース
-|[[ref-form-sxmml-form-location]]`(sxmml-form-location form)` |フォームの位置を取得 |`debug-source-info` が位置を持つ場合は「ファイル:行」、それ以外は `#f` |link:../../sxmml/form.scm[form.scm]
-|[[ref-form-sxmml-error-with-context]]`(sxmml-error-with-context e context)` |既知のエラーへ文脈を添える |`e` がsxmml-error、文脈が取得済みで同種の文脈がまだなければ `make-compound-condition` で合成。それ以外は同じ `e` を返す。元のconditionは変更しない |link:../../sxmml/form.scm[form.scm]
-|[[ref-form-sxmml-form-name-to-symbol]]`(sxmml-form-name\->symbol form macro-name name)` |MML用の定義名の正規化と検査 |symbol／identifierまたは数値をinterned symbolへ直す。空・空白・波括弧を含む名前や不正な型は、マクロ名・指定値・必要な条件を示すform-syntax-error。種類・キー・トラック名には使わない |link:../../sxmml/form.scm[form.scm]
-|[[ref-form-sxmml-form-error]]`(sxmml-form-error form fmt arg ...)` |独自マクロの形式違反を通知 |本文をmessageとするform-syntax-errorに、取得できるフォーム位置だけを添えて送出する |link:../../sxmml/form.scm[form.scm]
-|[[ref-form-sxmml-form-warn]]`(sxmml-form-warn form fmt arg ...)` |展開時の警告 |位置を取得して `sxmml-form-warn-at` を呼ぶ。既存の警告文は維持する |link:../../sxmml/form.scm[form.scm]
-|[[ref-form-sxmml-form-warn-at]]`(sxmml-form-warn-at location fmt arg ...)` |位置付き警告の表示 |`warning: 位置: 本文` を標準エラーへ表示。位置がなければ本文だけ |link:../../sxmml/form.scm[form.scm]
-|[[ref-form-sxmml-form-call]]`(sxmml-form-call location thunk)` |既知のエラーへ位置を付加 |thunkの値を返す。既知のsxmml-errorだけに位置を添えて再送出。未知のGauche例外、非condition、継続可能な通知はそのまま通す。位置がなければthunkを直接呼ぶ |link:../../sxmml/form.scm[form.scm]
-|[[ref-form-sxmml-form-wrap]]`(sxmml-form-wrap form rename call)` |登録などの呼出しを展開 |`(sxmml-form-call 位置 (lambda () call))` へ展開。位置は `sxmml-form-location` で取得する |link:../../sxmml/form.scm[form.scm]
-|[[ref-form-internal-message-to-located-message]]`(%message\->located-message location message)` |警告に位置を組み込む |位置があれば「位置: 本文」、なければ本文。警告だけが使い、エラーには使わない |link:../../sxmml/form.scm[form.scm]
-|===
+== エラー文脈とフォーム位置の扱い
+
+フォーム位置は `ファイル:行` 形式の文字列です。既知の `<sxmml-error>` に対してだけ `<sxmml-source-context>` として複合コンディションに添え、診断本文（`message`）へは埋め込みません。トラック情報は別のコンディション型 `<sxmml-track-context>` として扱うため、先に付いたソース位置を隠しません。同種の文脈がすでに付いている場合は内側の情報を残します。
+
+未定義の Scheme 変数やユーザー式の中で起きた Gauche 由来の例外は `<sxmml-form-syntax-error>` や別エラーへ包み直さず、そのまま送出します。ソース位置を持たない `eval` などのフォームでは、位置を補わず `#f` として扱います。
+
+== 公開手続き
+
+[[ref-form-sxmml-form-location]]
+=== `(sxmml-form-location form)`
+
+`debug-source-info` からフォーム `form` の開始位置を取得し、`ファイル:行` 形式の文字列を返します。ソース位置が取得できない場合は `#f` を返します。
+
+[[ref-form-sxmml-error-with-context]]
+=== `(sxmml-error-with-context e context)`
+
+`e` が `<sxmml-error>` であり、`context` が真かつ同クラス（`(class-of context)`）のコンディションを `e` がまだ持たない場合に、`make-compound-condition` で合成したコンディションを返します。それ以外の場合は `e` をそのまま返します。元のコンディションは変更しません。
+
+[[ref-form-sxmml-form-name-to-symbol]]
+=== `(sxmml-form-name\->symbol form macro-name name)`
+
+MML 用の定義名 `name` を検査し、interned なシンボルへ正規化して返します。識別子（シンボル）または数値を受け付け、空文字列・空白文字・波括弧（`{`・`}`）を含まないことを検査します。
+
+違反時は `sxmml-form-error` で次の本文の `<sxmml-form-syntax-error>` を送出します。
+
+* 型違反: `invalid <macro-name> name: <値> (expected a symbol or number)`
+* 禁止文字・空名: `invalid <macro-name> name: <シンボル> (expected a non-empty name without whitespace or braces)`
+
+種類名・メタデータキー・トラック名には使用しません。
+
+[[ref-form-sxmml-form-error]]
+=== `(sxmml-form-error form fmt arg ...)`
+
+`fmt` と `arg ...` から本文を組み立てた `<sxmml-form-syntax-error>` を生成し、`sxmml-form-location` で位置が取得できる場合のみ `<sxmml-source-context>` を添えて送出します。
+
+[[ref-form-sxmml-form-warn]]
+=== `(sxmml-form-warn form fmt arg ...)`
+
+`sxmml-form-location` で `form` の位置を取得し、`sxmml-form-warn-at` で標準エラー出力へ警告を表示します。
+
+[[ref-form-sxmml-form-warn-at]]
+=== `(sxmml-form-warn-at location fmt arg ...)`
+
+展開時に取得した位置文字列 `location`（または `#f`）と本文から、`warning: 位置: 本文`（位置が `#f` の場合は `warning: 本文`）を標準エラー出力へ 1 行表示します。
+
+[[ref-form-sxmml-form-call]]
+=== `(sxmml-form-call location thunk)`
+
+`thunk` を呼び出してその戻り値を返します。`location` が真のとき、`thunk` の実行中に既知の `<sxmml-error>` が送出された場合だけ `<sxmml-source-context>` を添えて再送出します。未知の Gauche 例外や非コンディション例外はそのまま通します。`location` が `#f` のときは `thunk` を直接呼びます。
+
+[[ref-form-sxmml-form-wrap]]
+=== `(sxmml-form-wrap form rename call)`
+
+マクロ展開時に登録呼び出し `call` を `(sxmml-form-call 位置 (lambda () call))` の形へ包んだ式を返します。`位置` は `sxmml-form-location` で取得し、`sxmml-form-call` と `lambda` は `rename` でリネームします。
+
+== 非公開手続き
+
+[[ref-form-internal-message-to-located-message]]`(%message\->located-message location message)`::
+位置文字列 `location` が真なら `位置: 本文`、偽なら `message` をそのまま返します。`sxmml-form-warn-at` の警告表示で使用し、エラーコンディションの本文生成には使いません。
 
 == 標準報告のメソッド
 
-`(report-additional-condition (context <sxmml-source-context>) out)` は、指定ポートへ `    at ファイル:行` と改行を表示します。Gaucheの `report-error` がこのメソッドを使うため、ライブラリで標準報告を使う場合にもフォーム位置を確認できます。トラック文脈の報告メソッドは追加しません。CLIは既知のエラーについてこの標準報告を呼ばず、取得できる位置・トラック情報を診断本文に付けて標準エラーへ表示します。ライブラリのmessageには位置やトラックを埋め込みません。
+`(report-additional-condition (context <sxmml-source-context>) out)` は、出力ポート `out` へ ``    at ファイル:行`` と改行を出力します。Gauche の `report-error` がこのメソッドを呼ぶため、ライブラリとして標準報告を使う場合にもフォーム位置を確認できます。
 
-== 使用例
-
-既知の登録値の誤りは、value-errorとフォーム位置を別々に取り出せます。未定義のScheme変数やユーザー式の失敗は、form-errorやcauseに包まずGaucheへ任せます。マクロ展開自体の形式違反はform-syntax-errorです。ソース位置が不明な `eval` では、位置を推測して追加しません。
+なお、`<sxmml-track-context>` に対する `report-additional-condition` メソッドは定義していません。CLI（`sxlc`）は既知のエラーについて標準報告を呼ばず、取得できるフォーム位置とトラック情報を診断行にまとめて標準エラー出力へ表示します。

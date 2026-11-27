@@ -1,62 +1,134 @@
 = `sxmml.voice` の音色定義
 :toc: left
 
-直接登録手続きの形式・値検査はvalue-error、マクロの構文上の枠の誤りはform-syntax-errorです。既知のエラーにだけ取得済みのフォーム位置を添え、未定義のScheme変数はGaucheのエラーのまま通します。
+OPN・OPM の FM 音色、PCM 音色、波形メモリの登録手続き・マクロと、種類別音色表の操作手続きを提供します。
 
-`sxmml.voice` には十六の定義と範囲規則の二つの表があり、`define-opn-voice`、`sxmml-opn-voice-set!`、`sxmml-opmn-operator-zip` に加え、種類別の登録・検索とOPM・PCMの登録を公開します。音色の基底クラスは xref:classes.adoc#ref-classes-class-sxmml-voice[`<sxmml-voice>`] を参照してください。`util.match`、マクロ展開、ハッシュ表は Gauche 0.9.15 の動作に従います。
+実装は link:../../sxmml/voice.scm[voice.scm] にあります。このモジュールは 16 定義（手続き 12 件・マクロ 4 件）と非公開の範囲規則表 2 件（`%voice-alfb-ranges`・`%voice-operator-ranges`）を持ち、そのうち 11 定義（手続き 7 件・マクロ 4 件）を公開します。呼び出せない範囲規則表は索引の掲載対象外です。
 
-[cols="2,4,4,1",options="header"]
-|===
-|名前・書式 |引数と役割 |戻り値・副作用・失敗条件 |ソース
-|[[ref-voice-sxmml-opmn-operator-zip]]`(sxmml-opmn-operator-zip op1 op2 op3 op4 afb)` |四つの演算子値列を PMD の並びへ交互に組み合わせ、末尾へ `afb` を加える |新しいリストを返す。四列の長さが揃うことを呼び出し側が前提とする |link:../../sxmml/voice.scm[voice.scm]
-|[[ref-voice-sxmml-opm-list-to-register]]`(sxmml-opm-list\->register form)` |演算子値 12 個をレジスタ用の六値へ結合 |`dt/ml`、`ks/ar`、`ams/dr`、`dt2/sr`、`sl/rr` 等を bit 演算でまとめたリスト。形が一致しなければ `match` で失敗。現行 PMD 出力からは呼ばれない |link:../../sxmml/voice.scm[voice.scm]
-|[[ref-voice-internal-4op-voice-shape]]`(%4op-voice-shape form id openum)` |演算子 `openum` の値列を 12 要素へ補完 |9～11 要素の形では省略された `dt2`、`seg`、`ams` を 0 で補う。その他は ID と演算子番号を含む `invalid voice` と必要な形式 エラー。`sxmml-opn-voice-set!` が実行時に呼ぶ |link:../../sxmml/voice.scm[voice.scm]
-|[[ref-voice-sxmml-opn-voice-set-bang]]`(sxmml-opn-voice-set! id alfb op1 op2 op3 op4)` |音色を検査して登録する |`id` はシンボル（違えば `invalid voice id` と必要なsymbol条件）、`alfb` は 2 値（違えば `invalid voice @id al/fb: …` と2要素の条件）、演算子は 9～12 値（違えば `invalid voice @id operator(n): …` と9～12要素の条件）。要素の数は `%voice-alfb-form?`・`%voice-operator-form?` で判定する。演算子は `%4op-voice-shape` で 12 値に直す。値は `%voice-values-check` で項目別の正確な整数と範囲を検査し、負のDTを非負表現へ直す。不正なら音色名・演算子番号・項目名・指定値・範囲を示すvalue-error。`voice` 表へ新しい `<sxmml-opn-voice>` を入れ、同じ ID の前の定義を置き換える。番号は持たない |link:../../sxmml/voice.scm[voice.scm]
-|[[ref-voice-internal-voice-values-check]]`(%voice-values-check values ranges id place)` |項目別の範囲を検査して正規化した新しい値列を返す |`ranges` は `(項目 下限 上限)` の列。非整数・範囲外は項目と条件を示すvalue-error。DTの負数だけを `4 + abs(DT)` に直し、他の値と入力リストは変更しない。`place` はAL/FBでは `#f`、演算子では `operator(n)` |link:../../sxmml/voice.scm[voice.scm]
-|[[ref-voice-internal-voice-alfb-form-p]]`(%voice-alfb-form? x)` |`(al fb)` の枠の形の規則 |正しいリストで 2 要素なら真。マクロと `sxmml-opn-voice-set!` が使う |link:../../sxmml/voice.scm[voice.scm]
-|[[ref-voice-internal-voice-operator-form-p]]`(%voice-operator-form? x)` |演算子の枠の形の規則 |正しいリストで 9～12 要素なら真。マクロと `sxmml-opn-voice-set!` が使う |link:../../sxmml/voice.scm[voice.scm]
-|[[ref-voice-define-opn-voice]]`(define-opn-voice id (al fb) op1 op2 op3 op4)` |音色 ID、アルゴリズム・フィードバック、四演算子の値列を受けるマクロ |展開時に形を検査し、誤りは `sxmml-form-error` で投げる（枠の数・枠がリストでない場合は `invalid define-opn-voice form`、要素の数は `invalid voice` と必要な形式）。ID を共通手続きで検査してシンボルにし、`sxmml-form-wrap` で `(sxmml-form-call 位置 (lambda () (sxmml-opn-voice-set! 'id (list al fb) (list 要素 …) …)))` に展開する。枠の中の要素は式として評価する。登録と同じ ID の判定、値の検査は実行時に行い、その誤りにもフォームの位置が付く |link:../../sxmml/voice.scm[voice.scm]
-|===
+音色の基底クラスは xref:classes.adoc#ref-classes-class-sxmml-voice[`<sxmml-voice>`] を参照してください。`util.match`、マクロ展開、ハッシュ表の動作は Gauche 0.9.15 に従います。
 
-`sxmml-opm-list->register` は、五番目の値で `DT2` をD7～D6、`SR` をD4～D0へ配置し、D5は0とします。将来のOPM対応に向けて非公開手続きとして維持し、現行のPMD出力には接続しません。
+== 検査規則とエラー分類
 
-演算子値は 9 要素の `ar dr sr rr sl tl ks ml dt`、10 要素の `ar dr sr rr sl tl ks ml dt ams`、11 要素の `ar dr sr rr sl tl ks ml dt seg ams`、12 要素の `ar dr sr rr sl tl ks ml dt dt2 seg ams` のいずれかです。省略された値は 0 で補います。`<sxmml-opmn-voice>` は OPM・OPN に共通する型であり、PMD 向け音色行では `DT2` と `SEG` を出力しません。`DT2` は OPN のパラメータではなく、`SEG` は PMD の音色パラメータにはない SSG-EG に関する値です。詳細は xref:pmd.adoc#ref-pmd-internal-pmd-source-voice-generate[PMD 音色生成]を参照してください。
+直接登録手続きでの形式・値違反は `<sxmml-value-error>`、定義マクロでの構文・枠の誤りは `<sxmml-form-syntax-error>` として送出します。マクロ経由の呼び出しでは、取得済みのフォーム位置を既知の `<sxmml-error>` にだけ添え、未定義の Scheme 変数など Gauche 由来の例外はそのまま送出します。
 
-非公開の `%voice-alfb-ranges` と `%voice-operator-ranges` は登録時の範囲規則の表です。AL/FB=0～7、AR/DR/SR=0～31、RR/SL/ML=0～15、TL=0～127、KS=0～3、DT=−3～7、DT2=0～3、SEG=0～15、AMS=0～1とします。表は呼び出せないため索引の手続き件数には加えません。
+音色定義マクロ（`define-opn-voice`・`define-opm-voice`・`define-pcm-voice`・`define-waveform`）の名前引数は `sxmml-form-name\->symbol` でシンボル・識別子または数値から正規化し、空文字列・空白・波括弧を含む名前を `<sxmml-form-syntax-error>` として拒否します。直接登録手続きはシンボル名を受け付けます。
 
-未使用定義も登録時に検査し、すべて成功してから音色表を更新します。DT=−1/−2/−3は5/6/7へ直し、既存の0～7は変更しません。バックエンドには正規化済みの値を渡しますが、手作りIRに対する出力側の検査も維持します。
+OPN・OPM 音色では、未使用の定義も含めて登録時に全パラメータを検査し、すべて通過してから音色表を更新します。範囲規則表 `%voice-alfb-ranges`・`%voice-operator-ranges` の許容範囲は次のとおりです（いずれも正確な整数）。
 
-`define-opn-voice` の名前は `sxmml-form-name->symbol` でsymbol／identifier・数値から正規化し、空・空白・波括弧を含む名前をフォーム構文エラーとして拒否します。登録手続きの直接利用は従来どおりsymbolを受け、MMLの名前の文字制限は追加しません。展開時の名前の診断にはidentifierの表示文字列ではなく元の名前を使います。
+* `AL`・`FB`: 0～7
+* `AR`・`DR`・`SR`: 0～31
+* `RR`・`SL`・`ML`: 0～15
+* `TL`: 0～127
+* `KS`: 0～3
+* `DT`: −3～7（負数 −1・−2・−3 は登録時に 5・6・7 へ正規化し、0～7 はそのまま保持します）
+* `DT2`: 0～3
+* `SEG`: 0～15
+* `AMS`: 0～1
 
-== 音色登録例
+== 共通の音色表操作
+
+[[ref-voice-sxmml-voice-table-find]]
+=== `(sxmml-voice-table-find env kind)`
+
+環境オブジェクト `env` の `voice` スロットから、種類シンボル `kind`（`opn`・`opm`・`pcm`・`waveform` など）に対応するハッシュ表を返します。該当する種類の表が未登録の場合は表を作成せず `#f` を返します。
+
+[[ref-voice-sxmml-voice-set-bang]]
+=== `(sxmml-voice-set! kind voice)`
+
+現在の登録環境の `voice` 表に、種類 `kind`・名前 `id` 別で音色オブジェクト `voice` を格納・上書きします。`kind` 用のハッシュ表が存在しない場合は `eq-comparator` で新しく作成して登録します。
+
+次の型検査を行い、違反時は `<sxmml-value-error>` を送出します。
+
+* `kind` がシンボルでない: `invalid voice kind: <値> (expected a symbol)`
+* `voice` が `<sxmml-voice>` のインスタンスでない: `invalid voice definition: <値>`
+* `voice` の `id` スロットがシンボルでない: `invalid voice id: <値> (expected a symbol)`
+
+== OPN 音色と演算子変換
+
+OPN の演算子パラメータは 9～12 要素のいずれかで指定できます。省略された項目は `0` で補い、12 要素 `(ar dr sr rr sl tl ks ml dt dt2 seg ams)` へ揃えます。
+
+* 9 要素: `ar dr sr rr sl tl ks ml dt`（`dt2 = 0`, `seg = 0`, `ams = 0`）
+* 10 要素: `ar dr sr rr sl tl ks ml dt ams`（`dt2 = 0`, `seg = 0`）
+* 11 要素: `ar dr sr rr sl tl ks ml dt seg ams`（`dt2 = 0`）
+* 12 要素: `ar dr sr rr sl tl ks ml dt dt2 seg ams`
+
+`<sxmml-opmn-voice>` は OPN・OPM に共通する内部表現を持ちます。PMD 向け音色行では OPN のパラメータではない `DT2` と PMD 音色パラメータにない `SEG` を出力しません。詳細は xref:pmd-source.adoc#ref-pmd-source-internal-pmd-source-voice-output[PMD 音色出力]を参照してください。
+
+[[ref-voice-sxmml-opn-voice-set-bang]]
+=== `(sxmml-opn-voice-set! id alfb op1 op2 op3 op4)`
+
+OPN 音色を検査・正規化し、新しい `<sxmml-opn-voice>` を現在の環境の `opn` 表へ登録・置換します。音色番号はバックエンドが決定するため、このオブジェクトは番号を持ちません。
+
+次の順で検査を行い、違反時は `<sxmml-value-error>` を送出します。
+
+* `id` がシンボルでない: `invalid voice id: <値> (expected a symbol)`
+* `alfb` が 2 要素のプロパーリストでない: `invalid voice @<id> al/fb: <値> (expected a list of 2 values)`
+* 各演算子 `op1`～`op4` が 9～12 要素のプロパーリストでない: `invalid voice @<id> operator(<n>): <値> (expected a list of 9 to 12 values)`
+* `%4op-voice-shape` で 12 要素へ補完した後、`%voice-values-check` で各項目の型と範囲を検査し、負の `DT` を 5～7 へ正規化します。
+
+[[ref-voice-define-opn-voice]]
+=== `(define-opn-voice id (al fb) op1 op2 op3 op4)`
+
+OPN 音色を登録する公開マクロです。展開時に引数の枠の数（`alfb` と 4 演算子）および各枠がプロパーリストであることを検査し、違反時は `invalid define-opn-voice form: expected (define-opn-voice id (al fb) op1 op2 op3 op4)` の `<sxmml-form-syntax-error>` を送出します。各枠の要素数（`alfb` は 2、各演算子は 9～12）も展開時に検査し、違反時は `<sxmml-form-syntax-error>` です。
+
+`id` を `sxmml-form-name\->symbol` で正規化し、各枠の要素を式として評価する `(list ...)` へ展開して `sxmml-form-wrap` で `sxmml-opn-voice-set!` 呼び出しを包みます。実行時の値エラーにもフォーム位置が付きます。
 
 [source,console]
 ----
-$ gosh -I. -e '(use sxmml)' -e '(define-opn-voice 0 (0 0) (0 0 0 0 0 0 0 0 0) (0 0 0 0 0 0 0 0 0) (0 0 0 0 0 0 0 0 0) (0 0 0 0 0 0 0 0 0))' -e '(print (hash-table-size (slot-ref (sxmml-environment) (quote voice))))'
+$ gosh -I. -e '(use sxmml)' -e '(define-opn-voice 0 (0 0) (0 0 0 0 0 0 0 0 0) (0 0 0 0 0 0 0 0 0) (0 0 0 0 0 0 0 0 0) (0 0 0 0 0 0 0 0 0))' -e '(print (hash-table-size (slot-ref (sxmml-environment) (quote voice))))' -E exit
 1
 ----
 
-== 手続きと構文
+[[ref-voice-sxmml-opmn-operator-zip]]
+=== `(sxmml-opmn-operator-zip op1 op2 op3 op4 afb)`
 
-[[ref-voice-sxmml-voice-table-find]]
-`(sxmml-voice-table-find env kind)`:: 種類別の共有表または#fを返す。
+4 つの演算子値列 `op1`・`op2`・`op3`・`op4` から、`op1`・`op3`・`op2`・`op4` の順（スロット 1・3・2・4 の順）で同じ位置の要素を交互に並べ、末尾に `afb` を加えた新しいリストを返します。4 列の長さが揃っていることを前提とします。
 
-[[ref-voice-sxmml-voice-set-bang]]
-`(sxmml-voice-set! kind voice)`:: 現在の登録環境に種類、名前別に定義を格納する。
+[[ref-voice-sxmml-opm-list-to-register]]`(sxmml-opm-list\->register form)`::
+非公開手続きです。12 要素の演算子値列 `(ar dr sr rr sl tl ks ml dt dt2 seg ams)` をレジスタ用の 6 値リスト `(dt/ml tl ks/ar ams/dr dt2/sr sl/rr)` へビット演算で変換します。5 番目の値では `dt2` を D7～D6、`sr` を D4～D0 に配置し、D5 は 0 とします。12 要素に一致しない場合は `match` で失敗します。現行のバックエンド出力からは呼び出されません。
 
-[[ref-voice-sxmml-pcm-voice-set-bang]]
-`(sxmml-pcm-voice-set! id value)`:: PCM参照値を名前付きで保存する。
+[[ref-voice-internal-4op-voice-shape]]`(%4op-voice-shape form id openum)`::
+非公開手続きです。演算子 `openum` の値列 `form`（9～12 要素）で省略された `dt2`・`seg`・`ams` を `0` で補い、12 要素リストを返します。9～12 要素以外は `<sxmml-value-error>`（`invalid voice @<id> operator(<openum>): <form> (expected a list of 9 to 12 values)`）を送出します。
+
+[[ref-voice-internal-voice-values-check]]`(%voice-values-check values ranges id place)`::
+非公開手続きです。`(項目名 下限 上限)` の規則列 `ranges` に沿って `values` の各要素が正確な整数かつ範囲内であるかを検査し、正規化した新しいリストを返します。非整数または範囲外の場合は `<sxmml-value-error>`（`invalid voice @<id>[ <place>] <項目名>: <値> (expected an integer from <下限> to <上限>)`）を送出します。`DT` の負数のみ `4 + abs(DT)` に変換し、他の値と入力リストは変更しません。`place` は `AL`/`FB` では `#f`、演算子では `"operator(n)"` を渡します。
+
+[[ref-voice-internal-voice-alfb-form-p]]`(%voice-alfb-form? x)`::
+非公開手続きです。`x` が 2 要素のプロパーリストであれば真を返します。
+
+[[ref-voice-internal-voice-operator-form-p]]`(%voice-operator-form? x)`::
+非公開手続きです。`x` が 9～12 要素のプロパーリストであれば真を返します。
+
+== OPM・PCM・波形メモリの音色定義
 
 [[ref-voice-sxmml-opm-voice-set-bang]]
-`(sxmml-opm-voice-set! id alfb op1 op2 op3 op4)`:: OPMの11値を検査・正規化して登録する。
+=== `(sxmml-opm-voice-set! id alfb op1 op2 op3 op4)`
+
+OPM 音色を検査・正規化し、新しい `<sxmml-opm-voice>` を現在の環境の `opm` 表へ登録・置換します。`alfb` は 2 要素のプロパーリスト、各演算子 `op1`～`op4` は 11 要素 `(ar dr sr rr sl tl ks ml dt dt2 am)` である必要があります。
+
+演算子の 11 要素には `seg = 0` を補って `%voice-values-check` で検査・`DT` 正規化します。形式違反は `<sxmml-value-error>`（`invalid voice @<id> al/fb: ...` または `invalid voice @<id> operator(<n>): ... (expected a list of 11 values)`）です。`id` のシンボル検査は `sxmml-voice-set!` で行います。
 
 [[ref-voice-define-opm-voice]]
-`(define-opm-voice name alfb op1 op2 op3 op4)`:: 名前と通常の式によるOPM音色を登録する。
+=== `(define-opm-voice id alfb op1 op2 op3 op4)`
+
+OPM 音色を登録する公開マクロです。`id` を `sxmml-form-name\->symbol` で正規化し、`alfb` と `op1`～`op4` を通常の Scheme 式（リストを返す式）としてそのまま `sxmml-opm-voice-set!` へ渡す呼び出しを `sxmml-form-wrap` で包みます。`define-opn-voice` と異なり、括弧の枠を `(list ...)` へ展開しません。引数個数が一致しない場合は `invalid define-opm-voice form: expected id al/fb and four operators` の `<sxmml-form-syntax-error>` です。
+
+[[ref-voice-sxmml-pcm-voice-set-bang]]
+=== `(sxmml-pcm-voice-set! id value)`
+
+PCM 音色の参照値 `value` を持つ `<sxmml-voice>` を生成し、現在の環境の `pcm` 表へ `sxmml-voice-set!` で登録・置換します。`value` の型は登録時には制限せず、各バックエンドが参照時に検査します。
 
 [[ref-voice-define-pcm-voice]]
-`(define-pcm-voice name value)`:: 名前と値式によるPCM音色を登録する。
+=== `(define-pcm-voice id value)`
+
+PCM 音色を登録する公開マクロです。`id` を `sxmml-form-name\->symbol` で正規化し、`value` 式を評価して `sxmml-pcm-voice-set!` へ渡す呼び出しを `sxmml-form-wrap` で包みます。引数個数が一致しない場合は `invalid define-pcm-voice form: expected id and value` の `<sxmml-form-syntax-error>` です。
+
+[[ref-voice-sxmml-waveform-set-bang]]
+=== `(sxmml-waveform-set! id samples)`
+
+シンボル `id` の波形メモリ定義（`<sxmml-voice>`）をプロパーリスト `samples` で現在の環境の `waveform` 表へ登録・置換します。`samples` がプロパーリストでない場合は `<sxmml-value-error>`（`invalid waveform <id>: expected a proper list`）を送出します。音源に固有のサンプル数や振幅範囲はバックエンドの出力時に検査します。
 
 [[ref-voice-define-waveform]]
-`(define-waveform 名前 値式)`:: 数値名とシンボル名を共通の規則で正規化し、値式を一度評価して登録します。
-[[ref-voice-sxmml-waveform-set-bang]]
-`(sxmml-waveform-set! id samples)`:: シンボル id の waveform 定義をプロパーリスト samples で置き換えます。音源に固有の長さ・振幅は出力時に検査します。
+=== `(define-waveform id value)`
+
+波形メモリを登録する公開マクロです。`id` を `sxmml-form-name\->symbol` で正規化し、`value` 式を一度評価して `sxmml-waveform-set!` へ渡す呼び出しを `sxmml-form-wrap` で包みます。引数個数が一致しない場合は `invalid define-waveform form: expected id and value` の `<sxmml-form-syntax-error>` です。
