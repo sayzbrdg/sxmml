@@ -32,7 +32,7 @@
 `items` と `weights` には、同じ長さの空でないベクタを渡します。各重みは正の正確な整数に限ります。`settings` は `make-repeat-tree-settings` で作ります。
 `same?` は要素二つを受け、真偽値を返す停止する同値関係です。同値な出現には同じ重みが必要です。この条件は呼び出し側で満たしてください。
 
-圧縮後の費用と木を二値で返します。引数や設定の誤り、数値範囲外、比較結果が真偽値以外の場合はエラーになります。比較中に発生した例外は呼び出し元へ伝わります。
+圧縮後の費用と木を 2 値で返します。引数や設定の誤り、数値範囲外、比較結果が真偽値以外の場合はエラーになります。比較中に発生した例外は呼び出し元へ伝わります。
 
 重み、制御費用、重み総和は `uint64_t`（最大18446744073709551615）、入力長、回数、窓幅、領域サイズは `size_t` の範囲です。採用できる費用かどうかを加算前に判定するので、費用が現在の最良値以上になる反復候補は、加算の範囲外エラーを起こさず除外します。
 
@@ -98,18 +98,15 @@
 * [[ref-repeat-tree-repeat-tree-settings-allow-final-p]]`(repeat-tree-settings-allow-final? s)`
 * [[ref-repeat-tree-repeat-tree-settings-window]]`(repeat-tree-settings-window s)`
 
-== 内部手続き
+== 非公開手続き
 
-[[ref-repeat-tree-internal-make-repeat-tree-settings]]
-`(%make-repeat-tree-settings repeat-costs final-costs allow-final window)`::
+[[ref-repeat-tree-internal-make-repeat-tree-settings]]`(%make-repeat-tree-settings repeat-costs final-costs allow-final window)`::
 型と値の検査を済ませた引数から設定を作る record 構築子です。
 
-[[ref-repeat-tree-internal-copy-costs]]
-`(%copy-costs pairs)`::
+[[ref-repeat-tree-internal-copy-costs]]`(%copy-costs pairs)`::
 費用表を検査し、新しいリストにコピーします。
 
-[[ref-repeat-tree-internal-check-input]]
-`(%check-input items weights settings)`::
+[[ref-repeat-tree-internal-check-input]]`(%check-input items weights settings)`::
 要素と重みのベクタ、設定の型を検査します。誤りがあれば `repeat-tree:` で始まるエラーになります。
 
 == 使用例
@@ -118,6 +115,6 @@ ABABA を、Final の回数 3（制御費用 0）で圧縮します。sxmml の�
 
 [source,console]
 ----
-$ GAUCHE_DYNLOAD_PATH="$PWD/build${GAUCHE_DYNLOAD_PATH:+:$GAUCHE_DYNLOAD_PATH}" gosh -I. -e '(use sxmml.repeat-tree)' -e '(receive (cost tree) (repeat-tree-compress #(a b a b a) #(1 1 1 1 1) eq? (make-repeat-tree-settings (quote ()) (quote ((3 . 0))) #t 256)) (print cost " " (final? tree) " " (final-count tree)))'
+$ GAUCHE_DYNLOAD_PATH="$PWD/build${GAUCHE_DYNLOAD_PATH:+:$GAUCHE_DYNLOAD_PATH}" gosh -I. -e '(use sxmml.repeat-tree)' -e '(receive (cost tree) (repeat-tree-compress #(a b a b a) #(1 1 1 1 1) eq? (make-repeat-tree-settings (quote ()) (quote ((3 . 0))) #t 256)) (print cost " " (final? tree) " " (final-count tree)))' -E exit
 2 #t 3
 ----

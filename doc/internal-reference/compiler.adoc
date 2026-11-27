@@ -1,23 +1,20 @@
 = `sxmml.compiler` のコンパイル処理
 :toc: left
 
-MML 文字列を解析して IR 列を作ります。`mml` と `rhythm` は、その列をトラックに登録するマクロです。
-解析に使う文脈は xref:environment.adoc[`sxmml.environment`]、パーサーは xref:mml.adoc[`sxmml.mml`] を参照してください。
+MML 文字列を解析して IR 列を作ります。`mml` と `rhythm` は、その列をトラックに登録するマクロです。解析に使う文脈は xref:environment.adoc[`sxmml.environment`]、パーサーは xref:mml.adoc[`sxmml.mml`] を参照してください。
 
-実装は link:../../sxmml/compiler.scm[compiler.scm] にあります。公開する定義は五つの手続きと二つのマクロです。マクロ展開には下記の非公開手続きを共用します。
+実装は link:../../sxmml/compiler.scm[compiler.scm] にあります。このモジュールは 8 定義（手続き 6 件・マクロ 2 件）を持ち、5 手続きと 2 マクロを公開します。マクロ展開には下記の非公開手続きを共用します。
 
-== 手続き
+== 公開手続き
 
 [[ref-compiler-sxmml-compile-string-bang]]
 === `(sxmml-compile-string! parser str ctx)`
 
-文字列 `str` を `parser` で解析し、生成した IR のリストと更新後の `ctx` を二値で返します。
-文脈だけを更新する命令は `#f` を返すため、generator から結果を集める際に除きます。そのような命令だけの入力では、解析を終えて空のリストを返します。
+文字列 `str` を `parser` で解析し、生成した IR のリストと更新後の `ctx` を 2 値で返します。文脈だけを更新する命令は `#f` を返すため、ジェネレータから結果を集める際に除きます。そのような命令だけの入力では、解析を終えて空のリストを返します。
 
-`str` が文字列でなければ `<sxmml-value-error>` になります。PEG の `<parse-error>` は `<sxmml-mml-syntax-error>` に変換します。
-`fail-error` の情報がタグと一件の `(fail-message . 文字列)` の組なら、その文字列を診断に使います。例えば `$raise` が伝えた `unknown MML command: "x"` です。それ以外の解析エラーには、残りの入力を示す `invalid MML syntax near "..."` を使います。
+`str` が文字列でなければ `<sxmml-value-error>` になります。PEG の `<parse-error>` は `<sxmml-mml-syntax-error>` に変換します。`fail-error` の情報がタグと 1 件の `(fail-message . 文字列)` の組なら、その文字列を診断に使います（例えば `$raise` が伝えた `unknown MML command: "x"`）。それ以外の解析エラーには、残りの入力を示す `invalid MML syntax near "..."` を使います。
 
-sxmml のエラーには、取得できるトラック名を独立した condition として添えます。未知の Gauche 例外は呼び出し元へ伝わります。
+sxmml のエラーには、取得できるトラック名を独立したコンディション（`<sxmml-track-context>`）として添えます。未知の Gauche 例外は呼び出し元へ伝わります。
 
 [[ref-compiler-sxmml-compile-mml-bang]]
 === `(sxmml-compile-mml! str ctx)`
@@ -27,25 +24,24 @@ sxmml のエラーには、取得できるトラック名を独立した conditi
 [[ref-compiler-sxmml-compile-rhythm-bang]]
 === `(sxmml-compile-rhythm! str ctx)`
 
-`ctx` に対応するリズム MML のパーサーで解析し、通常 MML と同じく IR 列と文脈を二値で返します。
+`ctx` に対応するリズム MML のパーサーで解析し、通常 MML と同じく IR 列と文脈を 2 値で返します。
 
 [[ref-compiler-sxmml-compile-track-mml]]
 === `(sxmml-compile-track-mml track str)`
 
-登録済みの `track` から文脈を取得し、`sxmml-compile-mml!` に渡します。トラックが未登録なら `undefined track` の参照エラーになります。
+登録済みの `track` から文脈を取得し、`sxmml-compile-mml!` に渡します。トラックが未登録なら、`<sxmml-track-context>` を添えた `undefined track: <track>` の `<sxmml-reference-error>` になります。
 
 [[ref-compiler-sxmml-compile-track-rhythm]]
 === `(sxmml-compile-track-rhythm track str)`
 
 登録済みの `track` の文脈で `sxmml-compile-rhythm!` を呼びます。未登録トラックの診断は通常 MML と同じです。
 
-== 登録マクロ
+== 公開マクロ
 
 [[ref-compiler-mml]]
 === `(mml track body ...)`、`(mml (track ...) body ...)`
 
-`track` は一つ以上指定します。`body ...` は省略できます。
-本文の各式を一度ずつ評価します。式の評価順は未規定です。値は本文に書いた順に `write-tree` で文字列化します。
+`track` は 1 つ以上指定します。`body ...` は省略できます。本文の各式を 1 度ずつ評価します。式の評価順は未規定です。値は本文に書いた順に `write-tree` で文字列化します。
 
 できた文字列を各トラックの文脈でコンパイルします。指定されたトラック順に `sxmml-compile-track-mml` を呼び、得られた IR 列を `sxmml-ir-register!` で登録します。トラックごとのコンパイルで IR を生成します。
 
@@ -54,16 +50,16 @@ sxmml のエラーには、取得できるトラック名を独立した conditi
 
 `mml` と同じ書式と登録順を使います。本文のコンパイルには `sxmml-compile-track-rhythm` を呼びます。
 
-[[ref-compiler-internal-mml-form-expand]]
-=== `(%mml-form-expand form rename macro-name compile-name)`
+書式と楽曲例は xref:../sxmml-reference-manual.adoc[MML 記述者向けリファレンス] を参照してください。
 
-元のフォーム、ER マクロの `rename`、診断に使うマクロ名、コンパイル手続き名から、両マクロの展開式を作ります。
+== 非公開手続き
 
-展開時に書式を調べ、各名前を `identifier?` で検査して引用します。空のリストや不正な名前は、`mml requires at least one track name` や `invalid mml track name: 0 (expected a symbol)` のようなフォーム構文エラーになります。
-
+[[ref-compiler-internal-mml-form-expand]]`(%mml-form-expand form rename macro-name compile-name)`::
+元のフォーム、ER マクロの `rename`、診断に使うマクロ名、コンパイル手続き名から、`mml`・`rhythm` 両マクロの展開式を作ります。
++
+展開時に書式を調べ、各名前を `identifier?` で検査してクオートします。空のリストや不正な名前は、`mml requires at least one track name` や `invalid mml track name: 0 (expected a symbol)` のような `<sxmml-form-syntax-error>` になります。
++
 展開後の式は `let` で共通の MML 文字列を束縛します。文字列を作る式とトラックへの登録を `sxmml-form-wrap` で囲み、既知の実行時エラーに取得できるフォーム位置を添えます。トラックの登録状態は実行時に確認します。登録途中で失敗した場合、それまでに登録した内容は残ります。
-
-書式と楽曲例は xref:../sxmml-reference-manual.adoc[公開機能リファレンス]を参照してください。
 
 == コンパイル例
 
@@ -71,6 +67,6 @@ sxmml のエラーには、取得できるトラック名を独立した conditi
 
 [source,console]
 ----
-$ gosh -I. -e '(use sxmml)' -e '(define-track G)' -e '(mml G "c8r8")' -e '(print (caar (slot-ref (sxmml-track-get (quote G)) (quote current-ticks))))'
+$ gosh -I. -e '(use sxmml)' -e '(define-track G)' -e '(mml G "c8r8")' -e '(print (caar (slot-ref (sxmml-track-get (quote G)) (quote current-ticks))))' -E exit
 24
 ----

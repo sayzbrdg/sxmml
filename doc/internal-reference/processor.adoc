@@ -1,92 +1,72 @@
 = `sxmml.processor` の MML 加工
 :toc: left
 
-登録済みのトラックに反復、エコー、ディレイを加える三つのマクロを公開します。楽曲での使い方は xref:../sxmml-reference-manual.adoc[公開機能リファレンス]を参照してください。
+登録済みのトラックに反復、エコー、ディレイを加える加工マクロを提供するモジュールです。楽曲での使い方は xref:../sxmml-reference-manual.adoc[MML 記述者向けリファレンス] を参照してください。
 
-展開時にマクロの書式とトラック名を検査します。実行時に本文や引数の式を評価し、加工に使う値と登録先を検査します。
-書式や名前の型が違う場合はフォーム構文エラー、加工に使う値が不正な場合は値エラー、未登録のトラックには参照エラーを返します。
-既知のエラーに添えるフォーム位置は xref:form.adoc[`sxmml.form`] で取得します。未定義変数などの Gauche 例外は呼び出し元へ伝わります。
+実装は link:../../sxmml/processor.scm[processor.scm] にあります。このモジュールは 11 定義（マクロ 3 件・手続き 8 件）を持ち、3 つのマクロ（`mml-repeat`・`mml-echo`・`mml-delay`）を公開します。残り 8 手続きはすべて非公開です。
 
-実装は link:../../sxmml/processor.scm[processor.scm] にあります。
+展開時にマクロの書式とトラック名を検査します。実行時に本文や引数の式を評価し、加工に使う値と登録先を検査します。書式や名前の型が違う場合は `<sxmml-form-syntax-error>`、加工に使う値が不正な場合は `<sxmml-value-error>`、未登録のトラックには `<sxmml-reference-error>` を送出します。既知のエラーに添えるフォーム位置は xref:form.adoc[`sxmml.form`] で取得します。未定義変数などの Gauche 例外は呼び出し元へ伝わります。
 
-== マクロ
+== 公開マクロ
 
 [[ref-processor-mml-repeat]]
-=== `mml-repeat`
+=== `(mml-repeat track times (body1 ...) [(body2 ...) [(body3 ...)]])`
 
-トラック名一つ、または一つ以上の名前のリストと、反復回数の式を受けます。各本文は括弧で囲みます。
+トラック名 1 つ、または 1 つ以上の名前のリストと、反復回数の式を受けます。各本文は括弧で囲みます。
 
-. 一本文形は、本文を反復開始と終了で挟みます。
-. 二本文形は、さらに前半と後半の間に全対象トラックの脱出位置を置きます。
-. 三本文形は、第三本文を反復の終了後に置きます。複数トラックの場合、第三本文の先頭は脱出するトラック名、または名前のリストです。空リストを指定すると脱出位置を置きません。
+. 1 本文形は、本文を反復開始と終了で挟みます。
+. 2 本文形は、さらに前半と後半の間に全対象トラックの脱出位置を置きます。
+. 3 本文形は、第 3 本文を反復の終了後に置きます。複数トラックの場合、第 3 本文の先頭は脱出するトラック名、または名前のリストです。空リストを指定すると脱出位置を置きません。
 
-本文と各反復命令の登録式を `begin` に並べます。反復命令の IR は xref:command.adoc[共通コマンド手続き]が作ります。回数式は最後の反復本文を実行した後、全対象トラックに終了命令を登録する直前に一度評価します。
+本文と各反復命令の登録式を `begin` に並べます。反復命令の IR は xref:command.adoc[共通コマンド手続き] が作ります。回数式は最後の反復本文を実行した後、全対象トラックに終了命令を登録する直前に 1 度評価します。
 
 回数式と反復命令の登録で発生した sxmml のエラーには、取得できるマクロ位置を添えます。本文のフォームは、それぞれのフォームで診断します。
 
 [[ref-processor-mml-echo]]
 === `(mml-echo track (firstnote voldown restdown) body ...)`
 
-登録済みのトラックを一つ指定します。括弧で囲む三つの値は実行時に評価し、コンパイルした本文と共に `sxmml-ir-self-echo!` に渡します。その結果をトラックに登録します。
+登録済みのトラックを 1 つ指定します。括弧で囲む 3 つの値は実行時に評価し、コンパイルした本文と共に `sxmml-ir-self-echo!` に渡します。その結果をトラックに登録します。
 
 [[ref-processor-mml-delay]]
 === `(mml-delay track (ticks voldown restdown) body ...)`
 
-トラック名一つ、または一つ以上の名前のリストを指定します。
-丸括弧の中の三つの引数と本文の各式を一度ずつ評価します。式の評価順は未規定です。本文から作った同じ MML 文字列を使い、指定したトラック順にコンパイル、加工、登録を行います。
+トラック名 1 つ、または 1 つ以上の名前のリストを指定します。丸括弧の中の 3 つの引数と本文の各式を 1 度ずつ評価します。式の評価順は未規定です。本文から作った同じ MML 文字列を使い、指定したトラック順にコンパイル、加工、登録を行います。
 
 加工手続きにはトラックごとにコンパイルした IR 列を渡します。共有値の評価からトラックへの登録まで、sxmml のエラーには取得できるフォーム位置を添えます。後続トラックで失敗しても、それまでに完了した登録は残ります。
 
-== IR の加工手続き
+== IR の加工手続き（非公開）
 
 どちらも IR 列を加工し、音符・休符の `ticks` を変更する場合があります。各トラックの `current-ticks` は再計算せず、IR の登録はマクロが行います。
 
-[[ref-processor-sxmml-ir-self-echo-bang]]
-=== `(sxmml-ir-self-echo! ir fir vol rep)`
-
-`fir` は再発音の初期音高を得る通常 MML の文字列です。最初に現れる音符の音高を使います。音符を含まなければ `invalid mml-echo first note` の値エラーになります。`vol` と `rep` は正確な整数です。
-
+[[ref-processor-sxmml-ir-self-echo-bang]]`(sxmml-ir-self-echo! ir fir vol rep)`::
+`fir` は再発音の初期音高を得る通常 MML の文字列です。最初に現れる音符の音高を使います。音符を含まなければ `invalid mml-echo first note` の `<sxmml-value-error>` になります。`vol` と `rep` は正確な整数です。
++
 音符を前後に分け、後半に直前の音を `vol` だけ音量を変えて挿入します。休符ではさらに `rep` だけ音量を変え、前半で直前の音を鳴らします。反復の脱出位置で音高を保存し、反復終了時には保存値を次の再発音に使います。保存値が `#f` の場合は直前の音高を使います。音量の変更が残っていれば、脱出・終了命令の直前に元の音量に戻します。
 
-[[ref-processor-sxmml-ir-self-delay-bang]]
-=== `(sxmml-ir-self-delay! ir tick vol rep)`
+[[ref-processor-sxmml-ir-self-delay-bang]]`(sxmml-ir-self-delay! ir tick vol rep)`::
+`tick` は正の正確な整数、`vol` と `rep` は正確な整数です。例えば間隔が 0 なら `invalid mml-delay value: ticks is 0 (expected a positive integer)` の `<sxmml-value-error>` になります。
++
+音符の後に `tick` より長い休符が来たら、最初の `tick` を休符として残し、残りを同じ音高の音符で埋めます。再発音の間隔は `tick` で、最後の音符は元の休符の終端に収めます。最初の再発音に先立って音量を `vol` だけ変更し、再発音ごとに `rep` を加えます。加工した休符の終端で音量の変更分を戻します。
 
-`tick` は正の正確な整数、`vol` と `rep` は正確な整数です。例えば間隔が 0 なら `invalid mml-delay value: ticks is 0 (expected a positive integer)` になります。
+== マクロの補助手続き（非公開）
 
-音符の後に `tick` より長い休符が来たら、最初の `tick` を休符として残し、残りを同じ音高の音符で埋めます。再発音の間隔は `tick` で、最後の音符は元の休符の終端に収めます。
-最初の再発音に先立って音量を `vol` だけ変更し、再発音ごとに `rep` を加えます。加工した休符の終端で音量の変更分を戻します。
+[[ref-processor-internal-processor-track-name-check]]`(%processor-track-name-check form macro-name track)`::
+展開時に対象トラックや脱出先の名前を `identifier?` で検査します。シンボルとマクロが生成した識別子を受け取り、呼び出し側が元の構文をクオートします。不正な名前は、例えば `invalid mml-delay track name: 0 (expected a symbol)` の `<sxmml-form-syntax-error>` になります。
 
-== マクロの補助手続き
+[[ref-processor-internal-repeat-command-register]]`(%repeat-command-register! track command . args)`::
+`track` の文脈で共通コマンド手続きを実行し、生成した 1 つの IR を登録します。未登録トラックなどの sxmml のエラーにトラック文脈を添えます。
 
-[[ref-processor-internal-processor-track-name-check]]
-=== `(%processor-track-name-check form macro-name track)`
+[[ref-processor-internal-processor-value-check]]`(%processor-value-check macro name value ok? expected)`::
+述語 `ok?` が偽なら、マクロ名と引数名、指定値、必要な条件を示す `<sxmml-value-error>` を送出します。指定値は Scheme の `write` 形式で表示します。
 
-展開時に対象トラックや脱出先の名前を `identifier?` で検査します。シンボルとマクロが生成した識別子を受け取り、呼び出し側が元の構文を引用します。不正な名前は、例えば `invalid mml-delay track name: 0 (expected a symbol)` になります。
-
-[[ref-processor-internal-repeat-command-register]]
-=== `(%repeat-command-register! track command . args)`
-
-`track` の文脈で共通コマンド手続きを実行し、生成した一つの IR を登録します。未登録トラックなどの sxmml のエラーにトラック名を添えます。
-
-[[ref-processor-internal-processor-value-check]]
-=== `(%processor-value-check macro name value ok? expected)`
-
-述語 `ok?` が偽なら、マクロ名と引数名、指定値、必要な条件を示す値エラーにします。指定値は Scheme の `write` 形式で表示します。
-
-[[ref-processor-internal-positive-integer-p]]
-=== `(%positive-integer? x)`
-
+[[ref-processor-internal-positive-integer-p]]`(%positive-integer? x)`::
 正の正確な整数に対して真を返します。`2.0` は不正確数なので偽になります。
 
-[[ref-processor-internal-track-spec-p]]
-=== `(%track-spec? x)`
-
+[[ref-processor-internal-track-spec-p]]`(%track-spec? x)`::
 トラック指定の書式を照合する際に空リストを除きます。各名前の検査は `%processor-track-name-check` が担当します。
 
-[[ref-processor-internal-track-to-track-list]]
-=== `(%track->track-list track)`
-
-トラック名のリストはそのまま返し、単一の名前は一要素のリストにします。
+[[ref-processor-internal-track-to-track-list]]`(%track\->track-list track)`::
+トラック名のリストはそのまま返し、単一の名前は 1 要素のリストにします。
 
 == ディレイの例
 
@@ -94,6 +74,6 @@
 
 [source,console]
 ----
-$ gosh -I. -e '(use sxmml)' -e '(define-track G)' -e '(mml-delay G (6 2 1) "c8r8")' -e '(print (length (sxmml-ir-flatten (slot-ref (sxmml-track-get (quote G)) (quote compiled-data)))))'
+$ gosh -I. -e '(use sxmml)' -e '(define-track G)' -e '(mml-delay G (6 2 1) "c8r8")' -e '(print (length (sxmml-ir-flatten (slot-ref (sxmml-track-get (quote G)) (quote compiled-data)))))' -E exit
 6
 ----

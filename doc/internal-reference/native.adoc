@@ -1,15 +1,16 @@
 = `sxmml.native` の C 接続
 :toc: left
 
-必須の共有ライブラリ `sxmml_native` を読み込み、反復圧縮の接続手続きを公開します。楽曲記述用の `sxmml` からは公開しません。
-型や構築子は呼び出し時に解決します。汎用の反復圧縮は `sxmml.optimizer` を読み込まずに使えます。固定 IR 比較は、`sxmml.optimizer` が定義する反復ブロックの型とアクセサを使います。
+必須の共有ライブラリ `sxmml_native` を読み込み、反復圧縮の接続手続きを公開します。楽曲記述用の `sxmml` からは公開しません。型や構築子は呼び出し時に解決します。汎用の反復圧縮は `sxmml.optimizer` を読み込まずに使えます。固定 IR 比較は、`sxmml.optimizer` が定義する反復ブロックの型とアクセサを使います。
+
+モジュールの定義は link:../../sxmml/native.scm[native.scm] にあります。このモジュールは 3 手続きを定義し、すべて公開します。
 
 == 接続手続き
 
 [[ref-native-sxmml-native-repeat-tree-compress]]
 === `(sxmml-native-repeat-tree-compress items weights same? settings)`
 
-xref:repeat-tree.adoc[`repeat-tree-compress`] で型や要素数などの検査を済ませた入力を受け、費用と木を二値で返します。
+xref:repeat-tree.adoc[`repeat-tree-compress`] で型や要素数などの検査を済ませた入力を受け、費用と木を 2 値で返します。
 二要素を比較するたびに、利用者が指定した Scheme 手続き `same?` を呼びます。比較結果は真偽値でなければなりません。
 
 実装は link:../../src/lib/sxmml_nativelib.scm[sxmml_nativelib.scm] にあります。
@@ -17,7 +18,7 @@ xref:repeat-tree.adoc[`repeat-tree-compress`] で型や要素数などの検査�
 [[ref-native-sxmml-native-ir-compress]]
 === `(sxmml-native-ir-compress elements weights settings)`
 
-optimizer が組み立てた要素・重みのベクタと反復設定を受け取り、費用と木を二値で返します。
+optimizer が組み立てた要素・重みのベクタと反復設定を受け取り、費用と木を 2 値で返します。
 比較には下記の固定 IR 比較を使います。数値の範囲は C コアを呼び出す際に検査します。
 
 [[ref-native-make-sxmml-native-ir-comparison]]
