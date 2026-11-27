@@ -1,40 +1,140 @@
 = `sxmml.backend.pmd` の共通処理
 :toc: left
 
-PMD両バックエンドで使う13個の公開手続き、FM採番用の公開クラス1件、非公開の定義値検査1件を持ちます。モード登録とファイル出力は xref:pmd-source.adoc[source]・xref:pmd-binary.adoc[binary]へ分離しています。
+PMD 向けのソース生成（xref:pmd-source.adoc[`sxmml.backend.pmd-source`]）とバイナリ生成（xref:pmd-binary.adoc[`sxmml.backend.pmd-binary`]）で共有する、初期トラック登録、トラック選択、最適化選択、メタデータ・LFO・エンベロープ検査、FM 音色採番、PCM 音色番号解決を提供します。
 
-現在の登録環境を更新するのはsetup!だけです。FM音色の番号割り当ては出力ごとの採番状態を更新します。最適化要求の整数からどの処理を選ぶかは、このPMD共通層が決めます。CLIはその対応を解釈しません。
+現在の登録環境を変更するのは `sxmml-pmd-setup!` だけです。その他の手続きは明示された出力環境や定義表を受け取り、入力を変更しません（FM 音色の採番状態 `<sxmml-pmd-fm-voices>` は出力 1 回ごとに生成して更新します）。
 
-[cols="2,4,4,1",options="header"]
-|===
-|名前・書式 |役割・引数 |結果・状態・失敗条件 |ソース
-|[[ref-pmd-sxmml-pmd-setup-bang]]`(sxmml-pmd-setup!)` |PMD共通の初期トラック登録 |現在の登録環境へA～J・Lを登録。FMのvolume-deltaは4、PCMは16 |link:../../sxmml/backend/pmd.scm[pmd.scm]
-|[[ref-pmd-sxmml-pmd-metadata-value]]`(sxmml-pmd-metadata-value metadata key)` |明示したメタデータ表から値を検査して返す |memoは文字列のリスト、他の対応キーは文字列または#f。不正な値は既存の値エラー |link:../../sxmml/backend/pmd.scm[pmd.scm]
-|[[ref-pmd-sxmml-pmd-extended-settings]]`(sxmml-pmd-extended-settings metadata)` |曲単位の設定を検査する |明示されたキーと normal・extend の連想リストを detune・envelopespeed・lfospeed 順に返す。不正な値は値エラー |link:../../sxmml/backend/pmd.scm[pmd.scm]
-|[[ref-pmd-class-sxmml-pmd-fm-voices]]`<sxmml-pmd-fm-voices>` |出力1回分のFM音色の採番状態 |`:definitions` にOPN定義表または `#f` を渡す。IDから番号を引く表と、番号から定義を引く256要素のベクタを持つ |link:../../sxmml/backend/pmd.scm[pmd.scm]
-|[[ref-pmd-sxmml-pmd-fm-voice-number-bang]]`(sxmml-pmd-fm-voice-number! voices id)` |参照済みなら番号を返し、初出なら次の番号を割り当てて返す |未定義なら参照エラー、257種類目なら基底の `<sxmml-error>` |link:../../sxmml/backend/pmd.scm[pmd.scm]
-|[[ref-pmd-sxmml-pmd-for-each-fm-voice]]`(sxmml-pmd-for-each-fm-voice proc voices)` |使用定義を番号順に列挙する |各定義について `(proc 番号 定義)` を呼び、使用定義の件数を返す |link:../../sxmml/backend/pmd.scm[pmd.scm]
-|[[ref-pmd-sxmml-pmd-lfo-values]]`(sxmml-pmd-lfo-values lfo)` |LFOの種類と値を検査する |値のリストを返す。default・triangleを受理し、既存の項目別範囲を維持 |link:../../sxmml/backend/pmd.scm[pmd.scm]
-|[[ref-pmd-sxmml-pmd-envelope-values]]`(sxmml-pmd-envelope-values envelope)` |エンベロープの種類と値を検査する |4・5・6値のリストを返し、既存の項目別範囲を維持 |link:../../sxmml/backend/pmd.scm[pmd.scm]
-|[[ref-pmd-internal-pmd-definition-values]]`(%pmd-definition-values kind obj types ranges expected)` |LFO・エンベロープの共通の値検査 |種類、値の数、正確な整数性、項目別の範囲を検査。入力を変更しない |link:../../sxmml/backend/pmd.scm[pmd.scm]
-|[[ref-pmd-sxmml-pmd-check-obsolete-metadata]]`(sxmml-pmd-check-obsolete-metadata metadata)` |明示した表のfilenameメタデータを確認 |指定があれば既存の警告を標準エラーへ出す。出力先には使用しない |link:../../sxmml/backend/pmd.scm[pmd.scm]
-|[[ref-pmd-sxmml-pmd-ir-optimize]]`(sxmml-pmd-ir-optimize ir level :optional track-name)` |整数要求に応じた最適化を選ぶ |0以下は入力列、1は局所整理、2は基本組合せ、3は通常反復圧縮付き、9は全幅の2候補比較、その他の4以上は小さい反復の展開付き。長時間探索の警告にトラック名を使う。入力を変更しない |link:../../sxmml/backend/pmd.scm[pmd.scm]
-|===
+実装は link:../../sxmml/backend/pmd.scm[pmd.scm] にあります。このモジュールは 14 手続きと 1 クラスを定義し、13 手続きと 1 クラスを公開します。呼び出せない規則表（`%pmd-parts`・`%pmd-lfo-types`・`%pmd-lfo-ranges`・`%pmd-envelope-types`・`%pmd-envelope-ranges`）は索引の掲載対象外です。
 
-呼び出せない規則表は索引件数に含めません。`%pmd-lfo-types`・`%pmd-lfo-ranges`・`%pmd-envelope-types`・`%pmd-envelope-ranges`の4表で、従来の種類・個数・範囲を定めます。共通登録の検査は、手作りIRも受け取るバックエンドの検査の代わりにはしません。
+== 初期設定とトラック選択
 
-== 手続きと構文
+[[ref-pmd-sxmml-pmd-setup-bang]]
+=== `(sxmml-pmd-setup!)`
 
-[[ref-pmd-sxmml-pmd-for-each-track-ir]]
-`(sxmml-pmd-for-each-track-ir emit tracks env)`:: 固定パート、PPZ8 パートの順に `(emit index part source track ir)` を呼ぶ。O9は逐次・並列とも元のIR列を渡し、各トラックの中で2候補を順に処理する。その他の反復圧縮を並列化するときは対象トラックの基本整理を先に行う。
+現在の登録環境へ PMD の既定トラック（パート `A`～`F`・`G`～`I`・`J`・`L`）を登録します。各パートの音源種別と `volume-delta` は次のとおりです。
+
+* `A`～`F`: 音源種別 `opn`、`volume-delta` 4
+* `G`～`I`: 音源種別 `ssg`、`volume-delta` 1
+* `J`: 音源種別 `pcm`、`volume-delta` 16
+* `L`: 音源種別 `rhythm`、`volume-delta` 1
 
 [[ref-pmd-sxmml-pmd-output-tracks-select]]
-`(sxmml-pmd-output-tracks-select env [backend])`:: 未対応音源を警告して除き、固定パートに対応するトラックを選び、音源種別を照合する。固定パート列の後に、非空の PPZ8 トラックを名前順に加える。
+=== `(sxmml-pmd-output-tracks-select env :optional (backend 'pmd-source))`
+
+出力環境 `env` から PMD で使用するトラックを選び、リストで返します。先頭の 11 要素は固定パート `A`～`J`・`L` に対応する出力トラック（存在しないパートは `#f`）で、その後に非空の `ppz8` トラックをトラック名の昇順で並べます。
+
+音源種別が未指定、または `opn`・`ssg`・`pcm`・`rhythm` のトラックを固定パートの候補とし、`ppz8` は空でないトラックだけを別枠で集めます。それ以外の音源種別を明示したトラックは、標準エラー出力へ `warning: <backend>: ignoring track <name> (unsupported sound-source: <kind>)` を表示して除外します。
+
+次の条件では `<sxmml-value-error>` になります。
+
+* 固定パートに対し、明示 `:part` で割り当てたトラックと、`:part` 未指定で同名のトラックが競合している場合
+* 選ばれた固定パートのトラックに明示された音源種別が、そのパートの音源種別と異なる場合
+* 非空の `ppz8` トラックが 8 本を超えている場合（`too many PPZ8 tracks: N (max 8)`）
 
 [[ref-pmd-sxmml-pmd-ppz-parts]]
-`(sxmml-pmd-ppz-parts tracks)`:: 選択済みのトラック列から PPZ8 に割り当てたパート記号を a から順に返す。
+=== `(sxmml-pmd-ppz-parts tracks)`
+
+`sxmml-pmd-output-tracks-select` が返したトラック列 `tracks` から、固定パート 11 本より後ろにある `ppz8` トラックの本数ぶん、拡張パート名のシンボル列を `a` から順に（最大 `a`～`h`）返します。
+
+== 最適化の選択と実行
+
+[[ref-pmd-sxmml-pmd-ir-optimize]]
+=== `(sxmml-pmd-ir-optimize ir level :optional (track-name #f))`
+
+整列済みの IR 列 `ir` に対し、整数の最適化レベル `level` に応じた最適化を適用して結果を返します。入力 `ir` は変更しません。
+
+* `0` 以下: 最適化せず `ir` をそのまま返す
+* `1`: `sxmml-ir-optimize-local`（局所整理）
+* `2`: `sxmml-ir-optimize`（局所整理・状態追跡・休符結合）
+* `3`: `sxmml-ir-optimize-with-repeats`（基本組み合わせ＋通常の反復圧縮）
+* `9`: `sxmml-ir-optimize-full-repeat`（全幅探索による 2 候補比較）。要素数が 3,072 を超える最初の区間について標準エラー出力へ警告を出す（`track-name` があればトラック名を添える）
+* その他の `4` 以上: `sxmml-ir-optimize-with-repeat-expansion`（基本組み合わせ＋短い既存反復を展開して圧縮）
+
+[[ref-pmd-sxmml-pmd-for-each-track-ir]]
+=== `(sxmml-pmd-for-each-track-ir emit tracks env)`
+
+選択済みのトラック列 `tracks` と出力環境 `env` を使い、固定パート（`A`～`J`・`L`）、PPZ8 パート（`a`～`h`）の順に、各トラックの最適化済み IR 列を `(emit index part source track ir)` へ渡します。トラックが `#f` の位置には空リストを渡します。
+
+`env` の `optimize` が `9` の場合は、非空トラックを `sxmml-run-compression-jobs` で `jobs` の上限に従って並列実行し、各トラック内で 2 候補を処理します。`optimize` が `3` 以上（`9` を除く）かつ `jobs > 1` かつ非空トラックが 2 本以上の場合は、各トラックへ `sxmml-ir-optimize` を適用した後に `sxmml-ir-compress-repeats-batch` で並列に反復圧縮します。それ以外の場合は逐次で `sxmml-pmd-ir-optimize` を呼びます。
+
+== メタデータと定義の検査
+
+[[ref-pmd-sxmml-pmd-metadata-value]]
+=== `(sxmml-pmd-metadata-value metadata key)`
+
+メタデータ表 `metadata` から `key` の値を取得し、PMD の形式に従って検査した結果を返します。
+
+* `pcmfile`・`ppzfile`: 文字列、または文字列のリスト（`pcmfile` は最大 1 件、`ppzfile` は最大 2 件）。リストの場合はカンマ `,` で連結した文字列を返します。未設定時は `#f` です。
+* `memo`: 文字列 1 つ、または文字列のリスト。結果は常に文字列のリストで、未設定時は空リストです。
+* その他のキー: 文字列または `#f`。
+
+型や件数が条件に合わない場合は `<sxmml-value-error>` になります。
+
+[[ref-pmd-sxmml-pmd-extended-settings]]
+=== `(sxmml-pmd-extended-settings metadata)`
+
+メタデータ表 `metadata` から曲単位の拡張設定 `detune`・`envelopespeed`・`lfospeed` を順に確認し、登録されているキーだけを `(キー . 値)` の連想リストで返します。
+
+各値はシンボル `normal` または `extend` に限ります。それ以外の値が設定されている場合は `<sxmml-value-error>` になります。
+
+[[ref-pmd-sxmml-pmd-check-obsolete-metadata]]
+=== `(sxmml-pmd-check-obsolete-metadata metadata)`
+
+メタデータ表 `metadata` に `filename` が登録されていれば、標準エラー出力へ非推奨の警告 `warning: metadata 'filename' is ignored; use the -o option of sxlc to set the output file` を表示します。出力先の決定には使いません。
+
+[[ref-pmd-sxmml-pmd-lfo-values]]
+=== `(sxmml-pmd-lfo-values lfo)`
+
+`<sxmml-lfo>` オブジェクト `lfo` の種類と値を検査し、値のリストを返します。種類は `default`・`triangle`、値の数は 4 個で、範囲は順に 0～255、0～255、−128～127、0～255 の正確な整数です。
+
+[[ref-pmd-sxmml-pmd-envelope-values]]
+=== `(sxmml-pmd-envelope-values envelope)`
+
+`<sxmml-envelope>` オブジェクト `envelope` の種類と値を検査し、値のリストを返します。種類は `default`、値の数は 4・5・6 個です。値の数ごとの各要素の範囲（正確な整数）は次のとおりです。
+
+* 4 値: 0～255、−15～15、0～255、0～255
+* 5 値: 0～31、0～31、0～31、0～15、0～15
+* 6 値: 0～31、0～31、0～31、0～15、0～15、0～15
+
+[[ref-pmd-internal-pmd-definition-values]]`(%pmd-definition-values kind obj types ranges expected)`::
+`sxmml-pmd-lfo-values` と `sxmml-pmd-envelope-values` の共通検査手続きです。`obj` の `type` が `types` に含まれるか、値の個数が `ranges` にあるか、各値が正確な整数で対応する範囲内にあるかを順に検査し、違反があれば `<sxmml-value-error>` を送出します。入力を変更せず `value` リストを返します。
+
+== FM 音色の採番
+
+[[ref-pmd-class-sxmml-pmd-fm-voices]]
+=== `<sxmml-pmd-fm-voices>`
+
+出力 1 回分の FM 音色の採番状態を保持するクラスです。`(make <sxmml-pmd-fm-voices> :definitions 表)` で生成します。
+
+* `definitions`（`:definitions`）: OPN 音色の定義表（ハッシュ表）または `#f`。
+* `numbers`: 音色 ID から割り当て番号（0～255）を引く `eq-comparator` のハッシュ表（初期値は空表）。
+* `ordered`: 割り当て番号から音色オブジェクトを引く 256 要素のベクタ（初期値は全要素 `#f`）。
+
+[[ref-pmd-sxmml-pmd-fm-voice-number-bang]]
+=== `(sxmml-pmd-fm-voice-number! voices id)`
+
+`voices` に `id` が採番済みならその番号を返します。初出なら `definitions` から音色定義を引き、次の番号（0 から順）を割り当てて `numbers` と `ordered` を更新し、割り当てた番号を返します。
+
+`id` が未定義の場合は `<sxmml-reference-error>`（`undefined voice: <id>`）、257 種類目を採番しようとした場合は `<sxmml-error>`（`too many voices: 257 (max 256)`）になります。
+
+[[ref-pmd-sxmml-pmd-for-each-fm-voice]]
+=== `(sxmml-pmd-for-each-fm-voice proc voices)`
+
+`voices` に採番されたすべての FM 音色定義について、割り当て番号の昇順に `(proc 番号 定義)` を呼び出し、使用定義の件数を返します。
+
+== PCM 音色番号の解決
 
 [[ref-pmd-sxmml-pmd-pcm-voice-number]]
-`(sxmml-pmd-pcm-voice-number env name [source])`:: 音源は既定で pcm。ppz8 ではバンク位置×128＋サンプル番号を使う。PCMの定義名または従来の数値名をネイティブ番号へ解決する。
+=== `(sxmml-pmd-pcm-voice-number env name :optional (source 'pcm))`
 
-PMDの固定パート選択時、名前で補完するトラックと明示partのトラックが競合した場合は、パートと両名を示すvalue-errorとします。
+出力環境 `env` の `pcm` 音色表とメタデータを使い、音色名 `name` を PMD のネイティブ音色番号（0～255 の整数）へ解決します。`source` は既定で `'pcm`、PPZ8 パートでは `'ppz8` を渡します。
+
+`pcm` 音色表に `name` が登録されている場合、その値に応じて次のように解決します。
+
+* `(0 n)`: バンク 0 のサンプル `n`
+* `(1 n)`: `ppz8` ではバンク 1 のサンプル `n`、`pcm` では `<sxmml-value-error>`
+* `(file n)`: メタデータ（`pcm` では `pcmfile`、`ppz8` では `ppzfile`）からファイル名 `file` のバンク位置（0 または 1）を引いて解決。見つからない場合は `<sxmml-value-error>`（`unknown PCM file`）
+* 数値 `n`: バンク 0 のサンプル `n`
+
+`ppz8` では `バンク × 128 + n`（`n` は 0～127）、`pcm` では `n`（0～255）を返します。表に未登録の場合は `name` を数値として解釈し、0～255 の整数ならそのまま返し、数値でなければ `<sxmml-reference-error>`（`undefined PCM voice`）になります。サンプル番号の範囲外や不正な定義形式は `<sxmml-value-error>` です。
