@@ -50,7 +50,7 @@ IR 列 `ir` を `%sequence-tree` で反復構造へ変換します。`<sxmml-mml
 [[ref-nsd-region]]`(%lfo-region nodes)`::
 ノード列 `nodes` に対する `(入口状態から出口状態を求める手続き . 入口状態集合から注釈付きノード列を作る手続き)` の対を返します。LFO のチャンネルは `#f` または `A` に限り、それ以外は `<sxmml-value-error>`（`unsupported nsdlib LFO channel`）になります。
 +
-各 LFO 命令（直後に `<sxmml-mml-lfo-switch>` が続く `<sxmml-mml-lfo>` は対として扱う）は `(lfo setting action)` に変換します。`action` は、出力する定義 ID（`EmN`）、停止を表す `#f`（`Em*`）、または状態変化なしによる出力省略を表す `#t` のいずれかです。周回によって単一の命令に定まらない場合は `<sxmml-value-error>`（`ambiguous nsdlib LFO resume definition` または `ambiguous nsdlib LFO switch state`）になります。
+各 LFO 命令（直後に `<sxmml-mml-lfo-switch>` が続く `<sxmml-mml-lfo>` は対として扱います）は `(lfo setting action)` に変換します。`action` は、出力する定義 ID（`EmN`）、停止を表す `#f`（`Em*`）、または状態変化なしによる出力省略を表す `#t` のいずれかです。周回によって単一の命令に定まらない場合は `<sxmml-value-error>`（`ambiguous nsdlib LFO resume definition` または `ambiguous nsdlib LFO switch state`）になります。
 
 == `sxmml.backend.nsdlib-source`
 
@@ -70,11 +70,13 @@ IR 列 `ir` を `%sequence-tree` で反復構造へ変換します。`<sxmml-mml
 . 使用した波形（`FDSC(N){...}`）およびパターン（`Envelop(N){...}`）定義
 . `BGM(0){` 〜 各 TR 行 〜 `}`
 
+//
+
 [[ref-nsd-meta]]`(%metadata-output table)`::
 メタデータ表 `table` から `title`（`#Title`）・`composer`（`#Composer`）・`creator`（`#Maker`）・`copyright`（`#Copyright`）・`memo`（`#Text`）を順に出力します。値は `"`・`\`・改行・CR・タブをエスケープした二重引用符文字列で書きます。`memo` は文字列リストも受け付けて要素ごとに出力します。文字列以外は `<sxmml-value-error>` です。
 
 [[ref-nsd-dpcm]]`(%dpcm-output env)`::
-`env` の `pcm` 音色表に 1 件以上定義があるとき、`#OffsetPCM $XXXX` と `DPCM{ ... }` ブロックをノート番号順に出力します。`offsetpcm` メタデータ（既定 `#xc000`）は `0xc000`～`0xffc0` の 64 バイト境界に限ります。
+`env` の `pcm` 音色表に 1 件以上定義があるとき、`#OffsetPCM $XXXX` と `DPCM{ ... }` ブロックをノート番号順に出力します。`offsetpcm` メタデータ（既定 `0xc000`）は `0xc000`～`0xffc0` の 64 バイト境界に限ります。
 +
 各定義の値は `(音名 ファイル名 rate mode [initial-output])` で、`ファイル名` に `"` を含められず、`rate` は 0～15、`mode` は 0～1、省略可能な `initial-output` は −1～127 です。形式違反・範囲外・ノート番号の重複は `<sxmml-value-error>` になります。
 
@@ -95,10 +97,10 @@ IR 列 `ir` を `%sequence-tree` で反復構造へ変換します。`<sxmml-mml
 
 * 反復: 1 回反復は最適化レベルにかかわらず展開し、2 回以上は `[ ... ]N`（脱出ありは `` :``）で出力します。
 * 音高: 内部音高へ `triangle` は +12、`fds` は +24 を加算して 12～107（`o1c`～`o8b`）で検査します。
-* 音符・休符・ポルタメント: 音長は正の正確な整数。`dpcm` の休符は `r-`、その他は `r`。ポルタメントは 1～255 tick で常に `%N` を明記し、`oN{始点[>|<]終点}%N` 形式で書きます。
-* 音色: `fds` は `@FCN`（波形参照）、`pulse`（0～3）・`noise`（0～1）・`vrc6-pulse`（0～7）は `@N`、その他は `<sxmml-value-error>`。
-* 音量・エンベロープ・LFO: 音量 `v`（0～15）と相対音量 `)`/`(`（0 は省略）は `triangle`・`dpcm` で非対応。エンベロープ `EvN` は `dpcm` で非対応。LFO は注釈に従い `EmN`・`Em*`・出力省略を選びます（省略時も使用定義を `number` で検査・登録します）。
-* その他: テンポ `tN`（`floor(N × resolution / 24)` が 1～255 の範囲）、絶対移調 `_N`・相対移調 `__N`・デチューン `DN`（各 −128～127）、ゲートタイム `qN`（0～255）、`L`、`&`。
+* 音符・休符・ポルタメント: 音長は正の正確な整数に限ります。`dpcm` の休符は `r-`、その他は `r` で出力します。ポルタメントは 1～255 tick で常に `%N` を明記し、`oN{始点[>|<]終点}%N` 形式で書きます。
+* 音色: `fds` は `@FCN`（波形参照）、`pulse`（0～3）・`noise`（0～1）・`vrc6-pulse`（0～7）は `@N` で出力し、その他の音源は `<sxmml-value-error>` になります。
+* 音量・エンベロープ・LFO: 音量 `v`（0～15）と相対音量 `)`/`(`（0 は省略）は `triangle`・`dpcm` で非対応です。エンベロープ `EvN` は `dpcm` で非対応です。LFO は注釈に従い `EmN`・`Em*`・出力省略を選びます（省略時も使用定義を `number` で検査・登録します）。
+* その他: テンポ `tN`（`floor(N × resolution / 24)` が 1～255 の範囲）、絶対移調 `_N`・相対移調 `__N`・デチューン `DN`（各 −128～127）、ゲートタイム `qN`（0～255）、`L`、`&` を出力します。
 
 [[ref-nsd-int]]`(%integer label n lo hi)`::
 `n` が `lo` 以上 `hi` 以下の正確な整数であればそのまま返し、違反時は `<sxmml-value-error>`（`invalid <label>: <n> (expected an integer from <lo> to <hi>)`）を送出します。

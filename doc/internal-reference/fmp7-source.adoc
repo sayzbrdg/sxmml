@@ -33,19 +33,19 @@ FMP7 向けの MML ソース（`.mwi`）を生成するバックエンドです�
 [[ref-fmp7-source-internal-track-output]]`(%track-output env ir part kind number)`::
 1 トラック分の最適化済み IR 列 `ir` を `sxmml-fmp7-lfo-output-prepare` で注釈し、``'<part> `` に続けて FMP7 の MML 命令列と CRLF を出力します。`number` は `(number kind id)` で定義番号を割り当てるクロージャです。
 +
-主な命令の変換と値域（正確な整数）は次のとおりです。範囲外や未対応の命令は `<sxmml-value-error>`、未定義の LFO・SSG プリセットは `<sxmml-reference-error>` です。
+主な命令の変換と値域（正確な整数）は次のとおりです。範囲外や未対応の命令は `<sxmml-value-error>`、未定義の音色・エンベロープ・LFO・SSG プリセットは `<sxmml-reference-error>` です。
 
-* 音符・休符・ポルタメント: 音長 1～65535 tick（`#N`）、音高 `o1c`～`o8b`（`%pitch`）、ポルタメントは `<始点>#<長さ>_<終点>`
+* 音符・休符・ポルタメント: 音長 1～65535 tick（`+#N+`）、音高 `o1c`～`o8b`（`%pitch`）、ポルタメントは `+<始点>#<長さ>_<終点>+`
 * 音量・相対音量: `v`（0～127）、`)N`／`(N`（−127～127、0 は省略）
 * テンポ・絶対テンポ: `T`（6～400）
 * 絶対移調・相対移調: `K`（−96～96）、`K)N`／`K(N`（−96～96、0 は省略）
 * パン・デチューン・ゲートタイム: `P`（1～255）、`D`（−6144～6144）、`q`（0～65535）
 * 反復・ループ・タイ: `[ ... / ... ]N`、`L`、`&`
-* LFO 設定・スイッチ: `M<ch>V<7値>`（対のスイッチがあれば `S<ch>1`/`0`、対がなく到達時無効なら `S<ch>0` を補う）、単独スイッチは `S<ch>1`/`0`
-* 音色・エンベロープ・SSG 専用命令: `ssg` 音色は `@<プリセット>`（`square`・`triangle1`～`2`・`pulse1`～`9`・`sawtooth1`～`2`）、その他は `@N`（`number` で採番）。エンベロープは `ssg`・`pcm` で `EN`、出力切替（`m1,0`・`m0,1`・`m1,1`、値 1～3）とノイズ周波数 `w`（0～31）は `ssg` のみ対応
+* LFO 設定・スイッチ: `M<ch>V<7値>`（対のスイッチがあれば `S<ch>1`/`0`、対がなく到達時無効なら `S<ch>0` を補完）、単独スイッチは `S<ch>1`/`0`
+* 音色・エンベロープ・SSG 専用命令: `ssg` 音色は `%ssg-presets` で対応付けた `@0,0`～`@3,2`（`square`・`triangle1`～`2`・`pulse1`～`9`・`sawtooth1`～`2`）、その他は `@N`（`number` で採番）。エンベロープは `ssg`・`pcm` で `EN`、出力切替（`m1,0`・`m0,1`・`m1,1`、値 1～3）とノイズ周波数 `w`（0～31）は `ssg` のみ対応
 
 [[ref-fmp7-source-internal-definition-output]]`(%definition-output env kind id number)`::
-初出の定義を番号 `number` 付きで現在の出力ポートへ書きます。`kind` が `'envelope` なら `'@ E` または `'@ EX`、`'pcm` なら `'@ P <number>,"<file>",i<sample>`、`opn`・`opm` なら `%fm-definition` を呼びます。
+初出の定義を番号 `number` 付きで現在の出力ポートへ書きます。`kind` が `'envelope` なら `'@ E` または `'@ EX`、`'pcm` なら `'@ P <number>,"<file>",i<sample>` を出力し、`'opn`・`'opm` なら `%fm-definition` を呼びます。
 
 [[ref-fmp7-source-internal-fm-definition]]`(%fm-definition kind number data)`::
 4 オペレータ FM 音色 `data` を、`'opn` は `'@ FA <number>`（各オペレータ 10 項目: AR・DR・SR・RR・SL・TL・KS・ML・DT・AM）、`'opm` は `'@ FC <number>`（DT2 を含む 11 項目）と末尾の `'@ AL,FB` で出力します。各項目を許容範囲の正確な整数か検査し、不正な構造や範囲外は `<sxmml-value-error>` です。
@@ -65,7 +65,7 @@ FMP7 向けの MML ソース（`.mwi`）を生成するバックエンドです�
 音高 `n` を 12～107 で検査し、絶対オクターブ付き音名（`o1c`～`o8b`、半音は `c+`・`d+`・`f+`・`g+`・`a+`）を返します。
 
 [[ref-fmp7-source-internal-channel]]`(%channel obj)`::
-正規化済み LFO チャンネル `A`・`B`・`C`・`D` を FMP7 のチャンネル記号 `"P"`・`"Q"`・`"R"`・`"S"` へ変換します。
+`obj` の正規化済み `channel` スロット（`A`・`B`・`C`・`D`）を FMP7 のチャンネル記号 `"P"`・`"Q"`・`"R"`・`"S"` へ変換します。
 
 [[ref-fmp7-source-internal-lookup]]`(%lookup table id label)`::
 ハッシュ表 `table` から `id` を取得して返します。`table` が `#f` または未登録なら `<sxmml-reference-error>`（`undefined <label>: <id>`）を送出します。

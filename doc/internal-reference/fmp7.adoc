@@ -40,6 +40,8 @@ IR 列 `ir` に対して `%repeat-sequence` で反復構造と `L` の位置を�
 * `level = 3`: `sxmml-ir-compress-repeats` を `:expand-small #f` で呼びます。
 * `level >= 4`（`9` を含む）: `sxmml-ir-compress-repeats` を `:expand-small #t` で呼び、短い既存反復を展開してから圧縮します。
 
+//
+
 [[ref-fmp7-internal-repeat-sequence]]`(%repeat-sequence ir)`::
 平坦な IR 列 `ir` の有限反復と `L` の位置を検査し、各反復を `(repeat start front escape back end)` のノードに組んだ木を返します。`escape` は脱出命令または `#f` です。
 +
