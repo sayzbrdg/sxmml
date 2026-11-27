@@ -33,7 +33,7 @@
   ;; 列のリストからオブジェクト数を取り出す
   (define (objects row) (string->number (list-ref row 3 "")))
 
-  (let* ([source (source-output "repeat" "(mml A \"[aaaaaaaa]2 cdecdecd\")")]
+  (let* ([source (source-output "repeat" "(mml A \"[aaaaaaaa]2 cdecdecdecd\")")]
          [result (measure "-m" "pmd" source)]
          [table (rows result)])
     (test* "the default configs are O2, O3 and O4" '(0 ("O2" "O3" "O4"))
@@ -42,9 +42,9 @@
            '("config" "bytes" "vs" "O2" "objects" "generate" "total")
            (columns (if (pair? (cadr result)) (car (cadr result)) "")))
     (test* "O2 is the base of the ratio" "100.0%" (list-ref (list-ref table 0 '()) 2 #f))
-    ;; O2 の [aaaaaaaa]2cdecdecd（18 個）は、O3 で [[a]8]2[cd:e]3（11 個）、
-    ;; O4 で [a]16[cd:e]3（9 個）になる
-    (test* "objects are the totals of the optimized tracks" '(18 11 9) (map objects table))
+    ;; O2 の [aaaaaaaa]2cdecdecdecd（21 個）は、O3 で [[a]8]2[cd:e]4（11 個）、
+    ;; O4 で [a]16[cd:e]4（9 個）になる
+    (test* "objects are the totals of the optimized tracks" '(21 11 9) (map objects table))
     ;; E=8 では展開後の長さ 16 の [aaaaaaaa]2 を展開しないので、O3 と同じ 11 個になる
     (test* "E changes the -O 4 settings" '(11) (map objects (rows (measure source "O4:E=8"))))
     (test* "no temporary directory is left" '() (directory-list tmpdir :children? #t)))

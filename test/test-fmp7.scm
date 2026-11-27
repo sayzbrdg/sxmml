@@ -37,7 +37,7 @@
          (list (length tracks) (every (^[t] (not (slot-ref (car t) 'part))) tracks))))
 
 (let* ([cd (map (^[pitch] (make <sxmml-mml-note> :ticks 12 :value pitch)) '(48 50))]
-       [start (make <sxmml-mml-repeat-start>)] [end (make <sxmml-mml-repeat-end> :value 2)]
+       [start (make <sxmml-mml-repeat-start>)] [end (make <sxmml-mml-repeat-end> :value 3)]
        [flat (apply append (make-list 4 cd))]
        [block (append (list start) cd (list end) cd)])
   (let1 compressed (sxmml-fmp7-ir-optimize flat 3)
