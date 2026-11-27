@@ -1,50 +1,99 @@
-= パート割当と反復・LFOの解析
+= `sxmml.backend.fmp7` のパート割り当てと IR 解析
+:toc: left
 
-反復の前半・脱出後半が各チャネルに及ぼす効果を求め、初回と次回の入口状態を合流します。4チャネルはすべて有効で始まります。
+FMP7 向けのソース生成（xref:fmp7-source.adoc[`sxmml.backend.fmp7-source`]）で使う、トラックのパート割り当て、反復構造の検査と最適化、LFO 到達状態の解析、LFO・エンベロープ・PCM 参照の検査を提供します。
 
-== 手続きと構文
+すべての手続きは明示された出力環境や IR 列を受け取り、現在の登録環境を参照せず、入力を変更しません。
 
-[[ref-fmp7-internal-part-name]]
-`(%part-name part)`:: 明示パートを正規化する。
+実装は link:../../sxmml/backend/fmp7.scm[fmp7.scm] にあります。このモジュールは 15 手続きを定義し、7 手続きを公開します。呼び出せない定数リスト（`%channels`・`%keep`）は索引の掲載対象外です。
 
-[[ref-fmp7-internal-part-index-to-name]]
-`(%part-index->name index)`:: 空き番号をパート名に変換する。
+== パート割り当て
 
 [[ref-fmp7-sxmml-fmp7-tracks-prepare]]
-`(sxmml-fmp7-tracks-prepare env)`:: 未対応音源のトラックを警告して除き、対応音源のトラックをパート順の（トラック、パート名、音源種別）の列にする。
+=== `(sxmml-fmp7-tracks-prepare env)`
 
-[[ref-fmp7-internal-repeat-sequence]]
-`(%repeat-sequence ir)`:: 有限反復の区切りとLの位置を検査して木を返す。
+出力環境 `env` から FMP7 の対応音源（`opn`・`opm`・`ssg`・`pcm`）を指定したトラックを集め、パート名の昇順に並べた `(出力トラック パート名文字列 音源種別)` のリストを返します。空トラックも上限と割り当ての対象に含めます。
 
-[[ref-fmp7-internal-canonical-lfo]]
-`(%canonical-lfo obj)`:: 省略チャネルをAとするIRを返す。
+音源種別が未指定のトラックは `<sxmml-value-error>`（`invalid FMP7 track <name> sound-source: #f`）になります。未対応の音源種別を明示したトラックは、標準エラー出力へ `warning: fmp7-source: ignoring track <name> (unsupported sound-source: <kind>)` を表示して除外します。
+
+トラック数の上限は合計 64 本、音源種別ごとに 32 本です。上限を超えると `<sxmml-value-error>` になります。明示 `:part` が指定されたトラックを先に予約し（重複は `<sxmml-value-error>`）、未指定トラックはトラック名の辞書順に `A0`・`A1`・…・`A9`・`B0`・… の空きパートへ割り当てます。
+
+[[ref-fmp7-internal-part-name]]`(%part-name part)`::
+明示 `:part` のシンボル `part` を FMP7 のパート名文字列へ正規化します。`A`～`Z` は末尾に `0` を補って `A0`～`Z0` にし、`A0`～`Z9` はそのまま返します。それ以外は `<sxmml-value-error>` です。
+
+[[ref-fmp7-internal-part-index-to-name]]`(%part-index\->name index)`::
+0 始まりの空き番号 `index` を `A0`～`A9`、`B0`～`B9` のような 2 文字のパート名文字列に変換します。
+
+== 反復構造と最適化
 
 [[ref-fmp7-sxmml-fmp7-ir-prepare]]
-`(sxmml-fmp7-ir-prepare ir)`:: 反復構造を検査して LFO チャネルを正規化した列を返す。逐次・並列共通の前処理。
+=== `(sxmml-fmp7-ir-prepare ir)`
+
+IR 列 `ir` に対して `%repeat-sequence` で反復構造と `L` の位置を検査し、`<sxmml-mml-lfo>` の省略チャンネルを `A` に正規化した平坦な IR 列を返します。逐次・並列の双方で共通の前処理として使います。`<sxmml-mml-lfo>` を含まない列は元の `ir` をそのまま返します。
 
 [[ref-fmp7-sxmml-fmp7-ir-optimize]]
-`(sxmml-fmp7-ir-optimize ir level)`:: 構造を検査し、水準に応じた反復圧縮を行う。
+=== `(sxmml-fmp7-ir-optimize ir level)`
 
-[[ref-fmp7-internal-after]]
-`(%after effect state)`:: 区間効果を入口状態へ適用する。
+`sxmml-fmp7-ir-prepare` で前処理した IR 列に対し、整数の最適化レベル `level` に応じた反復圧縮を適用して返します。
 
-[[ref-fmp7-internal-join]]
-`(%join a b)`:: 二つの入口から到達可能な状態の和集合を返す。
+* `level < 3`: 反復圧縮を行わず、前処理済みの列をそのまま返します。
+* `level = 3`: `sxmml-ir-compress-repeats` を `:expand-small #f` で呼びます。
+* `level >= 4`（`9` を含む）: `sxmml-ir-compress-repeats` を `:expand-small #t` で呼び、短い既存反復を展開してから圧縮します。
 
-[[ref-fmp7-internal-lfo-region]]
-`(%lfo-region nodes)`:: 区間効果と、入口状態から出力列を求める手続きを返す。
+[[ref-fmp7-internal-repeat-sequence]]`(%repeat-sequence ir)`::
+平坦な IR 列 `ir` の有限反復と `L` の位置を検査し、各反復を `(repeat start front escape back end)` のノードに組んだ木を返します。`escape` は脱出命令または `#f` です。
++
+反復内の `L` や 2 個目の `L` は `invalid FMP7 loop position`、終了のない反復は `missing FMP7 repeat end`、対応のない `:` や `]` は `unexpected FMP7 repeat delimiter`、1～255 以外の反復回数は `invalid repeat count` の `<sxmml-value-error>` になります。
+
+[[ref-fmp7-internal-canonical-lfo]]`(%canonical-lfo obj)`::
+`<sxmml-mml-lfo>` オブジェクト `obj` の `channel` を正規化します。`channel` が `#f` のときは同じクラスのインスタンスへ束縛済みインスタンススロットを浅くコピーし、`channel` を `'A` にしたオブジェクトを返します。`A`・`B`・`C`・`D` はそのまま返し、それ以外は `<sxmml-value-error>`（`invalid LFO channel`）になります。
+
+== LFO の到達状態解析
+
+FMP7 では LFO 定義コマンド（`M<ch>V...`）を実行するとそのチャンネルの LFO が有効になるため、無効状態のまま定義だけを変更する場合は直後に停止命令（`S<ch>0`）を補う必要があります。この節の手続きは反復と `L` を通る到達状態を解析し、各 LFO 設定命令へ注釈を付けます。
+
+4 チャンネル（`A`・`B`・`C`・`D`）それぞれの状態は整数ビットで表します。効果では `0` が変更なし、`1` が無効、`2` が有効を意味します。到達状態では `1` が無効のみ、`2` が有効のみ、`3` が両方の可能性あり、`#f` が未到達の区間を表します。初期状態は全チャンネル有効の `'(2 2 2 2)` です。
 
 [[ref-fmp7-sxmml-fmp7-lfo-output-prepare]]
-`(sxmml-fmp7-lfo-output-prepare ir)`:: 反復とLの到達状態を解析してLFO設定に注釈を付ける。
+=== `(sxmml-fmp7-lfo-output-prepare ir)`
 
-[[ref-fmp7-internal-bounded]]
-`(%bounded label value low high)`:: 正確な整数の範囲を検査する。
+IR 列 `ir` を `%repeat-sequence` で木に変換し、`L` より前と `L` 以降に分けて `%lfo-region` で到達状態を解析した注釈付きノード列を返します。
+
+各 LFO 設定は `(lfo-set setting enabled switch)` に変換します。`enabled` は到達時の有効状態（真偽値）、`switch` は直後に続く同一チャンネルの `<sxmml-mml-lfo-switch>`（対になるスイッチがなければ `#f`）です。到達状態が曖昧（`3`）で直後のスイッチもない場合は `<sxmml-value-error>`（`ambiguous LFO switch state`）になります。
+
+[[ref-fmp7-internal-after]]`(%after effect state)`::
+区間効果 `effect` を入口状態 `state` へ適用した出口状態を返します。`state` が `#f` のときは `#f` を返します。
+
+[[ref-fmp7-internal-join]]`(%join a b)`::
+二つの到達状態 `a`・`b` の和集合（チャンネルごとのビット論理和）を返します。片方が `#f` のときはもう片方を返します。
+
+[[ref-fmp7-internal-lfo-region]]`(%lfo-region nodes)`::
+ノード列 `nodes` に対する `(区間効果 . 入口状態から注釈付きノード列を作る手続き)` の対を返します。有限反復では前半・脱出後半の区間効果を合成し、初回と 2 周目以降の入口状態を合流して本文を注釈します。直後に同一チャンネルの `<sxmml-mml-lfo-switch>` がある `<sxmml-mml-lfo>` は 1 つの `lfo-set` にまとめます。
+
+== 定義の検査と PCM 参照解決
 
 [[ref-fmp7-sxmml-fmp7-lfo-values]]
-`(sxmml-fmp7-lfo-values lfo)`:: 振動波形と省略値を補った7値を返す。
+=== `(sxmml-fmp7-lfo-values lfo)`
+
+`<sxmml-lfo>` オブジェクト `lfo` の種類と値を検査し、FMP7 の `MV` 命令用の 7 値リスト `(delay speed rate depth wave sync offset)` を返します。
+
+* 種類と波形番号 `wave`: `default`・`triangle`→`0`、`saw`→`1`、`square`→`2`、`one-shot`→`3`、`random`→`4`
+* 値の個数: 4～6 個（省略時の既定値は `sync` が `1`、`offset` が `0`）
+* 各値の範囲（正確な整数）: `delay` 0～128、`speed` 1～255、`rate` −32768～32767、`depth` −32768～32767、`sync` 0～1、`offset` −32768～32767
+
+未対応の種類や個数・範囲の違反は `<sxmml-value-error>` になります。
 
 [[ref-fmp7-sxmml-fmp7-envelope-values]]
-`(sxmml-fmp7-envelope-values env)`:: 種類に応じてEまたはEXと値列を返す。
+=== `(sxmml-fmp7-envelope-values env)`
+
+`<sxmml-envelope>` オブジェクト `env` の種類と値を検査し、`(タグシンボル 値リスト)` を返します。`default` はタグ `E`（6 値）、`extended` はタグ `EX`（13 値）で、各値は 0～255 の正確な整数です。違反は `<sxmml-value-error>` になります。
 
 [[ref-fmp7-sxmml-fmp7-pcm-reference-resolve]]
-`(sxmml-fmp7-pcm-reference-resolve env voice)`:: ファイル位置または直接名をファイル名とサンプル番号へ解決する。
+=== `(sxmml-fmp7-pcm-reference-resolve env voice)`
+
+出力環境 `env` の `pcmfile` メタデータと PCM 音色オブジェクト `voice` から、`(ファイル名 サンプル番号)` の 2 要素リストを解決して返します。
+
+`voice` の `value` は `(ファイル名 サンプル番号)`、`(添字 サンプル番号)`、または単一の正確な整数 `サンプル番号`（添字 `0` 扱い）を受け付けます。ファイル名には `/`・`\`・`"`・CR・LF を含められず、サンプル番号は 0～65535 の正確な整数に限ります。不正な形式・範囲外の添字やサンプル番号・不正なファイル名は `<sxmml-value-error>` です。
+
+[[ref-fmp7-internal-bounded]]`(%bounded label value low high)`::
+`value` が `low` 以上 `high` 以下の正確な整数であればそのまま返し、違反すれば `<sxmml-value-error>`（`invalid <label>: <value> (expected an integer from <low> to <high>)`）を送出します。
