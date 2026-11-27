@@ -36,7 +36,9 @@ printf '%s\n' '(mml G "c8r8")' > first.sxl
 sxlc -m pmd first.sxl
 ```
 
-`make install` は、コマンドを `bindir`、Scheme モジュールを `GAUCHE_PKGLIBDIR`、共有ライブラリを `GAUCHE_PKGARCHDIR` に配置します。C 拡張は必須です。既定の配置先には書き込み権限が必要です。実際の値は生成された `Makefile` で確認してください。コマンドの配置先を変えるには `./configure --prefix=配置先` を指定します。モジュール配置先の初期値は Gauche の設定から取得され、Make の変数を含む場合があります。`--prefix` を変更した場合も、展開後の配置先が Gauche の検索先に含まれるか確認してください。
+`make install` は、コマンドを `bindir`、Scheme モジュールを `GAUCHE_PKGLIBDIR`、共有ライブラリを `GAUCHE_PKGARCHDIR` に配置します。C 拡張は必須です。既定の配置先には書き込み権限が必要です。実際の値は生成された `Makefile` で確認してください。
+
+コマンドの配置先を変えるには `./configure --prefix=配置先` を指定します。モジュール配置先の初期値は Gauche の設定から取得され、Make の変数を含む場合があります。`--prefix` を変更した場合も、展開後の配置先が Gauche の検索先に含まれるか確認してください。
 
 利用者が書き込める場所へインストールする場合は、上記の `./configure` から `make install` までを次に置き換えます。
 
@@ -93,7 +95,9 @@ FMP7 用のソースは `sxlc -m fmp7 song.sxl` で生成します。初期ト�
         ("pmd-binary" :player ("pmd-play") :play-after-compile t)))
 ```
 
-`fmp7-compile` 等は例示用の名前です。`-c` で起動するコマンドには、変換したファイルのパスを `sxlc` が渡します。`:player` はプログラム名と引数のリストです。再生ファイルはその末尾に渡します。`:play-extension` は外部コンパイラが生成する拡張子（先頭の点を含む）に合わせます。省略すると `sxlc` の出力を直接再生します。設定表のキーには `sxlc -l` に表示されるモードの正式名を使います。
+`fmp7-compile` 等は例示用の名前です。`-c` で起動するコマンドには、変換したファイルのパスを `sxlc` が渡します。`:player` はプログラム名と引数のリストで、再生ファイルはその末尾に渡します。
+
+`:play-extension` は外部コンパイラが生成する拡張子（先頭の点を含む）に合わせます。省略すると `sxlc` の出力を直接再生します。設定表のキーには `sxlc -l` に表示されるモードの正式名を使います。
 
 | キー | 操作 |
 |---|---|
@@ -103,7 +107,7 @@ FMP7 用のソースは `sxlc -m fmp7 song.sxl` で生成します。初期ト�
 | `C-c C-a` | このバッファの自動再生を切り替える。`C-u C-c C-a` で上書きを解除する。 |
 | `C-c C-p` | この曲で最後に成功したコンパイル結果を再生する。 |
 
-バッファを開き直すと通常の選択は全体の既定値に戻ります。「指定なし」（既定値の `nil`）では既存の引数に従います。`0` は明示的な `-O 0` です。全モード共通の引数は `sxmml-compile-program-options` に設定します。Emacs でモードを選んだ場合、そのモードの `:compile-options` も使用します。
+バッファを開き直すと通常の選択は全体の既定値に戻ります。`none`（既定値の `nil`）では既存の引数に従います。`0` は明示的な `-O 0` です。全モード共通の引数は `sxmml-compile-program-options` に設定します。Emacs でモードを選んだ場合、そのモードの `:compile-options` も使用します。
 
 自動再生はバッファの上書き、変換結果のモードに設定した `:play-after-compile`、全体の `sxmml-play-after-compile` の順に決まります。上の例では PMD の変換後は自動再生し、FMP7 は手動で再生します。`:player` を省略したモードでは変換だけを行います。
 
@@ -150,7 +154,7 @@ emacs -Q --batch -L emacs -l test/test-sxmml-mode.el -f ert-run-tests-batch-and-
 
 ## 同じソースを設定値で切り替える
 
-次を`variant.sxl`に保存すると、CLIから渡した値で音量と既定の出力ファイル名を切り替えられます。
+次を `variant.sxl` に保存すると、CLI から渡した値で音量と既定の出力ファイル名を切り替えられます。
 
 ```scheme
 (case (sxmml-option-get 'variant)
@@ -168,7 +172,9 @@ sxlc -m pmd -D variant soft variant.sxl
 sxlc -m pmd --define variant hard variant.sxl
 ```
 
-名前はsymbol、値はSchemeのデータとして渡します。ソースでは通常の`if`・`case`などを使えます。出力先は`-o`の明示指定が優先します。ソースの既定値もなければ、入力名とモードから決まります。未登録の値と更新方法は[利用者定義の設定](doc/sxmml-reference-manual.adoc#利用者定義の設定)、出力先の取得・解除は[ソースの既定出力先](doc/sxmml-reference-manual.adoc#ソースの既定出力先)を参照してください。
+名前は symbol、値は Scheme のデータとして渡します。ソースでは通常の `if`・`case` などを使えます。
+
+出力先は `-o` の明示指定が優先します。ソースの既定値もなければ、入力名とモードから決まります。未登録の値と更新方法は[利用者定義の設定](doc/sxmml-reference-manual.adoc#利用者定義の設定)、出力先の取得・解除は[ソースの既定出力先](doc/sxmml-reference-manual.adoc#ソースの既定出力先)を参照してください。
 
 ## 最適化と出力の指定
 
