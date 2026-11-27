@@ -1,128 +1,269 @@
 = `sxmml.mml` の手続きとパーサー
 :toc: left
 
-既存の音長・付点・反復・ループの規則違反はmml-syntax-errorで通知します。明示的な分母0と`l0`はxref:command.adoc[共通コマンド層]で計算・設定前に値エラーとし、公開パーサーの実行境界で同じ本文のMML構文エラーへ変換します。音長省略と正の音長は維持します。PEG固有の失敗はcompilerとの境界で解釈します。
+通常 MML とリズム MML の文字列を解析し、sxmml IR オブジェクト列へ変換する PEG パーサー群を定義するモジュールです。
 
-`sxmml.mml` は通常 MML とリズム MML のパーサーを定義します。`make-sxmml-mml-parser` と `make-sxmml-rhythm-parser` を公開し、その他の掲載項目はモジュール内部で使用します。`*note-command*` と `*rhythm-command*` はハッシュ表のため、手続きの項目には含めません。MML 文字列の構文は xref:../sxmml-mml-manual.adoc[MML コマンドマニュアル]を参照してください。
+実装は link:../../sxmml/mml.scm[mml.scm] にあります。このモジュールは 77 定義（手続き 76 件・マクロ 1 件）を持ち、`make-sxmml-mml-parser` と `make-sxmml-rhythm-parser` の 2 手続きを公開します。命令表のハッシュ表（`+*note-command*+`・`+*rhythm-command*+`）は呼び出せないため索引の掲載対象外です。
 
-`$` で始まる項目の大半は Gauche `parser.peg` のパーサー値です。`define-inline` は値を常にマクロにする形式ではなく、ここでは手続きまたはパーサー値として働きます。各パーサーは PEG の入力状態を受ける手続きで、通常は直接呼ばず `make-sxmml-mml-parser` または `make-sxmml-rhythm-parser` から使用します。入力に一致しなければ PEG の失敗を返し、構文全体の解析失敗は呼び出し側でエラーになります。表の「結果」は一致時の値です。オブジェクト生成やパーサーの構築だけでは登録済みトラックは変更されません。`$note` などは解析コンテキストを変更します。
+`define-inline`、パラメータ、`parser.peg` の動作は Gauche 0.9.15 に従います。MML 文字列の記法は xref:../sxmml-mml-manual.adoc[MML コマンドマニュアル]を参照してください。
 
-命令文字に対応するパーサーを命令表から選びます。未登録の文字では `$raise` に `unknown MML command: "x"` の形式で理由を渡し、回復不能な PEG の失敗とします。登録済みの命令の引数は選ばれたパーサーが解析します。トラック情報の付与は呼び出し側の `sxmml-compile-string!` が担当します。
+== 構造とエラー境界
 
-`define-inline`、Parameters、`parser.peg`、`$let`、`$return` は Gauche 0.9.15 の動作に従います。定義は表のソースファイル内で項目名から探せます。
+文脈の更新、音高・音長の計算、IR の生成と tick 集計は xref:command.adoc[`sxmml.command`] へ委ね、このモジュールは PEG による字句・構文解析と失敗情報の生成を担当します。音長計算の例は xref:command.adoc#_音長計算例[共通層の例]を参照してください。
 
-== 解析コンテキストと部品を作る定義
+`$` で始まる項目の大半は `parser.peg` のパーサー値（入力状態を受ける手続き）です。通常は直接呼ばず、公開手続き `make-sxmml-mml-parser` または `make-sxmml-rhythm-parser` が返すトップレベルパーサー経由で使用します。パーサーの構築やオブジェクト生成だけでは登録済みトラックは変更しません。
 
-[cols="2,3,5,1",options="header"]
-|===
-|名前・呼び出し形 |役割・引数 |結果と状態・前提 |ソース
-|[[ref-mml-sxmml-mml-context]]`(sxmml-mml-context)` / `(sxmml-mml-context ctx)` |現在の `<sxmml-mml-context>` を得る／設定するパラメータ |初期値は新規コンテキスト。設定形は旧値を返す。パーサーの状態を動的に切り替える |link:../../sxmml/mml.scm[mml.scm]
-|[[ref-mml-rope-to-number]]`(rope\->number rope)` |PEG の rope を数値化 |文字列に変換して `string\->number` を返す。数値でない rope は `#f` になり得る |link:../../sxmml/mml.scm[mml.scm]
-|[[ref-mml-rope-to-positive-number]]`(rope\->positive-number rope :optional (message "invalid tick length: ~s (expected a positive exact integer)"))` |PEG の rope を数値化し、正の正確な整数であることを検査 |条件を満たす整数を返し、それ以外は `message` と値を示して失敗。tick解析に使用する。反復回数の検査は共通コマンド層が担当する。先頭の 0 は数値に影響しない |link:../../sxmml/mml.scm[mml.scm]
-|[[ref-mml-rope-to-symbol]]`(rope\->symbol rope)` |PEG の rope を識別子に変換 |文字列経由で symbol を返す |link:../../sxmml/mml.scm[mml.scm]
-|[[ref-mml-change-sign]]`(change-sign number)` |数値の符号を反転 |`-number` を返す。状態は変えない |link:../../sxmml/mml.scm[mml.scm]
-|[[ref-mml-internal-parser-return]]`(%$return 式 ...)` |PEG の成功値を作る内部マクロ |展開結果は入力を消費せず、式の値を返すパーサー。式はパーサー実行時に評価される |link:../../sxmml/mml.scm[mml.scm]
-|[[ref-mml-registered-command]]`($registered-command table)` |命令表 `table` を使うパーサーを作る |命令文字と直後の空白を読み、登録済みのパーサーで残りの入力を解析する |link:../../sxmml/mml.scm[mml.scm]
-|[[ref-mml-internal-braced-parameter]]`($braced-parameter parser)` |波括弧内の値を `parser` で読むパーサーを作る |開き波括弧の直後と閉じ波括弧の直前の空白を読み捨て、`parser` の結果を返す |link:../../sxmml/mml.scm[mml.scm]
-|[[ref-mml-internal-make-mml-value-parser]]`(%make-mml-value-parser param class proc)` |数値等の入力を一つの MML オブジェクトへ変換するパーサーを作る |`param` の解析結果に `proc` を適用し、`:value` に渡して `class` のインスタンスを返す |link:../../sxmml/mml.scm[mml.scm]
-|[[ref-mml-internal-make-mml-command-parser]]`(%make-mml-command-parser class)` |引数のない MML コマンド用パーサーを作る |`class` のインスタンスを返す |link:../../sxmml/mml.scm[mml.scm]
-|[[ref-mml-internal-make-mml-slots-parser]]`(%make-mml-slots-parser param class proc slots)` |複数値を slot へ配置するパーサーを作る |各値を `proc` で変換し、`slots` の順に初期化して `class` を作る。呼び出し元では未使用 |link:../../sxmml/mml.scm[mml.scm]
-|[[ref-mml-internal-make-mml-context-value-parser]]`(%make-mml-context-value-parser param command proc)` |値付きの環境変更コマンドを作る |解析結果に `proc` を適用し、現在の文脈とともに `command` に渡す。パーサーは `command` の結果を返す |link:../../sxmml/mml.scm[mml.scm]
-|[[ref-mml-internal-make-parser-with-context]]`(%make-parser-with-context parser ctx)` |文脈をparameterで束縛し、既知の値エラーをMML構文エラーへ変換するパーサーを返す |実行時に解析を行い、未知のGauche例外は通す |link:../../sxmml/mml.scm[mml.scm]
-|[[ref-mml-make-sxmml-mml-parser]]`(make-sxmml-mml-parser ctx)` |通常 MML 用のトップレベルパーサー |`ctx`を束縛し、値エラーの変換を備えた`$note-commands`を返す。未登録コマンドは解析時に失敗する |link:../../sxmml/mml.scm[mml.scm]
-|[[ref-mml-make-sxmml-rhythm-parser]]`(make-sxmml-rhythm-parser ctx)` |リズム MML 用のトップレベルパーサー |`ctx`を束縛し、値エラーの変換を備えた`$rhythm-commands`を返す |link:../../sxmml/mml.scm[mml.scm]
-|[[ref-mml-internal-proc-note-number]]`(%proc-note-number name accidentals)` |音名文字と `+` / `-` の列を半音番号へ変換 |現在のオクターブと移調値を加算して数値を返す。`name` は `a`～`g` を前提とする |link:../../sxmml/mml.scm[mml.scm]
-|[[ref-mml-dot-count]]`($dot-count required?)` |連続する付点を数えるパーサーを作る |付点の個数を返し、後続の文字を残す。付点がない場合、`required?` が真なら解析に失敗し、偽なら 0 を返す |link:../../sxmml/mml.scm[mml.scm]
-|[[ref-mml-internal-make-note-length-parser]]`(%make-note-length-parser $number $dots)` |分母と付点のパーサーを組み合わせる |解釈済みの分母・付点数と明示的な分解能を`sxmml-command-note-length->ticks`へ渡すパーサー |link:../../sxmml/mml.scm[mml.scm]
-|[[ref-mml-internal-make-rhythm-command-parser]]`(%make-rhythm-command-parser param class proc)` |楽器指定付きコマンドのパーサーを作る |楽器 slot に変換値を入れた `class` のインスタンスを返す |link:../../sxmml/mml.scm[mml.scm]
-|[[ref-mml-internal-rhythm-type-to-symbol]]`(%rhythm-type\->symbol type)` |楽器文字を共通層の楽器symbolへ変換 |`b/s/t/c/h/i`を`bass/snare/tom/cymbal/hihat/rimshot`へ変換する |link:../../sxmml/mml.scm[mml.scm]
-|[[ref-mml-internal-rhythm-types-to-initargs]]`(%rhythm-types\->initargs types val)` |楽器文字を初期化キーワードへ変換 |`b/s/t/c/h/i` を `:bass/:snare/:tom/:cymbal/:hihat/:rimshot` と `val` の列へ変換する |link:../../sxmml/mml.scm[mml.scm]
-|===
+命令文字に対応するパーサーは命令表（`+*note-command*+` または `+*rhythm-command*+`）から選択します。未登録の文字に出会った場合は `$raise` へ `unknown MML command: "<文字>"` を渡し、回復不能な PEG の失敗として通知します。トラック文脈の付加と PEG 失敗の解釈は呼び出し側の xref:compiler.adoc[`sxmml-compile-string!`] が担当します。
 
-`%make-mml-slots-parser` はモジュール内に呼び出し元がありません。
+共通コマンド層が送出する既知の `<sxmml-value-error>`（音長 0、分解能を超える付点、`L` や反復の規則違反など）は、公開パーサーの実行境界（`%make-parser-with-context`）で同じ本文の `<sxmml-mml-syntax-error>` へ変換します。
 
-== 共通構文と音符・音長のパーサー
+== 公開手続き
 
-この表と以降の表にある名前の書式は「そのパーサー値を PEG に渡す」です。単独の Scheme 引数は取りません。角括弧内に示す値は解析成功時の結果です。`$note` は `current-ticks` と `ticks-statistics` を更新し、音符または休符オブジェクトを返します。
+[[ref-mml-make-sxmml-mml-parser]]
+=== `(make-sxmml-mml-parser ctx)`
 
-[cols="2,5,3,1",options="header"]
-|===
-|パーサー |入力と結果 |状態・制約 |ソース
-|[[ref-mml-parser-space]]`$space` |空白の連続を読み捨てる |0 個でも一致 |link:../../sxmml/mml.scm[mml.scm]
-|[[ref-mml-parser-number]]`$number` |数字 1 個以上を rope として返す |符号は含まない |link:../../sxmml/mml.scm[mml.scm]
-|[[ref-mml-parser-integer]]`$integer` |任意の `+` / `-` と数字の列 |符号だけでは不一致 |link:../../sxmml/mml.scm[mml.scm]
-|[[ref-mml-parser-parameter]]`$parameter` |裸の数字または波括弧内の空白以外の列 |閉じ波括弧が必要 |link:../../sxmml/mml.scm[mml.scm]
-|[[ref-mml-parser-number-parameter]]`$number-parameter` |裸の数字または波括弧内の数字 |符号は不可 |link:../../sxmml/mml.scm[mml.scm]
-|[[ref-mml-parser-integer-parameter]]`$integer-parameter` |裸または波括弧内の符号付き整数 |数字が必要 |link:../../sxmml/mml.scm[mml.scm]
-|[[ref-mml-parser-multiple-parameters]]`$multiple-parameters` |波括弧内の一つ以上の非空白列 |閉じ波括弧が必要。通常・リズムのコマンド表には登録されていない |link:../../sxmml/mml.scm[mml.scm]
-|[[ref-mml-parser-note-name]]`$note-name` |`a`～`g`と直後の変化記号から確定音高、`r`から`#f`を返す |音符の番号計算は `%proc-note-number`。この段階ではIRを作らない |link:../../sxmml/mml.scm[mml.scm]
-|[[ref-mml-parser-note-length]]`$note-length` |分母と付点、または付点のみを tick に換算 |解像度で表せない付点はエラー |link:../../sxmml/mml.scm[mml.scm]
-|[[ref-mml-parser-optional-note-length]]`$optional-note-length` |分母・付点を省略可能にした音長 |省略時はコンテキストの既定音長を使う |link:../../sxmml/mml.scm[mml.scm]
-|[[ref-mml-parser-tick-length]]`$tick-length` |`%` の後の数字を tick 値にする |`$number` の値を `rope\->positive-number` で変換。ゼロ埋めした正の整数は受理し、値が 0 ならエラー。符号・小数・数字の省略は不可 |link:../../sxmml/mml.scm[mml.scm]
-|[[ref-mml-parser-duration]]`$duration` |基本音長に `&` で続く長さを足す |`$note`、リズム、ポルタメントが使用 |link:../../sxmml/mml.scm[mml.scm]
-|[[ref-mml-parser-note]]`$note` |音名と長さから `<sxmml-mml-note>` または `<sxmml-mml-rest>` |確定音高と音長を共通層へ渡し、IR生成とtick集計を行う |link:../../sxmml/mml.scm[mml.scm]
-|===
+通常 MML 用のトップレベルパーサーを返します。`%make-parser-with-context` で `$note-commands` にコンテキスト `ctx` を束縛し、`<sxmml-value-error>` を `<sxmml-mml-syntax-error>` へ変換する境界を設けます。
 
-== 通常 MML コマンドのパーサー
+[[ref-mml-make-sxmml-rhythm-parser]]
+=== `(make-sxmml-rhythm-parser ctx)`
 
-次の表の「結果」は、特記しない場合、指定したクラスのオブジェクトです。`$length`、`$octave`、`$octave-up`、`$octave-down`、`$transpose-env` は現在のコンテキストを変更して`#f`を返します。compilerはIR収集時に`#f`を除きます。その他の値指定は主に `value` slot に格納されます。文字列からの呼び出し書式は xref:../sxmml-mml-manual.adoc[利用者向け MML マニュアル]を参照してください。
+リズム MML 用のトップレベルパーサーを返します。`%make-parser-with-context` で `$rhythm-commands` にコンテキスト `ctx` を束縛し、`<sxmml-value-error>` を `<sxmml-mml-syntax-error>` へ変換する境界を設けます。
 
-[cols="2,5,3,1",options="header"]
-|===
-|パーサー |役割・結果 |状態・制約 |ソース
-|[[ref-mml-parser-length]]`$length` |既定音長を設定 |`default-length` を更新 |link:../../sxmml/mml.scm[mml.scm]
-|[[ref-mml-parser-octave]]`$octave` |オクターブを設定 |`current-octave` を更新 |link:../../sxmml/mml.scm[mml.scm]
-|[[ref-mml-parser-octave-up]]`$octave-up` |オクターブを 1 増やす |`current-octave` を更新 |link:../../sxmml/mml.scm[mml.scm]
-|[[ref-mml-parser-octave-down]]`$octave-down` |オクターブを 1 減らす |`current-octave` を更新 |link:../../sxmml/mml.scm[mml.scm]
-|[[ref-mml-parser-volume]]`$volume` |`<sxmml-mml-volume>` を作る |符号なし音量 |link:../../sxmml/mml.scm[mml.scm]
-|[[ref-mml-parser-volume-change]]`$volume-change` |`<sxmml-mml-volume-change>` を作る |符号付きの差分を受ける |link:../../sxmml/mml.scm[mml.scm]
-|[[ref-mml-parser-volume-command]]`$volume-command` |絶対値または `*` に続く差分を選ぶ |文字列の `v` に対応 |link:../../sxmml/mml.scm[mml.scm]
-|[[ref-mml-parser-volume-up]]`$volume-up` |`volume-delta` を値にした差分オブジェクト |解析コンテキストの変化幅を参照 |link:../../sxmml/mml.scm[mml.scm]
-|[[ref-mml-parser-volume-down]]`$volume-down` |負の `volume-delta` を値にした差分オブジェクト |解析コンテキストの変化幅を参照 |link:../../sxmml/mml.scm[mml.scm]
-|[[ref-mml-parser-pan]]`$pan` |`<sxmml-mml-pan>` を作る |符号なし値 |link:../../sxmml/mml.scm[mml.scm]
-|[[ref-mml-parser-gate-time]]`$gate-time` |`<sxmml-mml-gate-time>` を作る |符号なし値 |link:../../sxmml/mml.scm[mml.scm]
-|[[ref-mml-parser-tie]]`$tie` |`<sxmml-mml-tie>` を作る |値なし |link:../../sxmml/mml.scm[mml.scm]
-|[[ref-mml-parser-transpose]]`$transpose` |`<sxmml-mml-transpose>` を作る |符号付き値 |link:../../sxmml/mml.scm[mml.scm]
-|[[ref-mml-parser-transpose-env]]`$transpose-env` |現在の移調値を更新 |`current-transpose` を変更 |link:../../sxmml/mml.scm[mml.scm]
-|[[ref-mml-parser-transpose-change]]`$transpose-change` |`<sxmml-mml-transpose-change>` を作る |符号付き差分 |link:../../sxmml/mml.scm[mml.scm]
-|[[ref-mml-parser-transpose-command]]`$transpose-command` |通常値、`$` に続く環境変更、`*` に続く差分を選ぶ |文字列の `K` に対応 |link:../../sxmml/mml.scm[mml.scm]
-|[[ref-mml-parser-tempo]]`$tempo` |`<sxmml-mml-tempo>` を作る |符号なし値 |link:../../sxmml/mml.scm[mml.scm]
-|[[ref-mml-parser-tempo-absolute]]`$tempo-absolute` |`<sxmml-mml-tempo-absolute>` を作る |符号なし値 |link:../../sxmml/mml.scm[mml.scm]
-|[[ref-mml-parser-detune]]`$detune` |`<sxmml-mml-detune>` を作る |符号付き値 |link:../../sxmml/mml.scm[mml.scm]
-|[[ref-mml-parser-loop]]`$loop` |`<sxmml-mml-loop>` を作る |反復 stack が空でなければ `loop command cannot be used inside repeats`、`loop-exists` が真なら `loop command can be used only once in a track` エラー。検査後に `loop-exists` とループまでの tick を更新する。通常・リズム共通でトラックごとに状態を保持し、登録をまたぐ2個目も拒否する |link:../../sxmml/mml.scm[mml.scm]
-|[[ref-mml-parser-repeat-start]]`$repeat-start` |`<sxmml-mml-repeat-start>` を作る |反復 stack と tick stack に開始状態を積む |link:../../sxmml/mml.scm[mml.scm]
-|[[ref-mml-parser-repeat-break]]`$repeat-break` |`<sxmml-mml-repeat-break>` を作る |反復 stack の終了時復元値を記録。反復の外なら `break command cannot be used outside of repeats`、同じ反復の 2 個目以降なら `break command can be used only once in a repeat` エラー |link:../../sxmml/mml.scm[mml.scm]
-|[[ref-mml-parser-repeat-end]]`$repeat-end` |正の正確な整数の回数を値にした `<sxmml-mml-repeat-end>` を作る |開始前なら `repeat end appeared before repeat start`、回数0なら `invalid repeat count:` と値を示して失敗。検査の後に stack を取り出し累計 tick を更新。脱出のある反復では、既定音長・オクターブ・移調値を脱出位置の設定へ戻す |link:../../sxmml/mml.scm[mml.scm]
-|[[ref-mml-parser-voice]]`$voice` |`<sxmml-mml-voice>` を作る |値を symbol 化 |link:../../sxmml/mml.scm[mml.scm]
-|[[ref-mml-parser-envelope]]`$envelope` |`<sxmml-mml-envelope>` を作る |値を symbol 化 |link:../../sxmml/mml.scm[mml.scm]
-|[[ref-mml-parser-lfo-set]]`$lfo-set` |`<sxmml-mml-lfo>` を作る |識別子と任意の channel を symbol 化 |link:../../sxmml/mml.scm[mml.scm]
-|[[ref-mml-parser-lfo-switch]]`$lfo-switch` |`t` で有効、`f` で無効を表す `<sxmml-mml-lfo-switch>` を作る |直後のチャンネルは省略可能 |link:../../sxmml/mml.scm[mml.scm]
-|[[ref-mml-parser-lfo-command]]`$lfo-command` |LFO の設定またはスイッチを読む |`M` に続く入力に対して `$lfo-set`、`$lfo-switch` の順に試す |link:../../sxmml/mml.scm[mml.scm]
-|[[ref-mml-parser-portamento]]`$portamento` |開始・終了音と長さを持つ `<sxmml-mml-portamento>` を作る |解析時に tick 累計と統計を更新 |link:../../sxmml/mml.scm[mml.scm]
-|[[ref-mml-parser-noise-frequency]]`$noise-frequency` |`<sxmml-mml-noise-frequency>` を作る |符号なし値 |link:../../sxmml/mml.scm[mml.scm]
-|[[ref-mml-parser-output-switch]]`$output-switch` |`<sxmml-mml-output-switch>` を作る |符号なし値 |link:../../sxmml/mml.scm[mml.scm]
-|[[ref-mml-parser-note-commands]]`$note-commands` |空白、音符、または登録済み通常コマンドを読む |未登録文字を含む理由を `$raise` で通知 |link:../../sxmml/mml.scm[mml.scm]
-|===
+== 解析コンテキストと構築補助（非公開）
 
-== リズム MML コマンドのパーサー
+[[ref-mml-sxmml-mml-context]]`(sxmml-mml-context [ctx])`::
+現在の `<sxmml-mml-context>` を保持するパラメータです。初期値は新規の `<sxmml-mml-context>` です。引数なしで現在値を返し、`ctx` を渡すと現在値を変更して旧値を返します。
 
-リズム楽器文字は `b/s/t/c/h/i` です。楽器の指定値は対象クラスの同名 slot へ入ります。`$rhythm-on` と `$rhythm-rest` は長さを tick 累計と統計に加えます。通常 MML の `$loop`、反復の三パーサー、`$length` もリズムコマンド表へ登録されています。
+[[ref-mml-rope-to-number]]`(rope\->number rope)`::
+PEG の rope を文字列化して `string\->number` を適用します。数値として解釈できない rope は `#f` になります。
 
-[cols="2,5,3,1",options="header"]
-|===
-|パーサー |役割・結果 |状態・制約 |ソース
-|[[ref-mml-parser-rhythm-type]]`$rhythm-type` |楽器文字 1 個以上。波括弧の有無を選べる |`b/s/t/c/h/i` のみ |link:../../sxmml/mml.scm[mml.scm]
-|[[ref-mml-parser-rhythm-on]]`$rhythm-on` |発音する `<sxmml-rhythm-emit>` を作る |`value` が `#t`。tick 累計・統計を更新 |link:../../sxmml/mml.scm[mml.scm]
-|[[ref-mml-parser-rhythm-off]]`$rhythm-off` |停止する `<sxmml-rhythm-emit>` を作る |`value` が `#f`。長さは設定しない |link:../../sxmml/mml.scm[mml.scm]
-|[[ref-mml-parser-rhythm-rest]]`$rhythm-rest` |`<sxmml-mml-rest>` を作る |共通層で`value`を`#f`とし、tick累計・統計を更新 |link:../../sxmml/mml.scm[mml.scm]
-|[[ref-mml-parser-rhythm-volume]]`$rhythm-volume` |全体値の `<sxmml-rhythm-volume>` を作る |`value` に数字を格納 |link:../../sxmml/mml.scm[mml.scm]
-|[[ref-mml-parser-rhythm-instrument-volume]]`$rhythm-instrument-volume` |楽器ごとの `<sxmml-rhythm-volume>` を作る |楽器 slot に値を格納 |link:../../sxmml/mml.scm[mml.scm]
-|[[ref-mml-parser-rhythm-instrument-volume-up]]`$rhythm-instrument-volume-up` |楽器ごとの `<sxmml-rhythm-volume-change>` を作る |符号付き整数をそのまま格納 |link:../../sxmml/mml.scm[mml.scm]
-|[[ref-mml-parser-rhythm-instrument-volume-down]]`$rhythm-instrument-volume-down` |楽器ごとの `<sxmml-rhythm-volume-change>` を作る |符号付き整数の符号を反転して格納 |link:../../sxmml/mml.scm[mml.scm]
-|[[ref-mml-parser-rhythm-pan]]`$rhythm-pan` |楽器ごとの `<sxmml-rhythm-pan>` を作る |楽器 slot に値を格納 |link:../../sxmml/mml.scm[mml.scm]
-|[[ref-mml-parser-rhythm-commands]]`$rhythm-commands` |空白の後に登録済みリズムコマンドを読む |未登録文字を含む理由を `$raise` で通知 |link:../../sxmml/mml.scm[mml.scm]
-|===
+[[ref-mml-rope-to-positive-number]]`(rope\->positive-number rope :optional (message "invalid tick length: ~s (expected a positive exact integer)"))`::
+`rope\->number` の結果が正の正確な整数（`exact-integer?` かつ `positive?`）であることを検査して返します。違反時は `message` と値を本文とする `<sxmml-mml-syntax-error>` を送出します。tick 指定（`%`）の解析で使用します。先頭の 0 は数値に影響しません。
 
-== 共通処理との分担
+[[ref-mml-rope-to-symbol]]`(rope\->symbol rope)`::
+PEG の rope を文字列経由でシンボルへ変換して返します。
 
-文脈の更新・音高と音長の計算・IR生成と集計はxref:command.adoc[`sxmml.command`]へ委ねます。PEGの入力と失敗情報はこのモジュールに残し、ポルタメントの始点音高は後続のオクターブ変更より前に確定します。音長計算例はxref:command.adoc#_音長計算例[共通層の例]を参照してください。
+[[ref-mml-change-sign]]`(change-sign number)`::
+`(* number -1)` を返します。状態は変更しません。
+
+[[ref-mml-internal-parser-return]]`(%$return expr ...)`::
+非公開マクロです。入力を消費せず、パーサー実行時に `expr ...` を評価して成功値として返す PEG パーサーへ展開します。
+
+[[ref-mml-registered-command]]`($registered-command table)`::
+任意の 1 文字と直後の空白を読み、ハッシュ表 `table` に登録されたパーサーで残りの入力を解析するパーサーを返します。未登録文字は `unknown MML command: "<文字>"` で `$raise` します。
+
+[[ref-mml-internal-braced-parameter]]`($braced-parameter parser)`::
+開き波括弧 `{` と直後の空白、閉じ波括弧 `}` と直前の空白を読み捨て、内部を `parser` で解析するパーサーを返します。
+
+[[ref-mml-internal-make-mml-value-parser]]`(%make-mml-value-parser param class proc)`::
+`param` と直後の空白を読み、結果に `proc` を適用した値を `:value` として `class` のインスタンスを返すパーサーを作ります。
+
+[[ref-mml-internal-make-mml-command-parser]]`(%make-mml-command-parser class)`::
+引数を取らずに `class` のインスタンスを返すパーサーを作ります。
+
+[[ref-mml-internal-make-mml-slots-parser]]`(%make-mml-slots-parser param class proc slots)`::
+複数値を読み、各値へ `proc` を適用して `slots` の順に初期化引数へ並べて `class` のインスタンスを作るパーサーを返します。モジュール内に呼び出し元はありません。
+
+[[ref-mml-internal-make-mml-context-value-parser]]`(%make-mml-context-value-parser param command proc)`::
+`param` と直後の空白を読み、`(command (sxmml-mml-context) (proc data))` を実行してその戻り値を返すパーサーを作ります。
+
+[[ref-mml-internal-make-parser-with-context]]`(%make-parser-with-context parser ctx)`::
+`sxmml-mml-context` を `ctx` に束縛して `parser` を実行し、送出された `<sxmml-value-error>` を同じ本文の `<sxmml-mml-syntax-error>` へ変換するパーサーを返します。未知の Gauche 例外はそのまま通します。
+
+[[ref-mml-internal-proc-note-number]]`(%proc-note-number name accidentals)`::
+音名文字 `name`（`a`～`g`）と `+` / `-` 文字のリスト `accidentals` から半音番号と変化量を求め、`sxmml-command-note-pitch` で現在のオクターブと移調値を加えた音高を返します。
+
+[[ref-mml-dot-count]]`($dot-count required?)`::
+連続する `.` の個数を数えて返し、後続文字を消費せず残すパーサーを作ります。付点がない場合、`required?` が真なら解析失敗、偽なら `0` を返します。
+
+[[ref-mml-internal-make-note-length-parser]]`(%make-note-length-parser $number $dots)`::
+分母パーサー `$number`、空白、付点数パーサー `$dots` を順に読み、現在の文脈と `sxmml-resolution-get` を `sxmml-command-note-length\->ticks` へ渡すパーサーを作ります。
+
+[[ref-mml-internal-make-rhythm-command-parser]]`(%make-rhythm-command-parser param class proc)`::
+楽器指定 `$rhythm-type` と値 `param` を読み、`%rhythm-types\->initargs` で楽器スロットへ `(proc data)` を割り当てた `class` のインスタンスを返すパーサーを作ります。
+
+[[ref-mml-internal-rhythm-type-to-symbol]]`(%rhythm-type\->symbol type)`::
+リズム楽器文字 `b`・`s`・`t`・`c`・`h`・`i` をそれぞれ `bass`・`snare`・`tom`・`cymbal`・`hihat`・`rimshot` のシンボルへ変換します。
+
+[[ref-mml-internal-rhythm-types-to-initargs]]`(%rhythm-types\->initargs types val)`::
+楽器文字のリスト `types` を、`:bass`・`:snare` などの初期化キーワードと値 `val` の交互リストへ変換します。
+
+== 共通構文と音符・音長のパーサー（非公開）
+
+この節と以降の節の各項目は `parser.peg` のパーサー値であり、単独の Scheme 引数は取りません。
+
+[[ref-mml-parser-space]]`$space`::
+0 文字以上の空白を読み捨てます。
+
+[[ref-mml-parser-number]]`$number`::
+符号なしの数字 1 文字以上を読み、rope として返します。
+
+[[ref-mml-parser-integer]]`$integer`::
+任意の `+` / `-` に続く数字 1 文字以上を読みます。符号だけでは一致しません。
+
+[[ref-mml-parser-parameter]]`$parameter`::
+裸の数字（`$number`）または波括弧内の非空白・非波括弧文字列を読みます。
+
+[[ref-mml-parser-number-parameter]]`$number-parameter`::
+裸の数字または波括弧内の数字を読みます（符号不可）。
+
+[[ref-mml-parser-integer-parameter]]`$integer-parameter`::
+裸または波括弧内の符号付き整数を読みます。
+
+[[ref-mml-parser-multiple-parameters]]`$multiple-parameters`::
+波括弧内の 1 個以上の非空白・非波括弧トークンを読みます。通常・リズムの命令表には登録されていません。
+
+[[ref-mml-parser-note-name]]`$note-name`::
+`a`～`g` と変化記号から `%proc-note-number` で確定した音高、`r` の場合は `#f` を返します。IR はまだ生成しません。
+
+[[ref-mml-parser-note-length]]`$note-length`::
+分母と任意の付点、または付点のみの音長指定を tick 数へ換算します。解像度で表せない付点はエラーになります。
+
+[[ref-mml-parser-optional-note-length]]`$optional-note-length`::
+分母・付点を省略可能にした音長パーサーです。分母省略時は現在のコンテキストの `default-length` を使います。
+
+[[ref-mml-parser-tick-length]]`$tick-length`::
+`%` に続く数字を `rope\->positive-number` で正の正確な整数 tick 値へ変換します。ゼロ埋めした正整数は受理し、`0` や符号・小数は不可です。
+
+[[ref-mml-parser-duration]]`$duration`::
+基本音長（`$tick-length` または `$optional-note-length`）に、`&` で連結された追加音長（`$tick-length` または `$note-length`）をすべて加算した tick 数を返します。`$note`・`$rhythm-on`・`$rhythm-rest`・`$portamento` が使用します。
+
+[[ref-mml-parser-note]]`$note`::
+`$note-name` と `$duration` を読み、音高が真なら `sxmml-command-note!` で `<sxmml-mml-note>`、休符（`#f`）なら `sxmml-command-rest!` で `<sxmml-mml-rest>` を返します。同時に `current-ticks` と `ticks-statistics` を更新します。
+
+== 通常 MML コマンドのパーサー（非公開）
+
+`$length`・`$octave`・`$octave-up`・`$octave-down`・`$transpose-env` は現在のコンテキストを更新して `#f` を返します（`sxmml.compiler` は IR 収集時に `#f` を除きます）。その他のコマンドは対応する IR オブジェクトを返します。
+
+[[ref-mml-parser-length]]`$length`::
+`l` コマンド（通常・リズム共通）。`sxmml-command-default-length-set!` で `default-length` を更新します。
+
+[[ref-mml-parser-octave]]`$octave`::
+`o` コマンド。`sxmml-command-octave-set!` で `current-octave` を更新します。
+
+[[ref-mml-parser-octave-up]]`$octave-up`::
+`>` コマンド。`sxmml-command-octave-shift!` で `current-octave` を 1 増やします。
+
+[[ref-mml-parser-octave-down]]`$octave-down`::
+`<` コマンド。`sxmml-command-octave-shift!` で `current-octave` を 1 減らします。
+
+[[ref-mml-parser-volume]]`$volume`::
+符号なし音量から `<sxmml-mml-volume>` を作ります。
+
+[[ref-mml-parser-volume-change]]`$volume-change`::
+符号付き差分値から `<sxmml-mml-volume-change>` を作ります。
+
+[[ref-mml-parser-volume-command]]`$volume-command`::
+`v` コマンド。`$volume`、または `*` に続く `$volume-change` を解析します。
+
+[[ref-mml-parser-volume-up]]`$volume-up`::
+`)` コマンド。`sxmml-command-volume-up` で `volume-delta` 分の `<sxmml-mml-volume-change>` を返します。
+
+[[ref-mml-parser-volume-down]]`$volume-down`::
+`(` コマンド。`sxmml-command-volume-down` で負の `volume-delta` 分の `<sxmml-mml-volume-change>` を返します。
+
+[[ref-mml-parser-pan]]`$pan`::
+`p` コマンド。符号なし値から `<sxmml-mml-pan>` を作ります。
+
+[[ref-mml-parser-gate-time]]`$gate-time`::
+`q` コマンド。符号なし値から `<sxmml-mml-gate-time>` を作ります。
+
+[[ref-mml-parser-tie]]`$tie`::
+`&` コマンド。値なしの `<sxmml-mml-tie>` を作ります。
+
+[[ref-mml-parser-transpose]]`$transpose`::
+符号付き値から `<sxmml-mml-transpose>` を作ります。
+
+[[ref-mml-parser-transpose-env]]`$transpose-env`::
+`sxmml-command-note-transpose-set!` で `current-transpose` を更新します。
+
+[[ref-mml-parser-transpose-change]]`$transpose-change`::
+符号付き差分値から `<sxmml-mml-transpose-change>` を作ります。
+
+[[ref-mml-parser-transpose-command]]`$transpose-command`::
+`K` コマンド。`$transpose`、`$` に続く `$transpose-env`、`*` に続く `$transpose-change` のいずれかを解析します。
+
+[[ref-mml-parser-tempo]]`$tempo`::
+`t` コマンド。符号なし値から `<sxmml-mml-tempo>` を作ります。
+
+[[ref-mml-parser-tempo-absolute]]`$tempo-absolute`::
+`T` コマンド。符号なし値から `<sxmml-mml-tempo-absolute>` を作ります。
+
+[[ref-mml-parser-detune]]`$detune`::
+`D` コマンド。符号付き値から `<sxmml-mml-detune>` を作ります。
+
+[[ref-mml-parser-loop]]`$loop`::
+`L` コマンド（通常・リズム共通）。`sxmml-command-loop!` を呼び `<sxmml-mml-loop>` を返します。反復内での使用や同一トラック内での重複（登録をまたぐ 2 個目を含む）は `<sxmml-mml-syntax-error>` になります。
+
+[[ref-mml-parser-repeat-start]]`$repeat-start`::
+`[` コマンド（通常・リズム共通）。`sxmml-command-repeat-start!` で反復スタックと tick スタックを積み、`<sxmml-mml-repeat-start>` を返します。
+
+[[ref-mml-parser-repeat-break]]`$repeat-break`::
+`:` コマンド（通常・リズム共通）。`sxmml-command-repeat-break!` で脱出位置の tick と設定を記録し、`<sxmml-mml-repeat-break>` を返します。反復外や同一反復内の 2 個目以降は `<sxmml-mml-syntax-error>` になります。
+
+[[ref-mml-parser-repeat-end]]`$repeat-end`::
+`]` コマンド（通常・リズム共通）。回数を読んで `sxmml-command-repeat-end!` を呼び、`<sxmml-mml-repeat-end>` を返します。開始前の出現や正の正確な整数以外の回数は `<sxmml-mml-syntax-error>` になります。
+
+[[ref-mml-parser-voice]]`$voice`::
+`@` コマンド。`$parameter` をシンボル化して `<sxmml-mml-voice>` を作ります。
+
+[[ref-mml-parser-envelope]]`$envelope`::
+`E` コマンド。`$parameter` をシンボル化して `<sxmml-mml-envelope>` を作ります。
+
+[[ref-mml-parser-lfo-set]]`$lfo-set`::
+`{ id ch }` 形式（空白区切り 2 トークンをシンボル化）または裸の数字（`$number` をシンボル化、`channel` は `#f`）から `<sxmml-mml-lfo>` を作ります。
+
+[[ref-mml-parser-lfo-switch]]`$lfo-switch`::
+`t`（`#t`）または `f`（`#f`）と省略可能なチャンネル引数（`$parameter`）から `<sxmml-mml-lfo-switch>` を作ります。
+
+[[ref-mml-parser-lfo-command]]`$lfo-command`::
+`M` コマンド。`$lfo-set`、`$lfo-switch` の順に試行します。
+
+[[ref-mml-parser-portamento-pitch]]`$portamento-pitch`::
+ポルタメント内の 1 音分の音高パーサーです。0 回以上のオクターブ操作（`o`・`>`・`<`）で現在のコンテキストを更新した後に音名 `a`～`g` と変化記号を読み、`%proc-note-number` で確定音高を返します。
+
+[[ref-mml-parser-portamento]]`$portamento`::
+`/` コマンド。`{` に続く始点・終点の 2 つの `$portamento-pitch` と `}`、さらに `$duration` を読み、`sxmml-command-portamento!` で `<sxmml-mml-portamento>` を返します。始点音高は終点前のオクターブ操作より先に確定し、解析時に tick 累計と統計を更新します。
+
+[[ref-mml-parser-noise-frequency]]`$noise-frequency`::
+`w` コマンド。符号なし値から `<sxmml-mml-noise-frequency>` を作ります。
+
+[[ref-mml-parser-output-switch]]`$output-switch`::
+`P` コマンド。符号なし値から `<sxmml-mml-output-switch>` を作ります。
+
+[[ref-mml-parser-note-commands]]`$note-commands`::
+通常 MML の 1 コマンド分のパーサーです。先行空白を読み捨てた後、`$note` または `+($registered-command *note-command*)+` を適用します。
+
+== リズム MML コマンドのパーサー（非公開）
+
+リズム楽器文字は `b`・`s`・`t`・`c`・`h`・`i` の 6 種です。通常 MML と共通の `$loop`（`L`）・`$repeat-start`（`[`）・`$repeat-break`（`:`）・`$repeat-end`（`]`）・`$length`（`l`）も `+*rhythm-command*+` に登録されています。
+
+[[ref-mml-parser-rhythm-type]]`$rhythm-type`::
+`b`・`s`・`t`・`c`・`h`・`i` の 1 文字以上（波括弧あり・なし両対応）を読みます。
+
+[[ref-mml-parser-rhythm-on]]`$rhythm-on`::
+`@` コマンド。`$rhythm-type` と `$duration` を読み、`sxmml-command-rhythm-on!` で `value` が `#t` の `<sxmml-rhythm-emit>` を返します。tick 累計と統計を更新します。
+
+[[ref-mml-parser-rhythm-off]]`$rhythm-off`::
+`!` コマンド。`$rhythm-type` を読み、`value` が `#f`、指定楽器スロットが `#t` の `<sxmml-rhythm-emit>` を作ります。`ticks` は設定せず、tick 累計・統計は更新しません。
+
+[[ref-mml-parser-rhythm-rest]]`$rhythm-rest`::
+`r` コマンド。`$duration` を読み、`sxmml-command-rest!` で `value` が `#f` の `<sxmml-mml-rest>` を返します。tick 累計と統計を更新します。
+
+[[ref-mml-parser-rhythm-volume]]`$rhythm-volume`::
+`V` コマンド。裸の数字（`$number`）を `value` とする `<sxmml-rhythm-volume>` を作ります。
+
+[[ref-mml-parser-rhythm-instrument-volume]]`$rhythm-instrument-volume`::
+`v` コマンド。楽器ごとの音量（`$number`）を各楽器スロットへ設定した `<sxmml-rhythm-volume>` を作ります。
+
+[[ref-mml-parser-rhythm-instrument-volume-up]]`$rhythm-instrument-volume-up`::
+`)` コマンド。楽器ごとの符号付き整数（`$integer`）をそのまま各楽器スロットへ設定した `<sxmml-rhythm-volume-change>` を作ります。
+
+[[ref-mml-parser-rhythm-instrument-volume-down]]`$rhythm-instrument-volume-down`::
+`(` コマンド。楽器ごとの符号付き整数（`$integer`）の符号を反転して各楽器スロットへ設定した `<sxmml-rhythm-volume-change>` を作ります。
+
+[[ref-mml-parser-rhythm-pan]]`$rhythm-pan`::
+`p` コマンド。楽器ごとのパン値（`$number`）を各楽器スロットへ設定した `<sxmml-rhythm-pan>` を作ります。
+
+[[ref-mml-parser-rhythm-commands]]`$rhythm-commands`::
+リズム MML の 1 コマンド分のパーサーです。先行空白を読み捨てた後、`+($registered-command *rhythm-command*)+` を適用します。
