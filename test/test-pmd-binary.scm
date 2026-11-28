@@ -444,6 +444,22 @@
                     ((define-lfo L1 (list 1 2 -3 4)) (mml A "M{L1 A}Mto4c8M{L1 B}Mt{B}c8Mfc8Mf{B}c8")) A
                     ;; チャンネル A は f2・f1、B は bf・be。
                     "f2 01 02 fd 04 f1 01 30 0c bf 01 02 fd 04 be 01 30 0c f1 00 30 0c be 00 30 0c 80")
+                   ;; 次の2件は、同じ MML（MD3,6MD1,2,4 / MDB3,6MDB1,2,4）の MC.EXE の生成物と命令列を照合した (#217)
+                   ("LFO evolution（MD 2値・3値）" "lfo-evolution-a"
+                    ((define-lfo EV2 evolution (list 3 6)) (define-lfo EV3 evolution (list 1 2 4))
+                     (mml A "M{EV2 A}M{EV3 A}o4c8")) A
+                    "d6 03 06 d6 01 02 b7 04 30 0c 80")
+                   ("LFO evolution（MDB 2値・3値）" "lfo-evolution-b"
+                    ((define-lfo EV2 evolution (list 3 6)) (define-lfo EV3 evolution (list 1 2 4))
+                     (mml A "M{EV2 B}M{EV3 B}o4c8")) A
+                    "bd 03 06 bd 01 02 b7 84 30 0c 80")
+                   ("LFO evolution（1値の補完・チャンネル省略・負の値2・明示された値3の0）" "lfo-evolution-edge"
+                    ((define-lfo 1 evolution (list 3))
+                     (define-lfo EV0 evolution (list 0))
+                     (define-lfo EVN evolution (list 2 -128 0))
+                     (define-lfo EVB evolution (list 2 -1 0))
+                     (mml A "M1M{EV0 A}M{EV0 B}M{EVN A}M{EVB B}o4c8")) A
+                    "d6 03 00 d6 00 00 bd 00 00 d6 02 80 b7 00 bd 02 ff b7 80 30 0c 80")
                    ("4 値と 6 値のエンベロープ" "envelope"
                     ((define-envelope E4 (list 1 -2 3 4)) (define-envelope E6 (list 1 2 3 4 5 6))
                      (mml G "E{E4}o4c8E{E6}c8")) G
@@ -650,16 +666,28 @@
                           'generated))])
           (dolist [case `(("lfo-type" pmd-binary
                            ((define-lfo L1 sw (list 1 2 3 4)) (mml A "M{L1 A}c8"))
-                           "unsupported LFO type: sw in L1 (supported: default, triangle)")
+                           "unsupported LFO type: sw in L1 (supported: default, triangle, evolution)")
                           ("envelope-count" pmd-binary
                            ((define-envelope E1 (list 1 2 3)) (mml G "E{E1}c8"))
                            "invalid envelope values: E1 has 3 values (expected 4, 5 or 6)")
                           ("lfo-inexact" pmd-binary
                            ((define-lfo L1 (list 1 1.5 3 4)) (mml A "M{L1 A}c8"))
                            "invalid LFO L1 value 2: 1.5 (expected an integer from 0 to 255)")
+                          ("evolution-zero-speed-3" pmd-binary
+                           ((define-lfo EV0 evolution (list 0 0 1)) (mml A "M{EV0 A}c8"))
+                           "invalid LFO EV0: 3 values are not allowed when value 1 is 0")
                           ("pmd3-lfo-b" pmd3-binary
                            ((define-lfo L1 (list 1 2 3 4)) (mml A "M{L1 B}c8"))
                            "invalid LFO channel: B")
+                          ("pmd3-evolution-b" pmd3-binary
+                           ((define-lfo EV2 evolution (list 3 6)) (mml A "M{EV2 B}c8"))
+                           "invalid LFO channel: B")
+                          ("pmd3-evolution-3" pmd3-binary
+                           ((define-lfo EV3 evolution (list 1 2 4)) (mml A "M{EV3 A}c8"))
+                           "unsupported evolution LFO values in PMD3: EV3 has 3 values (expected 1 or 2)")
+                          ("pmd3-evolution-0-3" pmd3-binary
+                           ((define-lfo EV0 evolution (list 0 0 1)) (mml A "M{EV0 A}c8"))
+                           "unsupported evolution LFO values in PMD3: EV0 has 3 values (expected 1 or 2)")
                           ("pmd3-lfo-switch-b" pmd3-binary
                            ((mml A "Mt{B}c8"))
                            "invalid LFO channel: B")
@@ -669,6 +697,24 @@
             (test* #"pmd-binary の LFO・エンベロープの検査: ~(car case)"
                    (cadddr case)
                    (caught #"check-~(car case)" (cadr case) (caddr case))))
+          (test* "pmd3-binary で 1値・2値の evolution（チャンネル省略・A）を出力できる"
+                 "d6 00 00 d6 03 06 30 0c 80"
+                 (section-hex (make-binary-data "pmd3-evolution-ok" 'pmd3-binary
+                                                '((define-lfo 1 evolution (list 0))
+                                                  (define-lfo EV2 evolution (list 3 6))
+                                                  (mml A "M1M{EV2 A}o4c8")))
+                              'A))
+          (dolist [case '((#t "f2 01 02 03 04 d6 01 02 b7 04 d6 03 06 30 0c d6 03 06 f2 01 02 03 04 32 0c 80")
+                          (:full "f2 01 02 03 04 d6 01 02 b7 04 d6 03 06 30 0c d6 03 06 32 0c 80"))]
+            (test* #"pmd-binary の最適化でも M と evolution を保持する (~(car case))"
+                   (cadr case)
+                   (section-hex (make-binary-data #"opt-evolution-~(car case)" 'pmd-binary
+                                                  '((define-lfo L1 (list 1 2 3 4))
+                                                    (define-lfo EV3 evolution (list 1 2 4))
+                                                    (define-lfo EV2 evolution (list 3 6))
+                                                    (mml A "M{L1 A}M{EV3 A}M{EV2 A}o4c8M{EV2 A}M{L1 A}d8"))
+                                                  (car case))
+                                'A)))
 
           (test* "pmd-binary の LFO の triangle は default と同じバイト内容になる"
                  (section-hex (make-binary-data "lfo-default" 'pmd-binary

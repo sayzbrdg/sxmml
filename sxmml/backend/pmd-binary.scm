@@ -234,7 +234,7 @@
            (values (%pmd-transpose-set! u8vec track-offset obj) loop-seen? repeat-stack)]
           [(is-a? obj <sxmml-mml-lfo-switch>)
            (values (%pmd-lfo-switch-set! work u8vec track-offset obj) loop-seen? repeat-stack)]
-          [(is-a? obj <sxmml-mml-lfo>)
+          [(or (is-a? obj <sxmml-mml-lfo>) (is-a? obj <sxmml-pmd-lfo-evolution>))
            (values (%pmd-lfo-set! work u8vec track-offset obj) loop-seen? repeat-stack)]
           [(is-a? obj <sxmml-mml-envelope>)
            (values (%pmd-envelope-set! work u8vec track-offset obj) loop-seen? repeat-stack)]
@@ -545,12 +545,34 @@
                 (and (eq? (slot-ref work 'mode) 'fc88) (eq? channel 'B)))
         (errorf <sxmml-value-error> "invalid LFO channel: ~a" channel))
       (let1 value (sxmml-pmd-lfo-values lfo)
-        (u8vector-set! u8vec offset (if (or (eq? channel #f) (eq? channel 'A)) #xf2 #xbf))
-        (u8vector-set! u8vec (+ offset 1) (car value))
-        (u8vector-set! u8vec (+ offset 2) (cadr value))
-        (u8vector-set! u8vec (+ offset 3) (logand (caddr value) #xff))
-        (u8vector-set! u8vec (+ offset 4) (cadddr value))
-        (+ offset 5)))))
+        (if (eq? (slot-ref lfo 'type) 'evolution)
+          (let ([b? (eq? channel 'B)]
+                [three? (= (length value) 3)])
+            (when three?
+              (when (eq? (slot-ref work 'mode) 'fc88)
+                (errorf <sxmml-value-error>
+                        "unsupported evolution LFO values in PMD3: ~a has ~a values (expected 1 or 2)"
+                        (slot-ref lfo 'id) (length value)))
+              (when (zero? (car value))
+                (errorf <sxmml-value-error>
+                        "invalid LFO ~a: 3 values are not allowed when value 1 is 0"
+                        (slot-ref lfo 'id))))
+            (u8vector-set! u8vec offset (if b? #xbd #xd6))
+            (u8vector-set! u8vec (+ offset 1) (car value))
+            (u8vector-set! u8vec (+ offset 2) (logand (cadr value) #xff))
+            (if three?
+              (begin
+                (u8vector-set! u8vec (+ offset 3) #xb7)
+                (u8vector-set! u8vec (+ offset 4) (if b? (logior (caddr value) #x80) (caddr value)))
+                (+ offset 5))
+              (+ offset 3)))
+          (begin
+            (u8vector-set! u8vec offset (if (or (eq? channel #f) (eq? channel 'A)) #xf2 #xbf))
+            (u8vector-set! u8vec (+ offset 1) (car value))
+            (u8vector-set! u8vec (+ offset 2) (cadr value))
+            (u8vector-set! u8vec (+ offset 3) (logand (caddr value) #xff))
+            (u8vector-set! u8vec (+ offset 4) (cadddr value))
+            (+ offset 5)))))))
 
 (define (%pmd-lfo-switch-set! work u8vec offset obj)
   (let ([channel (slot-ref obj 'channel)]

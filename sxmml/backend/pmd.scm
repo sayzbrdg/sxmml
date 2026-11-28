@@ -34,8 +34,8 @@
   (use sxmml.classes)
   (use sxmml.environment)
   (use sxmml.optimizer)
-  (export sxmml-pmd-ppz-parts sxmml-pmd-for-each-track-ir sxmml-pmd-output-tracks-select sxmml-pmd-pcm-voice-number sxmml-pmd-setup! sxmml-pmd-ir-optimize
-          <sxmml-pmd-fm-voices> sxmml-pmd-fm-voice-number! sxmml-pmd-for-each-fm-voice
+  (export sxmml-pmd-ppz-parts sxmml-pmd-for-each-track-ir sxmml-pmd-output-tracks-select sxmml-pmd-pcm-voice-number sxmml-pmd-setup! sxmml-pmd-ir-prepare sxmml-pmd-ir-optimize
+          <sxmml-pmd-fm-voices> <sxmml-pmd-lfo-evolution> sxmml-pmd-fm-voice-number! sxmml-pmd-for-each-fm-voice
           sxmml-pmd-extended-settings sxmml-pmd-metadata-value sxmml-pmd-lfo-values sxmml-pmd-envelope-values
           sxmml-pmd-check-obsolete-metadata))
 (select-module sxmml.backend.pmd)
@@ -166,10 +166,15 @@
       (proc number (vector-ref ordered number)))
     count))
 
-(define %pmd-lfo-types '(default triangle))
+(define %pmd-lfo-types '(default triangle evolution))
 
 (define %pmd-lfo-ranges
   '((4 . ((0 255) (0 255) (-128 127) (0 255)))))
+
+(define %pmd-lfo-evolution-ranges
+  '((1 . ((0 255)))
+    (2 . ((0 255) (-128 127)))
+    (3 . ((0 255) (-128 127) (0 127)))))
 
 (define %pmd-envelope-types '(default))
 
@@ -179,7 +184,10 @@
     (6 . ((0 31) (0 31) (0 31) (0 15) (0 15) (0 15)))))
 
 (define (sxmml-pmd-lfo-values lfo)
-  (%pmd-definition-values "LFO" lfo %pmd-lfo-types %pmd-lfo-ranges "4"))
+  (if (eq? (slot-ref lfo 'type) 'evolution)
+    (let1 value (%pmd-definition-values "LFO" lfo %pmd-lfo-types %pmd-lfo-evolution-ranges "1, 2 or 3")
+      (if (= (length value) 1) (list (car value) 0) value))
+    (%pmd-definition-values "LFO" lfo %pmd-lfo-types %pmd-lfo-ranges "4")))
 
 (define (sxmml-pmd-envelope-values envelope)
   (%pmd-definition-values "envelope" envelope %pmd-envelope-types %pmd-envelope-ranges "4, 5 or 6"))
@@ -207,27 +215,49 @@
     (format (current-error-port)
             "warning: metadata 'filename' is ignored; use the -o option of sxlc to set the output file\n")))
 
+;; PMD の MD/MDB（evolution LFO）を表す IR。共通最適化器で通常の <sxmml-mml-lfo> と
+;; 同じキーへまとめられないよう、<sxmml-mml-lfo> ではなく <sxmml-mml> を直接継承する。
+(define-class <sxmml-pmd-lfo-evolution> (<sxmml-mml>)
+  ([channel :init-keyword :channel :init-value #f]))
+
+(define (sxmml-pmd-ir-prepare ir env)
+  (let1 lfos (slot-ref env 'lfo)
+    (define (evolution? obj)
+      (and (is-a? obj <sxmml-mml-lfo>)
+           (not (is-a? obj <sxmml-mml-lfo-switch>))
+           (and-let1 def (hash-table-get lfos (slot-ref obj 'value) #f)
+             (eq? (slot-ref def 'type) 'evolution))))
+    (if (any evolution? ir)
+      (map (^[obj]
+             (if (evolution? obj)
+               (make <sxmml-pmd-lfo-evolution>
+                 :value (slot-ref obj 'value)
+                 :channel (slot-ref obj 'channel))
+               obj))
+           ir)
+      ir)))
+
 (define (sxmml-pmd-for-each-track-ir emit tracks env)
   (define level (slot-ref env 'optimize))
   (define jobs (slot-ref env 'jobs))
   (define specs (append %pmd-parts (map (cut list <> 'ppz8) (sxmml-pmd-ppz-parts tracks))))
-  (define (ir track) (if track (slot-ref track 'ir) '()))
+  (define prepared (map (^[t] (if t (sxmml-pmd-ir-prepare (slot-ref t 'ir) env) '())) tracks))
   (define (output i spec track commands)
     (emit i (car spec) (cadr spec) track commands))
-  (define (task track)
-    (and (pair? (ir track))
-         (cut sxmml-pmd-ir-optimize (ir track) level (slot-ref track 'name))))
+  (define (task track ir)
+    (and (pair? ir)
+         (cut sxmml-pmd-ir-optimize ir level (slot-ref track 'name))))
   (cond [(= level 9)
          (for-each output (iota (length tracks)) specs tracks
-                   (sxmml-run-compression-jobs (map task tracks) jobs))]
-        [(and (>= level 3) (> jobs 1) (> (count (^[t] (pair? (ir t))) tracks) 1))
+                   (sxmml-run-compression-jobs (map task tracks prepared) jobs))]
+        [(and (>= level 3) (> jobs 1) (> (count pair? prepared) 1))
          (let1 compressed (sxmml-ir-compress-repeats-batch
-                           (map (^[t] (sxmml-ir-optimize (ir t))) tracks)
+                           (map sxmml-ir-optimize prepared)
                            :jobs jobs :expand-small (> level 3))
            (for-each output (iota (length tracks)) specs tracks compressed))]
         [else
-         (for-each (^[i spec t] (output i spec t (if t (sxmml-pmd-ir-optimize (ir t) level) '())))
-                   (iota (length tracks)) specs tracks)]))
+         (for-each (^[i spec t ir] (output i spec t (if t (sxmml-pmd-ir-optimize ir level) '())))
+                   (iota (length tracks)) specs tracks prepared)]))
 
 (define (sxmml-pmd-ir-optimize ir level :optional (track-name #f))
   (define (warn count)

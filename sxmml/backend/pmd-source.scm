@@ -148,7 +148,7 @@
         [(is-a? obj <sxmml-mml-lfo-switch>)
          (%pmd-lfo-switch-output obj)
          (values loop-seen? depth)]
-        [(is-a? obj <sxmml-mml-lfo>)
+        [(or (is-a? obj <sxmml-mml-lfo>) (is-a? obj <sxmml-pmd-lfo-evolution>))
          ((slot-ref state 'lfo-output) obj)
          (values loop-seen? depth)]
         [(is-a? obj <sxmml-mml-envelope>)
@@ -441,10 +441,19 @@
       (unless (memq channel '(#f A B))
         (errorf <sxmml-value-error> "invalid LFO channel: ~a" channel))
       (let1 value (sxmml-pmd-lfo-values lfo)
-        (display "M")
-        (when (eq? channel 'B)
-          (display "B"))
-        (format #t "~d,~d,~d,~d" (car value) (cadr value) (caddr value) (cadddr value))))))
+        (if (eq? (slot-ref lfo 'type) 'evolution)
+          (begin
+            (display "MD")
+            (when (eq? channel 'B)
+              (display "B"))
+            (format #t "~d,~d" (car value) (cadr value))
+            (when (= (length value) 3)
+              (format #t ",~d" (caddr value))))
+          (begin
+            (display "M")
+            (when (eq? channel 'B)
+              (display "B"))
+            (format #t "~d,~d,~d,~d" (car value) (cadr value) (caddr value) (cadddr value))))))))
 
 (define (%pmd-lfo-switch-output obj)
   (let ([channel (slot-ref obj 'channel)]

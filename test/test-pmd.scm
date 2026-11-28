@@ -415,11 +415,11 @@
                      (pmd-text "voices-257" (append forms `((mml A ,(music 257))))
                                'pmd-source #f)))))
         ;; LFO・エンベロープは、使うときに種類・値の数・値を検査し、何が悪いかを示して
-        ;; 失敗する。種類は LFO が default・triangle、エンベロープが default (#28)
+        ;; 失敗する。種類は LFO が default・triangle・evolution、エンベロープが default (#28, #217)
         (let ([lfo (^[def channel] `(,def (mml G ,#"M{L1 ~channel}c8")))]
               [envelope (^[def] `(,def (mml G "E{E1}c8")))])
           (dolist [case `(("lfo-type" ,(lfo '(define-lfo L1 sw (list 1 2 3 4)) "A")
-                           "unsupported LFO type: sw in L1 (supported: default, triangle)")
+                           "unsupported LFO type: sw in L1 (supported: default, triangle, evolution)")
                           ("envelope-type" ,(envelope '(define-envelope E1 sw (list 1 2 3 4)))
                            "unsupported envelope type: sw in E1 (supported: default)")
                           ("unused-type" ((define-lfo L2 sw (list 1 2 3 4)) (mml G "c8"))
@@ -475,7 +475,106 @@
                    (pmd-g-result (car case) (cadr case))))
           (test* "a triangle LFO is output the same as the default"
                  (pmd-g-result "lfo-default" (lfo '(define-lfo L1 (list 1 2 3 4)) "A"))
-                 (pmd-g-result "lfo-triangle" (lfo '(define-lfo L1 triangle (list 1 2 3 4)) "A"))))
+                 (pmd-g-result "lfo-triangle" (lfo '(define-lfo L1 triangle (list 1 2 3 4)) "A")))
+          ;; evolution は PMD の MD/MDB として出力する (#217)
+          (dolist [case `(("evolution-1-a" ((define-lfo EV1 evolution (list 3)) (mml G "M{EV1 A}c8"))
+                           "G l%12MD3,0o4c")
+                          ("evolution-1-b" ((define-lfo EV1 evolution (list 3)) (mml G "M{EV1 B}c8"))
+                           "G l%12MDB3,0o4c")
+                          ("evolution-1-default-ch" ((define-lfo 1 evolution (list 0)) (mml G "M1c8"))
+                           "G l%12MD0,0o4c")
+                          ("evolution-2-a" ((define-lfo EV1 evolution (list 3 6)) (mml G "M{EV1 A}c8"))
+                           "G l%12MD3,6o4c")
+                          ("evolution-2-b-neg" ((define-lfo EV1 evolution (list 3 -6)) (mml G "M{EV1 B}c8"))
+                           "G l%12MDB3,-6o4c")
+                          ("evolution-3-a" ((define-lfo EV1 evolution (list 1 2 4)) (mml G "M{EV1 A}c8"))
+                           "G l%12MD1,2,4o4c")
+                          ("evolution-3-b" ((define-lfo EV1 evolution (list 1 2 4)) (mml G "M{EV1 B}c8"))
+                           "G l%12MDB1,2,4o4c")
+                          ("evolution-3-zero-time" ((define-lfo EV1 evolution (list 1 2 0)) (mml G "M{EV1 A}c8"))
+                           "G l%12MD1,2,0o4c")
+                          ("evolution-min" ((define-lfo EV1 evolution (list 0 -128 0)) (mml G "M{EV1 A}c8"))
+                           "G l%12MD0,-128,0o4c")
+                          ("evolution-max" ((define-lfo EV1 evolution (list 255 127 127)) (mml G "M{EV1 A}c8"))
+                           "G l%12MD255,127,127o4c")
+                          ("evolution-zero-speed-3" ((define-lfo EV1 evolution (list 0 0 1)) (mml G "M{EV1 A}c8"))
+                           "G l%12MD0,0,1o4c")
+                          ("evolution-unused" ((define-lfo EV1 evolution (list 1 2 3 4)) (mml G "c8"))
+                           "G l%12o4c")
+                          ("evolution-count-0" ((define-lfo EV1 evolution '()) (mml G "M{EV1 A}c8"))
+                           "invalid LFO values: EV1 has 0 values (expected 1, 2 or 3)")
+                          ("evolution-count-4" ((define-lfo EV1 evolution (list 1 2 3 4)) (mml G "M{EV1 A}c8"))
+                           "invalid LFO values: EV1 has 4 values (expected 1, 2 or 3)")
+                          ("evolution-inexact" ((define-lfo EV1 evolution (list 1.5 2)) (mml G "M{EV1 A}c8"))
+                           "invalid LFO EV1 value 1: 1.5 (expected an integer from 0 to 255)")
+                          ("evolution-v1-range" ((define-lfo EV1 evolution (list 256 0)) (mml G "M{EV1 A}c8"))
+                           "invalid LFO EV1 value 1: 256 (expected an integer from 0 to 255)")
+                          ("evolution-v2-low" ((define-lfo EV1 evolution (list 1 -129)) (mml G "M{EV1 A}c8"))
+                           "invalid LFO EV1 value 2: -129 (expected an integer from -128 to 127)")
+                          ("evolution-v2-high" ((define-lfo EV1 evolution (list 1 128)) (mml G "M{EV1 A}c8"))
+                           "invalid LFO EV1 value 2: 128 (expected an integer from -128 to 127)")
+                          ("evolution-v3-low" ((define-lfo EV1 evolution (list 1 2 -1)) (mml G "M{EV1 A}c8"))
+                           "invalid LFO EV1 value 3: -1 (expected an integer from 0 to 127)")
+                          ("evolution-v3-high" ((define-lfo EV1 evolution (list 1 2 128)) (mml G "M{EV1 A}c8"))
+                           "invalid LFO EV1 value 3: 128 (expected an integer from 0 to 127)")
+                          ("evolution-channel" ((define-lfo EV1 evolution (list 1 2)) (mml G "M{EV1 C}c8"))
+                           "invalid LFO channel: C")
+                          ("evolution-undefined" ((mml G "M{EV9 A}c8"))
+                           "undefined LFO: EV9"))]
+            (test* #"PMD checks evolution LFO definitions: ~(car case)"
+                   (caddr case)
+                   (pmd-g-result (car case) (cadr case))))
+          (let ([g-line (^[text] (find #/^G / (string-split text "\r\n")))])
+            (test* "pmd3-source outputs 3-value and B-channel evolution as-is"
+                   "G l8MD1,2,4MDB3,6MD0,0,1o4c"
+                   (g-line (pmd-text "pmd3-evolution"
+                                     '((define-lfo EV3 evolution (list 1 2 4))
+                                       (define-lfo EV2 evolution (list 3 6))
+                                       (define-lfo EV0 evolution (list 0 0 1))
+                                       (mml G "M{EV3 A}M{EV2 B}M{EV0 A}c8"))
+                                     'pmd3-source #t)))
+            (dolist [case `((#t "G l%12M1,2,3,4*1MD1,2,4MD3,6o4cMD3,6M1,2,3,4*0d")
+                            (:full "G l%12M1,2,3,4*1MD1,2,4MD3,6o4cMD3,6*0d"))]
+              (test* #"optimization preserves M and evolution LFO (~(car case))"
+                     (cadr case)
+                     (g-line (pmd-text #"opt-evolution-~(car case)"
+                                       '((define-lfo L1 (list 1 2 3 4))
+                                         (define-lfo EV3 evolution (list 1 2 4))
+                                         (define-lfo EV2 evolution (list 3 6))
+                                         (mml G "M{L1 A}MtM{EV3 A}M{EV2 A}c8M{EV2 A}M{L1 A}Mfd8"))
+                                       'pmd-source (car case)))))
+            ;; L1 の再指定は状態追跡（:full）で省かれるが、evolution の再指定は残る
+            (test* "state optimization keeps repeated evolution while dropping redundant M"
+                   "G l%12M1,2,3,4MD3,6o4cMD3,6d"
+                   (g-line (pmd-text "opt-evolution-state"
+                                     '((define-lfo L1 (list 1 2 3 4))
+                                       (define-lfo EV2 evolution (list 3 6))
+                                       (mml G "M{L1 A}M{EV2 A}c8M{EV2 A}M{L1 A}d8"))
+                                     'pmd-source :full)))
+            (test* "repeat compression folds repeated evolution commands"
+                   "G l%12[MD3,6o4c]4"
+                   (g-line (pmd-text "opt-evolution-repeat"
+                                     '((define-lfo EV2 evolution (list 3 6))
+                                       (mml G "o4M{EV2 A}c8M{EV2 A}c8M{EV2 A}c8M{EV2 A}c8"))
+                                     'pmd-source :repeat))))
+          (let* ([env (make <sxmml-output-environment>)]
+                 [_ (hash-table-put! (slot-ref env 'lfo) 'L1 (make <sxmml-lfo> :id 'L1 :type 'default :value '(1 2 3 4)))]
+                 [_ (hash-table-put! (slot-ref env 'lfo) 'EV1 (make <sxmml-lfo> :id 'EV1 :type 'evolution :value '(3 6)))]
+                 [ir (list (make <sxmml-mml-lfo> :value 'L1 :channel 'A)
+                           (make <sxmml-mml-lfo> :value 'EV1 :channel 'B)
+                           (make <sxmml-mml-lfo> :value 'MISSING :channel 'A)
+                           (make <sxmml-mml-lfo-switch> :value #t :channel 'A))]
+                 [prepared (sxmml-pmd-ir-prepare ir env)])
+            (test* "sxmml-pmd-ir-prepare converts only defined evolution LFOs"
+                   (list <sxmml-mml-lfo> <sxmml-pmd-lfo-evolution> <sxmml-mml-lfo> <sxmml-mml-lfo-switch>
+                         'EV1 'B #f)
+                   (list (class-of (list-ref prepared 0))
+                         (class-of (list-ref prepared 1))
+                         (class-of (list-ref prepared 2))
+                         (class-of (list-ref prepared 3))
+                         (slot-ref (list-ref prepared 1) 'value)
+                         (slot-ref (list-ref prepared 1) 'channel)
+                         (is-a? (list-ref prepared 1) <sxmml-mml-lfo>)))))
         ;; PMD が使うメタデータは、title などが文字列、memo が文字列か文字列のリストで、
         ;; それ以外は書くときにキーと値を示して失敗する (#13)
         (dolist [case `(("title-number" pmd-source ((define-metadata title 1))
