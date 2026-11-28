@@ -507,6 +507,8 @@
                            "invalid LFO values: EV1 has 4 values (expected 1, 2 or 3)")
                           ("evolution-inexact" ((define-lfo EV1 evolution (list 1.5 2)) (mml G "M{EV1 A}c8"))
                            "invalid LFO EV1 value 1: 1.5 (expected an integer from 0 to 255)")
+                          ("evolution-v1-low" ((define-lfo EV1 evolution (list -1 0)) (mml G "M{EV1 A}c8"))
+                           "invalid LFO EV1 value 1: -1 (expected an integer from 0 to 255)")
                           ("evolution-v1-range" ((define-lfo EV1 evolution (list 256 0)) (mml G "M{EV1 A}c8"))
                            "invalid LFO EV1 value 1: 256 (expected an integer from 0 to 255)")
                           ("evolution-v2-low" ((define-lfo EV1 evolution (list 1 -129)) (mml G "M{EV1 A}c8"))

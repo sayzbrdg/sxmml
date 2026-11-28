@@ -460,6 +460,10 @@
                      (define-lfo EVB evolution (list 2 -1 0))
                      (mml A "M1M{EV0 A}M{EV0 B}M{EVN A}M{EVB B}o4c8")) A
                     "d6 03 00 d6 00 00 bd 00 00 d6 02 80 b7 00 bd 02 ff b7 80 30 0c 80")
+                   ("LFO evolution（上限境界値）" "lfo-evolution-max"
+                    ((define-lfo EVM evolution (list 255 127 127))
+                     (mml A "M{EVM A}M{EVM B}o4c8")) A
+                    "d6 ff 7f b7 7f bd ff 7f b7 ff 30 0c 80")
                    ("4 値と 6 値のエンベロープ" "envelope"
                     ((define-envelope E4 (list 1 -2 3 4)) (define-envelope E6 (list 1 2 3 4 5 6))
                      (mml G "E{E4}o4c8E{E6}c8")) G
@@ -658,8 +662,8 @@
                (test-error <sxmml-value-error> "invalid metadata value: memo is (\"a\" 1) (expected a string or a list of strings)")
                (make-binary-data "meta-memo-element" 'pmd-binary
                                 '((define-metadata memo (list "a" 1)) (mml A "c8"))))
-        ;; LFO・エンベロープは -m pmd と同じ規則で検査する。PMD3 だけの検査は、チャンネル B と
-        ;; 5・6 値のエンベロープである (#28)
+        ;; LFO・エンベロープは -m pmd と同じ規則で検査する。バイナリでは値 1 が 0 の 3 値 evolution を拒否し、
+        ;; PMD3 ではさらにチャンネル B、3 値の evolution、5・6 値のエンベロープを拒否する (#28, #217)
         (let ([caught (^[name mode forms]
                         (guard (e [else (condition-message e)])
                           (make-binary-data name mode forms)
