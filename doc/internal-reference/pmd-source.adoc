@@ -150,7 +150,7 @@ Timer-B 絶対値を `TN`（0～255）で出力します。
 パンを `pN`（0～3）で出力します。
 
 [[ref-pmd-source-internal-pmd-lfo-output]]`(%pmd-lfo-output env obj)`::
-`env` の `lfo` 表から定義を引き、`sxmml-pmd-lfo-values` で検査して `Md1,d2,d3,d4`（チャンネル `B` は `MB...`）を出力します。未定義は `<sxmml-reference-error>`、チャンネルが `#f`・`A`・`B` 以外は `<sxmml-value-error>` です。
+`env` の `lfo` 表から定義を引き、`sxmml-pmd-lfo-values` で検査して出力します。`default`・`triangle` は `Md1,d2,d3,d4`（チャンネル `B` は `MB...`）、`evolution` は `MDd1,d2` または `MDd1,d2,d3`（チャンネル `B` は `MDB...`、1 値定義も 2 値で出力、値 3 の `0` も省略しない）です。未定義は `<sxmml-reference-error>`、チャンネルが `#f`・`A`・`B` 以外は `<sxmml-value-error>` です。`%pmd-ir-output!` は `<sxmml-mml-lfo>` と `<sxmml-pmd-lfo-evolution>` の双方をこの手続きへ渡します。
 
 [[ref-pmd-source-internal-pmd-lfo-switch-output]]`(%pmd-lfo-switch-output obj)`::
 LFO スイッチを `*1`／`*0`（チャンネル `B` は `*B1`／`*B0`）で出力します。チャンネルが `#f`・`A`・`B` 以外は `<sxmml-value-error>` です。

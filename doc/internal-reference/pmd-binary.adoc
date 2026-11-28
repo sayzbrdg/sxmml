@@ -47,7 +47,7 @@
 [[ref-pmd-binary-sxmml-pmd3-binary-output]]
 === `(sxmml-pmd3-binary-output env)`
 
-出力環境 `env` から PMD3 向け（`mode` を `'fc88`）のバイナリを生成し、`<sxmml-output-result>` を返します。拡張設定（`detune`・`envelopespeed`・`lfospeed`）の明示、PPZ8 トラックの使用、LFO チャンネル `B`、5 値・6 値エンベロープは `<sxmml-value-error>` になります。
+出力環境 `env` から PMD3 向け（`mode` を `'fc88`）のバイナリを生成し、`<sxmml-output-result>` を返します。拡張設定（`detune`・`envelopespeed`・`lfospeed`）の明示、PPZ8 トラックの使用、LFO チャンネル `B`、3 値の `evolution` LFO、5 値・6 値エンベロープは `<sxmml-value-error>` になります。
 
 == 内部手続きの群
 
@@ -68,6 +68,8 @@
 相対音量は `%pmd-volume-change-value` で符号付きの値と範囲（FM −127～127、SSG −15～15、PCM −255～255）を検査してから符号化します。BPM 由来の Timer-B は `env` の分解能で換算した結果を 0～250 で検査し、超過時は計算結果と元の BPM を示します。
 +
 255 tick を超える音符はタイ（`0xfb`）で、休符は休符の連続で分割します。ポルタメント（`0xda`）は音長を 1 バイトで持つため分割せず、1～255 tick の範囲外は `invalid portamento ticks: 値 (expected an integer from 1 to 255)` の `<sxmml-value-error>` になります。
++
+`%pmd-lfo-set!` は `<sxmml-mml-lfo>` と `<sxmml-pmd-lfo-evolution>` を受け付けます。`evolution` はチャンネル `#f`・`A` で `0xd6`、チャンネル `B` で `0xbd` に続けて値 1 と値 2（符号付き 1 バイト）を書き（1 値定義は値 2 を `0`）、3 値のときはさらに `0xb7` と値 3（チャンネル `B` は bit7 を立てた `0x80 | 値 3`）を書きます。値 1 が `0` の 3 値および PMD3 での 3 値は `<sxmml-value-error>` になります。
 
 リズム::
 L トラックの IR を K トラック（`%pmd-rhythm-deploy-track-u8vector-set!`）と R トラック（`%pmd-rhythm-definition-track-u8vector-set!`）へ出力します。R トラックでは局所手続きが 1 命令ずつ書き込み、`L` によるパターン区切りと重複 `L` 検査、末尾の終端 `0xff` と PMD4 向け 12 バイト領域を確定します。
@@ -101,7 +103,7 @@ PMD4 では続けて CP932 の NUL 終端文字列群と位置表を書き込み
 . 音色表は、FM パート A～F で参照された音色の初出順に、音色番号 1 バイトと音色データ 25 バイトを並べます。PMD4 向けは末尾に `0x00 0xff` を置き、PMD3 向けは終端を置きません。
 . PMD4 向けでは、最後にメタ情報を置きます。`ppzfile`・`ppsfile`・`pcmfile`・`title`・`composer`・`arranger`・`memo`（0 件以上）の順に CP932 の NUL 終端文字列を並べ、各文字列への開始位置表を `0x00 0x00` で終えます。`memo` 以外の未定義項目は空文字列（`0x00` のみ）を書き、`memo` は要素の数だけ書きます（未定義または空リストのときは書き込みも位置表エントリも置きません）。
 
-PMD3 向け（`fc88`）では、メタ情報と R トラック末尾の 12 バイトを置かず、LFO のチャンネル `B`（`invalid LFO channel`）と 5 値・6 値のエンベロープ（`unsupported envelope values in PMD3`）を `<sxmml-value-error>` にします。
+PMD3 向け（`fc88`）では、メタ情報と R トラック末尾の 12 バイトを置かず、LFO のチャンネル `B`（`invalid LFO channel`）、3 値の `evolution` LFO（`unsupported evolution LFO values in PMD3`）、5 値・6 値のエンベロープ（`unsupported envelope values in PMD3`）を `<sxmml-value-error>` にします。
 
 == PMD4 と PMD3 の違い（MC.EXE の生成物から）
 
