@@ -198,9 +198,9 @@ PMD が使うメタデータ（`title`・`composer`・`arranger`・`pcmfile`・`
 
 曲単位の設定 `detune`・`envelopespeed`・`lfospeed` はシンボル `normal`・`extend` を受け付け、明示した項目だけを `#Detune`・`#EnvelopeSpeed`・`#LFOSpeed` として出力する。PMD3 の MML（`-m pmd3`）は値をコメントとして書くが、同じく検査する。
 
-LFO・エンベロープの定義は、`M`・`E` で使うときに検査する。種類は LFO が `default`・`triangle`（同じ意味）、エンベロープが `default` に限る。値の数は LFO が 4、エンベロープが 4・5・6 で、各値は範囲内の正確な整数に限る。
+LFO・エンベロープの定義は、`M`・`E` で使うときに検査する。種類は LFO が `default`・`triangle`（同じ意味）・`evolution`（PMD の `MD`・`MDB`）、エンベロープが `default` に限る。値の数は `default`・`triangle` の LFO が 4、`evolution` の LFO が 1・2・3（1 値は 2 値目を 0 とみなして常に 2 値で出力）、エンベロープが 4・5・6 で、各値は範囲内の正確な整数に限る。
 
-誤りは `unsupported LFO type: sw in L1 (supported: default, triangle)`、`invalid envelope values: E1 has 3 values (expected 4, 5 or 6)`、`invalid LFO L1 value 2: 300 (expected an integer from 0 to 255)` のように定義と誤りを表示して変換の失敗とする。種類・要素数・値の範囲の検査は、使わない定義と、最適化で取り除かれた命令の定義には行わない（登録時の外形検査とは区別する）。
+誤りは `unsupported LFO type: sw in L1 (supported: default, triangle, evolution)`、`invalid envelope values: E1 has 3 values (expected 4, 5 or 6)`、`invalid LFO L1 value 2: 300 (expected an integer from 0 to 255)` のように定義と誤りを表示して変換の失敗とする。種類・要素数・値の範囲の検査は、使わない定義と、最適化で取り除かれた命令の定義には行わない（登録時の外形検査とは区別する）。
 
 同じ条件で変換した生成物はバイト単位で一致する（要求仕様の Q-03）。PMD3 形式は末尾に `0x1A` を付ける。日本語のタイトルも CP932 で出力する。
 
@@ -284,7 +284,7 @@ pmd-binary の相対音量は `invalid FM relative volume: -128 (expected an int
 
 曲単位の設定が `extend` のとき、デチューンは SSG、エンベロープ速度は SSG・PCM・PPZ8、LFO 速度は FM・SSG・PCM・PPZ8 に初期命令を書く。通常指定と省略時は初期命令を加えない。`pmd3-binary` でこれらのキーを明示すると、通常指定も含めて変換の失敗となる。PMD4 向けの生成物は、`title` などのメタデータの領域を含む。メタデータの値の検査は、PMD 向けの生成と同じである。
 
-`pmd3-binary` の生成物はこの領域を含まず、LFO のチャンネル `B`（`invalid LFO channel: B`）と、5 値・6 値のエンベロープ（`unsupported envelope values in PMD3: E6 has 6 values (expected 4)`）は変換の失敗となる。LFO・エンベロープの種類と値の検査は、PMD 向けの生成と同じである。
+`pmd3-binary` の生成物はこの領域を含まず、LFO のチャンネル `B`（`invalid LFO channel: B`）、3 値の `evolution` LFO（`unsupported evolution LFO values in PMD3: EV3 has 3 values (expected 1 or 2)`）、5 値・6 値のエンベロープ（`unsupported envelope values in PMD3: E6 has 6 values (expected 4)`）は変換の失敗となる。また、`pmd-binary`・`pmd3-binary` のいずれでも値 1 が 0 の 3 値 `evolution` LFO は変換の失敗となる。LFO・エンベロープの種類と値の検査は、PMD 向けの生成と同じである。
 
 PMD のどのモードでも、リズムの楽器別の音量（`v楽器 数値`）は 0 から 31 までで、範囲外は `invalid rhythm instrument volume: 32 (expected an integer from 0 to 31)` のように値と範囲を表示して変換の失敗とする。
 

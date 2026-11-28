@@ -5,7 +5,7 @@ PMD 向けのソース生成（xref:pmd-source.adoc[`sxmml.backend.pmd-source`]�
 
 現在の登録環境を変更するのは `sxmml-pmd-setup!` だけです。その他の手続きは明示された出力環境や定義表を受け取り、入力を変更しません（FM 音色の採番状態 `<sxmml-pmd-fm-voices>` は出力 1 回ごとに生成して更新します）。
 
-実装は link:../../sxmml/backend/pmd.scm[pmd.scm] にあります。このモジュールは 14 手続きと 1 クラスを定義し、13 手続きと 1 クラスを公開します。呼び出せない規則表（`%pmd-parts`・`%pmd-lfo-types`・`%pmd-lfo-ranges`・`%pmd-envelope-types`・`%pmd-envelope-ranges`）は索引の掲載対象外です。
+実装は link:../../sxmml/backend/pmd.scm[pmd.scm] にあります。このモジュールは 15 手続きと 2 クラスを定義し、14 手続きと 2 クラスを公開します。呼び出せない規則表（`%pmd-parts`・`%pmd-lfo-types`・`%pmd-lfo-ranges`・`%pmd-lfo-evolution-ranges`・`%pmd-envelope-types`・`%pmd-envelope-ranges`）は索引の掲載対象外です。
 
 == 初期設定とトラック選択
 
@@ -39,6 +39,19 @@ PMD 向けのソース生成（xref:pmd-source.adoc[`sxmml.backend.pmd-source`]�
 
 == 最適化の選択と実行
 
+[[ref-pmd-class-sxmml-pmd-lfo-evolution]]
+=== `<sxmml-pmd-lfo-evolution>`
+
+PMD の `MD`・`MDB` コマンド（種類が `evolution` の LFO 参照）を表す IR クラスです。共通最適化器で通常の `<sxmml-mml-lfo>` と同じキーへまとめられないよう、`<sxmml-mml-lfo>` ではなく `<sxmml-mml>` を直接継承します。
+
+* `value`（`:value`、`<sxmml-mml>` から継承）: 参照する LFO 定義の ID（シンボル）。
+* `channel`（`:channel`、初期値 `#f`）: LFO チャンネル（`#f`・`A`・`B` 等）。
+
+[[ref-pmd-sxmml-pmd-ir-prepare]]
+=== `(sxmml-pmd-ir-prepare ir env)`
+
+IR 列 `ir` のうち、`<sxmml-mml-lfo>`（`<sxmml-mml-lfo-switch>` を除く）で `env` の `lfo` 表に種類 `evolution` として登録されている要素を `<sxmml-pmd-lfo-evolution>` へ置き換えた列を返します。未定義 ID やその他の種類の LFO はそのまま残します。対象がなければ `ir` をそのまま返し、入力を変更しません。
+
 [[ref-pmd-sxmml-pmd-ir-optimize]]
 === `(sxmml-pmd-ir-optimize ir level :optional (track-name #f))`
 
@@ -54,7 +67,7 @@ PMD 向けのソース生成（xref:pmd-source.adoc[`sxmml.backend.pmd-source`]�
 [[ref-pmd-sxmml-pmd-for-each-track-ir]]
 === `(sxmml-pmd-for-each-track-ir emit tracks env)`
 
-選択済みのトラック列 `tracks` と出力環境 `env` を使い、固定パート（`A`～`J`・`L`）、PPZ8 パート（`a`～`h`）の順に、各トラックの最適化済み IR 列を `(emit index part source track ir)` へ渡します。トラックが `#f` の位置には空リストを渡します。
+選択済みのトラック列 `tracks` と出力環境 `env` を使い、各トラックの IR へ `sxmml-pmd-ir-prepare` を適用してから、固定パート（`A`～`J`・`L`）、PPZ8 パート（`a`～`h`）の順に、各トラックの最適化済み IR 列を `(emit index part source track ir)` へ渡します。トラックが `#f` の位置には空リストを渡します。
 
 `env` の `optimize` が `9` の場合は、非空トラックを `sxmml-run-compression-jobs` で `jobs` の上限に従って並列実行し、各トラック内で 2 候補を処理します。`optimize` が `3` 以上（`9` を除く）かつ `jobs > 1` かつ非空トラックが 2 本以上の場合は、各トラックへ `sxmml-ir-optimize` を適用した後に `sxmml-ir-compress-repeats-batch` で並列に反復圧縮します。それ以外の場合は逐次で `sxmml-pmd-ir-optimize` を呼びます。
 
@@ -86,7 +99,10 @@ PMD 向けのソース生成（xref:pmd-source.adoc[`sxmml.backend.pmd-source`]�
 [[ref-pmd-sxmml-pmd-lfo-values]]
 === `(sxmml-pmd-lfo-values lfo)`
 
-`<sxmml-lfo>` オブジェクト `lfo` の種類と値を検査し、値のリストを返します。種類は `default`・`triangle`、値の数は 4 個で、範囲は順に 0～255、0～255、−128～127、0～255 の正確な整数です。
+`<sxmml-lfo>` オブジェクト `lfo` の種類と値を検査し、値のリストを返します。種類は `default`・`triangle`・`evolution` です。
+
+* `default`・`triangle`: 値の数は 4 個で、範囲は順に 0～255、0～255、−128～127、0～255 の正確な整数です。
+* `evolution`: 値の数は 1・2・3 個で、範囲は順に 0～255、−128～127、0～127 の正確な整数です。1 値の場合は入力を変更せず、2 値目に `0` を補った 2 要素のリストを返します。
 
 [[ref-pmd-sxmml-pmd-envelope-values]]
 === `(sxmml-pmd-envelope-values envelope)`
